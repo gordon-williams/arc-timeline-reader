@@ -1656,8 +1656,252 @@ function moveMapSmart(latlng, zoom) {
             
             return { dayRecord, summary, locationCount, visitCount };
         };
-        
+
+        // Inspect raw data for a specific day - helps diagnose GPS data issues
+        window.inspectDay = async function(dayKey) {
+            if (!db) { console.log('DB not initialized'); return; }
+            if (!dayKey) {
+                console.log('Usage: inspectDay("2016-01-05")');
+                return;
+            }
+
+            // Get day record from DB
+            const dayRecord = await new Promise((resolve, reject) => {
+                const tx = db.transaction(['days'], 'readonly');
+                const req = tx.objectStore('days').get(dayKey);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+
+            if (!dayRecord) {
+                console.log(`❌ No data found for ${dayKey}`);
+                return null;
+            }
+
+            console.log(`\n========== RAW DATA FOR ${dayKey} ==========`);
+            console.log('Source file:', dayRecord.sourceFile || 'unknown');
+            console.log('Last updated:', dayRecord.lastUpdated ? new Date(dayRecord.lastUpdated).toISOString() : 'unknown');
+
+            const items = dayRecord.data?.timelineItems || [];
+            console.log(`\nTotal timeline items: ${items.length}`);
+
+            // Analyze each item
+            console.log('\n--- TIMELINE ITEMS ---');
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                const type = item.isVisit ? 'VISIT' : 'ACTIVITY';
+                const actType = item.activityType || 'unknown';
+                const name = item.place?.name || item.customTitle || item.streetAddress || '(unnamed)';
+                const samplesCount = item.samples?.length || 0;
+                const hasCenter = item.center ? 'yes' : 'no';
+
+                console.log(`\n[${i}] ${type}: ${actType}`);
+                console.log(`    Name: ${name}`);
+                console.log(`    Start: ${item.startDate}`);
+                console.log(`    End: ${item.endDate}`);
+                console.log(`    Samples: ${samplesCount}`);
+                console.log(`    Has center: ${hasCenter}`);
+                if (item.center) {
+                    console.log(`    Center: ${item.center.latitude?.toFixed(6)}, ${item.center.longitude?.toFixed(6)}`);
+                }
+                console.log(`    itemId: ${item.itemId}`);
+
+                // Show sample details for activities
+                if (!item.isVisit) {
+                    if (samplesCount > 0) {
+                        const firstSample = item.samples[0];
+                        const lastSample = item.samples[samplesCount - 1];
+                        console.log(`    First sample keys: ${Object.keys(firstSample).join(', ')}`);
+
+                        // Check sample structure
+                        if (firstSample.location) {
+                            console.log(`    Sample format: location.latitude/longitude`);
+                            console.log(`    First: ${firstSample.location.latitude?.toFixed(6)}, ${firstSample.location.longitude?.toFixed(6)}`);
+                            console.log(`    Last: ${lastSample.location.latitude?.toFixed(6)}, ${lastSample.location.longitude?.toFixed(6)}`);
+                        } else if (firstSample.latitude) {
+                            console.log(`    Sample format: direct latitude/longitude`);
+                            console.log(`    First: ${firstSample.latitude?.toFixed(6)}, ${firstSample.longitude?.toFixed(6)}`);
+                            console.log(`    Last: ${lastSample.latitude?.toFixed(6)}, ${lastSample.longitude?.toFixed(6)}`);
+                        } else {
+                            console.log(`    ⚠️ Unknown sample format!`);
+                            console.log(`    Raw first sample:`, JSON.stringify(firstSample, null, 2));
+                        }
+                    } else {
+                        console.log(`    ⚠️ NO GPS SAMPLES - this will show [NO GPS] tag`);
+                    }
+                }
+            }
+
+            // Summary
+            const visits = items.filter(i => i.isVisit);
+            const activities = items.filter(i => !i.isVisit);
+            const activitiesWithSamples = activities.filter(i => i.samples?.length > 0);
+            const activitiesWithoutSamples = activities.filter(i => !i.samples || i.samples.length === 0);
+
+            console.log('\n--- SUMMARY ---');
+            console.log(`Visits: ${visits.length}`);
+            console.log(`Activities: ${activities.length}`);
+            console.log(`  - With GPS samples: ${activitiesWithSamples.length}`);
+            console.log(`  - Without GPS samples: ${activitiesWithoutSamples.length} ⚠️`);
+
+            if (activitiesWithoutSamples.length > 0) {
+                console.log('\n--- ACTIVITIES WITHOUT GPS ---');
+                activitiesWithoutSamples.forEach((item, i) => {
+                    console.log(`  ${i + 1}. ${item.activityType || 'unknown'} at ${item.startDate}`);
+                });
+            }
+
+            // Return the raw data for further inspection
+            console.log('\n💡 Full data returned - access with: data = await inspectDay("' + dayKey + '")');
+            return dayRecord;
+        };
+
         console.log('💡 Run diagnoseAnalysisData() in console to check data structure');
+        console.log('💡 Run inspectDay("2016-01-05") to inspect raw data for a specific day');
+        console.log('💡 Run inspectBackupDay("2016-01-05") after selecting backup folder to inspect raw backup files');
+
+        // Inspect raw backup files for a specific day (must call selectBackupFolder first)
+        // This reads directly from the iCloud backup without importing
+        window.inspectBackupDay = async function(dayKey) {
+            if (!window._lastBackupDirHandle) {
+                console.log('❌ No backup folder selected. Run selectBackupFolder() first, then try again.');
+                return;
+            }
+            if (!dayKey) {
+                console.log('Usage: inspectBackupDay("2016-01-05")');
+                return;
+            }
+
+            const dirHandle = window._lastBackupDirHandle;
+            console.log(`\n========== INSPECTING BACKUP FOR ${dayKey} ==========`);
+
+            try {
+                // Get TimelineItem directory
+                const timelineDir = await dirHandle.getDirectoryHandle('TimelineItem');
+                console.log('✅ Found TimelineItem directory');
+
+                // Get LocomotionSample directory
+                let sampleDir = null;
+                try {
+                    sampleDir = await dirHandle.getDirectoryHandle('LocomotionSample');
+                    console.log('✅ Found LocomotionSample directory');
+                } catch {
+                    console.log('⚠️ No LocomotionSample directory found');
+                }
+
+                // Find timeline items for this day
+                console.log(`\nSearching for timeline items on ${dayKey}...`);
+                const dayItems = [];
+                let scanned = 0;
+
+                for await (const fileHandle of readJsonFilesFromHexDirs(timelineDir)) {
+                    const item = await readFileAsJson(fileHandle);
+                    scanned++;
+                    if (!item || !item.startDate) continue;
+
+                    const itemDayKey = getLocalDayKey(item.startDate);
+                    if (itemDayKey === dayKey) {
+                        dayItems.push(item);
+                    }
+
+                    if (scanned % 5000 === 0) {
+                        console.log(`  Scanned ${scanned} items...`);
+                    }
+                }
+
+                console.log(`\nFound ${dayItems.length} timeline items for ${dayKey}`);
+
+                // Check each item
+                for (const item of dayItems) {
+                    const type = item.isVisit ? 'VISIT' : 'ACTIVITY';
+                    console.log(`\n[${type}] ${item.activityType || 'stationary'}`);
+                    console.log(`  itemId: ${item.itemId}`);
+                    console.log(`  Start: ${item.startDate}`);
+                    console.log(`  End: ${item.endDate}`);
+
+                    // Check if item has embedded samples
+                    if (item.samples && item.samples.length > 0) {
+                        console.log(`  ✅ Has ${item.samples.length} EMBEDDED samples in TimelineItem`);
+                        console.log(`  First sample:`, JSON.stringify(item.samples[0], null, 2));
+                    } else {
+                        console.log(`  ❌ No embedded samples in TimelineItem`);
+                    }
+
+                    // Check all properties
+                    console.log(`  All properties: ${Object.keys(item).join(', ')}`);
+                }
+
+                // Check LocomotionSample files for this week
+                if (sampleDir && dayItems.length > 0) {
+                    const weekKey = getISOWeek(dayKey);
+                    console.log(`\nChecking LocomotionSample for week ${weekKey}...`);
+
+                    const itemIds = new Set(dayItems.map(i => i.itemId));
+                    let foundSamples = 0;
+                    let samplesForDay = new Map();
+
+                    for await (const entry of sampleDir.values()) {
+                        if (entry.kind !== 'file') continue;
+
+                        // Check for both .json.gz and .json files
+                        const isGz = entry.name.endsWith('.json.gz');
+                        const isJson = entry.name.endsWith('.json') && !isGz;
+
+                        if (!isGz && !isJson) continue;
+
+                        // Check if this is the right week
+                        const weekMatch = entry.name.match(/^(\d{4}-W\d{2})/);
+                        if (!weekMatch) continue;
+
+                        console.log(`  Found sample file: ${entry.name}`);
+
+                        let samples;
+                        if (isGz) {
+                            samples = await readGzippedFileAsJson(entry);
+                        } else {
+                            const file = await entry.getFile();
+                            const text = await file.text();
+                            samples = JSON.parse(text);
+                        }
+
+                        if (Array.isArray(samples)) {
+                            console.log(`    Contains ${samples.length} total samples`);
+
+                            for (const sample of samples) {
+                                if (sample.timelineItemId && itemIds.has(sample.timelineItemId)) {
+                                    foundSamples++;
+                                    if (!samplesForDay.has(sample.timelineItemId)) {
+                                        samplesForDay.set(sample.timelineItemId, []);
+                                    }
+                                    samplesForDay.get(sample.timelineItemId).push(sample);
+                                }
+                            }
+                        }
+                    }
+
+                    console.log(`\nFound ${foundSamples} samples for ${dayKey} items`);
+                    for (const [itemId, samples] of samplesForDay) {
+                        const item = dayItems.find(i => i.itemId === itemId);
+                        console.log(`  ${item?.activityType || 'unknown'}: ${samples.length} samples`);
+                    }
+
+                    // List items that have NO samples anywhere
+                    const itemsWithoutSamples = dayItems.filter(i => !i.isVisit && !samplesForDay.has(i.itemId));
+                    if (itemsWithoutSamples.length > 0) {
+                        console.log(`\n⚠️ Activities with NO samples in backup:`);
+                        for (const item of itemsWithoutSamples) {
+                            console.log(`  - ${item.activityType} at ${item.startDate} (${item.itemId})`);
+                        }
+                    }
+                }
+
+                return dayItems;
+
+            } catch (err) {
+                console.error('Error inspecting backup:', err);
+                return null;
+            }
+        };
         
         // Export database to JSON (for backup/portability)
         // Uses cursor streaming to avoid loading 300MB+ at once
@@ -2615,7 +2859,7 @@ function moveMapSmart(latlng, zoom) {
         // Handle year change with smart month preservation
         async function switchYear() {
             const selectedYear = yearSelector.value;
-            
+
             // Get months available in this year
             const monthsInYear = monthKeys
                 .filter(mk => mk.startsWith(selectedYear + '-'))
@@ -2676,10 +2920,10 @@ function moveMapSmart(latlng, zoom) {
             const selectedYear = yearSelector.value;
             const selectedMonthNum = monthSelector.value;
             const monthKey = `${selectedYear}-${selectedMonthNum.padStart(2, '0')}`;
-            
+
             // Clear selection state - we're jumping to a new month via dropdown
             NavigationController.reset();
-            
+
             await NavigationController.selectMonth(monthKey);
         }
         
@@ -2851,7 +3095,10 @@ function moveMapSmart(latlng, zoom) {
                 const dirHandle = await window.showDirectoryPicker({
                     mode: 'read'
                 });
-                
+
+                // Store for debug inspection
+                window._lastBackupDirHandle = dirHandle;
+
                 console.log('[Backup] Directory selected:', dirHandle.name);
                 backupFileCount.innerHTML = '<div style="color: #666;">Validating backup structure...</div>';
                 
@@ -3225,7 +3472,7 @@ function moveMapSmart(latlng, zoom) {
                             changedItemIds.add(item.itemId);
                             changedDays.add(startDayKey);
                             changedWeeks.add(getISOWeek(item.startDate));
-                            
+
                             // Track if this was included because it spans into missing days
                             if (spansIntoMissingDay) {
                                 includedForSpanning++;
@@ -3315,16 +3562,36 @@ function moveMapSmart(latlng, zoom) {
                 if (sampleDir) {
                     let weekCount = 0;
                     let sampleCount = 0;
-                    
+
                     for await (const entry of sampleDir.values()) {
                         if (cancelProcessing) break;
-                        if (entry.kind !== 'file' || !entry.name.endsWith('.json.gz')) continue;
-                        
+                        if (entry.kind !== 'file') continue;
+
+                        // Support both gzipped (.json.gz) and plain (.json) sample files
+                        // Older data (e.g., MOVES imports) may use uncompressed JSON
+                        const isGz = entry.name.endsWith('.json.gz');
+                        const isJson = entry.name.endsWith('.json') && !isGz;
+                        if (!isGz && !isJson) continue;
+
                         // Check if this week is needed
-                        const weekMatch = entry.name.match(/^(\d{4}-W\d{2})\.json\.gz$/);
+                        const weekMatch = entry.name.match(/^(\d{4}-W\d{2})/);
                         if (weekMatch && !changedWeeks.has(weekMatch[1])) continue;
-                        
-                        const samples = await readGzippedFileAsJson(entry);
+
+                        let samples;
+                        if (isGz) {
+                            samples = await readGzippedFileAsJson(entry);
+                        } else {
+                            // Plain JSON file
+                            const file = await entry.getFile();
+                            const text = await file.text();
+                            try {
+                                samples = JSON.parse(text);
+                            } catch (e) {
+                                console.warn(`Failed to parse ${entry.name}:`, e);
+                                continue;
+                            }
+                        }
+
                         if (Array.isArray(samples)) {
                             for (const sample of samples) {
                                 if (sample.timelineItemId && sample.location && changedItemIds.has(sample.timelineItemId)) {
@@ -3342,13 +3609,13 @@ function moveMapSmart(latlng, zoom) {
                             }
                         }
                         weekCount++;
-                        
+
                         if (weekCount % 20 === 0) {
                             progressText.textContent = `Loading GPS samples: ${weekCount} weeks, ${sampleCount.toLocaleString()} samples...`;
                             await new Promise(r => setTimeout(r, 0));
                         }
                     }
-                    addLog(`  Loaded ${sampleCount.toLocaleString()} GPS samples from ${weekCount} weeks`);
+                    addLog(`  Loaded ${sampleCount.toLocaleString()} GPS samples from ${weekCount} week files`);
                 }
                 
                 // Step 5: Order items by linked list, then group by day (80-100%)
@@ -3423,10 +3690,21 @@ function moveMapSmart(latlng, zoom) {
                     // DO NOT sort by startDate - linked list order is authoritative
                     // Items are already in correct order from orderItemsByLinkedList()
                     
-                    // Attach samples
+                    // Attach samples (from LocomotionSample files or preserve existing embedded samples)
                     for (const item of items) {
                         if (samplesByItemId.has(item.itemId)) {
+                            // Samples from LocomotionSample directory
                             item.samples = samplesByItemId.get(item.itemId);
+                            item.samples.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+                        } else if (item.samples && item.samples.length > 0) {
+                            // Preserve existing embedded samples (e.g., from MOVES import)
+                            // Normalize format if needed
+                            item.samples = item.samples.map(s => ({
+                                location: s.location || { latitude: s.latitude, longitude: s.longitude, altitude: s.altitude },
+                                date: s.date,
+                                movingState: s.movingState,
+                                classifiedType: s.classifiedType
+                            }));
                             item.samples.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
                         }
                     }
@@ -3545,6 +3823,8 @@ function moveMapSmart(latlng, zoom) {
             const date = new Date(dateStr);
             const thursday = new Date(date);
             thursday.setDate(date.getDate() + (4 - (date.getDay() || 7)));
+            // Normalize to midnight to avoid time-of-day affecting week calculation
+            thursday.setHours(0, 0, 0, 0);
             const yearStart = new Date(thursday.getFullYear(), 0, 1);
             const weekNum = Math.ceil(((thursday - yearStart) / 86400000 + 1) / 7);
             return `${thursday.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
@@ -5587,7 +5867,55 @@ function moveMapSmart(latlng, zoom) {
                         L.DomEvent.stopPropagation(e);
                     }
                 });
-                
+
+                // Right-click context menu for Street View
+                map.on('contextmenu', function(e) {
+                    // Remove existing context menu if any
+                    const existingMenu = document.querySelector('.map-context-menu');
+                    if (existingMenu) existingMenu.remove();
+
+                    const lat = e.latlng.lat.toFixed(6);
+                    const lng = e.latlng.lng.toFixed(6);
+                    const streetViewUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
+                    const googleMapsUrl = `https://www.google.com/maps/@${lat},${lng},17z`;
+
+                    const menu = document.createElement('div');
+                    menu.className = 'map-context-menu';
+                    menu.innerHTML = `
+                        <a href="${streetViewUrl}" target="_blank" class="context-menu-item">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                <circle cx="12" cy="8" r="4"/>
+                                <path d="M12 14c-4 0-6 2-6 4v2h12v-2c0-2-2-4-6-4z"/>
+                            </svg>
+                            Street View
+                        </a>
+                        <a href="${googleMapsUrl}" target="_blank" class="context-menu-item">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                            </svg>
+                            Google Maps
+                        </a>
+                        <div class="context-menu-item context-menu-coords">${lat}, ${lng}</div>
+                    `;
+
+                    // Position menu at click location
+                    menu.style.left = e.containerPoint.x + 'px';
+                    menu.style.top = e.containerPoint.y + 'px';
+
+                    document.getElementById('mapContainer').appendChild(menu);
+
+                    // Close menu when clicking elsewhere
+                    const closeMenu = () => {
+                        menu.remove();
+                        document.removeEventListener('click', closeMenu);
+                        map.off('movestart', closeMenu);
+                    };
+                    setTimeout(() => {
+                        document.addEventListener('click', closeMenu);
+                        map.on('movestart', closeMenu);
+                    }, 10);
+                });
+
                 // Initialize measurement tool now that map exists
                 window.measurementTool = new MeasurementTool(map);
                 
@@ -5793,25 +6121,88 @@ function moveMapSmart(latlng, zoom) {
             motorcycle: `<circle cx="12" cy="46" r="10"/><circle cx="12" cy="46" r="4" fill-opacity="0.3"/><circle cx="52" cy="46" r="10"/><circle cx="52" cy="46" r="4" fill-opacity="0.3"/><ellipse cx="30" cy="28" rx="8" ry="5"/><rect x="46" y="20" width="4" height="14"/><rect x="42" y="16" width="14" height="6" rx="2"/>`,
             scooter: `<circle cx="14" cy="48" r="8"/><circle cx="14" cy="48" r="3" fill-opacity="0.3"/><circle cx="50" cy="48" r="8"/><circle cx="50" cy="48" r="3" fill-opacity="0.3"/><rect x="18" y="34" width="26" height="8" rx="2"/><ellipse cx="26" cy="32" rx="8" ry="4"/><rect x="44" y="18" width="4" height="16"/><rect x="40" y="14" width="14" height="6" rx="2"/>`,
             stationary: `<circle cx="32" cy="32" r="8"/><circle cx="32" cy="32" r="16" fill="none" stroke="white" stroke-width="3"/>`,
-            unknown: `<circle cx="32" cy="32" r="16" fill="none" stroke="white" stroke-width="3"/><text x="32" y="40" text-anchor="middle" font-size="20" fill="white">?</text>`
+            unknown: `<circle cx="32" cy="32" r="16" fill="none" stroke="white" stroke-width="3"/><text x="32" y="40" text-anchor="middle" font-size="20" fill="white">?</text>`,
+            finished: `<path d="M20 8 L20 56" stroke="white" stroke-width="4"/><rect x="20" y="8" width="28" height="24"/><rect x="20" y="8" width="7" height="8" fill-opacity="0.3"/><rect x="34" y="8" width="7" height="8" fill-opacity="0.3"/><rect x="27" y="16" width="7" height="8" fill-opacity="0.3"/><rect x="41" y="16" width="7" height="8" fill-opacity="0.3"/><rect x="20" y="24" width="7" height="8" fill-opacity="0.3"/><rect x="34" y="24" width="7" height="8" fill-opacity="0.3"/>`
         };
         
+        // Disable map controls while in replay mode (except map style)
+        function disableMapControlsForReplay() {
+            // Selectors and navigation
+            const yearSelector = document.getElementById('yearSelector');
+            const monthSelector = document.getElementById('monthSelector');
+            const prevMonthBtn = document.getElementById('prevMonthBtn');
+            const nextMonthBtn = document.getElementById('nextMonthBtn');
+
+            // Tools that conflict with replay
+            const searchBtn = document.getElementById('searchBtn');
+            const measureBtn = document.getElementById('measureBtn');
+            const filterBtn = document.getElementById('mapFilterBtn');
+
+            // Disable selectors
+            if (yearSelector) yearSelector.disabled = true;
+            if (monthSelector) monthSelector.disabled = true;
+            if (prevMonthBtn) prevMonthBtn.disabled = true;
+            if (nextMonthBtn) nextMonthBtn.disabled = true;
+
+            // Hide conflicting tools
+            if (searchBtn) searchBtn.style.display = 'none';
+            if (measureBtn) measureBtn.style.display = 'none';
+            if (filterBtn) filterBtn.style.display = 'none';
+
+            // Close any open popups
+            const searchPopup = document.getElementById('searchPopup');
+            if (searchPopup) searchPopup.style.display = 'none';
+
+            // Cancel measurement if active
+            if (typeof cancelMeasurement === 'function') {
+                cancelMeasurement();
+            }
+        }
+
+        // Re-enable map controls when exiting replay mode
+        function enableMapControlsAfterReplay() {
+            // Selectors and navigation
+            const yearSelector = document.getElementById('yearSelector');
+            const monthSelector = document.getElementById('monthSelector');
+            const prevMonthBtn = document.getElementById('prevMonthBtn');
+            const nextMonthBtn = document.getElementById('nextMonthBtn');
+
+            // Tools
+            const searchBtn = document.getElementById('searchBtn');
+            const measureBtn = document.getElementById('measureBtn');
+            const filterBtn = document.getElementById('mapFilterBtn');
+
+            // Re-enable selectors
+            if (yearSelector) yearSelector.disabled = false;
+            if (monthSelector) monthSelector.disabled = false;
+            if (prevMonthBtn) prevMonthBtn.disabled = false;
+            if (nextMonthBtn) nextMonthBtn.disabled = false;
+
+            // Show tools again
+            if (searchBtn) searchBtn.style.display = '';
+            if (measureBtn) measureBtn.style.display = '';
+            if (filterBtn) filterBtn.style.display = '';
+        }
+
         // Toggle replay controller visibility
         function toggleReplayController() {
             const controller = document.getElementById('replayController');
             if (!controller) return;
-            
+
             if (controller.style.display === 'none' || !controller.style.display) {
                 // Show controller
                 controller.style.display = 'flex';
                 positionReplayController();
-                
+
+                // Disable conflicting map controls
+                disableMapControlsForReplay();
+
                 // Prevent map interaction when using controller
                 setupReplayControllerEvents(controller);
-                
+
                 // Set date picker limits based on available data
                 setupReplayDatePicker();
-                
+
                 // If a day is highlighted, load its data
                 if (currentDayKey) {
                     replayState.selectedDayKey = currentDayKey;
@@ -5918,7 +6309,10 @@ function moveMapSmart(latlng, zoom) {
             replayStopAnimation();
             replayCleanup();
             replayState.active = false;
-            
+
+            // Re-enable map controls
+            enableMapControlsAfterReplay();
+
             // Clear any diary highlights
             document.querySelectorAll('.diary-highlight').forEach(el => {
                 el.classList.remove('diary-highlight');
@@ -6243,11 +6637,21 @@ function moveMapSmart(latlng, zoom) {
                 if (durationStr) parts.push(durationStr);
                 metaHtml = `<div class="location-time">${parts.join(' • ')}</div>`;
             }
-            
+
+            // StreetView link
+            const streetViewUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
+
             const popupContent = `
                 <div class="replay-location-popup replay-popup-animate">
                     <div class="location-name">${name}</div>
                     ${metaHtml}
+                    <a href="${streetViewUrl}" target="_blank" class="streetview-link" title="Open in Google Street View">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                            <path d="M12 2C8.14 2 5 5.14 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.86-3.14-7-7-7zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm0 10.5c-2.67-3-5-6.5-5-8.5a5 5 0 0 1 10 0c0 2-2.33 5.5-5 8.5z"/>
+                            <circle cx="12" cy="9" r="2.5"/>
+                        </svg>
+                        Street View
+                    </a>
                 </div>
             `;
             
@@ -6466,14 +6870,28 @@ function moveMapSmart(latlng, zoom) {
                 // (before showReplayLocationPopup which may take time)
                 replayState.visitedLocations.add(locationStop.visitKey);
 
-                // Show popup and pause
+                // Check if this is essentially the final destination (within 100m of end)
+                const distanceToEnd = replayState.totalDistance - locationStop.distance;
+                const isFinalDestination = distanceToEnd < 100;
+
+                // Show popup and pause (unless final destination)
                 showReplayLocationPopup(point.lat, point.lng, locationStop.name, locationStop.time, true); // skipVisited=true since we already added
-                replayState.pauseUntil = performance.now() + 3000;
-                
+
+                // Update position first (before setting finished icon)
                 replayUpdatePosition(locationStop.index);
                 replayCenterOnPoint(point.lat, point.lng);
-                
-                replayState.animationFrame = requestAnimationFrame(replayAnimate);
+
+                if (isFinalDestination) {
+                    // Final destination - show finished flag immediately, no pause
+                    replayState.marker.setIcon(createReplayMarkerIcon('finished'));
+                    replayState.playing = false;
+                    document.getElementById('replayPlayBtn').classList.remove('playing');
+                    document.getElementById('replayPlayIcon').textContent = '▶';
+                } else {
+                    // Normal location stop - pause for 3 seconds
+                    replayState.pauseUntil = performance.now() + 3000;
+                    replayState.animationFrame = requestAnimationFrame(replayAnimate);
+                }
                 return;
             }
             
@@ -6486,10 +6904,13 @@ function moveMapSmart(latlng, zoom) {
                 const lastPoint = replayState.routeData[replayState.currentIndex];
                 replayState.marker.setLatLng([lastPoint.lat, lastPoint.lng]);
                 replayUpdatePosition(replayState.currentIndex);
-                
+
+                // Change marker to finished icon
+                replayState.marker.setIcon(createReplayMarkerIcon('finished'));
+
                 // Show destination sign
                 showDestinationSign(lastPoint);
-                
+
                 // Auto-stop at end
                 replayState.playing = false;
                 document.getElementById('replayPlayBtn').classList.remove('playing');
@@ -6728,10 +7149,10 @@ function moveMapSmart(latlng, zoom) {
         function replayUpdatePosition(index) {
             const point = replayState.routeData[index];
             const activity = (point.activityType || 'unknown').toLowerCase();
-            
-            // Update marker icon if activity changed
+
+            // Update marker icon if activity changed (but don't overwrite finished icon)
             const currentClass = replayState.marker?._icon?.querySelector('.replay-marker-icon')?.className || '';
-            if (!currentClass.includes(`activity-${activity}`)) {
+            if (!currentClass.includes(`activity-${activity}`) && !currentClass.includes('activity-finished')) {
                 replayState.marker.setIcon(createReplayMarkerIcon(activity));
             }
             
@@ -7094,14 +7515,14 @@ function moveMapSmart(latlng, zoom) {
         
         function replaySeekTo(event) {
             if (!replayState.routeData || replayState.totalDistance === 0) return;
-            
+
             const bar = event.currentTarget;
             const rect = bar.getBoundingClientRect();
             const percent = (event.clientX - rect.left) / rect.width;
-            
+
             // Set distance based on percentage
             replayState.currentDistance = percent * replayState.totalDistance;
-            
+
             // Find corresponding point
             let segmentIndex = 0;
             for (let i = 1; i < replayState.cumulativeDistances.length; i++) {
@@ -7111,12 +7532,43 @@ function moveMapSmart(latlng, zoom) {
                 }
                 segmentIndex = i - 1;
             }
-            
+
             replayState.currentIndex = segmentIndex;
             const point = replayState.routeData[segmentIndex];
             replayState.marker.setLatLng([point.lat, point.lng]);
             replayCenterOnPoint(point.lat, point.lng);
             replayUpdatePosition(segmentIndex);
+
+            // Hide any current popup and clear pause state
+            hideReplayLocationPopup();
+            replayState.currentLocationName = null;
+            replayState.pauseUntil = 0;
+            replayState.locationClearTime = 0;
+
+            // Rebuild visitedLocations based on new position
+            // Mark locations that have already been passed as visited
+            replayState.visitedLocations.clear();
+            replayState.lastLocationEndTime = 0;
+            replayState.lastHighlightedEntry = null;
+
+            const currentTime = getPointTime(point);
+
+            for (const loc of replayState.dayLocations) {
+                if (!loc.lat || !loc.lng) continue;
+                const locationName = loc.name || loc.location || 'Unknown';
+                const visitStart = loc.startDate ? new Date(loc.startDate).getTime() : null;
+                const visitEnd = loc.endDate ? new Date(loc.endDate).getTime() : null;
+                const visitKey = visitStart ? `${locationName}_${visitStart}` : locationName;
+
+                // If location ended before current position, mark as visited
+                if (visitEnd && currentTime && visitEnd < currentTime) {
+                    replayState.visitedLocations.add(visitKey);
+                    // Track the latest location end time we've passed
+                    if (visitEnd > replayState.lastLocationEndTime) {
+                        replayState.lastLocationEndTime = visitEnd;
+                    }
+                }
+            }
         }
         
         function replayRestart() {
@@ -7998,7 +8450,14 @@ function moveMapSmart(latlng, zoom) {
                     popupContent += `<div style="color: #666; margin-bottom: 6px; font-size: 13px;">↑ ${Math.round(p.altitude)}m</div>`;
                 }
                 popupContent += `<div style="font-size: 11px; color: #999; margin-bottom: 10px;">Lat: ${p.lat.toFixed(6)}<br>Lng: ${p.lng.toFixed(6)}</div>`;
-                
+
+                // Street View link
+                const streetViewUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${p.lat},${p.lng}`;
+                popupContent += `<a href="${streetViewUrl}" target="_blank" style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #4285F4; text-decoration: none; margin-bottom: 10px; padding: 4px 8px; background: #f0f7ff; border-radius: 4px;">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="12" cy="8" r="4"/><path d="M12 14c-4 0-6 2-6 4v2h12v-2c0-2-2-4-6-4z"/></svg>
+                    Street View
+                </a>`;
+
                 // Star button at bottom
                 popupContent += `
                         <button 
@@ -9771,9 +10230,14 @@ scrollToDiaryDay(currentDayKey);
                     <ul style="padding-left: 20px; line-height: 1.8;">
                         <li><strong>Arc Timeline</strong> by Big Paua — iOS location history app</li>
                     </ul>
-                    
+
+                    <h3 style="color: #333;">Development</h3>
+                    <ul style="padding-left: 20px; line-height: 1.8;">
+                        <li><strong>Claude Code</strong> by Anthropic — AI pair programming assistant</li>
+                    </ul>
+
                     <p style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; color: #666; font-size: 13px;">
-                        Arc Timeline Diary Reader © 2025 Gordon Williams<br>
+                        Arc Timeline Diary Reader © 2025–2026 Gordon Williams<br>
                         Released under the MIT License
                     </p>
                 </div>

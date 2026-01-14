@@ -69,10 +69,17 @@ Arc Timeline Diary Reader uses the following open source libraries and services:
 - **Developer:** Big Paua
 - **Description:** iOS app that records location history. This reader imports Arc Timeline JSON export files.
 
+## Development
+
+### Claude Code
+- **Website:** https://claude.ai/
+- **Developer:** Anthropic
+- **Description:** AI pair programming assistant used in the development of this application
+
 ---
 
 ## License
 
 Arc Timeline Diary Reader is released under the MIT License.
 
-Copyright © 2025 Gordon Williams
+Copyright © 2025–2026 Gordon Williams

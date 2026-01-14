@@ -780,7 +780,20 @@
             min-height: 40px;
             margin-right: 8px;
         }
-        
+
+        /* Disabled state for selectors and buttons during replay mode */
+        .year-selector-compact:disabled,
+        .month-selector-compact:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background: #f5f5f5;
+        }
+
+        .btn-nav-compact:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
         .search-highlight {
             background-color: #fff59d;
             padding: 2px 0;
@@ -1391,6 +1404,50 @@
             z-index: 1;
         }
         
+        /* Map right-click context menu */
+        .map-context-menu {
+            position: absolute;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+            overflow: hidden;
+            z-index: 1000;
+            min-width: 160px;
+        }
+
+        .context-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            color: #1d1d1f;
+            text-decoration: none;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .context-menu-item:hover {
+            background: #f0f0f0;
+        }
+
+        .context-menu-item svg {
+            flex-shrink: 0;
+            color: #666;
+        }
+
+        .context-menu-coords {
+            font-size: 11px;
+            color: #888;
+            border-top: 1px solid #e5e5e5;
+            cursor: default;
+            font-family: ui-monospace, 'SF Mono', Monaco, monospace;
+        }
+
+        .context-menu-coords:hover {
+            background: transparent;
+        }
+
         /* Map controls in header */
         .map-controls-inline {
             display: flex;
@@ -3896,6 +3953,7 @@
 .replay-marker-icon.activity-boat { background: #1ABC9C; }
 .replay-marker-icon.activity-motorcycle { background: #E74C3C; }
 .replay-marker-icon.activity-scooter { background: #E07B67; }
+.replay-marker-icon.activity-finished { background: #000000; }
 
 /* Location popup on map */
 .replay-location-popup {
@@ -3910,17 +3968,26 @@
 }
 
 .replay-location-popup.replay-popup-animate {
-    animation: popupBounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    animation: popupBounceIn 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 @keyframes popupBounceIn {
     0% {
         opacity: 0;
-        transform: scale(0.3) translateY(20px);
+        transform: scale(0) translateY(60px);
     }
-    50% {
+    20% {
         opacity: 1;
-        transform: scale(1.05) translateY(-5px);
+        transform: scale(1.3) translateY(-20px);
+    }
+    40% {
+        transform: scale(0.85) translateY(10px);
+    }
+    60% {
+        transform: scale(1.15) translateY(-8px);
+    }
+    80% {
+        transform: scale(0.95) translateY(3px);
     }
     100% {
         transform: scale(1) translateY(0);
@@ -3943,6 +4010,29 @@
     color: rgba(255, 255, 255, 0.85);
     margin-top: 4px;
     font-weight: 500;
+}
+
+.replay-location-popup .streetview-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.85);
+    text-decoration: none;
+    margin-top: 6px;
+    padding: 3px 8px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.replay-location-popup .streetview-link:hover {
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
+}
+
+.replay-location-popup .streetview-link svg {
+    flex-shrink: 0;
 }
 
 /* Mobile adjustments */

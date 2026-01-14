@@ -1,5 +1,77 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 674 (2026-01-14)
+
+### Fix - ISO Week Calculation Bug Causing Missing GPS Samples
+- **Fixed GPS samples not loading for early January dates**: The `getISOWeek()` function had a subtle bug where the time-of-day component affected the week calculation
+- **Root cause**: When calculating the Thursday of a week, the original time component was preserved. Combined with `yearStart` being set to midnight, this caused fractional day offsets that pushed `Math.ceil()` to round up to the wrong week number
+- **Example**: `2016-01-04T23:22:07Z` was calculated as `2016-W02` instead of `2016-W01` because the Thursday fell at 23:22, creating a 6.97 day difference instead of exactly 6 days
+- **Fix**: Normalize Thursday to midnight before calculating week number (`thursday.setHours(0, 0, 0, 0)`)
+- This was the actual root cause of "NO GPS" tags for dates in early 2016 - the sample file `2016-W01.json.gz` existed but was never loaded because items were being mapped to `2016-W02` instead
+- Requires re-import of affected data to load the correct GPS samples
+
+## Build 669 (2026-01-14)
+
+### Fix - Support Uncompressed LocomotionSample Files
+- **Fixed GPS samples not loading for older data (MOVES imports)**: LocomotionSample files from older Arc versions may be stored as plain `.json` files instead of `.json.gz`
+- Previous behavior: Only loaded gzipped sample files (`.json.gz`), silently skipping plain JSON files
+- New behavior: Loads both `.json.gz` and `.json` sample files from the LocomotionSample directory
+- This was the root cause of "NO GPS" tags appearing for activities that have GPS data in the backup
+
+### Enhancement - Backup Inspection Utilities (Builds 667-668)
+- Added `inspectDay("2016-01-05")` - Inspect raw data stored in IndexedDB for a specific day
+- Added `inspectBackupDay("2016-01-05")` - Inspect raw backup files directly (must select backup folder first)
+- These utilities help diagnose GPS data issues by showing exactly what data exists and where
+
+## Build 666 (2026-01-14)
+
+### Fix - Preserve Embedded GPS Samples from MOVES Import
+- **Fixed "NO GPS" tag incorrectly showing for activities that have GPS data**: Data imported from MOVES (or other sources) into Arc may have GPS samples embedded directly in the timeline item, rather than in the separate LocomotionSample directory
+- Previous behavior: Only attached samples from LocomotionSample files, ignoring any embedded samples
+- New behavior: Preserves existing embedded samples when no LocomotionSample data is found for an item
+- Also normalizes sample format to ensure consistent `location.latitude/longitude` structure
+- Requires re-import of affected days to pick up the embedded GPS data
+
+## Build 665 (2026-01-14)
+
+### Enhancement - Disable Map Controls During Replay Mode
+- **Map controls are now disabled while the replay sprite controller is active**: Prevents accidental navigation that would conflict with replay
+- Disabled controls (grayed out):
+  - Year selector
+  - Month selector
+  - Month navigation arrows (‹ ›)
+- Hidden controls (removed from view):
+  - Location search (🔍)
+  - Measurement tool (📏)
+  - Filter button
+- Controls that remain active:
+  - Map style selector (Street/Cycle/Satellite)
+  - Transparency control
+  - Save button
+- All controls are re-enabled when closing the replay controller
+- Added disabled styling (40% opacity, gray background) for visual feedback
+
+## Build 664 (2026-01-14)
+
+### Enhancement - Clear Replay When Navigating Away
+- Superseded by Build 665 - now controls are disabled instead of clearing replay on navigation
+
+## Build 663 (2026-01-14)
+
+### Enhancement - Replay Scrubbing Now Properly Handles Location Popups
+- **Fixed location popups being ignored after scrubbing with the progress bar**: When user seeked to a new position using the scrub bar, location popups would not appear when playback resumed
+- Root cause: `replaySeekTo` didn't update `visitedLocations` when seeking - locations that were ahead of the new position remained marked as visited
+- Fix: `replaySeekTo` now:
+  - Clears current popup and pause state
+  - Rebuilds `visitedLocations` based on the new timeline position
+  - Only marks locations as visited if their end time is before the current seek position
+  - Resets `lastLocationEndTime` to the latest passed location's end time
+- This ensures location popups correctly appear for locations that haven't been passed yet at the new position
+
+### Enhancement - Smoother Popup Animation
+- Removed angular/rotational movement from the Disney-style location popup bounce animation
+- Animation now uses pure scale and vertical translation for a cleaner effect
+
 ## Build 660 (2026-01-14)
 
 ### Fix - Diary Highlighting Previous Activity After Location Stop

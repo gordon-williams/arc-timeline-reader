@@ -1994,10 +1994,10 @@
             // Setup activity checkboxes
             if (dailySummaries.length > 0) {
                 setupActivityCheckboxes();
-                applyPreset('3m', 'activity');
-                applyPreset('3m', 'location');
-                document.querySelector('#presets .preset-btn[data-preset="3m"]')?.classList.add('active');
-                document.querySelector('#locationPresets .preset-btn[data-preset="3m"]')?.classList.add('active');
+                applyPreset('all', 'activity');
+                applyPreset('all', 'location');
+                document.querySelector('#presets .preset-btn[data-preset="all"]')?.classList.add('active');
+                document.querySelector('#locationPresets .preset-btn[data-preset="all"]')?.classList.add('active');
             }
             
             // Set location version number
@@ -2082,12 +2082,14 @@
                 runAnalysis();
             });
             
-            // Location Date inputs
+            // Location Date inputs - auto-run if locations are selected
             document.getElementById('locationStartDate')?.addEventListener('change', () => {
                 document.querySelectorAll('#locationPresets .preset-btn').forEach(b => b.classList.remove('active'));
+                if (selectedLocations.size > 0) runLocationAnalysis();
             });
             document.getElementById('locationEndDate')?.addEventListener('change', () => {
                 document.querySelectorAll('#locationPresets .preset-btn').forEach(b => b.classList.remove('active'));
+                if (selectedLocations.size > 0) runLocationAnalysis();
             });
             
             // Analyze button
@@ -2194,6 +2196,8 @@
             if (mode === 'location') {
                 document.getElementById('locationStartDate').value = startDate;
                 document.getElementById('locationEndDate').value = endDate;
+                // Auto-run if locations are already selected
+                if (selectedLocations.size > 0) runLocationAnalysis();
             } else {
                 document.getElementById('startDate').value = startDate;
                 document.getElementById('endDate').value = endDate;
