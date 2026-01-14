@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<!--
+Arc Timeline Diary Reader
+Copyright (c) 2025 Gordon Williams
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arc Timeline Diary Reader v3.0</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"  crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"  crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"  crossorigin="anonymous" />
+    <script>
+  // === Arc Reader Build (single source of truth) ===
+  window.__ARC_BUILD__ = 648;
+</script>
+<script>
+  // Cache-busted asset loading using the single build constant above
+  // NOTE: dynamically inserted scripts ignore 'defer' semantics; load app.js after DOM is ready.
+  (function() {
+    var b = window.__ARC_BUILD__;
+
+    // CSS can be appended immediately
+    var l = document.createElement('link');
+    l.rel = 'stylesheet';
+    l.href = 'styles.css?v=' + b;
+    document.head.appendChild(l);
+
+    function loadApp() {
+      // Load map-tools.js directly
+      loadMapTools();
+    }
+
+    function loadMapTools() {
+      // Load map-tools.js (measurement and location search)
+      var m = document.createElement('script');
+      m.src = 'map-tools.js?v=' + b;
+      m.async = false;
+      m.onload = function() { loadMainApp(); };
+      m.onerror = function() { loadMainApp(); }; // Continue even if missing
+      document.body.appendChild(m);
+    }
+
+    function loadMainApp() {
+      var s = document.createElement('script');
+      s.src = 'app.js?v=' + b;
+      s.async = false; // preserve order; execute when loaded
+      document.body.appendChild(s);
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', loadApp);
+    } else {
+      loadApp();
+    }
+  })();
+</script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📖 Arc Timeline Diary Reader</h1>
+            <p>Browse and explore your Arc Timeline location history as beautiful monthly diaries</p>
+        </div>
+        
+        <div class="content">
+				
+				<!-- Database Status (v3.0) -->
+				<div id="dbStatusSection" style="display: none; background: #ffffff; border: 1px solid #d1d1d6; border-radius: 18px; padding: 32px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+					<!-- Loading Bar -->
+					<div id="dbLoadingBar" style="display: none; margin-bottom: 24px;">
+						<div style="background: #e5e5ea; height: 4px; border-radius: 2px; overflow: hidden;">
+							<div style="background: linear-gradient(90deg, #007AFF, #5AC8FA); height: 100%; width: 30%; animation: loading-slide 1.5s ease-in-out infinite;"></div>
+						</div>
+					</div>
+					
+					<div style="margin-bottom: 28px;">
+						<div style="font-size: 28px; font-weight: 700; color: #1d1d1f; margin-bottom: 12px; letter-spacing: -0.5px;">Your Timeline</div>
+						<div id="dbStats" style="font-size: 17px; color: #86868b; line-height: 1.47;">Loading...</div>
+					</div>
+					
+					<div style="display: flex; gap: 12px; margin-bottom: 24px;">
+						<button onclick="confirmClearDatabase()" style="flex: 1; background: #ff3b30; color: white; border: none; padding: 14px; border-radius: 12px; cursor: pointer; font-size: 17px; font-weight: 600; transition: opacity 0.2s; min-height: 50px;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+							Clear
+						</button>
+						<button onclick="exportDatabaseBackup()" style="flex: 1; background: #f5f5f7; color: #1d1d1f; border: none; padding: 14px; border-radius: 12px; cursor: pointer; font-size: 17px; font-weight: 600; transition: background 0.2s; min-height: 50px;" onmouseover="this.style.background='#e8e8ed'" onmouseout="this.style.background='#f5f5f7'">
+							Export JSON
+						</button>
+						<button onclick="importMoreFiles()" style="flex: 1; background: #f5f5f7; color: #1d1d1f; border: none; padding: 14px; border-radius: 12px; cursor: pointer; font-size: 17px; font-weight: 600; transition: background 0.2s; min-height: 50px;" onmouseover="this.style.background='#e8e8ed'" onmouseout="this.style.background='#f5f5f7'">
+							Import Data
+						</button>
+					</div>
+					
+					<button onclick="openDiaryFromDatabase()" style="width: 100%; background: #007AFF; color: white; border: none; padding: 16px; border-radius: 12px; cursor: pointer; font-size: 19px; font-weight: 600; transition: opacity 0.2s; min-height: 56px;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+						Open Diary Reader
+					</button>
+				</div>
+				
+				<!-- Mapbox Settings - always visible -->
+				<div id="mapboxSettingsSection" style="background: #ffffff; border: 1px solid #d1d1d6; border-radius: 18px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+					<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+						<span style="font-size: 15px; font-weight: 600; color: #1d1d1f;">🗺️ Mapbox Integration</span>
+						<span id="mapboxStatusBadge" style="font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #e5e5ea; color: #86868b;">Not configured</span>
+					</div>
+					<div style="display: flex; gap: 8px; align-items: center;">
+						<input type="text" id="mainMapboxToken" placeholder="pk.eyJ1Ijoi..." style="flex: 1; padding: 10px 12px; border: 1px solid #d1d1d6; border-radius: 8px; font-size: 13px; font-family: monospace;">
+						<button onclick="saveMainMapboxToken()" style="padding: 10px 16px; background: #007AFF; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">Save</button>
+					</div>
+					<div style="font-size: 12px; color: #86868b; margin-top: 8px;">
+						Optional: <a href="https://account.mapbox.com/access-tokens/" target="_blank" rel="noopener" style="color: #007AFF;">Get free token</a> for faster geocoding and more map styles (Dark, Outdoors, Satellite with labels)
+					</div>
+				</div>
+
+
+            <div class="form-group" id="fileInputSection">
+                <!-- Import Type Selector -->
+                <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                    <button id="jsonImportTab" onclick="selectImportType('json')" style="flex: 1; padding: 12px 20px; border: 2px solid #007AFF; background: #007AFF; color: white; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                        📄 Import JSON
+                    </button>
+                    <button id="backupImportTab" onclick="selectImportType('backup')" style="flex: 1; padding: 12px 20px; border: 2px solid #d1d1d6; background: white; color: #1d1d1f; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                        💾 Import Backup
+                    </button>
+                </div>
+                
+                <!-- JSON Import Panel -->
+                <div id="jsonImportPanel" style="background: #ffffff; border: 1px solid #d1d1d6; border-radius: 18px; padding: 48px; text-align: center; cursor: pointer; transition: border-color 0.2s;" onclick="document.getElementById('fileInput').click()" onmouseover="this.style.borderColor='#007AFF'" onmouseout="this.style.borderColor='#d1d1d6'">
+                    <div style="font-size: 72px; margin-bottom: 20px; opacity: 0.7;">📂</div>
+                    <div style="font-size: 21px; font-weight: 600; color: #1d1d1f; margin-bottom: 8px;">Import JSON Files</div>
+                    <div style="font-size: 15px; color: #86868b; line-height: 1.47;">
+                        Select your Arc Timeline export folder containing daily JSON files
+                    </div>
+                    <input type="file" id="fileInput" webkitdirectory directory multiple>
+                    <div class="file-count" id="fileCount"></div>
+                    <div style="margin-top: 16px;" onclick="event.stopPropagation();">
+                        <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: #666;">
+                            <input type="checkbox" id="forceFullRescan" style="width: 18px; height: 18px;">
+                            Force full rescan (ignore last scan time)
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Backup Import Panel -->
+                <div id="backupImportPanel" style="display: none; background: #ffffff; border: 1px solid #d1d1d6; border-radius: 18px; padding: 48px; text-align: center; cursor: pointer; transition: border-color 0.2s;" onclick="selectBackupFolder()" onmouseover="this.style.borderColor='#34C759'" onmouseout="this.style.borderColor='#d1d1d6'">
+                    <div style="font-size: 72px; margin-bottom: 20px; opacity: 0.7;">💾</div>
+                    <div style="font-size: 21px; font-weight: 600; color: #1d1d1f; margin-bottom: 8px;">Import from Backup</div>
+                    <div style="font-size: 15px; color: #86868b; line-height: 1.47;">
+                        Select Arc Timeline's <strong>Backups</strong> folder from iCloud<br>
+                        <span style="font-size: 13px; color: #999;">~/Library/Mobile Documents/iCloud~com~bigpaua~LearnerCoacher/Documents/Backups</span>
+                    </div>
+                    <div class="file-count" id="backupFileCount"></div>
+                    <div style="margin-top: 16px;" onclick="event.stopPropagation();">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: #666; margin-bottom: 8px;">
+                            <input type="checkbox" id="backupMissingOnly" style="width: 18px; height: 18px;">
+                            <span><strong>Missing days only</strong> (safe - won't modify existing data)</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: #666;">
+                            <input type="checkbox" id="backupForceRescan" style="width: 18px; height: 18px;">
+                            Force full rescan (reimport all data)
+                        </label>
+                    </div>
+                    <div id="backupBrowserWarning" style="display: none; margin-top: 16px; padding: 12px; background: #fff3cd; border-radius: 8px; font-size: 13px; color: #856404;">
+                        ⚠️ Backup import requires Chrome or Edge. Safari is not supported for large folder access.
+                    </div>
+                </div>
+                
+                <button id="cancelBtn" onclick="cancelProcessing = true; event.stopPropagation();" style="display: none; background: #ff3b30; color: white; border: none; padding: 12px 28px; border-radius: 12px; cursor: pointer; margin-top: 20px; font-size: 17px; font-weight: 600; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">Cancel Import</button>
+            </div>
+            
+            
+            <div class="progress" id="progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill">0%</div>
+                </div>
+                <div class="progress-text" id="progressText"></div>
+            </div>
+            
+            <div class="log" id="log"></div>
+            
+            <div class="results" id="results">
+                <h2>Import Complete</h2>
+                <div id="resultsList"></div>
+                <button style="margin-top: 20px;" onclick="openDiaryReader()">Open Diary Reader</button>
+            </div>
+            
+            <div class="footer">
+                Arc Timeline Diary Reader v<span id="appVersion"></span> © 2025 <a href="https://github.com/YOUR_USERNAME/arc-timeline-diary-generator" target="_blank">Gordon Williams</a> | 
+                <a href="https://opensource.org/licenses/MIT" target="_blank">MIT License</a> |
+                <a href="#" onclick="showCredits(); return false;">Credits</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Diary Reader with Split Panel -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-dialog" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <!-- Hidden title (for screen readers) -->
+                <div class="modal-title" id="mapPanelTitle">Map</div>
+                
+                <!-- Analysis button -->
+                <button id="dbButton" class="btn-nav-compact btn-analysis" onclick="toggleAnalysisPanel()" title="Analysis">Analysis</button>
+                
+                <!-- Month selector and navigation -->
+                <div class="modal-controls">
+                    <div class="nav-group">
+                        <select class="year-selector-compact" id="yearSelector" onchange="switchYear()">
+                        </select>
+                        <select class="month-selector-compact" id="monthSelector" onchange="switchMonth()">
+                        </select>
+                        <button class="btn-nav-compact btn-nav-circular" id="prevMonthBtn" onclick="NavigationController.navigateMonth(-1)">‹</button>
+                        <button class="btn-nav-compact btn-nav-circular" id="nextMonthBtn" onclick="NavigationController.navigateMonth(1)">›</button>
+                    </div>
+                </div>
+                
+                <!-- Location search (left of map styles) -->
+                <div class="control-popup-wrapper">
+                    <button class="map-filter-btn" id="searchBtn" onclick="toggleSearchPopup()" title="Search location" style="display: none;">
+                        🔍
+                    </button>
+                    <div class="search-popup" id="searchPopup" style="display: none;">
+                        <input type="text" id="locationSearchInput" placeholder="Search location..." onkeydown="handleSearchKeydown(event)">
+                        <div class="search-results" id="searchResults"></div>
+                    </div>
+                </div>
+                
+                <!-- Measurement tool -->
+                <button class="map-filter-btn" id="measureBtn" onclick="toggleMeasureTool()" title="Measure distance" style="display: none;">
+                    📏
+                </button>
+                
+                <!-- Map style selector -->
+                <select class="map-filter-btn" id="mapStyleSelector" onchange="changeMapStyle()" style="display: none;">
+                    <option value="street">Street</option>
+                    <option value="cycle">Cycle</option>
+                    <option value="satellite">Satellite</option>
+                </select>
+                
+                <!-- Map controls on the RIGHT -->
+                <div class="map-controls-inline">
+                    <!-- Transparency control wrapper -->
+                    <div class="control-popup-wrapper">
+                        <button class="map-filter-btn" id="transparencyBtn" onclick="toggleTransparencySlider()" title="Adjust interface transparency" style="display: none;">
+                            💧
+                        </button>
+                        <!-- Transparency slider popup -->
+                        <div class="transparency-slider-popup" id="transparencySliderPopup" style="display: none;">
+                            <label>Interface transparency:</label>
+                            <input type="range" id="transparencySlider" min="0" max="100" step="1" value="5" oninput="updateTransparencyValue()">
+                            <div style="display: flex; align-items: center; margin-top: 8px;">
+                                <span id="transparencyValue">5%</span>
+                                <button class="btn-transparency-reset" onclick="resetTransparencySetting()" style="margin-left: auto; margin-right: 8px;">Reset</button>
+                                <button class="btn-transparency-set" onclick="saveTransparencySetting()">Set</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Day Replay control wrapper -->
+                    <div class="control-popup-wrapper">
+                        <button class="map-filter-btn" id="dayReplayBtn" onclick="toggleReplayController()" title="Day Replay - Animate through your day" style="display: none;">
+                            🎬
+                        </button>
+                    </div>
+                    
+                    <button class="map-filter-btn" id="mapFilterBtn" onclick="toggleMapFilters()" style="display: none;">
+                        Filter
+                    </button>
+                    <button class="map-filter-btn" id="mapSaveBtn" onclick="saveMapAsImage()" style="display: none;">
+                        Save
+                    </button>
+                </div>
+                
+                <!-- Zoom controls -->
+                <div class="zoom-controls">
+                    <button class="btn-zoom btn-zoom-circular" onclick="zoomIn()">+</button>
+                    <button class="btn-zoom btn-zoom-circular" onclick="zoomOut()">−</button>
+                </div>
+                
+                <button class="modal-close" onclick="closeDiaryReader()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Map container - fills entire viewport -->
+                <div class="map-container" id="mapContainer">
+                    <div class="map-placeholder" id="mapPlaceholder">
+                        <div class="map-placeholder-icon">🗺️</div>
+                        <div class="map-placeholder-text">Loading map...</div>
+                    </div>
+                    
+                    <!-- Day Replay Controller -->
+                    <div class="replay-controller" id="replayController" style="display: none;">
+                        <!-- Digital speedometer (left side) -->
+                        <div class="replay-digital-speed">
+                            <span class="speed-value" id="speedText">0</span>
+                            <span class="speed-unit">km/h</span>
+                        </div>
+                        
+                        <!-- Main controls section -->
+                        <div class="replay-main">
+                            <!-- Activity info row with next stop -->
+                            <div class="replay-activity-row">
+                                <div class="replay-activity-info" id="replayActivityInfo">
+                                    <span class="activity-time" id="replayActivityTime">--:--</span>
+                                    <span class="activity-type" id="replayActivityType">--</span>
+                                    <span class="activity-stats" id="replayActivityStats"></span>
+                                </div>
+                                <div class="replay-next-stop" id="replayNextStop">
+                                    <span class="next-label">Next:</span>
+                                    <span class="next-name" id="replayNextName">--</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Timeline -->
+                            <div class="replay-timeline">
+                                <div class="replay-timeline-bar" id="replayTimelineBar">
+                                    <div class="replay-progress" id="replayProgress"></div>
+                                    <div class="replay-location-markers" id="replayLocationMarkers"></div>
+                                    <div class="replay-hover-tooltip" id="replayHoverTooltip"></div>
+                                </div>
+                                <div class="replay-time-info">
+                                    <span id="replayCurrentTime">00:00</span>
+                                    <span id="replayTotalTime">00:00</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Controls row: date, play, speed -->
+                            <div class="replay-controls-row">
+                                <input type="date" id="replayDatePicker" class="replay-date-input" onchange="replayDateSelected(this.value)">
+                                
+                                <div class="replay-play-controls">
+                                    <button class="replay-btn replay-restart" onclick="replayRestart()" title="Restart">⟲</button>
+                                    <button class="replay-btn replay-play" id="replayPlayBtn" onclick="replayTogglePlay()">
+                                        <span id="replayPlayIcon">▶</span>
+                                    </button>
+                                </div>
+                                
+                                <div class="replay-speed-slider">
+                                    <span class="replay-speed-label">Speed</span>
+                                    <input type="range" id="replaySpeedSlider" min="1" max="100" value="20" oninput="replaySetSpeedFromSlider(this.value)">
+                                    <span class="replay-speed-mult" id="replaySpeedMult">5×</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Zoom and close -->
+                        <div class="replay-side-controls">
+                            <button class="replay-btn-small" onclick="replayZoom(1)" title="Zoom in">+</button>
+                            <button class="replay-btn-small" onclick="replayZoom(-1)" title="Zoom out">−</button>
+                            <button class="replay-btn-small replay-close" onclick="closeReplayController()" title="Close">✕</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Floating Diary Toggle (visible when diary is hidden) -->
+                <button class="diary-toggle-float" id="diaryToggleFloat" onclick="toggleDiary()" title="Show diary" style="display: none;">📖</button>
+                
+                <!-- Floating Stats Panel -->
+                <div class="stats-float" id="statsFloat" style="display: none;">
+                    <div class="stats-header">
+                        <span class="stats-title" id="statsTitle">Statistics</span>
+                        <button class="stats-close" onclick="closeStatsPanel()">&times;</button>
+                    </div>
+                    <div class="stats-tiles" id="statsTiles">
+                        <!-- Stats tiles will be populated here -->
+                    </div>
+                </div>
+                
+                
+                <!-- Floating Diary Panel -->
+                <div class="diary-float">
+                    <!-- Resize handle -->
+                    <div class="diary-resize-handle" id="diaryResizeHandle"></div>
+                    
+                    <!-- Diary Header -->
+                    <div class="diary-header">
+                        <div class="diary-title-row">
+                            <div class="diary-title-group">
+                                <span class="diary-title" id="diaryTitle">Diary Timeline</span>
+                                <span class="diary-build" id="diaryBuild">Build 196</span>
+                            </div>
+                            <div class="diary-nav-group" id="diaryNavGroup">
+                                <button class="btn-diary-nav btn-nav-circular" id="prevDayBtn" onclick="NavigationController.navigateBy(-1, 'day')" title="Previous day">‹</button>
+                                <button class="btn-diary-nav btn-nav-circular" id="nextDayBtn" onclick="NavigationController.navigateBy(1, 'day')" title="Next day">›</button>
+                            </div>
+                            
+                            <!-- Inline checkbox -->
+                            <div class="diary-checkboxes">
+                                <label class="diary-checkbox-label">
+                                    <input type="checkbox" id="notesOnly">
+                                    <span>Notes only</span>
+                                </label>
+                                <label class="diary-checkbox-label" title="Show uncoalesced timeline (iCloud backup imports only)">
+                                    <input type="checkbox" id="rawTimeline">
+                                    <span>Raw</span>
+                                </label>
+                            </div>
+                            
+                            <div class="diary-actions">
+                                <button class="btn-diary-action" onclick="printDiary()" title="Print">Print</button>
+                                <button class="btn-diary-action" onclick="downloadCurrentMonth()" title="Download">Download</button>
+                            </div>
+                            <button class="btn-toggle-diary" id="toggleDiaryBtn" onclick="toggleDiary()" title="Hide diary">&times;</button>
+                        </div>
+                        
+                        <!-- Search controls -->
+                        <div class="diary-search">
+                            <input type="text" id="searchInput" placeholder="Search locations or ⭐ for favorites..." 
+                                   onfocus="showSearchDropdown()" 
+                                   onblur="hideSearchDropdownDelayed()"
+                                   onkeyup="handleSearchKeyup(event)">
+                            
+                            <!-- Favorites/Search Dropdown -->
+                            <div class="search-dropdown" id="searchDropdown" style="display: none;">
+                                <div class="search-dropdown-section" id="favoritesSection">
+                                    <div class="search-dropdown-header">⭐ FAVORITES</div>
+                                    <div class="search-dropdown-list" id="favoritesList">
+                                        <div class="search-dropdown-empty">No favorites yet. Star locations on the map to add them!</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="search-controls">
+                                <button class="btn-find" id="findBtn" onclick="performFindSearch()" style="display: none;" title="Find matches">Find</button>
+                                <span class="search-count" id="searchCount"></span>
+                                <button class="btn-search" id="prevSearchBtn" onclick="navigateSearch(-1)" disabled title="Previous match" style="display: none;">‹</button>
+                                <button class="btn-search" id="nextSearchBtn" onclick="navigateSearch(1)" disabled title="Next match" style="display: none;">›</button>
+                                <button class="btn-search" id="clearSearchBtn" onclick="clearSearch()" title="Clear search" style="display: none;">✕</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Diary Content Container -->
+                    <div class="diary-content-container" id="diaryContentContainer">
+                        <!-- Diary Content -->
+                        <div class="diary-panel" id="diaryPanel">
+                            <div class="markdown-body" id="markdownContent"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Search Results Slider (outside diary-float for proper positioning) -->
+            <div class="search-results-slider" id="searchResultsSlider">
+                <div class="search-results-header">
+                    <span class="search-results-title" id="searchResultsTitle">Results</span>
+                    <button class="btn-close-slider" onclick="closeSearchResults()">✕</button>
+                </div>
+                <div class="search-results-list" id="searchResultsList"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Activity Filter Modal -->
+    <div class="filter-modal-backdrop" id="filterModalBackdrop" onclick="closeFilterModal()"></div>
+    <div class="filter-modal" id="filterModal">
+        <div class="filter-modal-header">
+            <div class="filter-modal-title">Activity Filters</div>
+            <button class="filter-modal-close" onclick="closeFilterModal()">&times;</button>
+        </div>
+        <div class="filter-modal-body">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; margin-bottom: 14px; font-weight: 600;">
+                <input type="checkbox" id="selectAllActivities" checked onchange="toggleAllActivities()">
+                Select All
+            </label>
+            
+            <div style="border-top: 1px solid #e0e0e0; padding-top: 14px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; margin-bottom: 12px;">
+                    <input type="checkbox" class="activity-filter" data-activity="walking" checked onchange="updateMapRoutes()">
+                    <span style="color: #00C853; font-weight: bold; font-size: 16px;">●</span> Walking
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; margin-bottom: 12px;">
+                    <input type="checkbox" class="activity-filter" data-activity="cycling" checked onchange="updateMapRoutes()">
+                    <span style="color: #FF6D00; font-weight: bold; font-size: 16px;">●</span> Cycling
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; margin-bottom: 12px;">
+                    <input type="checkbox" class="activity-filter" data-activity="car" checked onchange="updateMapRoutes()">
+                    <span style="color: #263238; font-weight: bold; font-size: 16px;">●</span> Driving
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; margin-bottom: 12px;">
+                    <input type="checkbox" class="activity-filter" data-activity="stationary" checked onchange="updateMapRoutes()">
+                    <span style="color: #1976D2; font-weight: bold; font-size: 16px;">●</span> Stationary
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    
+    
+<script>
+  // Populate build label in footer and title
+  (function() {
+    var b = window.__ARC_BUILD__;
+    var el = document.getElementById('buildLabel');
+    if (el) el.textContent = ' 286';
+    if (document.title && document.title.indexOf('Build') === -1) document.title = document.title + ' • Build ' + b;
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Arc Timeline - Database Recovery</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; max-width: 500px; margin: 50px auto; padding: 20px; }
+        button { padding: 15px 30px; font-size: 18px; margin: 10px; cursor: pointer; border-radius: 8px; border: none; }
+        .delete { background: #ff3b30; color: white; }
+        .check { background: #007AFF; color: white; }
+        .status { margin-top: 20px; padding: 15px; border-radius: 8px; background: #f5f5f7; }
+        .success { background: #34c759; color: white; }
+        .error { background: #ff3b30; color: white; }
+        .info { background: #007AFF; color: white; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        td { padding: 8px; border-bottom: 1px solid rgba(0,0,0,0.1); }
+        td:first-child { font-weight: 600; width: 40%; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Database Recovery</h1>
+    
+    <button class="check" onclick="checkDB()">Check Database</button>
+    <button class="delete" onclick="deleteDB()">Delete Database</button>
+    
+    <div class="status" id="status">Click "Check Database" to see current state</div>
+    
+    <script>
+        function checkDB() {
+            document.getElementById('status').textContent = 'Checking...';
+            document.getElementById('status').className = 'status';
+            
+            const req = indexedDB.open('ArcTimelineDiary');
+            
+            req.onsuccess = (event) => {
+                const db = event.target.result;
+                const version = db.version;
+                const stores = Array.from(db.objectStoreNames);
+                
+                // Count records in each store
+                const counts = {};
+                let pending = stores.length;
+                
+                if (pending === 0) {
+                    showResults(version, stores, counts);
+                    db.close();
+                    return;
+                }
+                
+                const tx = db.transaction(stores, 'readonly');
+                
+                stores.forEach(storeName => {
+                    const countReq = tx.objectStore(storeName).count();
+                    countReq.onsuccess = () => {
+                        counts[storeName] = countReq.result;
+                        pending--;
+                        if (pending === 0) {
+                            showResults(version, stores, counts);
+                            db.close();
+                        }
+                    };
+                    countReq.onerror = () => {
+                        counts[storeName] = '?';
+                        pending--;
+                        if (pending === 0) {
+                            showResults(version, stores, counts);
+                            db.close();
+                        }
+                    };
+                });
+            };
+            
+            req.onerror = () => {
+                document.getElementById('status').className = 'status error';
+                document.getElementById('status').textContent = '❌ Error: ' + req.error;
+            };
+            
+            req.onupgradeneeded = (event) => {
+                // DB doesn't exist, abort
+                event.target.transaction.abort();
+                document.getElementById('status').className = 'status';
+                document.getElementById('status').textContent = '📭 No database found - nothing to delete';
+            };
+        }
+        
+        function showResults(version, stores, counts) {
+            let html = `<strong>Database Version: ${version}</strong><br><br>`;
+            html += '<table>';
+            stores.forEach(store => {
+                html += `<tr><td>${store}</td><td>${counts[store].toLocaleString()} records</td></tr>`;
+            });
+            html += '</table>';
+            
+            if (version === 1) {
+                html += '<br>⚠️ Version 1 - Cannot use builds 479+';
+            } else if (version === 2) {
+                html += '<br>✅ Version 2 - Use builds 486+';
+            }
+            
+            document.getElementById('status').className = 'status info';
+            document.getElementById('status').innerHTML = html;
+        }
+        
+        function deleteDB() {
+            if (!confirm('Delete the database? You will need to re-import your JSON files.')) {
+                return;
+            }
+            
+            document.getElementById('status').textContent = 'Deleting...';
+            document.getElementById('status').className = 'status';
+            
+            const req = indexedDB.deleteDatabase('ArcTimelineDiary');
+            
+            req.onsuccess = () => {
+                document.getElementById('status').className = 'status success';
+                document.getElementById('status').innerHTML = '✅ Database deleted!<br><br>You can now close this tab and open the main app. You will need to re-import your JSON files.';
+            };
+            
+            req.onerror = () => {
+                document.getElementById('status').className = 'status error';
+                document.getElementById('status').textContent = '❌ Error: ' + req.error;
+            };
+            
+            req.onblocked = () => {
+                document.getElementById('status').className = 'status error';
+                document.getElementById('status').innerHTML = '⚠️ Blocked!<br><br>Close ALL other tabs with Arc Timeline app, then click Delete again.';
+            };
+        }
+    </script>
+</body>
+</html>
