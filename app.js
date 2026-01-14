@@ -5523,6 +5523,7 @@ function moveMapSmart(latlng, zoom) {
             } else {
                 map.fitBounds(bounds, options);
             }
+
         }
         
         // Initialize the map panel with month routes
@@ -5773,7 +5774,9 @@ function moveMapSmart(latlng, zoom) {
             availableDates: new Set(), // Dates with data
             visitedLocations: new Set(), // Locations already shown popup
             diaryWasHidden: false,   // Track if user hid diary during replay
-            lastHighlightedEntry: null // Last highlighted diary entry
+            lastHighlightedEntry: null, // Last highlighted diary entry
+            locationClearTime: 0,    // When to clear currentLocationName after pause
+            lastLocationEndTime: 0   // End time of last visited location (to skip activities before this)
         };
         
         // Activity icons for replay (pictogram style)
@@ -6105,6 +6108,7 @@ function moveMapSmart(latlng, zoom) {
             replayState.currentLocationName = null;
             replayState.visitedLocations.clear(); // Clear visited locations for new replay
             replayState.lastHighlightedEntry = null; // Reset diary highlight tracking
+            replayState.lastLocationEndTime = 0; // Reset location end time tracking
             
             // Zoom in on starting point, centered in usable area
             replayCenterOnPoint(firstPoint.lat, firstPoint.lng);
@@ -6195,26 +6199,40 @@ function moveMapSmart(latlng, zoom) {
             const timeStr = timestamp ? new Date(timestamp).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) : '';
             
             // Find this location to get visit duration and start time for diary matching
+            // Match by name AND time proximity to handle repeat visits to same location
             let durationStr = '';
             let locStartTime = null;
+            let locEndTime = null;
+            let bestTimeDiff = Infinity;
             for (const loc of replayState.dayLocations) {
                 const locName = loc.name || loc.location;
                 if (locName === name && loc.startDate && loc.endDate) {
                     const start = new Date(loc.startDate).getTime();
                     const end = new Date(loc.endDate).getTime();
-                    locStartTime = start;
-                    const durationMs = end - start;
-                    const durationMins = Math.round(durationMs / 60000);
-                    
-                    if (durationMins >= 60) {
-                        const hours = Math.floor(durationMins / 60);
-                        const mins = durationMins % 60;
-                        durationStr = mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-                    } else if (durationMins > 0) {
-                        durationStr = `${durationMins}m`;
+
+                    // Find the visit closest to the timestamp (for repeat visits)
+                    const timeDiff = timestamp ? Math.min(Math.abs(timestamp - start), Math.abs(timestamp - end)) : Infinity;
+                    if (timeDiff < bestTimeDiff) {
+                        bestTimeDiff = timeDiff;
+                        locStartTime = start;
+                        locEndTime = end;
+                        const durationMs = end - start;
+                        const durationMins = Math.round(durationMs / 60000);
+
+                        if (durationMins >= 60) {
+                            const hours = Math.floor(durationMins / 60);
+                            const mins = durationMins % 60;
+                            durationStr = mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+                        } else if (durationMins > 0) {
+                            durationStr = `${durationMins}m`;
+                        }
                     }
-                    break;
                 }
+            }
+
+            // Store the location end time so we don't highlight activities that ended before it
+            if (locEndTime) {
+                replayState.lastLocationEndTime = locEndTime;
             }
             
             // Build meta line with time and duration
@@ -6245,14 +6263,17 @@ function moveMapSmart(latlng, zoom) {
             .openOn(map);
             
             replayState.currentLocationName = name;
-            
+
+            // Create unique visit key using name + start time to handle repeat visits
+            const visitKey = locStartTime ? `${name}_${locStartTime}` : name;
+
             // Only track as visited if not skipping
             if (!skipVisited) {
-                replayState.visitedLocations.add(name);
+                replayState.visitedLocations.add(visitKey);
             }
-            
+
             // Highlight diary entry when popup appears (synced with popup)
-            const entryKey = `${name}_${locStartTime || 0}`;
+            const entryKey = visitKey;
             replayState.lastHighlightedEntry = entryKey;
             highlightDiaryEntryByName(name, locStartTime);
         }
@@ -6381,7 +6402,15 @@ function moveMapSmart(latlng, zoom) {
             if (replayState.pauseUntil > 0 && replayState.pauseUntil <= now) {
                 replayState.pauseUntil = 0;
                 hideReplayLocationPopup();
-                replayState.currentLocationName = null; // Allow next location to be detected
+                // Keep currentLocationName for a short time to prevent brief activity highlight flash
+                // checkLocationArrival will respect this delay and not clear currentLocationName
+                replayState.locationClearTime = now + 500; // Clear after 500ms
+            }
+
+            // Clear currentLocationName after delay (prevents activity highlight flash after location stop)
+            if (replayState.locationClearTime && now >= replayState.locationClearTime) {
+                replayState.currentLocationName = null;
+                replayState.locationClearTime = 0;
             }
             
             const deltaMs = now - replayState.lastFrameTime;
@@ -6432,9 +6461,13 @@ function moveMapSmart(latlng, zoom) {
                 replayState.currentIndex = locationStop.index;
                 const point = replayState.routeData[locationStop.index];
                 replayState.marker.setLatLng([point.lat, point.lng]);
-                
+
+                // Mark as visited IMMEDIATELY to prevent duplicate triggers
+                // (before showReplayLocationPopup which may take time)
+                replayState.visitedLocations.add(locationStop.visitKey);
+
                 // Show popup and pause
-                showReplayLocationPopup(point.lat, point.lng, locationStop.name, locationStop.time);
+                showReplayLocationPopup(point.lat, point.lng, locationStop.name, locationStop.time, true); // skipVisited=true since we already added
                 replayState.pauseUntil = performance.now() + 3000;
                 
                 replayUpdatePosition(locationStop.index);
@@ -6528,9 +6561,13 @@ function moveMapSmart(latlng, zoom) {
             for (const loc of replayState.dayLocations) {
                 if (!loc.lat || !loc.lng) continue;
                 const locationName = loc.name || loc.location || 'Unknown';
-                
-                // Skip if we already showed this location
-                if (replayState.visitedLocations.has(locationName)) continue;
+
+                // Create unique key using name + start time to handle repeat visits
+                const visitStart = loc.startDate ? new Date(loc.startDate).getTime() : null;
+                const visitKey = visitStart ? `${locationName}_${visitStart}` : locationName;
+
+                // Skip if we already showed this specific visit
+                if (replayState.visitedLocations.has(visitKey)) continue;
                 
                 // Check route points in our path for proximity to this location
                 for (let i = startIdx; i <= endIdx && i < replayState.routeData.length; i++) {
@@ -6550,7 +6587,8 @@ function moveMapSmart(latlng, zoom) {
                                     distance: replayState.cumulativeDistances[i],
                                     index: i,
                                     name: locationName,
-                                    time: pointTime
+                                    time: pointTime,
+                                    visitKey: visitKey
                                 };
                             }
                         } else {
@@ -6559,7 +6597,8 @@ function moveMapSmart(latlng, zoom) {
                                 distance: replayState.cumulativeDistances[i],
                                 index: i,
                                 name: locationName,
-                                time: pointTime || Date.now()
+                                time: pointTime || Date.now(),
+                                visitKey: visitKey
                             };
                         }
                     }
@@ -6640,7 +6679,9 @@ function moveMapSmart(latlng, zoom) {
                 // If we have both start and end, use time-based check
                 if (visitStart && visitEnd) {
                     if (currentTime >= visitStart && currentTime <= visitEnd) {
-                        if (!replayState.visitedLocations.has(locationName)) {
+                        // Use composite key to handle repeat visits to same location
+                        const visitKey = `${locationName}_${visitStart}`;
+                        if (!replayState.visitedLocations.has(visitKey)) {
                             // Arrived at new location - show popup and pause
                             showReplayLocationPopup(lat, lng, locationName, currentTime);
                             replayState.pauseUntil = performance.now() + 3000;
@@ -6652,10 +6693,12 @@ function moveMapSmart(latlng, zoom) {
                 else if (visitStart && loc.lat && loc.lng) {
                     const timeDiff = Math.abs(currentTime - visitStart);
                     const distMeters = calculateDistanceMeters(lat, lng, loc.lat, loc.lng);
-                    
+
                     // Within 100m and within 2 minutes of start time
                     if (distMeters < 100 && timeDiff < 120000) {
-                        if (!replayState.visitedLocations.has(locationName)) {
+                        // Use composite key to handle repeat visits to same location
+                        const visitKey = `${locationName}_${visitStart}`;
+                        if (!replayState.visitedLocations.has(visitKey)) {
                             showReplayLocationPopup(loc.lat, loc.lng, locationName, visitStart);
                             replayState.pauseUntil = performance.now() + 3000;
                         }
@@ -6675,8 +6718,8 @@ function moveMapSmart(latlng, zoom) {
                 }
             }
             
-            // Not at any location
-            if (replayState.currentLocationName) {
+            // Not at any location - but don't clear if we're in the delay period after a stop
+            if (replayState.currentLocationName && !replayState.locationClearTime) {
                 hideReplayLocationPopup();
                 replayState.currentLocationName = null;
             }
@@ -6709,27 +6752,30 @@ function moveMapSmart(latlng, zoom) {
         // Highlight activity entries only when traveling between locations
         function highlightActivityEntry(index) {
             const diaryFloat = document.querySelector('.diary-float');
-            
+
             // Don't highlight if diary is hidden or we're at a location (popup showing)
             if (!diaryFloat || diaryFloat.style.display === 'none') {
                 return;
             }
-            
-            // If we're at a location (popup is showing), don't override with activity highlighting
+
+            // If we're at a location (popup is showing) OR waiting to clear, don't override with activity highlighting
             if (replayState.currentLocationName) {
                 return;
             }
-            
+            if (replayState.locationClearTime > 0) {
+                return;
+            }
+
             const point = replayState.routeData[index];
             if (!point) return;
-            
+
             const currentTime = getPointTime(point);
             if (!currentTime) return;
-            
+
             // Try to highlight activity entry by time
             const timeKey = `activity_${Math.floor(currentTime / 60000)}`; // Round to minute
             if (timeKey !== replayState.lastHighlightedEntry) {
-                if (highlightDiaryEntryByTime(currentTime)) {
+                if (highlightReplayDiaryEntryByTime(currentTime)) {
                     replayState.lastHighlightedEntry = timeKey;
                 }
             }
@@ -6738,41 +6784,41 @@ function moveMapSmart(latlng, zoom) {
         function highlightDiaryEntryByName(locationName, timestamp = null) {
             const markdownEl = document.getElementById('markdownContent');
             if (!markdownEl) return;
-            
+
             // Remove previous highlights
             markdownEl.querySelectorAll('li.diary-highlight').forEach(el => {
                 el.classList.remove('diary-highlight');
             });
-            
+
             // Get the current replay day to filter entries
             const currentDayKey = replayState.selectedDayKey;
-            
+
             // Find the entry with this location name using data-location attribute
             // Filter by day key and match by time to handle multiple locations with same name
             const locationDataElements = markdownEl.querySelectorAll('.location-data');
             let bestMatch = null;
             let bestTimeDiff = Infinity;
-            
+
             for (const locData of locationDataElements) {
                 // Filter by day key if we have one
                 if (currentDayKey) {
                     const entryDayKey = locData.getAttribute('data-daykey');
                     if (entryDayKey !== currentDayKey) continue;
                 }
-                
+
                 const dataLocation = locData.getAttribute('data-location');
                 if (dataLocation !== locationName) continue;
-                
+
                 const li = locData.closest('li');
                 if (!li) continue;
-                
+
                 // If we have a timestamp, try to match by time
                 if (timestamp) {
                     const startDateStr = locData.getAttribute('data-start-date');
                     if (startDateStr) {
                         const entryTime = new Date(startDateStr).getTime();
                         const timeDiff = Math.abs(entryTime - timestamp);
-                        
+
                         // Find closest time match
                         if (timeDiff < bestTimeDiff) {
                             bestTimeDiff = timeDiff;
@@ -6788,16 +6834,16 @@ function moveMapSmart(latlng, zoom) {
                     break;
                 }
             }
-            
+
             if (bestMatch) {
                 bestMatch.classList.add('diary-highlight');
-                
+
                 // Scroll into view smoothly
                 const diaryPanel = document.querySelector('.diary-panel');
                 if (diaryPanel) {
                     const entryRect = bestMatch.getBoundingClientRect();
                     const panelRect = diaryPanel.getBoundingClientRect();
-                    
+
                     // Only scroll if entry is outside visible area
                     if (entryRect.top < panelRect.top + 50 || entryRect.bottom > panelRect.bottom - 50) {
                         const scrollTop = entryRect.top - panelRect.top + diaryPanel.scrollTop - 80;
@@ -6806,56 +6852,76 @@ function moveMapSmart(latlng, zoom) {
                 }
             }
         }
-        
-        // Highlight diary entry by timestamp (for activities)
-        function highlightDiaryEntryByTime(timestamp) {
+
+        // Highlight diary entry by timestamp (for replay mode activities)
+        function highlightReplayDiaryEntryByTime(timestamp) {
             const markdownEl = document.getElementById('markdownContent');
             if (!markdownEl || !timestamp) return false;
-            
+
             // Remove previous highlights
             markdownEl.querySelectorAll('li.diary-highlight').forEach(el => {
                 el.classList.remove('diary-highlight');
             });
-            
+
             // Get the current replay day to filter entries
             const currentDayKey = replayState.selectedDayKey;
-            
-            // Find ACTIVITY entry closest to this timestamp
+
+            // Find ACTIVITY entry that contains this timestamp (current time within activity duration)
             // Only match activities (data-type="activity"), NOT locations (data-is-visit="true")
             const activityElements = markdownEl.querySelectorAll('.location-data[data-type="activity"]');
+
             let bestMatch = null;
             let bestTimeDiff = Infinity;
-            
+
             for (const locData of activityElements) {
                 // Filter by day key if we have one
                 if (currentDayKey) {
                     const entryDayKey = locData.getAttribute('data-daykey');
                     if (entryDayKey !== currentDayKey) continue;
                 }
-                
+
                 const startDateStr = locData.getAttribute('data-start-date');
                 if (!startDateStr) continue;
-                
-                const entryTime = new Date(startDateStr).getTime();
-                const timeDiff = Math.abs(entryTime - timestamp);
-                
-                // Must be within 10 minutes to be considered a match
-                if (timeDiff < 600000 && timeDiff < bestTimeDiff) {
-                    bestTimeDiff = timeDiff;
-                    const li = locData.closest('li');
-                    if (li) bestMatch = li;
+
+                const startTime = new Date(startDateStr).getTime();
+
+                // Try to get end time from data attribute or estimate from next entry
+                const endDateStr = locData.getAttribute('data-end-date');
+                let endTime = endDateStr ? new Date(endDateStr).getTime() : null;
+
+                // If no end time, use a reasonable default (e.g., 2 hours max for an activity)
+                if (!endTime) {
+                    endTime = startTime + (2 * 60 * 60 * 1000); // 2 hours default
+                }
+
+                // Skip activities that ended BEFORE our last visited location
+                // This prevents highlighting "Car" after we've already stopped at "Walk Start"
+                if (replayState.lastLocationEndTime && endTime < replayState.lastLocationEndTime) {
+                    continue;
+                }
+
+                // Check if timestamp falls WITHIN the activity duration (with 1 min buffer)
+                const buffer = 60000; // 1 minute buffer
+                if (timestamp >= startTime - buffer && timestamp <= endTime + buffer) {
+                    // Prefer exact matches (timestamp within duration) over near-start matches
+                    const timeDiff = Math.abs(startTime - timestamp);
+                    if (timeDiff < bestTimeDiff) {
+                        bestTimeDiff = timeDiff;
+                        const li = locData.closest('li');
+                        if (li) bestMatch = li;
+                    }
                 }
             }
-            
+
             if (bestMatch) {
                 bestMatch.classList.add('diary-highlight');
-                
+
                 // Scroll into view
                 const diaryPanel = document.querySelector('.diary-panel');
                 if (diaryPanel) {
                     const entryRect = bestMatch.getBoundingClientRect();
                     const panelRect = diaryPanel.getBoundingClientRect();
-                    
+
                     if (entryRect.top < panelRect.top + 50 || entryRect.bottom > panelRect.bottom - 50) {
                         const scrollTop = entryRect.top - panelRect.top + diaryPanel.scrollTop - 80;
                         diaryPanel.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
@@ -7063,6 +7129,7 @@ function moveMapSmart(latlng, zoom) {
             replayState.currentLocationName = null;
             replayState.visitedLocations.clear(); // Clear visited for restart
             replayState.lastHighlightedEntry = null; // Reset diary highlight tracking
+            replayState.lastLocationEndTime = 0; // Reset location end time tracking
             
             hideReplayLocationPopup();
             
@@ -7853,9 +7920,10 @@ function moveMapSmart(latlng, zoom) {
             map.invalidateSize();
 
             // Draw colour-coded route FIRST (so it appears under markers)
+            // NOTE: Always pass fit: false here - showDayMap handles fitBounds itself
+            // to include both markers AND route points in comprehensive bounds
             if (routeData && routeData.length > 1) {
-                const hasTarget = (targetLat !== null && targetLng !== null);
-                drawColorCodedRoute(routeData, { fit: !hasTarget && !skipFit });
+                drawColorCodedRoute(routeData, { fit: false });
             }
 
             // Add marker clustering (drawn AFTER routes, so markers appear on top)
@@ -7977,6 +8045,7 @@ function moveMapSmart(latlng, zoom) {
                         bestTargetMarker = mm;
                     }
                 }
+            }
 
             // Resolve clicked target marker (use closest marker; rounding between diary pins and route points can differ)
             if (targetLat !== null && targetLng !== null && bestTargetMarker) {
@@ -8040,7 +8109,7 @@ function moveMapSmart(latlng, zoom) {
                 
                 // Add padding to keep routes visible (not hidden under diary and stats panels)
                 const padding = getMapPadding();
-                debugFitBounds(allBounds, { 
+                debugFitBounds(allBounds, {
                     paddingTopLeft: padding.paddingTopLeft,
                     paddingBottomRight: padding.paddingBottomRight,
                     animate: false  // Disable animation to prevent visual glitch
@@ -8080,8 +8149,7 @@ function moveMapSmart(latlng, zoom) {
                 positionReplayController();
             }
         }
-        }
-        
+
         function showActivityRoutePopup(dayKey, activityStartTime) {
             // If we're already on the day map, check if the activity is filtered out
             if (mapMode === 'day' && currentDayKey === dayKey) {
@@ -13867,12 +13935,13 @@ scrollToDiaryDay(currentDayKey);
                         const escapedLocation = note.location.replace(/"/g, '&quot;').replace(/'/g, "\\'");
                         // Create stable placeId from Arc's placeId or fallback to lat_lng
                         const placeId = note.placeId || `${note.latitude}_${note.longitude}`;
-                        // Added data-daykey="${day}" and data-start-date for activities
+                        // Added data-daykey="${day}" and data-start-date/data-end-date for activities
                         const startDateAttr = note.startDate ? ` data-start-date="${note.startDate}"` : '';
+                        const endDateAttr = note.endDate ? ` data-end-date="${note.endDate}"` : '';
                         const isVisitAttr = note.isVisit ? ' data-is-visit="true"' : '';
                         const typeAttr = note.isVisit ? '' : ' data-type="activity"';
                         const activityTypeAttr = note.activityType ? ` data-activity-type="${note.activityType}"` : '';
-                        bulletHeader += `<span class="location-data" data-daykey="${day}" data-lat="${note.latitude}" data-lng="${note.longitude}" data-place-id="${placeId}" data-location="${escapedLocation}" data-date="${note.date}"${startDateAttr}${isVisitAttr}${typeAttr}${activityTypeAttr} style="display:none;"></span>`;
+                        bulletHeader += `<span class="location-data" data-daykey="${day}" data-lat="${note.latitude}" data-lng="${note.longitude}" data-place-id="${placeId}" data-location="${escapedLocation}" data-date="${note.date}"${startDateAttr}${endDateAttr}${isVisitAttr}${typeAttr}${activityTypeAttr} style="display:none;"></span>`;
                         
                         // Show coalescing indicator when items were merged
                         if (note._hasCollapsedSegments && note._mergedCount > 1) {
@@ -13889,7 +13958,8 @@ scrollToDiaryDay(currentDayKey);
                         // Create placeId from activity start time for activities without coordinates
                         const placeId = `activity_${note.startDate}`;
                         const activityTypeAttr = note.activityType ? ` data-activity-type="${note.activityType}"` : '';
-                        bulletHeader += `<span class="location-data" data-daykey="${day}" data-place-id="${placeId}" data-location="${escapedLocation}" data-date="${note.date}" data-start-date="${note.startDate}" data-type="activity"${activityTypeAttr} data-no-gps="true" style="display:none;"></span>`;
+                        const endDateAttr = note.endDate ? ` data-end-date="${note.endDate}"` : '';
+                        bulletHeader += `<span class="location-data" data-daykey="${day}" data-place-id="${placeId}" data-location="${escapedLocation}" data-date="${note.date}" data-start-date="${note.startDate}"${endDateAttr} data-type="activity"${activityTypeAttr} data-no-gps="true" style="display:none;"></span>`;
                         // Add "No GPS" label for entries without map coordinates (with leading space)
                         bulletHeader += ` <span class="diary-tag diary-tag-no-gps">No GPS</span>`;
                     }

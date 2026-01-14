@@ -1,5 +1,79 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 660 (2026-01-14)
+
+### Fix - Diary Highlighting Previous Activity After Location Stop
+- **Fixed diary briefly highlighting previous activity (e.g., "Car") after stopping at a location**: After visiting "Walk Start" at 07:18, the diary would briefly highlight "Car (07:08-07:18)" before switching to the next "Walking" activity
+- Root cause: GPS data points near location stops often have timestamps BEFORE the location's start time, causing the activity matcher to find the previous activity
+- Fix: Added `lastLocationEndTime` state to track when the last visited location ended
+- `highlightReplayDiaryEntryByTime` now skips any activity whose end time is before `lastLocationEndTime`
+- This ensures activities that occurred BEFORE the current location are never highlighted after leaving that location
+- State is reset when starting or restarting replay
+
+## Build 659 (2026-01-14)
+
+### Fix - Activity Flash After Location Stop (Complete Fix)
+- **Fixed brief previous activity highlight when leaving a location stop**: Build 658's delay mechanism was being bypassed
+- Root cause discovered: `checkLocationArrival` was immediately clearing `currentLocationName` when detecting sprite left the location area
+- This happened BEFORE the 500ms delay could protect against activity highlighting
+- Fix 1: `checkLocationArrival` now respects `locationClearTime` - won't clear `currentLocationName` during the delay period
+- Fix 2: Updated `checkLocationArrival` to use composite keys (`${name}_${startTime}`) for visited tracking, consistent with `checkForLocationInPath`
+- This ensures both location detection methods handle repeat visits correctly
+
+## Build 658 (2026-01-14)
+
+### Fix - Activity Flash After Location Stop
+- **Fixed brief previous activity highlight when leaving a location stop**: After pausing at a location, the previous activity would briefly highlight before moving forward
+- Root cause: `currentLocationName` was cleared immediately when pause ended, allowing `highlightActivityEntry` to run and match the previous activity (since current timestamp was between activities)
+- Fix: Delay clearing `currentLocationName` by 500ms after pause ends using new `locationClearTime` state
+- This gives time for the sprite to move into the next activity's time range before activity highlighting resumes
+
+## Build 657 (2026-01-14)
+
+### Fix - Replay Stops Triggering Multiple Times
+- **Fixed sprite showing popup multiple times at same location**: Animation frames were racing ahead of visitedLocations update
+- Root cause: `checkForLocationInPath` returned location info, but `visitedLocations.add()` happened inside `showReplayLocationPopup` which took time
+- Multiple animation frames could detect the same location before it was marked as visited
+- Fix: Return `visitKey` from `checkForLocationInPath` and add to `visitedLocations` IMMEDIATELY before showing popup
+- Pass `skipVisited=true` to `showReplayLocationPopup` since we already marked it
+
+## Build 656 (2026-01-14)
+
+### Fix - Replay Animation Issues
+- **Fixed sprite not stopping at repeat location visits**: Locations visited multiple times in a day (e.g., home → work → home) now all trigger stops
+- Root cause: `visitedLocations` Set was tracking by name only, so second visit to same location was skipped
+- Fix: Track visits using composite key `${name}_${startTime}` to make each visit unique
+- Also improved location matching for popup display to use time proximity for repeat visits
+- **Fixed activity not highlighting in diary during replay**: Car/walking activities now highlight correctly
+- Root cause: Matching used 10-minute window from start time, but long activities exceed this
+- Fix: Check if current time falls WITHIN activity duration (start to end), not just near start
+- Added `data-end-date` attribute to activity elements for accurate duration matching
+
+## Build 655 (2026-01-14)
+
+### Fix - Activity Polyline Click Not Highlighting Diary
+- **Fixed clicking activity polylines not highlighting diary entry**: Regression where clicking a route segment no longer highlighted the corresponding activity in the diary
+- Root cause: Duplicate function definition - `highlightDiaryEntryByTime` was defined twice with different signatures
+- The 3-parameter version (for route clicks) was being overwritten by a 1-parameter version (for replay mode)
+- Fix: Renamed replay version to `highlightReplayDiaryEntryByTime` to avoid conflict
+
+## Build 654 (2026-01-14)
+
+### Critical Fix - Missing Closing Brace in showDayMap
+- **Fixed map bounds not respecting padding**: Routes were extending behind diary/stats panels
+- Root cause: Missing closing brace for the `for (const p of locs)` loop in `showDayMap`
+- The fitBounds code was accidentally inside the loop, causing it to run once per location marker
+- This resulted in 13+ redundant fitBounds calls per day (one per location) with incrementing bounds
+- Added missing `}` to properly close the marker creation loop
+- Also: `showDayMap` now passes `fit: false` to `drawColorCodedRoute` to avoid double fitBounds
+
+## Build 653 (2026-01-14)
+
+### Fix - Map Bounds Respecting Padding (incomplete)
+- Attempted to fix routes extending behind panels by eliminating double fitBounds
+- Changed `showDayMap` to pass `fit: false` to `drawColorCodedRoute`
+- This was a partial fix - the real issue was the missing closing brace (fixed in Build 654)
+
 ## Build 652 (2026-01-14)
 
 ### Fix - Progress Bar Text During Backup Import
