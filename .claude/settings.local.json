@@ -9,7 +9,8 @@
       "Bash(gh auth status:*)",
       "Bash(brew install:*)",
       "Bash(/opt/homebrew/bin/gh auth status)",
-      "Bash(/opt/homebrew/bin/gh repo create:*)"
+      "Bash(/opt/homebrew/bin/gh repo create:*)",
+      "Bash(git push)"
     ]
   }
 }

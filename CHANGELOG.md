@@ -1,5 +1,11 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 650 (2026-01-14)
+
+### iCloud Backup Import - Safe Default
+- **"Missing days only" now checked by default**: Prevents backup import from overwriting existing JSON export data
+- JSON export data is more complete than reconstructed backup data, so backup should only fill gaps
+
 ## Build 649 (2026-01-14)
 
 ### Bug Fix - Month Selector Blank After Import
