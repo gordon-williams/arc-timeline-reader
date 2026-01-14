@@ -3075,6 +3075,7 @@ function moveMapSmart(latlng, zoom) {
                 addLog('\\n📍 Loading Places...');
                 console.log('[Backup] Step 1: Loading Places...');
                 progressFill.style.width = '0%';
+                progressFill.textContent = '0%';
                 const placeLookup = new Map();
                 if (placeDir) {
                     let placeCount = 0;
@@ -3106,6 +3107,7 @@ function moveMapSmart(latlng, zoom) {
                 // Step 2: Load Notes indexed by date (5-10%)
                 addLog('\\n📝 Loading Notes...');
                 progressFill.style.width = '5%';
+                progressFill.textContent = '5%';
                 const notesByDate = new Map();
                 if (noteDir) {
                     let noteCount = 0;
@@ -3135,6 +3137,7 @@ function moveMapSmart(latlng, zoom) {
                 // Step 3: Scan TimelineItems (10-60%)
                 addLog('\\n🗓️ Scanning Timeline Items...');
                 progressFill.style.width = '10%';
+                progressFill.textContent = '10%';
                 const changedItems = [];
                 const changedItemIds = new Set();
                 const changedDays = new Set();
@@ -3234,7 +3237,9 @@ function moveMapSmart(latlng, zoom) {
                         if (scannedCount % 5000 < BATCH_SIZE) {
                             // Estimate progress 10-60% based on typical 50k items
                             const scanPercent = Math.min(50, Math.round((scannedCount / 50000) * 50));
-                            progressFill.style.width = (10 + scanPercent) + '%';
+                            const totalPercent = 10 + scanPercent;
+                            progressFill.style.width = totalPercent + '%';
+                            progressFill.textContent = totalPercent + '%';
                             progressText.textContent = `Scanning timeline: ${scannedCount.toLocaleString()}...`;
                             await new Promise(r => setTimeout(r, 0));
                         }
@@ -3304,6 +3309,7 @@ function moveMapSmart(latlng, zoom) {
                 // Step 4: Load GPS samples for needed weeks only (60-80%)
                 addLog('\\n📍 Loading GPS samples...');
                 progressFill.style.width = '60%';
+                progressFill.textContent = '60%';
                 const samplesByItemId = new Map();
                 
                 if (sampleDir) {
@@ -3349,6 +3355,7 @@ function moveMapSmart(latlng, zoom) {
                 // CRITICAL: Use previousItemId/nextItemId order, NEVER sort by startDate
                 addLog('\\n🔗 Ordering by timeline links...');
                 progressFill.style.width = '80%';
+                progressFill.textContent = '80%';
                 const orderedItems = orderItemsByLinkedList(changedItems);
                 addLog(`  Ordered ${orderedItems.length} items by linked list`);
                 
@@ -3465,8 +3472,9 @@ function moveMapSmart(latlng, zoom) {
                         // Scale progress from 80% to 100%
                         const savePercent = Math.round((savedDays / sortedDays.length) * 20);
                         const totalPercent = 80 + savePercent;
-                        progressText.textContent = `Saving: ${savedDays}/${sortedDays.length} days`;
                         progressFill.style.width = totalPercent + '%';
+                        progressFill.textContent = totalPercent + '%';
+                        progressText.textContent = `Saving: ${savedDays}/${sortedDays.length} days`;
                         await new Promise(r => setTimeout(r, 0));
                     }
                 }

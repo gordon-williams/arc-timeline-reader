@@ -1,5 +1,11 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 652 (2026-01-14)
+
+### Fix - Progress Bar Text During Backup Import
+- Progress bar now shows percentage text (0%, 5%, 10%, etc.) during iCloud backup import
+- Previously only the bar width updated, text stayed at "0%"
+
 ## Build 651 (2026-01-14)
 
 ### Smart Import - Content Comparison
