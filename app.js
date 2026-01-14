@@ -2088,14 +2088,17 @@ function moveMapSmart(latlng, zoom) {
             
             // Update UI
             await updateDBStatusDisplay();
-            
+
+            // Refresh monthKeys and selectors after import
+            await loadMostRecentMonth();
+
             // Notify analysis page that data has changed
             if (addedDays.length > 0 || updatedDays.length > 0) {
                 try {
                     const dataChannel = new BroadcastChannel('arc-data-update');
-                    dataChannel.postMessage({ 
-                        type: 'dataImported', 
-                        addedDays: addedDays.length, 
+                    dataChannel.postMessage({
+                        type: 'dataImported',
+                        addedDays: addedDays.length,
                         updatedDays: updatedDays.length,
                         timestamp: Date.now()
                     });
@@ -2104,10 +2107,10 @@ function moveMapSmart(latlng, zoom) {
                     // BroadcastChannel not supported or failed
                 }
             }
-            
+
             progress.style.display = 'none';
             cancelBtn.style.display = 'none';
-            
+
             // Reset file input so the same folder can be selected again
             fileInput.value = '';
             selectedFiles = [];
@@ -3472,14 +3475,14 @@ function moveMapSmart(latlng, zoom) {
                 addLog('\\n✅ Backup import complete!');
                 addLog(`  Days added: ${addedDays.length.toLocaleString()}`);
                 addLog(`  Days updated: ${updatedDays.length.toLocaleString()}`);
-                
+
                 if (addedDays.length > 0) {
                     addLog(`  New data range: ${addedDays[0]} to ${addedDays[addedDays.length - 1]}`);
                 }
-                
+
                 progress.style.display = 'none';
                 cancelBtn.style.display = 'none';
-                
+
                 const results = document.getElementById('results');
                 if (results) {
                     results.style.display = 'block';
@@ -3492,6 +3495,10 @@ function moveMapSmart(latlng, zoom) {
                         `;
                     }
                 }
+
+                // Refresh monthKeys and selectors after import
+                await updateDBStatusDisplay();
+                await loadMostRecentMonth();
                 
             } catch (err) {
                 addLog(`\\n❌ Error: ${err.message}`, 'error');

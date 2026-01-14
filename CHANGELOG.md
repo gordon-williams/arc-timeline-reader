@@ -1,5 +1,12 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 649 (2026-01-14)
+
+### Bug Fix - Month Selector Blank After Import
+- **Fixed month selector empty after iCloud backup import**: `monthKeys` wasn't being refreshed after import completed
+- Now calls `loadMostRecentMonth()` after both JSON and iCloud backup imports finish
+- This refreshes `monthKeys` and repopulates year/month selectors with imported data
+
 ## Build 648 (2026-01-14)
 
 ### Import Performance Optimization (Safe Version)
