@@ -1,5 +1,34 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 678 (2026-01-14)
+
+### Enhancement - Analysis Improvements
+- **Default preset changed to [All]**: Both Activity and Location tabs now default to showing all data instead of just the last 3 months
+- **Auto-run on parameter changes**: Changing preset buttons or date range now automatically re-runs the analysis (Location tab only auto-runs if locations are already selected)
+
+## Build 677 (2026-01-14)
+
+### Enhancement - Google Street View Integration
+- **Replay location popup**: Street View link appears below time/duration info when paused at a location
+- **Right-click context menu**: Right-click anywhere on the map for quick access to:
+  - Google Street View at that location
+  - Google Maps at that location
+  - Coordinates display
+- **Place marker popup**: Street View link in the popup when clicking location markers (blue dots)
+
+## Build 676 (2026-01-14)
+
+### Fix - Replay Finish Flag Icon
+- **Fixed finish flag not appearing at end of day trip animation**: The `replayUpdatePosition()` function was overwriting the finished icon when called after setting it
+- **Added missing CSS**: The `.activity-finished` class was missing from styles, causing the checkered flag marker to have no background color
+- Reordered code to ensure finished icon is set after position updates
+- Added guard in `replayUpdatePosition()` to preserve the finished state
+
+## Build 675 (2026-01-14)
+
+### Fix - Finish Flag Icon Styling
+- Added missing CSS rule for `.activity-finished` marker background (black)
+
 ## Build 674 (2026-01-14)
 
 ### Fix - ISO Week Calculation Bug Causing Missing GPS Samples

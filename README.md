@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader
 
-**Current Build: 647**
+**Current Build: 678**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracking data that generates interactive diaries with maps.
 
@@ -23,6 +23,14 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracki
 - **Dark Mode** - System-aware theme with toggle
 - **Raw Toggle** - View uncoalesced timeline data for debugging
 
+### Day Trip Replay
+- **Animated Playback** - Watch your day's journey animated on the map
+- **Activity Icons** - Marker changes based on transport mode (walking, cycling, car, etc.)
+- **Location Stops** - Pauses at visited locations with popup showing name and duration
+- **Speed Display** - Real-time speedometer based on GPS data
+- **Diary Sync** - Current activity highlighted in diary panel during playback
+- **Playback Controls** - Play/pause, speed adjustment (1x-64x), scrubbing via progress bar
+
 ### Location Analysis
 - **Multi-Location Selection** - Search and select multiple locations
 - **Physical Location Clustering** - Distinguishes same-name locations at different addresses (e.g., multiple Bunnings stores)
@@ -39,6 +47,7 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracki
 
 ### Map Features
 - **Route Visualization** - Color-coded tracks by activity type
+- **Google Street View** - Links in location popups and right-click context menu
 - **Measure Tool** - Click to measure distances between points
 - **Location Search** - Mapbox-powered place search
 - **Multiple Tile Providers** - Mapbox (streets, dark, satellite, outdoors) or CARTO
