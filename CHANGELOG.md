@@ -1,5 +1,15 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 651 (2026-01-14)
+
+### Smart Import - Content Comparison
+- **Won't overwrite if existing has more content**: Import now compares timeline item counts, not just timestamps
+- If existing day has MORE items than incoming data, import skips (preserves richer data)
+- If same item count, falls back to timestamp comparison
+- Applies to both JSON export and iCloud backup imports
+- `getDayMetadataFromDB()` loads dayKey + lastUpdated + itemCount in one cursor pass
+- Reverted "Missing days only" to unchecked (content comparison handles protection)
+
 ## Build 650 (2026-01-14)
 
 ### iCloud Backup Import - Safe Default

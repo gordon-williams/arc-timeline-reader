@@ -617,33 +617,46 @@ function moveMapSmart(latlng, zoom) {
             }
         };
         
-        // Import day data to IndexedDB (with timestamp sync)
-        // existingTimestamps: optional Map<dayKey, lastUpdated> for O(1) lookups
+        // Import day data to IndexedDB (with timestamp and content comparison)
+        // existingMetadata: optional Map<dayKey, {lastUpdated, itemCount}> for O(1) lookups
         // If not provided, falls back to individual DB query (slower)
-        async function importDayToDB(dayKey, monthKey, dayData, sourceFile, lastUpdated, existingTimestamps = null) {
+        // Content comparison: won't overwrite if existing has more timeline items
+        async function importDayToDB(dayKey, monthKey, dayData, sourceFile, lastUpdated, existingMetadata = null) {
             if (!db) throw new Error('Database not initialized');
 
-            // Check if day exists and compare timestamps
+            // Check if day exists and compare timestamps + content
             // Use pre-loaded Map if available (fast), otherwise query DB (slow)
-            let existingTimestamp = null;
+            let existingMeta = null;
             let dayExists = false;
 
-            if (existingTimestamps) {
+            if (existingMetadata) {
                 // O(1) Map lookup - fast!
-                existingTimestamp = existingTimestamps.get(dayKey);
-                dayExists = existingTimestamp !== undefined;
+                existingMeta = existingMetadata.get(dayKey);
+                dayExists = existingMeta !== undefined;
             } else {
                 // Individual DB query - slow fallback
                 const existing = await getDayFromDB(dayKey);
                 if (existing) {
-                    existingTimestamp = existing.lastUpdated;
+                    existingMeta = {
+                        lastUpdated: existing.lastUpdated,
+                        itemCount: existing.data?.timelineItems?.length || 0
+                    };
                     dayExists = true;
                 }
             }
 
-            if (dayExists && existingTimestamp >= lastUpdated) {
-                // Skip: existing data is newer or same
-                return { action: 'skipped', dayKey };
+            if (dayExists) {
+                const newItemCount = dayData?.timelineItems?.length || 0;
+
+                // Skip if existing has MORE content (regardless of timestamp)
+                if (existingMeta.itemCount > newItemCount) {
+                    return { action: 'skipped', dayKey, reason: 'existing has more items' };
+                }
+
+                // Skip if same content and existing is newer or same timestamp
+                if (existingMeta.itemCount === newItemCount && existingMeta.lastUpdated >= lastUpdated) {
+                    return { action: 'skipped', dayKey, reason: 'same content, not newer' };
+                }
             }
 
             return new Promise((resolve, reject) => {
@@ -683,15 +696,15 @@ function moveMapSmart(latlng, zoom) {
             });
         }
         
-        // Get day timestamps from IndexedDB for import comparison
-        // SAFE: Uses cursor to extract only dayKey + lastUpdated, NOT full data
-        // Returns Map<dayKey, lastUpdated> for O(1) lookups
-        async function getDayTimestampsFromDB() {
-            console.log('[Import] getDayTimestampsFromDB called');
+        // Get day metadata from IndexedDB for import comparison
+        // SAFE: Uses cursor to extract only key fields, NOT full data blob
+        // Returns Map<dayKey, {lastUpdated, itemCount}> for O(1) lookups
+        async function getDayMetadataFromDB() {
+            console.log('[Import] getDayMetadataFromDB called');
             if (!db) return new Map();
 
             return new Promise((resolve, reject) => {
-                const timestamps = new Map();
+                const metadata = new Map();
                 const tx = db.transaction(['days'], 'readonly');
                 const store = tx.objectStore('days');
                 const req = store.openCursor();
@@ -699,16 +712,20 @@ function moveMapSmart(latlng, zoom) {
                 req.onsuccess = (event) => {
                     const cursor = event.target.result;
                     if (cursor) {
-                        // Extract ONLY the fields we need, not the full data blob
-                        timestamps.set(cursor.value.dayKey, cursor.value.lastUpdated);
+                        // Extract ONLY the fields we need for comparison
+                        const day = cursor.value;
+                        metadata.set(day.dayKey, {
+                            lastUpdated: day.lastUpdated,
+                            itemCount: day.data?.timelineItems?.length || 0
+                        });
                         cursor.continue();
                     } else {
-                        console.log('[Import] Loaded timestamps for', timestamps.size, 'days');
-                        resolve(timestamps);
+                        console.log('[Import] Loaded metadata for', metadata.size, 'days');
+                        resolve(metadata);
                     }
                 };
                 req.onerror = () => {
-                    console.error('[Import] getDayTimestampsFromDB error:', req.error);
+                    console.error('[Import] getDayMetadataFromDB error:', req.error);
                     reject(req.error);
                 };
             });
@@ -1859,12 +1876,12 @@ function moveMapSmart(latlng, zoom) {
             
             addLog(`\n⏳ Starting import...`);
 
-            // ⚡ OPTIMIZATION: Load all existing day timestamps ONCE before the loop
-            // Uses cursor to extract only dayKey + lastUpdated (not full data)
+            // ⚡ OPTIMIZATION: Load existing day metadata ONCE before the loop
+            // Uses cursor to extract only dayKey + lastUpdated + itemCount (not full data)
             // This changes O(n) DB queries to O(1) query + O(n) Map lookups
-            addLog(`  Loading existing day timestamps...`);
-            const existingTimestamps = await getDayTimestampsFromDB();
-            addLog(`  Found ${existingTimestamps.size} existing days in database`);
+            addLog(`  Loading existing day metadata...`);
+            const existingMetadata = await getDayMetadataFromDB();
+            addLog(`  Found ${existingMetadata.size} existing days in database`);
 
             let syncStats = { added: 0, updated: 0, skipped: 0 };
             let addedDays = [];
@@ -1912,8 +1929,8 @@ function moveMapSmart(latlng, zoom) {
                     // This ensures we track when the file was actually changed
                     const lastUpdated = file.lastModified;
 
-                    // Import to database (pass pre-loaded timestamps for O(1) lookup)
-                    const result = await importDayToDB(dayKey, monthKey, data, file.name, lastUpdated, existingTimestamps);
+                    // Import to database (pass pre-loaded metadata for O(1) lookup)
+                    const result = await importDayToDB(dayKey, monthKey, data, file.name, lastUpdated, existingMetadata);
                     
                     syncStats[result.action]++;
                     if (result.action === 'added') {
@@ -3384,7 +3401,12 @@ function moveMapSmart(latlng, zoom) {
                 let savedDays = 0;
                 let addedDays = [];
                 let updatedDays = [];
-                
+
+                // Load existing day metadata for content comparison
+                addLog('\\n💾 Saving to database...');
+                const existingMetadata = await getDayMetadataFromDB();
+                addLog(`  Comparing against ${existingMetadata.size} existing days`);
+
                 for (const dayKey of sortedDays) {
                     if (cancelProcessing) break;
                     
@@ -3428,11 +3450,12 @@ function moveMapSmart(latlng, zoom) {
                         }))
                     };
                     
-                    const dayLastSaved = items.reduce((max, item) => 
+                    const dayLastSaved = items.reduce((max, item) =>
                         item.lastSaved && item.lastSaved > max ? item.lastSaved : max, '');
                     const lastUpdated = dayLastSaved ? new Date(dayLastSaved).getTime() : Date.now();
-                    
-                    const result = await importDayToDB(dayKey, monthKey, dayData, 'backup-import', lastUpdated);
+
+                    // Pass metadata for content comparison (won't overwrite if existing has more items)
+                    const result = await importDayToDB(dayKey, monthKey, dayData, 'backup-import', lastUpdated, existingMetadata);
                     
                     if (result.action === 'added') addedDays.push(dayKey);
                     else if (result.action === 'updated') updatedDays.push(dayKey);
