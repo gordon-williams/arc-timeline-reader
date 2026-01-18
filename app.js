@@ -314,14 +314,15 @@ function moveMapSmart(latlng, zoom) {
                 const mappedName = placesById[String(pid)];
                 if (!mappedName) continue;
 
-                // If Arc has no place.name or only generic, apply mapping.
+                // Always update place.name from current placesById mapping
+                // This ensures place name changes in Arc are reflected here
                 if (!item.place) item.place = {};
-                if (!item.place.name || String(item.place.name).trim().length === 0) {
-                    item.place.name = mappedName;
-                }
+                item.place.name = mappedName;
 
-                // Also keep a customTitle field so the UI can prioritise it.
-                if (!item.customTitle) item.customTitle = mappedName;
+                // NOTE: We intentionally do NOT set customTitle here.
+                // customTitle should only be used if set explicitly by the user in Arc.
+                // Setting it here caused stale names to persist even after the place
+                // was renamed in Arc (see Build 681 fix).
             }
         }
 
@@ -837,43 +838,52 @@ function moveMapSmart(latlng, zoom) {
         function findContainedItems(items) {
             const containedIds = new Set();
             if (!items || items.length === 0) return containedIds;
-            
+
             // Sort items by startDate to ensure chronological processing
             const sortedItems = [...items].sort((a, b) => {
                 const aStart = a.startDate ? new Date(a.startDate).getTime() : 0;
                 const bStart = b.startDate ? new Date(b.startDate).getTime() : 0;
                 return aStart - bStart;
             });
-            
+
             let lastSignificantEnd = 0;
-            
+
             // Main pass: Track containers and mark contained items
-            // Container = visit > 30 minutes
-            // Contained = starts after container started but before container ends
+            // Any item can be a container - Arc defines what's meaningful
+            // Contained = item that STARTS AND ENDS within the container's timespan
+            // Items that start inside but end outside are departure trips (show them!)
+            // This hides: brief stops during trips, GPS gaps, noise inside visits, etc.
             for (let i = 0; i < sortedItems.length; i++) {
                 const item = sortedItems[i];
                 if (!item.startDate) continue;
-                
+
                 const itemId = item.itemId || item.startDate;
                 const itemStart = new Date(item.startDate).getTime();
                 const itemEnd = item.endDate ? new Date(item.endDate).getTime() : itemStart;
                 const durationMs = itemEnd - itemStart;
-                
+
                 // Check if this item is contained (skip items with customTitle)
                 // Only check if a container has been established (lastSignificantEnd > 0)
+                // Key rule: item must START AND END within the container to be hidden
+                // If item starts inside but ends outside, it's a departure trip (show it!)
+                // E.g., walking inside Garden City = hidden, car trip leaving Garden City = shown
                 if (!item.customTitle && lastSignificantEnd > 0 && itemStart < lastSignificantEnd) {
-                    containedIds.add(itemId);
-                    continue; // Don't let contained items become containers
-                }
-                
-                // Check if this item becomes a new container (visit > 30 minutes)
-                if (item.isVisit && durationMs > 30 * 60 * 1000) {
-                    if (itemEnd > lastSignificantEnd) {
-                        lastSignificantEnd = itemEnd;
+                    // Only hide if the item ALSO ends within the container
+                    if (itemEnd <= lastSignificantEnd) {
+                        containedIds.add(itemId);
+                        continue; // Don't let contained items become containers
                     }
+                    // Item ends after container - it's a departure, show it
+                    // Update container end to this item's start to allow subsequent items
+                    lastSignificantEnd = itemStart;
+                }
+
+                // This item becomes a container - any item Arc defines can contain noise
+                if (itemEnd > lastSignificantEnd) {
+                    lastSignificantEnd = itemEnd;
                 }
             }
-            
+
             return containedIds;
         }
         
@@ -3683,10 +3693,30 @@ function moveMapSmart(latlng, zoom) {
 
                 for (const dayKey of sortedDays) {
                     if (cancelProcessing) break;
-                    
-                    const items = itemsByDate.get(dayKey);
+
+                    let items = itemsByDate.get(dayKey);
                     const monthKey = dayKey.substring(0, 7);
-                    
+
+                    // CRITICAL: For incremental updates, merge new items with existing items
+                    // Otherwise new items get skipped because existing day has more items
+                    if (existingMetadata.has(dayKey) && !forceRescan) {
+                        const existingDay = await getDayFromDB(dayKey);
+                        if (existingDay?.data?.timelineItems) {
+                            const existingItems = existingDay.data.timelineItems;
+                            const newItemIds = new Set(items.map(i => i.itemId));
+
+                            // Add existing items that aren't being replaced
+                            for (const existingItem of existingItems) {
+                                if (!newItemIds.has(existingItem.itemId)) {
+                                    items.push(existingItem);
+                                }
+                            }
+
+                            // Re-order merged items by linked list
+                            items = orderItemsByLinkedList(items);
+                        }
+                    }
+
                     // DO NOT sort by startDate - linked list order is authoritative
                     // Items are already in correct order from orderItemsByLinkedList()
                     
@@ -4624,9 +4654,46 @@ function moveMapSmart(latlng, zoom) {
             async selectEntry(entryId, dayKey, options = {}) {
                 this.#renderVersion++;
                 const version = this.#renderVersion;
-                
+
                 logDebug(`🎯 NavigationController.selectEntry(${entryId}, ${dayKey}, ${options.source || 'unknown'})`);
-                
+
+                // Handle replay mode interactions
+                if (window.replayState && window.replayState.active) {
+                    const replayDayKey = window.replayState.selectedDayKey;
+
+                    if (dayKey === replayDayKey) {
+                        // Same day - pause replay and seek to entry's start time
+                        let seekTime = null;
+
+                        if (options.startTime) {
+                            // Activity click - startTime is already a timestamp
+                            seekTime = options.startTime;
+                        } else if (options.date) {
+                            // Location click - date is ISO string
+                            seekTime = new Date(options.date).getTime();
+                        }
+
+                        if (seekTime && typeof window.replaySeekToTime === 'function') {
+                            window.replaySeekToTime(seekTime);
+
+                            // Still highlight the entry in the diary
+                            const entries = getLocationsInCurrentMonth();
+                            const entryIndex = this.#findEntryIndex(entries, entryId, options, dayKey);
+                            clearDiaryHighlights();
+                            if (entryIndex !== -1 && entries[entryIndex]) {
+                                entries[entryIndex].classList.add('diary-highlight');
+                                entries[entryIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                            return true;
+                        }
+                    } else {
+                        // Different day - close replay and proceed with normal navigation
+                        if (typeof window.closeReplayController === 'function') {
+                            window.closeReplayController();
+                        }
+                    }
+                }
+
                 // Clear location route if active (user is returning to diary mode)
                 if (window.locationSearch && window.locationSearch.hasActiveRoute) {
                     window.locationSearch.clearRoute();
@@ -4634,7 +4701,7 @@ function moveMapSmart(latlng, zoom) {
                         showDiaryRoutes();
                     }
                 }
-                
+
                 // Ensure correct month is loaded
                 const monthKey = dayKey.substring(0, 7);
                 if (currentMonth !== monthKey) {
@@ -5906,12 +5973,14 @@ function moveMapSmart(latlng, zoom) {
 
                     // Close menu when clicking elsewhere
                     const closeMenu = () => {
-                        menu.remove();
+                        if (menu.parentNode) menu.remove();
                         document.removeEventListener('click', closeMenu);
+                        map.off('click', closeMenu);
                         map.off('movestart', closeMenu);
                     };
                     setTimeout(() => {
                         document.addEventListener('click', closeMenu);
+                        map.on('click', closeMenu);
                         map.on('movestart', closeMenu);
                     }, 10);
                 });
@@ -6519,42 +6588,39 @@ function moveMapSmart(latlng, zoom) {
         function createTimelineLocationMarkers() {
             const container = document.getElementById('replayLocationMarkers');
             if (!container) return;
-            
+
             // Clear existing markers
             container.innerHTML = '';
-            
+
             if (!replayState.routeData || !replayState.dayLocations || replayState.dayLocations.length === 0) {
                 return;
             }
-            
+
             if (!replayState.cumulativeDistances || replayState.totalDistance <= 0) return;
-            
-            // Create marker for each location based on DISTANCE along route (not time)
+
+            // Get route time bounds for percentage calculation
+            const firstPoint = replayState.routeData[0];
+            const lastPoint = replayState.routeData[replayState.routeData.length - 1];
+            const routeStartTime = getPointTime(firstPoint);
+            const routeEndTime = getPointTime(lastPoint);
+            const routeDuration = routeEndTime - routeStartTime;
+
+            if (routeDuration <= 0) return;
+
+            // Create marker for each location based on its START TIME
+            // This positions the marker where on the timeline the visit occurred
             for (const loc of replayState.dayLocations) {
-                if (!loc.lat || !loc.lng) continue;
-                
-                // Find the closest route point to this location
-                let closestIdx = -1;
-                let closestDist = Infinity;
-                
-                for (let i = 0; i < replayState.routeData.length; i++) {
-                    const point = replayState.routeData[i];
-                    const dist = calculateDistanceMeters(point.lat, point.lng, loc.lat, loc.lng);
-                    if (dist < closestDist) {
-                        closestDist = dist;
-                        closestIdx = i;
-                    }
-                }
-                
-                // Only show markers for locations near the route (within 200m)
-                if (closestIdx < 0 || closestDist > 200) continue;
-                
-                // Calculate position as percentage of total distance
-                const distanceToLoc = replayState.cumulativeDistances[closestIdx];
-                const position = (distanceToLoc / replayState.totalDistance) * 100;
-                
+                const visitStart = loc.startDate ? new Date(loc.startDate).getTime() : null;
+                if (!visitStart) continue;
+
+                // Skip locations outside route time bounds
+                if (visitStart < routeStartTime || visitStart > routeEndTime) continue;
+
+                // Calculate position as percentage of timeline based on start time
+                const position = ((visitStart - routeStartTime) / routeDuration) * 100;
+
                 if (position < 0 || position > 100) continue;
-                
+
                 const marker = document.createElement('div');
                 marker.className = 'replay-location-marker';
                 marker.style.left = `${position}%`;
@@ -6874,8 +6940,11 @@ function moveMapSmart(latlng, zoom) {
                 const distanceToEnd = replayState.totalDistance - locationStop.distance;
                 const isFinalDestination = distanceToEnd < 100;
 
-                // Show popup and pause (unless final destination)
-                showReplayLocationPopup(point.lat, point.lng, locationStop.name, locationStop.time, true); // skipVisited=true since we already added
+                // Show popup at the location's actual coordinates (not where sprite stops)
+                // This places the sign at the picnic area, building, etc. - not on the road
+                const popupLat = locationStop.lat ?? point.lat;
+                const popupLng = locationStop.lng ?? point.lng;
+                showReplayLocationPopup(popupLat, popupLng, locationStop.name, locationStop.time, true); // skipVisited=true since we already added
 
                 // Update position first (before setting finished icon)
                 replayUpdatePosition(locationStop.index);
@@ -6962,23 +7031,11 @@ function moveMapSmart(latlng, zoom) {
         }
         
         // Check if the sprite would pass through a location between currentDist and proposedDist
+        // Uses same logic as findNearestStop() - finds THE CLOSEST route point to each location
         function checkForLocationInPath(currentDist, proposedDist) {
             if (!replayState.dayLocations.length || !replayState.routeData) return null;
-            
-            // Find the route segment indices for current and proposed distances
-            let startIdx = 0, endIdx = 0;
-            for (let i = 1; i < replayState.cumulativeDistances.length; i++) {
-                if (replayState.cumulativeDistances[i] >= currentDist && startIdx === 0) {
-                    startIdx = i - 1;
-                }
-                if (replayState.cumulativeDistances[i] >= proposedDist) {
-                    endIdx = i;
-                    break;
-                }
-                endIdx = i;
-            }
-            
-            // Check each location to see if it falls within our path
+
+            // Check each location to see if we would pass its closest route point
             for (const loc of replayState.dayLocations) {
                 if (!loc.lat || !loc.lng) continue;
                 const locationName = loc.name || loc.location || 'Unknown';
@@ -6989,43 +7046,43 @@ function moveMapSmart(latlng, zoom) {
 
                 // Skip if we already showed this specific visit
                 if (replayState.visitedLocations.has(visitKey)) continue;
-                
-                // Check route points in our path for proximity to this location
-                for (let i = startIdx; i <= endIdx && i < replayState.routeData.length; i++) {
+
+                // Find THE CLOSEST route point to this location (same as deceleration logic)
+                let closestIdx = -1;
+                let closestDist = Infinity;
+
+                for (let i = 0; i < replayState.routeData.length; i++) {
                     const point = replayState.routeData[i];
                     const dist = calculateDistanceMeters(point.lat, point.lng, loc.lat, loc.lng);
-                    
-                    // Within 75m of location
-                    if (dist < 75) {
-                        const pointTime = getPointTime(point);
-                        const visitStart = loc.startDate ? new Date(loc.startDate).getTime() : null;
-                        const visitEnd = loc.endDate ? new Date(loc.endDate).getTime() : null;
-                        
-                        // Verify timing if we have timestamps
-                        if (visitStart && visitEnd && pointTime) {
-                            if (pointTime >= visitStart - 60000 && pointTime <= visitEnd + 60000) {
-                                return {
-                                    distance: replayState.cumulativeDistances[i],
-                                    index: i,
-                                    name: locationName,
-                                    time: pointTime,
-                                    visitKey: visitKey
-                                };
-                            }
-                        } else {
-                            // No timestamps - use proximity alone
-                            return {
-                                distance: replayState.cumulativeDistances[i],
-                                index: i,
-                                name: locationName,
-                                time: pointTime || Date.now(),
-                                visitKey: visitKey
-                            };
-                        }
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        closestIdx = i;
                     }
                 }
+
+                // Skip if location is too far from route
+                if (closestIdx < 0 || closestDist > 200) continue;
+
+                // Check if we would pass through this closest point in this frame
+                const locationDistOnRoute = replayState.cumulativeDistances[closestIdx];
+
+                // We pass through if: currentDist < locationDist <= proposedDist
+                if (locationDistOnRoute > currentDist && locationDistOnRoute <= proposedDist) {
+                    const point = replayState.routeData[closestIdx];
+                    const pointTime = getPointTime(point);
+
+                    return {
+                        distance: locationDistOnRoute,
+                        index: closestIdx,
+                        name: locationName,
+                        time: pointTime || Date.now(),
+                        visitKey: visitKey,
+                        lat: loc.lat,  // Actual location coordinates for popup
+                        lng: loc.lng
+                    };
+                }
             }
-            
+
             return null;
         }
         
@@ -7097,17 +7154,22 @@ function moveMapSmart(latlng, zoom) {
                 
                 const locationName = loc.name || loc.location || 'Unknown';
                 
-                // If we have both start and end, use time-based check
-                if (visitStart && visitEnd) {
+                // If we have both start and end, use time + proximity check
+                // Time alone isn't enough - sprite might still be traveling when visit time starts
+                if (visitStart && visitEnd && loc.lat && loc.lng) {
                     if (currentTime >= visitStart && currentTime <= visitEnd) {
-                        // Use composite key to handle repeat visits to same location
-                        const visitKey = `${locationName}_${visitStart}`;
-                        if (!replayState.visitedLocations.has(visitKey)) {
-                            // Arrived at new location - show popup and pause
-                            showReplayLocationPopup(lat, lng, locationName, currentTime);
-                            replayState.pauseUntil = performance.now() + 3000;
+                        // Also check proximity - sprite must be close to the location
+                        const distMeters = calculateDistanceMeters(lat, lng, loc.lat, loc.lng);
+                        if (distMeters < 100) { // Within 100m of the actual location
+                            // Use composite key to handle repeat visits to same location
+                            const visitKey = `${locationName}_${visitStart}`;
+                            if (!replayState.visitedLocations.has(visitKey)) {
+                                // Arrived at new location - show popup at location's coordinates
+                                showReplayLocationPopup(loc.lat, loc.lng, locationName, currentTime);
+                                replayState.pauseUntil = performance.now() + 3000;
+                            }
+                            return;
                         }
-                        return;
                     }
                 }
                 // If we only have start time, use proximity check
@@ -7120,6 +7182,7 @@ function moveMapSmart(latlng, zoom) {
                         // Use composite key to handle repeat visits to same location
                         const visitKey = `${locationName}_${visitStart}`;
                         if (!replayState.visitedLocations.has(visitKey)) {
+                            // Show popup at location's coordinates
                             showReplayLocationPopup(loc.lat, loc.lng, locationName, visitStart);
                             replayState.pauseUntil = performance.now() + 3000;
                         }
@@ -7131,6 +7194,7 @@ function moveMapSmart(latlng, zoom) {
                     const distMeters = calculateDistanceMeters(lat, lng, loc.lat, loc.lng);
                     if (distMeters < 50) {
                         if (!replayState.visitedLocations.has(locationName)) {
+                            // Show popup at location's coordinates
                             showReplayLocationPopup(loc.lat, loc.lng, locationName, currentTime);
                             replayState.pauseUntil = performance.now() + 3000;
                         }
@@ -7504,40 +7568,63 @@ function moveMapSmart(latlng, zoom) {
         }
         
         function replayUpdateProgress() {
-            if (!replayState.routeData || replayState.totalDistance === 0) return;
-            
-            // Progress based on distance traveled
-            const progress = (replayState.currentDistance / replayState.totalDistance) * 100;
-            
+            if (!replayState.routeData || replayState.routeData.length === 0) return;
+
+            // Progress based on TIME (not distance) so timeline markers align correctly
+            const firstPoint = replayState.routeData[0];
+            const lastPoint = replayState.routeData[replayState.routeData.length - 1];
+            const routeStartTime = getPointTime(firstPoint);
+            const routeEndTime = getPointTime(lastPoint);
+            const routeDuration = routeEndTime - routeStartTime;
+
+            if (routeDuration <= 0) return;
+
+            const currentPoint = replayState.routeData[replayState.currentIndex];
+            const currentTime = getPointTime(currentPoint);
+            const progress = ((currentTime - routeStartTime) / routeDuration) * 100;
+
             const progressEl = document.getElementById('replayProgress');
-            if (progressEl) progressEl.style.width = progress + '%';
+            if (progressEl) progressEl.style.width = Math.max(0, Math.min(100, progress)) + '%';
         }
         
         function replaySeekTo(event) {
-            if (!replayState.routeData || replayState.totalDistance === 0) return;
+            if (!replayState.routeData || replayState.routeData.length === 0) return;
 
             const bar = event.currentTarget;
             const rect = bar.getBoundingClientRect();
             const percent = (event.clientX - rect.left) / rect.width;
 
-            // Set distance based on percentage
-            replayState.currentDistance = percent * replayState.totalDistance;
+            // Timeline is TIME-based, so convert percentage to target time
+            const firstPoint = replayState.routeData[0];
+            const lastPoint = replayState.routeData[replayState.routeData.length - 1];
+            const routeStartTime = getPointTime(firstPoint);
+            const routeEndTime = getPointTime(lastPoint);
+            const routeDuration = routeEndTime - routeStartTime;
 
-            // Find corresponding point
-            let segmentIndex = 0;
-            for (let i = 1; i < replayState.cumulativeDistances.length; i++) {
-                if (replayState.cumulativeDistances[i] >= replayState.currentDistance) {
-                    segmentIndex = i - 1;
-                    break;
+            if (routeDuration <= 0) return;
+
+            const targetTime = routeStartTime + (percent * routeDuration);
+
+            // Find the route point closest to this target time
+            let bestIdx = 0;
+            let bestTimeDiff = Infinity;
+            for (let i = 0; i < replayState.routeData.length; i++) {
+                const pointTime = getPointTime(replayState.routeData[i]);
+                const timeDiff = Math.abs(pointTime - targetTime);
+                if (timeDiff < bestTimeDiff) {
+                    bestTimeDiff = timeDiff;
+                    bestIdx = i;
                 }
-                segmentIndex = i - 1;
             }
 
-            replayState.currentIndex = segmentIndex;
-            const point = replayState.routeData[segmentIndex];
+            // Update distance to match the new position
+            replayState.currentDistance = replayState.cumulativeDistances[bestIdx];
+            replayState.currentIndex = bestIdx;
+
+            const point = replayState.routeData[bestIdx];
             replayState.marker.setLatLng([point.lat, point.lng]);
             replayCenterOnPoint(point.lat, point.lng);
-            replayUpdatePosition(segmentIndex);
+            replayUpdatePosition(bestIdx);
 
             // Hide any current popup and clear pause state
             hideReplayLocationPopup();
@@ -7570,10 +7657,96 @@ function moveMapSmart(latlng, zoom) {
                 }
             }
         }
-        
+
+        // Seek to a specific timestamp (used when clicking diary items during replay)
+        function replaySeekToTime(targetTime) {
+            if (!replayState.routeData || replayState.routeData.length === 0) return;
+
+            // Pause playback
+            if (replayState.playing) {
+                replayState.playing = false;
+                const btn = document.getElementById('replayPlayBtn');
+                const icon = document.getElementById('replayPlayIcon');
+                if (btn) btn.classList.remove('playing');
+                if (icon) icon.textContent = '▶';
+                if (replayState.animationFrame) {
+                    cancelAnimationFrame(replayState.animationFrame);
+                }
+            }
+
+            // Find the route point closest to this target time
+            let bestIdx = 0;
+            let bestTimeDiff = Infinity;
+            for (let i = 0; i < replayState.routeData.length; i++) {
+                const pointTime = getPointTime(replayState.routeData[i]);
+                const timeDiff = Math.abs(pointTime - targetTime);
+                if (timeDiff < bestTimeDiff) {
+                    bestTimeDiff = timeDiff;
+                    bestIdx = i;
+                }
+            }
+
+            // Update state
+            replayState.currentDistance = replayState.cumulativeDistances[bestIdx];
+            replayState.currentIndex = bestIdx;
+
+            const point = replayState.routeData[bestIdx];
+            replayState.marker.setLatLng([point.lat, point.lng]);
+            replayUpdatePosition(bestIdx);
+
+            // Hide any current popup and clear pause state
+            hideReplayLocationPopup();
+            replayState.currentLocationName = null;
+            replayState.pauseUntil = 0;
+            replayState.locationClearTime = 0;
+
+            // Rebuild visitedLocations based on new position
+            replayState.visitedLocations.clear();
+            replayState.lastLocationEndTime = 0;
+            replayState.lastHighlightedEntry = null;
+
+            const currentTime = getPointTime(point);
+
+            // Track the location we're currently at (if any) for showing popup
+            // Use targetTime (what user clicked) not currentTime (route point) for matching
+            // This handles cases where route point is slightly before visit window starts
+            let currentLocation = null;
+
+            for (const loc of replayState.dayLocations) {
+                if (!loc.lat || !loc.lng) continue;
+                const locationName = loc.name || loc.location || 'Unknown';
+                const visitStart = loc.startDate ? new Date(loc.startDate).getTime() : null;
+                const visitEnd = loc.endDate ? new Date(loc.endDate).getTime() : null;
+                const visitKey = visitStart ? `${locationName}_${visitStart}` : locationName;
+
+                if (visitEnd && currentTime && visitEnd < currentTime) {
+                    replayState.visitedLocations.add(visitKey);
+                    if (visitEnd > replayState.lastLocationEndTime) {
+                        replayState.lastLocationEndTime = visitEnd;
+                    }
+                }
+
+                // Check if TARGET TIME is within visit window (not route point time)
+                // This ensures clicking a diary entry shows its popup even if route point is slightly off
+                if (visitStart && visitEnd && targetTime >= visitStart && targetTime <= visitEnd) {
+                    currentLocation = loc;
+                }
+            }
+
+            // If we're at a location, show its popup and center on the location
+            if (currentLocation) {
+                const locName = currentLocation.name || currentLocation.location || 'Unknown';
+                showReplayLocationPopup(currentLocation.lat, currentLocation.lng, locName, targetTime);
+                replayCenterOnPoint(currentLocation.lat, currentLocation.lng);
+            } else {
+                // Not at a location, center on the route point
+                replayCenterOnPoint(point.lat, point.lng);
+            }
+        }
+
         function replayRestart() {
             if (!replayState.routeData || replayState.routeData.length < 2) return;
-            
+
             // Reset to beginning
             replayState.currentDistance = 0;
             replayState.currentIndex = 0;
@@ -7667,11 +7840,13 @@ function moveMapSmart(latlng, zoom) {
         window.closeReplayController = closeReplayController;
         window.replayTogglePlay = replayTogglePlay;
         window.replaySeekTo = replaySeekTo;
+        window.replaySeekToTime = replaySeekToTime;
         window.replaySetSpeed = replaySetSpeed;
         window.replaySetSpeedFromSlider = replaySetSpeedFromSlider;
         window.replayZoom = replayZoom;
         window.replayRestart = replayRestart;
         window.replayDateSelected = replayDateSelected;
+        window.replayState = replayState; // Expose for NavigationController
         
         
         // Keyboard navigation for diary panel
@@ -13679,25 +13854,26 @@ scrollToDiaryDay(currentDayKey);
         
         // 🎯 Get smart location name using clusters
         function getSmartLocationName(item, locationClusters) {
-            // Priority 1: Custom title
-            if (item.customTitle) {
-                logDebug(`📍 getSmartLocationName: Using customTitle = "${item.customTitle}"`);
-                return item.customTitle.trim();
-            }
-            
-                        // Priority 1b: PlaceId mapping from places folder
+            // Priority 1: PlaceId mapping from places folder (most authoritative, refreshed on each import)
             const mappedPid = item?.place?.placeId || item?.place?.id || item?.placeId || item?.placeUUID;
             if (mappedPid && placesById && placesById[String(mappedPid)]) {
                 return placesById[String(mappedPid)].trim();
             }
 
-// Priority 2: Place name
+            // Priority 2: Place name from embedded place object
             if (item.place?.name) {
                 logDebug(`📍 getSmartLocationName: Using place.name = "${item.place.name}"`);
                 return item.place.name.trim();
             }
-            
-            // Priority 3: Street address (for visits without place name)
+
+            // Priority 3: Custom title (only used if no place mapping exists)
+            // Note: customTitle may have stale data from old imports, so place mappings take precedence
+            if (item.customTitle) {
+                logDebug(`📍 getSmartLocationName: Using customTitle = "${item.customTitle}"`);
+                return item.customTitle.trim();
+            }
+
+            // Priority 4: Street address (for visits without place name)
             if (item.isVisit && item.streetAddress) {
                 logDebug(`📍 getSmartLocationName: Using streetAddress = "${item.streetAddress}"`);
                 return item.streetAddress.trim();

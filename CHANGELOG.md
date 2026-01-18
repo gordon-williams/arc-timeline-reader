@@ -1,5 +1,74 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 691 (2026-01-18)
+
+### Fix - Center Map on Location When Seeking
+- **Centers on location coordinates**: When seeking to a location, the map now centers on the location's coordinates (where the popup appears) rather than the route point
+- **Proper visibility**: Both the sprite and popup are now visible and centered on screen
+
+## Build 690 (2026-01-18)
+
+### Fix - Popup Now Matches Clicked Entry
+- **Uses target time for matching**: When seeking from a diary click, the popup now matches based on the clicked entry's start time, not the nearest route point's time
+- **Fixes timing edge case**: Previously, if the nearest route point was slightly before the visit window, no popup would appear
+
+## Build 689 (2026-01-18)
+
+### Enhancement - Show Location Popup When Seeking
+- **Popup appears on seek**: When clicking a diary location during replay, the location popup sign now appears immediately at the seeked position
+
+## Build 688 (2026-01-18)
+
+### Feature - Diary Clicks Work During Replay
+- **Same day clicks**: Clicking a diary entry on the same day as the replay pauses playback and seeks to that entry's start time
+- **Different day clicks**: Clicking a diary entry on a different day closes the replay and navigates normally
+- **New function**: `replaySeekToTime(timestamp)` allows programmatic seeking to any time during replay
+
+## Build 687 (2026-01-18)
+
+### Change - Timeline Bar Now Uses TIME Instead of Distance
+- **Markers positioned by visit start time**: Timeline location markers now show WHEN you visited a location, not where the route passes nearest to its GPS coordinates
+- **Progress bar shows time progress**: The progress indicator now reflects how far through the day's TIME you are, not distance traveled
+- **Seeking by time**: Clicking on the timeline jumps to that TIME in the day, taking you to the correct map position
+- **Fixes "Lyre Birds" issue**: Locations like "Lyre Birds" (marked during a walk) now appear at the correct position on the timeline, not at an earlier point where the route happened to pass near the same GPS coordinates
+
+## Build 686 (2026-01-18)
+
+### Fix - Popup Timing Now Matches Deceleration
+- **Popup triggers when sprite reaches closest route point**: Now uses same logic as deceleration - finds THE closest route point to the location and triggers when sprite reaches it
+- **Popup appears at location's actual coordinates**: The sign appears at the picnic area/building, not on the road
+- **Previous bug**: `checkForLocationInPath` was triggering when ANY point in the travel segment was near a location, causing early popup. Now only triggers when passing the specific closest point.
+
+## Build 685 (2026-01-18)
+
+### Fix - Popup and Progress Markers Now Match Sprite Position
+- **Popup appears at sprite position**: The location popup now appears where the sprite stops on the route, not at the location's abstract coordinates (which may be off-road)
+- **Progress bar markers use same logic as deceleration**: Markers now show where the sprite will stop (closest route point to location), matching the deceleration behavior
+- **Example**: West Gap Creek Picnic Area - popup now appears where the car stops on the road, not up at the picnic area building
+
+## Build 684 (2026-01-18)
+
+### Fix - Replay Location Detection Requires Time AND Proximity
+- **Popup no longer appears ahead of actual location**: Previously, the popup triggered when the time entered the visit window, even if the sprite was still traveling. Now requires BOTH time match AND sprite within 150m of location
+
+## Build 683 (2026-01-18)
+
+### Fix - Replay Location Popups at Correct Position
+- **Location popups now appear at actual location coordinates**: Previously, popups appeared at the sprite's position on the route (e.g., in a car park) instead of the location's actual coordinates
+- Fixes issue where short-duration visits showed their sign in the wrong place
+- Sprite still follows the route but popup appears at the location
+
+### Fix - Containment Logic Improvements
+- **Activities that depart a location are no longer hidden**: Car trips (and other activities) that start during a long visit but end after it now show correctly
+- **Rule**: Items are only hidden if they start AND end within a container's timespan
+- **Example**: Car trip starting 1 minute before OurPlace ends but finishing 7 minutes later is shown (it's a departure trip)
+- **All items can be containers**: Removed arbitrary duration thresholds - Arc defines what's meaningful
+- Fixes missing car trips that overlapped slightly with the previous visit's end time
+
+### Fix - Place Name Prioritization (Build 681)
+- **Fixed place names showing generic names instead of user-defined names**: `getSmartLocationName()` now checks `placesById` first before falling back to other sources
+- Example: "Scurr Medical Centre" was showing as "Mt Gravatt Plaza" because the item's embedded place name was being used instead of the canonical place name
+
 ## Build 678 (2026-01-14)
 
 ### Enhancement - Analysis Improvements
