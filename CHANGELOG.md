@@ -1,5 +1,10 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 692 (2026-01-18)
+
+### Fix - Reset Sprite Icon When Seeking
+- **Icon resets on seek**: When seeking during replay, the sprite icon now resets to the current activity type (walking, driving, etc.) instead of staying as the finish flag
+
 ## Build 691 (2026-01-18)
 
 ### Fix - Center Map on Location When Seeking

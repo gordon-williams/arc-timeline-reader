@@ -7692,6 +7692,11 @@ function moveMapSmart(latlng, zoom) {
 
             const point = replayState.routeData[bestIdx];
             replayState.marker.setLatLng([point.lat, point.lng]);
+
+            // Reset sprite icon based on current activity (may have been set to 'finished')
+            const activity = (point.activityType || 'unknown').toLowerCase();
+            replayState.marker.setIcon(createReplayMarkerIcon(activity));
+
             replayUpdatePosition(bestIdx);
 
             // Hide any current popup and clear pause state
