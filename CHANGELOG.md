@@ -1,5 +1,32 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 694 (2026-01-18)
+
+### Fix - Timeline Bar Now DISTANCE-based (Reverted from TIME)
+- **Consistent distance-based timeline**: All timeline components now use DISTANCE, not TIME
+  - Timeline markers positioned by distance along route
+  - Progress bar shows distance traveled / total distance
+  - Clicking seeks to percentage of total trip distance
+- **Trip player concept**: A 12-hour stay at one location takes minimal timeline space (no distance traveled)
+- **Fixes broken seeking**: Build 687 changed to TIME-based but only changed seeking, not markers/progress - causing mismatches
+
+### Enhancement - Click "Next: Location" to Skip Ahead
+- **Clickable next stop**: The "Next: Westfield Car Park" text in the replay controller is now clickable
+- **Skips to location**: Clicking jumps to that location's start time, same as clicking the location in the diary
+
+### UI Improvements
+- **Speed display centered**: Digital speedometer value now center-aligned instead of right-aligned
+- **Speed color removed**: Speedometer no longer changes color based on speed (was misleading since sprite doesn't move at real speed)
+
+## Build 693 (2026-01-18)
+
+### Refactoring - Replay System Extraction
+- **New file `replay.js`**: Extracted the entire replay system (~1,688 lines) into a standalone `ReplayController` class
+- **Dependency injection**: ReplayController receives dependencies from app.js via `init()` method
+- **Backward compatible**: All existing global functions (`toggleReplayController`, `replaySeekToTime`, etc.) continue to work
+- **app.js reduced**: From 15,214 to 13,526 lines (-11%)
+- **Completes Phase 3** of the refactoring plan
+
 ## Build 692 (2026-01-18)
 
 ### Fix - Reset Sprite Icon When Seeking

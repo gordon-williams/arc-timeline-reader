@@ -32,7 +32,7 @@ SOFTWARE.
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"  crossorigin="anonymous" />
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = 692;
+  window.__ARC_BUILD__ = 694;
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -56,9 +56,19 @@ SOFTWARE.
       var m = document.createElement('script');
       m.src = 'map-tools.js?v=' + b;
       m.async = false;
-      m.onload = function() { loadMainApp(); };
-      m.onerror = function() { loadMainApp(); }; // Continue even if missing
+      m.onload = function() { loadReplay(); };
+      m.onerror = function() { loadReplay(); }; // Continue even if missing
       document.body.appendChild(m);
+    }
+
+    function loadReplay() {
+      // Load replay.js (day replay animation)
+      var r = document.createElement('script');
+      r.src = 'replay.js?v=' + b;
+      r.async = false;
+      r.onload = function() { loadMainApp(); };
+      r.onerror = function() { loadMainApp(); }; // Continue even if missing
+      document.body.appendChild(r);
     }
 
     function loadMainApp() {

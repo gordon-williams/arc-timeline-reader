@@ -3600,7 +3600,7 @@
     line-height: 1;
     font-family: 'SF Mono', 'Menlo', monospace;
     min-width: 3ch;
-    text-align: right;
+    text-align: center;
 }
 
 .replay-digital-speed .speed-unit {
@@ -3669,6 +3669,11 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+.replay-next-stop .next-name:hover {
+    text-decoration: underline;
 }
 
 /* Controls row */
@@ -3778,6 +3783,7 @@
     transition: width 0.1s linear;
     position: relative;
     z-index: 1;
+    pointer-events: none;
 }
 
 .replay-location-markers {
@@ -4054,7 +4060,7 @@
     .replay-digital-speed .speed-value {
         font-size: 32px;
         min-width: 3ch;
-        text-align: right;
+        text-align: center;
     }
     
     .replay-main {
