@@ -3576,6 +3576,15 @@
     min-width: 500px;
 }
 
+/* Close button within side controls */
+.replay-btn-small.replay-close {
+    background: rgba(255, 100, 100, 0.6);
+}
+
+.replay-btn-small.replay-close:hover {
+    background: rgba(255, 80, 80, 0.9);
+}
+
 /* Prevent map interaction when hovering over controller */
 .replay-controller:hover {
     cursor: default;
@@ -3915,14 +3924,6 @@
 
 .replay-btn-small:hover {
     background: rgba(255, 255, 255, 0.25);
-}
-
-.replay-btn-small.replay-close {
-    background: rgba(255, 100, 100, 0.3);
-}
-
-.replay-btn-small.replay-close:hover {
-    background: rgba(255, 100, 100, 0.5);
 }
 
 /* Animated marker on map */

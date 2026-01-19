@@ -6295,15 +6295,25 @@ function moveMapSmart(latlng, zoom) {
                 case 'ArrowUp':
                     e.preventDefault();
                     cancelPendingPopup(); // Cancel any pending popup when navigating
-                    // Up Arrow → Previous Entry (via controller, uses data model)
-                    NavigationController.navigateBy(-1, 'entry');
+                    if (e.altKey) {
+                        // Option + Up Arrow → First Entry (same as Home)
+                        NavigationController.goToFirst();
+                    } else {
+                        // Up Arrow alone → Previous Entry (via controller, uses data model)
+                        NavigationController.navigateBy(-1, 'entry');
+                    }
                     break;
-                    
+
                 case 'ArrowDown':
                     e.preventDefault();
                     cancelPendingPopup(); // Cancel any pending popup when navigating
-                    // Down Arrow → Next Entry (via controller, uses data model)
-                    NavigationController.navigateBy(1, 'entry');
+                    if (e.altKey) {
+                        // Option + Down Arrow → Last Entry (same as End)
+                        NavigationController.goToLast();
+                    } else {
+                        // Down Arrow alone → Next Entry (via controller, uses data model)
+                        NavigationController.navigateBy(1, 'entry');
+                    }
                     break;
                     
                 case 'PageDown':

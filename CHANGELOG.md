@@ -1,5 +1,17 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 695 (2026-01-19)
+
+### UI Fix - Replay Close Button Position
+- **Close button inside controller**: Moved the close button from absolute-positioned outside to inside the side controls
+- **Follows GUI convention**: Close button now at top of right-side controls (above +/- zoom buttons)
+- **Consistent styling**: Uses the same styling as zoom buttons with a subtle red tint
+
+### Enhancement - Option+Arrow Keyboard Shortcuts
+- **Option+Up Arrow**: Navigate to first entry in the month (same as Home key)
+- **Option+Down Arrow**: Navigate to last entry in the month (same as End key)
+- **Helps keyboards without Home/End**: Standard Mac keyboards lack these keys
+
 ## Build 694 (2026-01-18)
 
 ### Fix - Timeline Bar Now DISTANCE-based (Reverted from TIME)

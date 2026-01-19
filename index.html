@@ -32,7 +32,7 @@ SOFTWARE.
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"  crossorigin="anonymous" />
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = 694;
+  window.__ARC_BUILD__ = 695;
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -371,11 +371,11 @@ SOFTWARE.
                             </div>
                         </div>
                         
-                        <!-- Zoom and close -->
+                        <!-- Side controls (close + zoom) -->
                         <div class="replay-side-controls">
+                            <button class="replay-btn-small replay-close" onclick="closeReplayController()" title="Close">✕</button>
                             <button class="replay-btn-small" onclick="replayZoom(1)" title="Zoom in">+</button>
                             <button class="replay-btn-small" onclick="replayZoom(-1)" title="Zoom out">−</button>
-                            <button class="replay-btn-small replay-close" onclick="closeReplayController()" title="Close">✕</button>
                         </div>
                     </div>
                 </div>
