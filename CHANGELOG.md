@@ -1,5 +1,157 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 711 (2026-01-20)
+
+### Improvement - Event Slider UX Refinements
+- **Cancel returns to list**: Cancel button now returns to event list instead of closing slider
+- **Save/Delete return to list**: After saving or deleting, returns to event list view
+- **No map shift on edit**: Opening event editor no longer shifts the map (slider was already open)
+- **Wider time inputs**: Date inputs narrower, time inputs wider to prevent clipping
+- **Events button border**: Added grey border to events button for clearer affordance
+- **Search closes events**: Pressing Enter to search closes event slider to make room
+- **Reverse chronological order**: Both event list and search results now show newest first
+
+### Bug Fix
+- Fixed `getEvent is not defined` error when navigating to events
+
+## Build 710 (2026-01-20)
+
+### Improvement - Event List UI Refresh
+- **Cleaner design**: Removed colored dot from event list items
+- **Blue Edit button**: Replaced pencil icon with styled "Edit" button
+- **Wider slider**: Increased event slider width to 380px to fit date ranges on one line
+- **Simplified metadata**: Color is now derived from category (removed separate color picker)
+- **Click to navigate**: Clicking event navigates to start date; Edit button opens editor
+
+## Build 709 (2026-01-20)
+
+### Improvement - Event Navigation and UX
+- **Click to navigate**: Clicking an event in the list now navigates to the event's start date
+- **Edit button**: Added pencil (✎) edit button on each event item for editing
+- **Slider close sequence**: When closing diary with event slider open, slider closes first (animates), then diary closes
+- **Better separation**: Navigation and editing are now separate actions for clearer UX
+
+## Build 708 (2026-01-20)
+
+### Feature - Events (Multi-Day Date Ranges)
+- **New Events system**: Define named date ranges for vacations, conferences, multi-day trips, etc.
+- **Event metadata**: Name, start/end date+time, description, category, and color
+- **Visual creation**: Click diary entries to set start/end bounds, or enter dates/times manually
+- **Event slider UI**: Dedicated panel (similar to search results) for browsing and editing events
+- **Category management**: Create custom categories (Vacation, Conference, Trip, etc.) with associated colors
+- **[EVENT] tag**: Day titles show event indicator when viewing days within an event
+- **Analysis integration**: Event dropdown in Analysis page auto-fills date/time range filters
+- **Data persistence**: Events stored in localStorage and included in export/import for backup
+- **Focus synchronization**: Event slider unfocuses with diary panel when clicking map
+
+### UI Improvements
+- Events button (📅) in diary header toggles the event slider
+- Clicking diary closes event slider automatically
+- Event slider becomes transparent when unfocused (like diary panel)
+
+## Build 707 (2026-01-20)
+
+### Fix - JSON Import Showing Stale Results Panel
+- **Fixed**: JSON import showed conflicting results - correct report in log, but stale "0 days" in legacy results panel
+- **Root cause**: JSON import didn't hide the `#results` div used by Safari backup import
+- **Result**: Both panels were visible simultaneously with different (incorrect) data
+- **Solution**: JSON import now hides the legacy results panel when starting
+
+## Build 706 (2026-01-20)
+
+### Feature - Delete Day Console Function
+- **Added**: `deleteDay("YYYY-MM-DD")` console function to delete a specific day from the database
+- **Safety**: Requires two-step confirmation - first shows what will be deleted, then requires `confirmDeleteDay()` to execute
+- **Use case**: Fixing duplicate data issues or removing corrupted day entries
+
+## Build 705 (2026-01-20)
+
+### Fix - Backup Import Missing Merge Logic for Incremental Updates
+- **Fixed**: Incremental backup imports could lose existing items or create duplicates
+- **Root cause**: Safari backup import wasn't merging new items with existing items in the database
+- **Problem scenario**: When only some items changed, the day would be overwritten with only the changed items, losing the rest
+- **Solution**: Added merge logic to Safari backup import matching the JSON import behavior
+- **Added**: `diagnosePlaces()` console function for debugging place name resolution issues
+
+## Build 704 (2026-01-19)
+
+### Fix - NO GPS Tag Incorrectly Shown on Activities with GPS Data
+- **Fixed**: Activities with GPS samples were incorrectly showing "No GPS" tag
+- **Root cause**: Code assumed the first sample (`samples[0]`) had valid location data
+- **Problem scenario**: If the first GPS sample was invalid (missing/null location), the code failed to find coordinates even though other samples had valid data
+- **Solution**: Now searches through all samples to find the first one with valid location coordinates
+- **Result**: Activities with routes plotted on the map will no longer show the "No GPS" tag
+
+## Build 703 (2026-01-19)
+
+### Improvement - Smarter JSON Import Skip Logic
+- **Content hash comparison**: Import now uses a content hash instead of item count to detect changes
+- **Detects all user edits**: Activity type changes (car→walk), place reassignments, merging/deleting items, adding notes
+- **Problem solved**: Previously, cleaning up a day (merging/deleting items) resulted in fewer items, which was incorrectly skipped
+- **How it works**: Hash captures activity types, place IDs, and note presence for each item
+
+## Build 700 (2026-01-19)
+
+### Fix - Replay Location Detection Refinement
+- **Reverted timeline markers and deceleration** to use globally closest point (for correct positioning)
+- **Improved detection logic**: Only searches for route points *ahead* of current position
+- **Better popup alignment**: Uses route point coordinates (not location center) so sprite and popup align
+- **Affected function**: Only `checkForLocationInPath()` changed; `findNearestStop()` and `createTimelineMarkers()` restored
+
+## Build 699 (2026-01-19)
+
+### Fix - Replay Locations Missed on Loop Routes (Partial - see Build 700)
+- **Fixed locations being missed when route passes same area twice**: On loop routes, locations were detected at the wrong time
+- **Root cause**: Location detection found the *globally closest* route point to a location's coordinates, which could be from a later pass through the same area
+- **Example**: Bloodwood Track was visited at 7:06 AM but the closest route point was from the return trip at 7:59 AM, so the sprite passed by without stopping
+- **Solution**: Now finds the *first* route point within 100m of each location, matching the natural flow of arrival
+- **Affected functions**: `checkForLocationInPath()`, `findNearestStop()`, `createTimelineMarkers()`
+
+## Build 698 (2026-01-19)
+
+### Fix - Replay Locations Skipped or Out of Order
+- **Fixed locations being missed during replay**: Some locations wouldn't show their popup during playback
+- **Root cause**: `checkForLocationInPath()` returned the first location found in the travel segment, not the earliest one on the route
+- **Example**: If locations A and B were both in a segment, B might be returned if it appeared earlier in the location array, causing A to be skipped
+- **Solution**: Now finds ALL locations in the segment and returns the one with the smallest distance on the route
+
+## Build 697 (2026-01-19)
+
+### Fix - Ghost Items Hiding Real Data
+- **Fixed missing diary entries**: Some visits and activities were missing from the diary but appeared on the map
+- **Root cause**: "Ghost" timeline items with 0 GPS samples could act as containers and hide legitimate items with samples
+- **Example**: A 0-sample walking activity from 6:27-6:55 AM would hide the real visit at 6:27 AM and walk at 6:28 AM that had GPS data
+- **Solution**: New `filterGhostItems()` function removes 0-sample items that overlap >50% with items that have samples
+- **Honest gaps**: Items with 0 samples that don't overlap are kept, showing gaps in the timeline where data is genuinely missing
+
+### Technical Details
+- Ghost filtering applied in both backup import and JSON import paths
+- Overlap threshold: 50% of the ghost item's duration must overlap with a real item
+- Filter runs after merging spanning visits but before extraction functions
+
+## Build 696 (2026-01-19 15:08)
+
+### Feature - Safari Backup Import Support
+- **Safari now supported**: Backup import works in Safari using `webkitdirectory` fallback
+- **Hybrid approach**: Chrome/Edge use fast File System Access API, Safari uses controlled batching
+- **Memory management**: Safari imports use batch size of 10 files with explicit pauses for garbage collection
+- **Same functionality**: Both methods support all options (missing days only, force rescan, incremental sync)
+- **Progress feedback**: Safari mode shows clear messaging about slower import speed
+- **Memory flush before import**: Triggers GC (if available) and 100ms delay before starting import
+
+### Fix - Safari IndexedDB Cursor Bug
+- **Fixed initialization crash**: Safari threw "Unable to open cursor" when using `openCursor(null, 'nextunique')` on an index
+- **Root cause**: Safari's IndexedDB implementation has a bug with cursor direction parameter on indexes
+- **Solution**: Changed `getDBStats()` to use `getAllKeys()` instead of cursor, then extract unique months from day keys
+- **All browsers work**: The fix works in Chrome, Firefox, and Safari
+
+### Technical Details
+- `selectBackupFolder()` now detects browser capability and routes appropriately
+- New `importFromBackupFiles()` function handles FileList from `webkitdirectory`
+- Safari batch size: 10 files, Chrome batch size: 50 files
+- Safari pause between batches: 5ms (allows GC)
+- `getDBStats()` now uses `getAllKeys()` instead of `monthIndex.openCursor(null, 'nextunique')`
+
 ## Build 695 (2026-01-19)
 
 ### UI Fix - Replay Close Button Position

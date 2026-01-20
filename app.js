@@ -177,39 +177,41 @@ function moveMapSmart(latlng, zoom) {
         // Get database statistics (optimized for large datasets)
         async function getDBStats() {
             if (!db) return { dayCount: 0, monthCount: 0, lastSync: null };
-            
+
             return new Promise((resolve, reject) => {
-                const tx = db.transaction(['days', 'metadata'], 'readonly');
-                const dayStore = tx.objectStore('days');
-                const metaStore = tx.objectStore('metadata');
-                
-                // Use count() instead of getAll() - much faster!
-                const dayCountReq = dayStore.count();
-                const lastSyncReq = metaStore.get('lastSync');
-                
-                // Calculate unique months using cursor (efficient for large datasets)
-                const monthIndex = dayStore.index('monthKey');
-                const monthSet = new Set();
-                
-                const cursorReq = monthIndex.openCursor(null, 'nextunique');
-                
-                cursorReq.onsuccess = (event) => {
-                    const cursor = event.target.result;
-                    if (cursor) {
-                        monthSet.add(cursor.key);
-                        cursor.continue();
-                    }
-                };
-                
-                tx.oncomplete = () => {
-                    resolve({
-                        dayCount: dayCountReq.result,
-                        monthCount: monthSet.size,
-                        lastSync: lastSyncReq.result?.value || null
-                    });
-                };
-                
-                tx.onerror = () => reject(tx.error);
+                try {
+                    const tx = db.transaction(['days', 'metadata'], 'readonly');
+                    const dayStore = tx.objectStore('days');
+                    const metaStore = tx.objectStore('metadata');
+
+                    // Use count() instead of getAll() - much faster!
+                    const dayCountReq = dayStore.count();
+                    const lastSyncReq = metaStore.get('lastSync');
+
+                    // Get all day keys to calculate unique months
+                    // Note: Using getAllKeys() instead of cursor with 'nextunique' to avoid Safari IndexedDB bug
+                    const allKeysReq = dayStore.getAllKeys();
+
+                    tx.oncomplete = () => {
+                        // Extract unique months from day keys (YYYY-MM-DD -> YYYY-MM)
+                        const monthSet = new Set();
+                        const dayKeys = allKeysReq.result || [];
+                        for (const dk of dayKeys) {
+                            if (typeof dk === 'string' && dk.length >= 7) {
+                                monthSet.add(dk.substring(0, 7));
+                            }
+                        }
+                        resolve({
+                            dayCount: dayCountReq.result,
+                            monthCount: monthSet.size,
+                            lastSync: lastSyncReq.result?.value || null
+                        });
+                    };
+
+                    tx.onerror = () => reject(tx.error);
+                } catch (err) {
+                    reject(err);
+                }
             });
         }
         
@@ -618,14 +620,38 @@ function moveMapSmart(latlng, zoom) {
             }
         };
         
-        // Import day data to IndexedDB (with timestamp and content comparison)
-        // existingMetadata: optional Map<dayKey, {lastUpdated, itemCount}> for O(1) lookups
+        /**
+         * Generate a simple content hash for a day's timeline items
+         * Captures user-editable properties: item count, activity types, place IDs, notes
+         * This detects changes like car→walk, place reassignment, merging/deleting, adding notes
+         */
+        function generateDayHash(dayData) {
+            const items = dayData?.timelineItems || [];
+            if (items.length === 0) return 'empty';
+
+            // Build a string from properties that users can edit in Arc:
+            // - Activity type (car, walk, cycling, etc.)
+            // - Place assignment (placeId)
+            // - Notes (noteId presence indicates a note exists)
+            // - Item count (changes when merging/deleting)
+            const parts = items.map(item => {
+                const type = item.activityType || (item.isVisit ? 'visit' : 'trip');
+                const place = item.placeId?.substring(0, 8) || '';
+                const hasNote = item.noteId ? 'N' : '';
+                return `${type}:${place}:${hasNote}`;
+            });
+
+            return parts.join('|');
+        }
+
+        // Import day data to IndexedDB (with content hash comparison)
+        // existingMetadata: optional Map<dayKey, {lastUpdated, contentHash}> for O(1) lookups
         // If not provided, falls back to individual DB query (slower)
-        // Content comparison: won't overwrite if existing has more timeline items
+        // Content comparison: uses hash to detect actual changes
         async function importDayToDB(dayKey, monthKey, dayData, sourceFile, lastUpdated, existingMetadata = null) {
             if (!db) throw new Error('Database not initialized');
 
-            // Check if day exists and compare timestamps + content
+            // Check if day exists and compare content hash
             // Use pre-loaded Map if available (fast), otherwise query DB (slow)
             let existingMeta = null;
             let dayExists = false;
@@ -640,25 +666,26 @@ function moveMapSmart(latlng, zoom) {
                 if (existing) {
                     existingMeta = {
                         lastUpdated: existing.lastUpdated,
-                        itemCount: existing.data?.timelineItems?.length || 0
+                        // Use stored hash if available, compute for old records without it
+                        contentHash: existing.contentHash || generateDayHash(existing.data)
                     };
                     dayExists = true;
                 }
             }
 
             if (dayExists) {
-                const newItemCount = dayData?.timelineItems?.length || 0;
+                const newHash = generateDayHash(dayData);
 
-                // Skip if existing has MORE content (regardless of timestamp)
-                if (existingMeta.itemCount > newItemCount) {
-                    return { action: 'skipped', dayKey, reason: 'existing has more items' };
-                }
-
-                // Skip if same content and existing is newer or same timestamp
-                if (existingMeta.itemCount === newItemCount && existingMeta.lastUpdated >= lastUpdated) {
-                    return { action: 'skipped', dayKey, reason: 'same content, not newer' };
+                // Skip only if content hash matches - no meaningful changes
+                // Hash captures: item count, activity types, place IDs, notes
+                // This detects: car→walk, place reassignment, merging/deleting, adding notes
+                if (existingMeta.contentHash === newHash) {
+                    return { action: 'skipped', dayKey, reason: 'content unchanged' };
                 }
             }
+
+            // Compute hash for the new data to store with the record
+            const contentHash = generateDayHash(dayData);
 
             return new Promise((resolve, reject) => {
                 const tx = db.transaction(['days'], 'readwrite');
@@ -669,6 +696,7 @@ function moveMapSmart(latlng, zoom) {
                     monthKey,
                     lastUpdated,
                     sourceFile,
+                    contentHash,
                     data: dayData // Store entire day's notes/routes
                 };
 
@@ -698,10 +726,9 @@ function moveMapSmart(latlng, zoom) {
         }
         
         // Get day metadata from IndexedDB for import comparison
-        // SAFE: Uses cursor to extract only key fields, NOT full data blob
-        // Returns Map<dayKey, {lastUpdated, itemCount}> for O(1) lookups
+        // Uses stored contentHash when available, falls back to computing for old records
+        // Returns Map<dayKey, {lastUpdated, contentHash}> for O(1) lookups
         async function getDayMetadataFromDB() {
-            console.log('[Import] getDayMetadataFromDB called');
             if (!db) return new Map();
 
             return new Promise((resolve, reject) => {
@@ -713,43 +740,32 @@ function moveMapSmart(latlng, zoom) {
                 req.onsuccess = (event) => {
                     const cursor = event.target.result;
                     if (cursor) {
-                        // Extract ONLY the fields we need for comparison
                         const day = cursor.value;
                         metadata.set(day.dayKey, {
                             lastUpdated: day.lastUpdated,
-                            itemCount: day.data?.timelineItems?.length || 0
+                            // Use stored hash if available, compute for old records without it
+                            contentHash: day.contentHash || generateDayHash(day.data)
                         });
                         cursor.continue();
                     } else {
-                        console.log('[Import] Loaded metadata for', metadata.size, 'days');
                         resolve(metadata);
                     }
                 };
-                req.onerror = () => {
-                    console.error('[Import] getDayMetadataFromDB error:', req.error);
-                    reject(req.error);
-                };
+                req.onerror = () => reject(req.error);
             });
         }
-        
+
         // Lightweight version - just get day keys, not full data
         async function getAllDayKeysFromDB() {
-            console.log('[Backup] getAllDayKeysFromDB called');
             if (!db) return [];
-            
+
             return new Promise((resolve, reject) => {
                 const tx = db.transaction(['days'], 'readonly');
                 const store = tx.objectStore('days');
                 const req = store.getAllKeys();
-                
-                req.onsuccess = () => {
-                    console.log('[Backup] getAllKeys success, count:', req.result?.length);
-                    resolve(req.result || []);
-                };
-                req.onerror = () => {
-                    console.error('[Backup] getAllKeys error:', req.error);
-                    reject(req.error);
-                };
+
+                req.onsuccess = () => resolve(req.result || []);
+                req.onerror = () => reject(req.error);
             });
         }
         
@@ -819,9 +835,93 @@ function moveMapSmart(latlng, zoom) {
         }
         
         // ============================================================
+        // Ghost Item Filtering
+        // ============================================================
+
+        /**
+         * Filter out "ghost" timeline items - items with 0 samples that overlap
+         * with items that have samples. These ghosts can incorrectly act as
+         * containers and hide legitimate data.
+         *
+         * A ghost is removed if:
+         * - It has 0 samples (no GPS data)
+         * - Another item with samples overlaps it significantly (>50% overlap)
+         *
+         * Items with 0 samples that don't overlap are kept (shows gap in timeline).
+         *
+         * @param {Array} items - Timeline items for a day
+         * @returns {Array} - Filtered items with ghosts removed
+         */
+        function filterGhostItems(items) {
+            if (!items || items.length === 0) return items;
+
+            // Separate items with and without samples
+            const withSamples = [];
+            const withoutSamples = [];
+
+            for (const item of items) {
+                const hasSamples = item.samples && item.samples.length > 0;
+                // For visits, having a center point counts as having location data
+                const hasCenter = item.isVisit && item.center?.latitude && item.center?.longitude;
+
+                if (hasSamples || (item.isVisit && hasCenter && item.samples?.length > 0)) {
+                    withSamples.push(item);
+                } else if (!hasSamples) {
+                    withoutSamples.push(item);
+                } else {
+                    withSamples.push(item);
+                }
+            }
+
+            // If no items without samples, return original
+            if (withoutSamples.length === 0) return items;
+
+            // Check each 0-sample item for overlap with items that have samples
+            const ghostIds = new Set();
+
+            for (const ghost of withoutSamples) {
+                if (!ghost.startDate || !ghost.endDate) continue;
+
+                const ghostStart = new Date(ghost.startDate).getTime();
+                const ghostEnd = new Date(ghost.endDate).getTime();
+                const ghostDuration = ghostEnd - ghostStart;
+
+                if (ghostDuration <= 0) continue;
+
+                // Check if any item with samples overlaps this ghost significantly
+                for (const real of withSamples) {
+                    if (!real.startDate || !real.endDate) continue;
+
+                    const realStart = new Date(real.startDate).getTime();
+                    const realEnd = new Date(real.endDate).getTime();
+
+                    // Calculate overlap
+                    const overlapStart = Math.max(ghostStart, realStart);
+                    const overlapEnd = Math.min(ghostEnd, realEnd);
+                    const overlap = Math.max(0, overlapEnd - overlapStart);
+
+                    // If overlap is >50% of ghost's duration, it's a duplicate
+                    if (overlap > ghostDuration * 0.5) {
+                        ghostIds.add(ghost.itemId || ghost.startDate);
+                        logDebug(`👻 Filtering ghost item: ${ghost.isVisit ? 'Visit' : 'Activity'} ${ghost.place?.name || ghost.activityType || 'unknown'} (${ghost.startDate}) - overlaps with item that has ${real.samples?.length || 0} samples`);
+                        break;
+                    }
+                }
+            }
+
+            // Return items with ghosts filtered out
+            if (ghostIds.size === 0) return items;
+
+            return items.filter(item => {
+                const itemId = item.itemId || item.startDate;
+                return !ghostIds.has(itemId);
+            });
+        }
+
+        // ============================================================
         // Shared Containment Detection
         // ============================================================
-        
+
         /**
          * Find items that are "contained" within longer visits.
          * Used by both display coalescer and analysis to ensure consistency.
@@ -831,7 +931,7 @@ function moveMapSmart(latlng, zoom) {
          * - Items starting within a container's timespan are marked as contained
          * - Items with customTitle are NEVER contained (user intentionally named them)
          * - Handles midnight-spanning visits (first item of day may be container)
-         * 
+         *
          * @param {Array} items - Timeline items for a day
          * @returns {Set} - Set of item IDs that are contained
          */
@@ -1769,6 +1869,121 @@ function moveMapSmart(latlng, zoom) {
         console.log('💡 Run diagnoseAnalysisData() in console to check data structure');
         console.log('💡 Run inspectDay("2016-01-05") to inspect raw data for a specific day');
         console.log('💡 Run inspectBackupDay("2016-01-05") after selecting backup folder to inspect raw backup files');
+        console.log('💡 Run diagnosePlaces("2016-01-05") to check place name resolution for a day');
+        console.log('💡 Run deleteDay("2016-01-05") to delete a specific day from the database');
+
+        // Diagnose place name resolution for a specific day
+        window.diagnosePlaces = async function(dayKey) {
+            if (!db) { console.log('DB not initialized'); return; }
+            if (!dayKey) {
+                console.log('Usage: diagnosePlaces("2025-09-06")');
+                return;
+            }
+
+            const dayRecord = await new Promise((resolve, reject) => {
+                const tx = db.transaction(['days'], 'readonly');
+                const req = tx.objectStore('days').get(dayKey);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+
+            if (!dayRecord) {
+                console.log(`❌ No data found for ${dayKey}`);
+                return;
+            }
+
+            console.log(`\n========== PLACE DIAGNOSIS FOR ${dayKey} ==========`);
+            console.log(`placesById has ${Object.keys(placesById).length} entries`);
+
+            const items = dayRecord.data?.timelineItems || [];
+            const visits = items.filter(i => i.isVisit);
+
+            console.log(`\n--- VISITS (${visits.length}) ---`);
+            for (const item of visits) {
+                const pid = item.placeId;
+                const placeName = item.place?.name;
+                const customTitle = item.customTitle;
+                const streetAddress = item.streetAddress;
+                const inPlacesById = pid ? (placesById[pid] || placesById[String(pid)]) : null;
+
+                console.log(`\nVisit at ${item.startDate}:`);
+                console.log(`  placeId: ${pid || 'NONE'}`);
+                console.log(`  item.place?.name: ${placeName || 'NONE'}`);
+                console.log(`  customTitle: ${customTitle || 'NONE'}`);
+                console.log(`  streetAddress: ${streetAddress || 'NONE'}`);
+                console.log(`  placesById[placeId]: ${inPlacesById || 'NOT FOUND'}`);
+
+                if (pid && !inPlacesById && !placeName && !customTitle && !streetAddress) {
+                    console.log(`  ⚠️ NO NAME RESOLUTION - will show "Location X"`);
+                }
+            }
+
+            // Check activities too
+            const activities = items.filter(i => !i.isVisit);
+            console.log(`\n--- ACTIVITIES (${activities.length}) ---`);
+            for (const item of activities) {
+                const actType = item.activityType || 'unknown';
+                const samples = item.samples?.length || 0;
+                console.log(`${item.startDate}: ${actType} (${samples} samples)`);
+            }
+
+            return { dayRecord, placesById };
+        };
+
+        // Delete a specific day from the database
+        window.deleteDay = async function(dayKey) {
+            if (!db) { console.log('❌ DB not initialized'); return; }
+            if (!dayKey) {
+                console.log('Usage: deleteDay("2025-09-06")');
+                return;
+            }
+
+            // Check if day exists
+            const dayRecord = await new Promise((resolve, reject) => {
+                const tx = db.transaction(['days'], 'readonly');
+                const req = tx.objectStore('days').get(dayKey);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+
+            if (!dayRecord) {
+                console.log(`❌ No data found for ${dayKey}`);
+                return;
+            }
+
+            const items = dayRecord.data?.timelineItems || [];
+            const visits = items.filter(i => i.isVisit).length;
+            const activities = items.filter(i => !i.isVisit).length;
+
+            console.log(`\n⚠️ About to delete ${dayKey}:`);
+            console.log(`   ${visits} visits, ${activities} activities`);
+            console.log(`\nTo confirm deletion, run: confirmDeleteDay("${dayKey}")`);
+
+            // Set up confirmation function
+            window.confirmDeleteDay = async function(confirmKey) {
+                if (confirmKey !== dayKey) {
+                    console.log(`❌ Key mismatch. Expected "${dayKey}", got "${confirmKey}"`);
+                    return;
+                }
+
+                try {
+                    await new Promise((resolve, reject) => {
+                        const tx = db.transaction(['days'], 'readwrite');
+                        const req = tx.objectStore('days').delete(dayKey);
+                        req.onsuccess = () => resolve();
+                        req.onerror = () => reject(req.error);
+                    });
+
+                    console.log(`✅ Successfully deleted ${dayKey}`);
+                    console.log('💡 Refresh the page or select another date to see changes');
+
+                    // Clean up confirmation function
+                    delete window.confirmDeleteDay;
+                } catch (err) {
+                    console.log(`❌ Error deleting ${dayKey}:`, err);
+                }
+            };
+        };
 
         // Inspect raw backup files for a specific day (must call selectBackupFolder first)
         // This reads directly from the iCloud backup without importing
@@ -1943,6 +2158,9 @@ function moveMapSmart(latlng, zoom) {
 
             const months = await getAllMonthsFromDB();
 
+            // Include events and favorites in backup
+            const eventsData = exportEventsData();
+
             return {
                 version: VERSION,
                 build: BUILD,
@@ -1950,7 +2168,12 @@ function moveMapSmart(latlng, zoom) {
                 dayCount: days.length,
                 monthCount: months.length,
                 days,
-                months
+                months,
+                // Include events (new in Build 696+)
+                events: eventsData.events,
+                eventCategories: eventsData.categories,
+                // Include favorites
+                favorites: favorites
             };
         }
         
@@ -1982,50 +2205,64 @@ function moveMapSmart(latlng, zoom) {
             const stats = await getDBStats();
             const dbStatusSection = document.getElementById('dbStatusSection');
             const dbStats = document.getElementById('dbStats');
-            
+            const fileInputSection = document.getElementById('fileInputSection');
+
             if (stats.dayCount > 0) {
                 // Show database status
-                dbStatusSection.style.display = 'block';
-                
-                const lastSyncText = stats.lastSync 
+                if (dbStatusSection) dbStatusSection.style.display = 'block';
+
+                const lastSyncText = stats.lastSync
                     ? `Last sync: ${new Date(stats.lastSync).toLocaleString()}`
                     : 'Never synced';
-                
-                dbStats.textContent = `${stats.monthCount} months • ${stats.dayCount} days • ${lastSyncText}`;
-                
+
+                if (dbStats) dbStats.textContent = `${stats.monthCount} months • ${stats.dayCount} days • ${lastSyncText}`;
+
                 // Hide file input section when database has data
-                document.getElementById('fileInputSection').style.display = 'none';
+                if (fileInputSection) fileInputSection.style.display = 'none';
             } else {
                 // No data - show file input
-                dbStatusSection.style.display = 'none';
-                document.getElementById('fileInputSection').style.display = 'block';
+                if (dbStatusSection) dbStatusSection.style.display = 'none';
+                if (fileInputSection) fileInputSection.style.display = 'block';
             }
         }
         
         // Import files to IndexedDB with sync logic
         async function importFilesToDatabase() {
-            // v3.0: Import only files modified since last scan
-            
+            // Delegate to import module if available
+            if (window.ArcImport?.importFilesToDatabase) {
+                return window.ArcImport.importFilesToDatabase();
+            }
+
+            // Fallback: original implementation (kept for compatibility)
             if (!selectedFiles.length) {
                 alert('Please select a folder containing daily JSON files');
                 return;
             }
-            
+
             cancelProcessing = false;
-            
+
             // Hide the import tile and show the log report
             const fileInputSection = document.getElementById('fileInputSection');
             if (fileInputSection) fileInputSection.style.display = 'none';
-            
+
             progress.style.display = 'block';
             cancelBtn.style.display = 'block';
             logDiv.style.display = 'block'; // Show the log!
             logDiv.innerHTML = '';
-            
+
             // Clear previous import tags (will be replaced with new ones)
             importAddedDays = [];
             importUpdatedDays = [];
-            
+            importChangedItemIds = new Set();
+
+            // Memory flush: encourage GC before import to help Safari keep file handles
+            // Safari may release blob URLs when under memory pressure
+            if (typeof window.gc === 'function') {
+                window.gc();  // Only works in debug builds
+            }
+            // Give browser time to release memory before starting import
+            await new Promise(r => setTimeout(r, 100));
+
             addLog(`Starting import to database...`);
             addLog(`Found ${selectedFiles.length} daily JSON files`);
             
@@ -2141,25 +2378,26 @@ function moveMapSmart(latlng, zoom) {
             let addedDays = [];
             let updatedDays = [];
             let processedFiles = 0;
+            let failedFiles = [];  // Track files that failed to read (Safari blob expiry)
 
             for (const file of filesToProcess) {
                 if (cancelProcessing) {
                     addLog('Import cancelled', 'error');
                     break;
                 }
-                
+
                 try {
                     const match = file.name.match(/(\d{4}-\d{2}-\d{2})\.json\.gz/);
                     const fileDate = match[1];
                     const [year, month, day] = fileDate.split('-');
                     const monthKey = `${year}-${month}`;
                     const dayKey = fileDate;
-                    
+
                     // Decompress file
                     const data = await decompressFile(file);
                     // Apply place-name and activity-type fixes before saving
                     applyImportFixes(data);
-                    
+
                     // Debug: Check if data has timeline items (first file only)
                     if (processedFiles === 0) {
                         // Log all place names in the file
@@ -2178,31 +2416,45 @@ function moveMapSmart(latlng, zoom) {
                             } : 'none'
                         });
                     }
-                    
+
                     // Use file modification time as lastUpdated
                     // This ensures we track when the file was actually changed
                     const lastUpdated = file.lastModified;
 
                     // Import to database (pass pre-loaded metadata for O(1) lookup)
                     const result = await importDayToDB(dayKey, monthKey, data, file.name, lastUpdated, existingMetadata);
-                    
+
                     syncStats[result.action]++;
                     if (result.action === 'added') {
                         addedDays.push(dayKey);
                     } else if (result.action === 'updated') {
                         updatedDays.push(dayKey);
                     }
-                    
+
                     processedFiles++;
                     const percent = Math.round((processedFiles / filesToProcess.length) * 100);
                     progressFill.style.width = percent + '%';
                     progressFill.textContent = percent + '%';
                     progressText.textContent = `Processing: ${file.name} (${processedFiles}/${filesToProcess.length})`;
-                    
+
                 } catch (error) {
+                    // Track failed files (Safari blob URL expiry causes ProgressEvent errors)
+                    failedFiles.push(file.name);
                     logError(`Error importing ${file.name}:`, error);
-                    addLog(`Error importing ${file.name}: ${error.message}`, 'error');
+                    // Continue processing other files
                 }
+            }
+
+            // Report failed files at end (Safari blob expiry issue)
+            if (failedFiles.length > 0) {
+                addLog(`\n⚠️ ${failedFiles.length} files failed to read (Safari may have released file handles):`, 'error');
+                if (failedFiles.length <= 10) {
+                    failedFiles.forEach(f => addLog(`  • ${f}`, 'error'));
+                } else {
+                    failedFiles.slice(0, 5).forEach(f => addLog(`  • ${f}`, 'error'));
+                    addLog(`  ... and ${failedFiles.length - 5} more`, 'error');
+                }
+                addLog(`\nTip: Re-select the folder and import again to retry failed files.`, 'info');
             }
             
             // Save last sync time (now!)
@@ -2592,7 +2844,10 @@ function moveMapSmart(latlng, zoom) {
                     const bStart = b.startDate ? new Date(b.startDate).getTime() : 0;
                     return aStart - bStart;
                 });
-                
+
+                // Filter out ghost items (0-sample duplicates that overlap real items)
+                mergedItems = filterGhostItems(mergedItems);
+
                 const mergedData = { ...data, timelineItems: mergedItems };
                 
                 // Extract LEGACY notes, pins, tracks (for existing diary/map code)
@@ -2983,17 +3238,20 @@ function moveMapSmart(latlng, zoom) {
         
         // Import More Files button handler
         function importMoreFiles() {
-            // Hide log and show file input section
+            // Delegate to import module if available
+            if (window.ArcImport?.importMoreFiles) {
+                return window.ArcImport.importMoreFiles();
+            }
+
+            // Fallback: original implementation
             const logDiv = document.getElementById('log');
             if (logDiv) logDiv.style.display = 'none';
-            
-            // Reset file input so the same folder can be selected again
+
             fileInput.value = '';
             selectedFiles = [];
             fileCount.textContent = '';
-            
+
             document.getElementById('fileInputSection').style.display = 'block';
-            // Scroll to it
             document.getElementById('fileInputSection').scrollIntoView({ behavior: 'smooth' });
         }
         
@@ -3082,26 +3340,83 @@ function moveMapSmart(latlng, zoom) {
             // Check if File System Access API is available
             const backupWarning = document.getElementById('backupBrowserWarning');
             if (!window.showDirectoryPicker) {
+                // Show Safari warning but allow fallback
                 if (backupWarning) backupWarning.style.display = 'block';
             }
         }
-        
-        // Select backup folder using File System Access API
+
+        // Select backup folder - uses File System Access API (Chrome/Edge) or webkitdirectory fallback (Safari)
         window.selectBackupFolder = async function() {
-            console.log('[Backup] selectBackupFolder called');
-            
-            if (!window.showDirectoryPicker) {
-                console.log('[Backup] File System Access API not available');
-                alert('Backup import requires Chrome or Edge browser. Safari does not support the File System Access API needed for large folders.');
+            // Use File System Access API if available (Chrome, Edge)
+            if (window.showDirectoryPicker) {
+                await selectBackupFolderModern();
+            } else {
+                // Fallback for Safari - use webkitdirectory input
+                const backupInput = document.getElementById('backupFolderInput');
+                if (backupInput) {
+                    backupInput.click();
+                } else {
+                    alert('Backup import is not available in this browser.');
+                }
+            }
+        };
+
+        // Handle files selected via webkitdirectory (Safari fallback)
+        window.handleBackupFolderSelected = async function(files) {
+            if (!files || files.length === 0) return;
+
+            const backupFileCount = document.getElementById('backupFileCount');
+            backupFileCount.innerHTML = `<div style="color: #666;">Validating ${files.length.toLocaleString()} files...</div>`;
+
+            // Yield to let UI update before validation
+            await new Promise(r => setTimeout(r, 50));
+
+            // Quick validation: sample files from throughout the list for TimelineItem folder
+            // Safari may order files differently on subsequent selections, so we sample broadly
+            let hasTimelineItem = false;
+            const totalFiles = files.length;
+
+            // Check up to 10000 files, sampling evenly throughout
+            const samplesToCheck = Math.min(totalFiles, 10000);
+            const step = Math.max(1, Math.floor(totalFiles / samplesToCheck));
+
+            for (let i = 0; i < totalFiles && !hasTimelineItem; i += step) {
+                if (files[i].webkitRelativePath.includes('/TimelineItem/')) {
+                    hasTimelineItem = true;
+                }
+            }
+
+            // If not found with sampling, do a full scan (string checks are cheap)
+            if (!hasTimelineItem) {
+                backupFileCount.innerHTML = `<div style="color: #666;">Full validation scan...</div>`;
+                await new Promise(r => setTimeout(r, 10));
+
+                for (let i = 0; i < totalFiles; i++) {
+                    if (files[i].webkitRelativePath.includes('/TimelineItem/')) {
+                        hasTimelineItem = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!hasTimelineItem) {
+                backupFileCount.innerHTML = '<div style="color: #d32f2f;">Not a valid backup folder. Expected TimelineItem/ subdirectory.</div>';
                 return;
             }
-            
+
+            backupFileCount.innerHTML = `<div style="color: #388e3c;">✓ Valid backup folder (${files.length.toLocaleString()} files)</div>`;
+
+            // Start import with FileList directly (don't convert to array)
+            await importFromBackupFiles(files);
+        };
+
+        // Modern backup folder selection using File System Access API (Chrome/Edge)
+        async function selectBackupFolderModern() {
             const backupFileCount = document.getElementById('backupFileCount');
-            
+
             try {
                 backupFileCount.innerHTML = '<div style="color: #666;">Selecting folder...</div>';
-                console.log('[Backup] Showing directory picker...');
-                
+
                 const dirHandle = await window.showDirectoryPicker({
                     mode: 'read'
                 });
@@ -3109,36 +3424,29 @@ function moveMapSmart(latlng, zoom) {
                 // Store for debug inspection
                 window._lastBackupDirHandle = dirHandle;
 
-                console.log('[Backup] Directory selected:', dirHandle.name);
                 backupFileCount.innerHTML = '<div style="color: #666;">Validating backup structure...</div>';
-                
+
                 // Validate it has the expected subdirectories
                 const expectedDirs = ['TimelineItem', 'LocomotionSample', 'Place', 'Note'];
                 const foundDirs = [];
-                
-                console.log('[Backup] Checking for subdirectories...');
+
                 for await (const entry of dirHandle.values()) {
-                    console.log('[Backup] Found entry:', entry.name, entry.kind);
                     if (entry.kind === 'directory' && expectedDirs.includes(entry.name)) {
                         foundDirs.push(entry.name);
                     }
                 }
-                
-                console.log('[Backup] Found directories:', foundDirs);
-                
+
                 if (!foundDirs.includes('TimelineItem')) {
                     backupFileCount.innerHTML = '<div style="color: #d32f2f;">Not a valid backup folder. Expected TimelineItem/ subdirectory.</div>';
                     return;
                 }
-                
+
                 backupFileCount.innerHTML = `<div style="color: #388e3c;">✓ Found: ${foundDirs.join(', ')}</div>`;
-                
+
                 // Start import with directory handle
-                console.log('[Backup] Starting importFromBackupDir...');
                 await importFromBackupDir(dirHandle);
-                
+
             } catch (err) {
-                console.error('[Backup] Error:', err);
                 if (err.name === 'AbortError') {
                     backupFileCount.innerHTML = '<div style="color: #666;">Folder selection cancelled</div>';
                 } else {
@@ -3147,38 +3455,28 @@ function moveMapSmart(latlng, zoom) {
                 }
             }
         };
-        
+
         // Helper: Read all JSON files from a directory with hex subdirs (TimelineItem, Place, Note)
         async function* readJsonFilesFromHexDirs(parentDirHandle, progressCallback) {
             let fileCount = 0;
-            let subDirCount = 0;
-            
-            console.log('[Backup] readJsonFilesFromHexDirs starting for:', parentDirHandle.name);
-            
+
             for await (const subEntry of parentDirHandle.values()) {
                 if (subEntry.kind === 'directory') {
-                    subDirCount++;
-                    console.log(`[Backup] Processing subdirectory ${subDirCount}: ${subEntry.name}`);
-                    
                     const subDirHandle = await parentDirHandle.getDirectoryHandle(subEntry.name);
-                    let subDirFileCount = 0;
-                    
+
                     for await (const fileEntry of subDirHandle.values()) {
                         if (fileEntry.kind === 'file' && fileEntry.name.endsWith('.json')) {
                             fileCount++;
-                            subDirFileCount++;
                             if (progressCallback && fileCount % 1000 === 0) {
                                 progressCallback(fileCount);
                             }
                             yield fileEntry;
                         }
                     }
-                    console.log(`[Backup] Subdirectory ${subEntry.name}: ${subDirFileCount} files`);
                 }
             }
-            console.log(`[Backup] readJsonFilesFromHexDirs complete: ${subDirCount} subdirs, ${fileCount} total files`);
         }
-        
+
         // Helper: Read file as JSON
         async function readFileAsJson(fileHandle) {
             try {
@@ -3186,7 +3484,6 @@ function moveMapSmart(latlng, zoom) {
                 const text = await file.text();
                 return JSON.parse(text);
             } catch (err) {
-                console.warn('[Backup] Failed to read file:', fileHandle.name, err.message);
                 return null;
             }
         }
@@ -3267,29 +3564,26 @@ function moveMapSmart(latlng, zoom) {
         
         // Import from backup using File System Access API
         async function importFromBackupDir(dirHandle) {
-            console.log('[Backup] importFromBackupDir called');
             cancelProcessing = false;
-            
+
             const fileInputSection = document.getElementById('fileInputSection');
             if (fileInputSection) fileInputSection.style.display = 'none';
-            
+
             progress.style.display = 'block';
             cancelBtn.style.display = 'block';
             logDiv.style.display = 'block';
             logDiv.innerHTML = '';
-            
+
             importAddedDays = [];
             importUpdatedDays = [];
-            
+            importChangedItemIds = new Set();
+
             addLog('🔄 Starting backup import (File System Access API)...');
-            console.log('[Backup] UI initialized');
-            
+
             const forceRescan = document.getElementById('backupForceRescan')?.checked || false;
             const missingOnly = document.getElementById('backupMissingOnly')?.checked || false;
             const lastBackupSync = forceRescan ? null : await getMetadata('lastBackupSync');
-            
-            console.log('[Backup] Options:', { forceRescan, missingOnly, lastBackupSync });
-            
+
             if (missingOnly) {
                 addLog('🛡️ Missing days only - existing data will not be modified');
             }
@@ -3298,39 +3592,24 @@ function moveMapSmart(latlng, zoom) {
             } else if (lastBackupSync) {
                 addLog(`📅 Last backup sync: ${lastBackupSync}`);
             }
-            
+
             try {
                 // Get directory handles
-                console.log('[Backup] Getting directory handles...');
-                console.log('[Backup] Getting TimelineItem handle...');
                 const timelineDir = await dirHandle.getDirectoryHandle('TimelineItem');
-                console.log('[Backup] Got TimelineItem handle');
-                
-                console.log('[Backup] Getting Place handle...');
                 const placeDir = await dirHandle.getDirectoryHandle('Place').catch(() => null);
-                console.log('[Backup] Place handle:', placeDir ? 'found' : 'not found');
-                
-                console.log('[Backup] Getting Note handle...');
                 const noteDir = await dirHandle.getDirectoryHandle('Note').catch(() => null);
-                console.log('[Backup] Note handle:', noteDir ? 'found' : 'not found');
-                
-                console.log('[Backup] Getting LocomotionSample handle...');
                 const sampleDir = await dirHandle.getDirectoryHandle('LocomotionSample').catch(() => null);
-                console.log('[Backup] LocomotionSample handle:', sampleDir ? 'found' : 'not found');
-                
+
                 // For "missing only" mode: get existing days first
                 let existingDays = new Set();
                 if (missingOnly) {
-                    console.log('[Backup] Loading existing day keys from DB...');
                     const allDayKeys = await getAllDayKeysFromDB();
                     existingDays = new Set(allDayKeys);
                     addLog(`  Database has ${existingDays.size.toLocaleString()} existing days`);
-                    console.log('[Backup] Existing days:', existingDays.size);
                 }
-                
+
                 // Step 1: Load Places (0-5%)
-                addLog('\\n📍 Loading Places...');
-                console.log('[Backup] Step 1: Loading Places...');
+                addLog('\n📍 Loading Places...');
                 progressFill.style.width = '0%';
                 progressFill.textContent = '0%';
                 const placeLookup = new Map();
@@ -3349,8 +3628,7 @@ function moveMapSmart(latlng, zoom) {
                         }
                     }
                     addLog(`  Loaded ${placeLookup.size.toLocaleString()} places`);
-                    console.log('[Backup] Places loaded:', placeLookup.size);
-                    
+
                     // Update global placesById for display name lookups
                     for (const [placeId, place] of placeLookup) {
                         if (place.name) {
@@ -3362,7 +3640,7 @@ function moveMapSmart(latlng, zoom) {
                 }
                 
                 // Step 2: Load Notes indexed by date (5-10%)
-                addLog('\\n📝 Loading Notes...');
+                addLog('\n📝 Loading Notes...');
                 progressFill.style.width = '5%';
                 progressFill.textContent = '5%';
                 const notesByDate = new Map();
@@ -3392,7 +3670,7 @@ function moveMapSmart(latlng, zoom) {
                 }
                 
                 // Step 3: Scan TimelineItems (10-60%)
-                addLog('\\n🗓️ Scanning Timeline Items...');
+                addLog('\n🗓️ Scanning Timeline Items...');
                 progressFill.style.width = '10%';
                 progressFill.textContent = '10%';
                 const changedItems = [];
@@ -3557,14 +3835,14 @@ function moveMapSmart(latlng, zoom) {
                 if (includedForSpanning > 0) addLog(`  Included: ${includedForSpanning.toLocaleString()} spanning visits into missing days`);
                 
                 if (changedItems.length === 0) {
-                    addLog('\\n✅ No new data to import');
+                    addLog('\n✅ No new data to import');
                     progress.style.display = 'none';
                     cancelBtn.style.display = 'none';
                     return;
                 }
                 
                 // Step 4: Load GPS samples for needed weeks only (60-80%)
-                addLog('\\n📍 Loading GPS samples...');
+                addLog('\n📍 Loading GPS samples...');
                 progressFill.style.width = '60%';
                 progressFill.textContent = '60%';
                 const samplesByItemId = new Map();
@@ -3630,7 +3908,7 @@ function moveMapSmart(latlng, zoom) {
                 
                 // Step 5: Order items by linked list, then group by day (80-100%)
                 // CRITICAL: Use previousItemId/nextItemId order, NEVER sort by startDate
-                addLog('\\n🔗 Ordering by timeline links...');
+                addLog('\n🔗 Ordering by timeline links...');
                 progressFill.style.width = '80%';
                 progressFill.textContent = '80%';
                 const orderedItems = orderItemsByLinkedList(changedItems);
@@ -3638,7 +3916,7 @@ function moveMapSmart(latlng, zoom) {
                 
                 // Group items by day (preserving linked list order)
                 // For spanning visits, add them to ALL days they cover
-                addLog('\\n💾 Saving to database...');
+                addLog('\n💾 Saving to database...');
                 
                 const itemsByDate = new Map();
                 let spanningVisitCount = 0;
@@ -3687,7 +3965,7 @@ function moveMapSmart(latlng, zoom) {
                 let updatedDays = [];
 
                 // Load existing day metadata for content comparison
-                addLog('\\n💾 Saving to database...');
+                addLog('\n💾 Saving to database...');
                 const existingMetadata = await getDayMetadataFromDB();
                 addLog(`  Comparing against ${existingMetadata.size} existing days`);
 
@@ -3769,7 +4047,7 @@ function moveMapSmart(latlng, zoom) {
                         item.lastSaved && item.lastSaved > max ? item.lastSaved : max, '');
                     const lastUpdated = dayLastSaved ? new Date(dayLastSaved).getTime() : Date.now();
 
-                    // Pass metadata for content comparison (won't overwrite if existing has more items)
+                    // Pass metadata for content hash comparison (skips if hash unchanged)
                     const result = await importDayToDB(dayKey, monthKey, dayData, 'backup-import', lastUpdated, existingMetadata);
                     
                     if (result.action === 'added') addedDays.push(dayKey);
@@ -3811,7 +4089,7 @@ function moveMapSmart(latlng, zoom) {
                     updateAnalysisDataInBackground([...addedDays, ...updatedDays]);
                 }
                 
-                addLog('\\n✅ Backup import complete!');
+                addLog('\n✅ Backup import complete!');
                 addLog(`  Days added: ${addedDays.length.toLocaleString()}`);
                 addLog(`  Days updated: ${updatedDays.length.toLocaleString()}`);
 
@@ -3840,13 +4118,549 @@ function moveMapSmart(latlng, zoom) {
                 await loadMostRecentMonth();
                 
             } catch (err) {
-                addLog(`\\n❌ Error: ${err.message}`, 'error');
+                addLog(`\n❌ Error: ${err.message}`, 'error');
                 console.error('Backup import error:', err);
                 progress.style.display = 'none';
                 cancelBtn.style.display = 'none';
             }
         }
-        
+
+        // Import from backup using FileList (Safari fallback via webkitdirectory)
+        // Uses controlled batching to avoid overwhelming Safari's memory
+        async function importFromBackupFiles(files) {
+            cancelProcessing = false;
+
+            const fileInputSection = document.getElementById('fileInputSection');
+            if (fileInputSection) fileInputSection.style.display = 'none';
+
+            progress.style.display = 'block';
+            cancelBtn.style.display = 'block';
+            logDiv.style.display = 'block';
+            logDiv.innerHTML = '';
+
+            importAddedDays = [];
+            importUpdatedDays = [];
+            importChangedItemIds = new Set();
+
+            addLog('🔄 Starting backup import (Safari compatibility mode)...');
+            addLog('⚠️ This may take longer than Chrome/Edge. Please be patient.');
+            addLog('📂 Indexing files...');
+
+            // Yield to let UI render before heavy file indexing
+            await new Promise(r => setTimeout(r, 50));
+
+            const forceRescan = document.getElementById('backupForceRescan')?.checked || false;
+            const missingOnly = document.getElementById('backupMissingOnly')?.checked || false;
+            const lastBackupSync = forceRescan ? null : await getMetadata('lastBackupSync');
+
+            if (missingOnly) {
+                addLog('🛡️ Missing days only - existing data will not be modified');
+            }
+            if (forceRescan) {
+                addLog('⚠️ Force rescan enabled - reimporting all data');
+            }
+
+            try {
+                // Categorize files by subdirectory (yield periodically to keep UI responsive)
+                // Note: Iterate FileList directly - don't use Array.from() which blocks on 200k+ files
+                const placeFiles = [];
+                const noteFiles = [];
+                const timelineFiles = [];
+                const sampleFiles = [];
+
+                const totalFiles = files.length;
+                const CHUNK_SIZE = 5000;
+
+                for (let i = 0; i < totalFiles; i++) {
+                    const file = files[i];
+                    const path = file.webkitRelativePath;
+                    if (path.includes('/TimelineItem/') && file.name.endsWith('.json')) {
+                        timelineFiles.push(file);
+                    } else if (path.includes('/Place/') && file.name.endsWith('.json')) {
+                        placeFiles.push(file);
+                    } else if (path.includes('/Note/') && file.name.endsWith('.json')) {
+                        noteFiles.push(file);
+                    } else if (path.includes('/LocomotionSample/') && (file.name.endsWith('.json') || file.name.endsWith('.json.gz'))) {
+                        sampleFiles.push(file);
+                    }
+
+                    // Yield every CHUNK_SIZE files to keep UI responsive
+                    if (i > 0 && i % CHUNK_SIZE === 0) {
+                        const pct = Math.round((i / totalFiles) * 5); // 0-5% for indexing
+                        if (progressFill) {
+                            progressFill.style.width = pct + '%';
+                            progressFill.textContent = pct + '%';
+                        }
+                        if (progressText) {
+                            progressText.textContent = `Indexing files: ${i.toLocaleString()}/${totalFiles.toLocaleString()}...`;
+                        }
+                        await new Promise(r => setTimeout(r, 0));
+                    }
+                }
+
+                addLog(`📂 Indexed ${totalFiles.toLocaleString()} files`);
+                addLog(`  Timeline items: ${timelineFiles.length.toLocaleString()} files`);
+                addLog(`  Places: ${placeFiles.length.toLocaleString()} files`);
+                addLog(`  Notes: ${noteFiles.length.toLocaleString()} files`);
+                addLog(`  GPS samples: ${sampleFiles.length.toLocaleString()} files`);
+
+                // For "missing only" mode: get existing days first
+                let existingDays = new Set();
+                if (missingOnly) {
+                    const allDayKeys = await getAllDayKeysFromDB();
+                    existingDays = new Set(allDayKeys);
+                    addLog(`  Database has ${existingDays.size.toLocaleString()} existing days`);
+                }
+
+                // Safari-specific: smaller batch size and explicit pauses
+                const SAFARI_BATCH_SIZE = 10;
+                const SAFARI_PAUSE_MS = 5;
+
+                // Track failed files for reporting
+                const failedFiles = [];
+
+                // Helper to read file as JSON (with Safari memory management)
+                async function readFileAsJsonSafari(file) {
+                    try {
+                        const text = await file.text();
+                        const result = JSON.parse(text);
+                        return result;
+                    } catch (err) {
+                        failedFiles.push({ path: file.webkitRelativePath || file.name, error: err.message });
+                        return null;
+                    }
+                }
+
+                // Helper to read gzipped file as JSON
+                async function readGzippedFileAsJsonSafari(file) {
+                    try {
+                        const arrayBuffer = await file.arrayBuffer();
+                        const decompressed = pako.ungzip(new Uint8Array(arrayBuffer), { to: 'string' });
+                        return JSON.parse(decompressed);
+                    } catch (err) {
+                        failedFiles.push({ path: file.webkitRelativePath || file.name, error: err.message });
+                        return null;
+                    }
+                }
+
+                // Step 1: Load Places (0-5%)
+                addLog('\n📍 Loading Places...');
+                progressFill.style.width = '0%';
+                progressFill.textContent = '0%';
+                const placeLookup = new Map();
+
+                for (let i = 0; i < placeFiles.length; i += SAFARI_BATCH_SIZE) {
+                    if (cancelProcessing) break;
+                    const batch = placeFiles.slice(i, i + SAFARI_BATCH_SIZE);
+                    const results = await Promise.all(batch.map(f => readFileAsJsonSafari(f)));
+
+                    for (const place of results) {
+                        if (place && place.placeId && !place.deleted) {
+                            placeLookup.set(place.placeId, place);
+                        }
+                    }
+
+                    if (i % 100 === 0) {
+                        progressText.textContent = `Loading places: ${Math.min(i + SAFARI_BATCH_SIZE, placeFiles.length).toLocaleString()}/${placeFiles.length.toLocaleString()}...`;
+                        await new Promise(r => setTimeout(r, SAFARI_PAUSE_MS));
+                    }
+                }
+                addLog(`  Loaded ${placeLookup.size.toLocaleString()} places`);
+
+                // Update global placesById
+                for (const [placeId, place] of placeLookup) {
+                    if (place.name) {
+                        placesById[placeId] = place.name;
+                    }
+                }
+                await saveMetadata('placesById', placesById);
+
+                // Step 2: Load Notes (5-10%)
+                addLog('\n📝 Loading Notes...');
+                progressFill.style.width = '5%';
+                progressFill.textContent = '5%';
+                const notesByDate = new Map();
+
+                for (let i = 0; i < noteFiles.length; i += SAFARI_BATCH_SIZE) {
+                    if (cancelProcessing) break;
+                    const batch = noteFiles.slice(i, i + SAFARI_BATCH_SIZE);
+                    const results = await Promise.all(batch.map(f => readFileAsJsonSafari(f)));
+
+                    for (const note of results) {
+                        if (note && note.date && note.body && !note.deleted) {
+                            const noteDate = new Date(note.date);
+                            const dayKey = noteDate.getFullYear() + '-' +
+                                String(noteDate.getMonth() + 1).padStart(2, '0') + '-' +
+                                String(noteDate.getDate()).padStart(2, '0');
+                            if (!notesByDate.has(dayKey)) {
+                                notesByDate.set(dayKey, []);
+                            }
+                            notesByDate.get(dayKey).push(note);
+                        }
+                    }
+
+                    if (i % 100 === 0) {
+                        progressText.textContent = `Loading notes: ${Math.min(i + SAFARI_BATCH_SIZE, noteFiles.length).toLocaleString()}/${noteFiles.length.toLocaleString()}...`;
+                        await new Promise(r => setTimeout(r, SAFARI_PAUSE_MS));
+                    }
+                }
+                addLog(`  Loaded notes for ${notesByDate.size.toLocaleString()} days`);
+
+                // Step 3: Scan Timeline Items (10-60%)
+                addLog('\n🗓️ Scanning Timeline Items...');
+                progressFill.style.width = '10%';
+                progressFill.textContent = '10%';
+                const changedItems = [];
+                const changedDays = new Set();
+                const changedWeeks = new Set();
+
+                let scannedCount = 0;
+                let skippedExisting = 0;
+                let skippedUnchanged = 0;
+                let skippedDeleted = 0;
+                let maxLastSaved = lastBackupSync || '';
+
+                for (let i = 0; i < timelineFiles.length; i += SAFARI_BATCH_SIZE) {
+                    if (cancelProcessing) break;
+                    const batch = timelineFiles.slice(i, i + SAFARI_BATCH_SIZE);
+                    const results = await Promise.all(batch.map(f => readFileAsJsonSafari(f)));
+
+                    for (const item of results) {
+                        scannedCount++;
+                        if (!item) continue;
+
+                        if (item.deleted) {
+                            skippedDeleted++;
+                            continue;
+                        }
+
+                        if (item.lastSaved && item.lastSaved > maxLastSaved) {
+                            maxLastSaved = item.lastSaved;
+                        }
+
+                        if (!item.startDate) continue;
+
+                        const startDayKey = getLocalDayKey(item.startDate);
+                        const endDayKey = item.endDate ? getLocalDayKey(item.endDate) : startDayKey;
+
+                        // In missingOnly mode, check if this item spans into any missing days
+                        let spansIntoMissingDay = false;
+                        if (missingOnly && item.isVisit && endDayKey > startDayKey) {
+                            let checkDay = startDayKey;
+                            while (checkDay <= endDayKey) {
+                                if (!existingDays.has(checkDay)) {
+                                    spansIntoMissingDay = true;
+                                    break;
+                                }
+                                const nextDate = new Date(checkDay + 'T12:00:00');
+                                nextDate.setDate(nextDate.getDate() + 1);
+                                checkDay = nextDate.toISOString().substring(0, 10);
+                            }
+                        }
+
+                        if (missingOnly && existingDays.has(startDayKey) && !spansIntoMissingDay) {
+                            skippedExisting++;
+                            continue;
+                        }
+
+                        if (lastBackupSync && item.lastSaved && item.lastSaved <= lastBackupSync && !spansIntoMissingDay) {
+                            skippedUnchanged++;
+                            continue;
+                        }
+
+                        // Attach place info
+                        if (item.placeId && placeLookup.has(item.placeId)) {
+                            const place = placeLookup.get(item.placeId);
+                            item.place = {
+                                name: place.name,
+                                center: place.center,
+                                radiusMeters: place.radiusMeters || place.radius || 50
+                            };
+                            if (!item.center && place.center) {
+                                item.center = place.center;
+                            }
+                        }
+
+                        changedItems.push(item);
+                        changedDays.add(startDayKey);
+                        changedWeeks.add(getISOWeek(item.startDate));
+                    }
+
+                    // Update progress (10-60%)
+                    const scanPercent = Math.min(50, Math.round((i / timelineFiles.length) * 50));
+                    const totalPercent = 10 + scanPercent;
+                    progressFill.style.width = totalPercent + '%';
+                    progressFill.textContent = totalPercent + '%';
+                    progressText.textContent = `Scanning timeline: ${scannedCount.toLocaleString()}/${timelineFiles.length.toLocaleString()}...`;
+
+                    // Safari pause for GC
+                    await new Promise(r => setTimeout(r, SAFARI_PAUSE_MS));
+                }
+
+                addLog(`  Scanned ${scannedCount.toLocaleString()} items`);
+                addLog(`  Found ${changedItems.length.toLocaleString()} changed items in ${changedDays.size.toLocaleString()} days`);
+                if (skippedExisting > 0) addLog(`  Skipped ${skippedExisting.toLocaleString()} (existing days)`);
+                if (skippedUnchanged > 0) addLog(`  Skipped ${skippedUnchanged.toLocaleString()} (unchanged)`);
+                if (skippedDeleted > 0) addLog(`  Skipped ${skippedDeleted.toLocaleString()} (deleted)`);
+
+                if (cancelProcessing) {
+                    addLog('\n⚠️ Import cancelled');
+                    progress.style.display = 'none';
+                    cancelBtn.style.display = 'none';
+                    return;
+                }
+
+                if (changedItems.length === 0) {
+                    addLog('\n✅ No new or changed items found');
+                    progress.style.display = 'none';
+                    cancelBtn.style.display = 'none';
+                    await updateDBStatusDisplay();
+                    return;
+                }
+
+                // Step 4: Load GPS Samples (60-80%)
+                addLog('\n📍 Loading GPS samples...');
+                progressFill.style.width = '60%';
+                progressFill.textContent = '60%';
+                const samplesByWeek = new Map();
+
+                // Filter to only needed weeks
+                const neededSampleFiles = sampleFiles.filter(file => {
+                    const weekMatch = file.name.match(/^(\d{4}-W\d{2})/);
+                    return weekMatch && changedWeeks.has(weekMatch[1]);
+                });
+
+                addLog(`  Loading ${neededSampleFiles.length} week files (of ${sampleFiles.length} total)`);
+
+                for (let i = 0; i < neededSampleFiles.length; i++) {
+                    if (cancelProcessing) break;
+                    const file = neededSampleFiles[i];
+                    const weekMatch = file.name.match(/^(\d{4}-W\d{2})/);
+                    if (!weekMatch) continue;
+                    const weekKey = weekMatch[1];
+
+                    let samples = null;
+                    if (file.name.endsWith('.gz')) {
+                        samples = await readGzippedFileAsJsonSafari(file);
+                    } else {
+                        samples = await readFileAsJsonSafari(file);
+                    }
+
+                    if (samples && Array.isArray(samples)) {
+                        samplesByWeek.set(weekKey, samples);
+                    }
+
+                    // Update progress (60-80%)
+                    const samplePercent = Math.round((i / neededSampleFiles.length) * 20);
+                    const totalPercent = 60 + samplePercent;
+                    progressFill.style.width = totalPercent + '%';
+                    progressFill.textContent = totalPercent + '%';
+                    progressText.textContent = `Loading GPS samples: ${i + 1}/${neededSampleFiles.length}...`;
+
+                    await new Promise(r => setTimeout(r, SAFARI_PAUSE_MS));
+                }
+                addLog(`  Loaded ${samplesByWeek.size.toLocaleString()} weeks of GPS data`);
+
+                // Step 5: Order items and group by day (80-100%)
+                addLog('\n💾 Saving to database...');
+                progressFill.style.width = '80%';
+                progressFill.textContent = '80%';
+
+                const itemsByDay = new Map();
+                for (const item of changedItems) {
+                    const dayKey = getLocalDayKey(item.startDate);
+                    if (!itemsByDay.has(dayKey)) {
+                        itemsByDay.set(dayKey, []);
+                    }
+                    itemsByDay.get(dayKey).push(item);
+                }
+
+                const sortedDays = [...itemsByDay.keys()].sort();
+                addLog(`  Processing ${sortedDays.length.toLocaleString()} days`);
+
+                // Get existing metadata for comparison (must be a Map for importDayToDB)
+                const existingMetadata = new Map();
+                if (missingOnly) {
+                    for (const dayKey of sortedDays) {
+                        if (existingDays.has(dayKey)) {
+                            const existing = await getDayFromDB(dayKey);
+                            if (existing) {
+                                existingMetadata.set(dayKey, {
+                                    itemCount: existing.data?.timelineItems?.length || 0,
+                                    lastUpdated: existing.lastUpdated || 0
+                                });
+                            }
+                        }
+                    }
+                }
+
+                const addedDays = [];
+                const updatedDays = [];
+                let savedDays = 0;
+
+                for (const dayKey of sortedDays) {
+                    if (cancelProcessing) break;
+
+                    let items = itemsByDay.get(dayKey);
+                    const monthKey = dayKey.substring(0, 7);
+
+                    // CRITICAL: For incremental updates, merge new items with existing items
+                    // This prevents losing existing items when only some items changed
+                    if (existingDays.has(dayKey) && !forceRescan) {
+                        const existingDay = await getDayFromDB(dayKey);
+                        if (existingDay?.data?.timelineItems) {
+                            const existingItems = existingDay.data.timelineItems;
+                            const newItemIds = new Set(items.map(i => i.itemId));
+
+                            // Add existing items that aren't being replaced by new items
+                            for (const existingItem of existingItems) {
+                                if (!newItemIds.has(existingItem.itemId)) {
+                                    items.push(existingItem);
+                                }
+                            }
+                        }
+                    }
+
+                    const orderedItems = orderItemsByLinkedList(items);
+
+                    // Attach GPS samples
+                    for (const item of orderedItems) {
+                        if (!item.isVisit && item.startDate) {
+                            const weekKey = getISOWeek(item.startDate);
+                            const weekSamples = samplesByWeek.get(weekKey);
+                            if (weekSamples) {
+                                const itemStart = new Date(item.startDate).getTime();
+                                const itemEnd = item.endDate ? new Date(item.endDate).getTime() : itemStart + 3600000;
+                                item.samples = weekSamples.filter(s => {
+                                    if (!s.date) return false;
+                                    const sampleTime = new Date(s.date).getTime();
+                                    return sampleTime >= itemStart && sampleTime <= itemEnd;
+                                });
+                                item.samples.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+                            }
+                        }
+                    }
+
+                    const dayNotes = notesByDate.get(dayKey) || [];
+                    const dayData = {
+                        timelineItems: orderedItems.map(item => ({
+                            itemId: item.itemId,
+                            isVisit: item.isVisit,
+                            activityType: item.activityType || (item.isVisit ? 'stationary' : 'unknown'),
+                            manualActivityType: item.manualActivityType || false,
+                            startDate: item.startDate,
+                            endDate: item.endDate,
+                            center: item.center,
+                            place: item.place,
+                            placeId: item.placeId || null,
+                            samples: item.samples || [],
+                            streetAddress: item.streetAddress,
+                            customTitle: item.customTitle || null,
+                            previousItemId: item.previousItemId || null,
+                            nextItemId: item.nextItemId || null,
+                            notes: dayNotes.filter(n => {
+                                const noteTime = new Date(n.date).getTime();
+                                const itemStart = new Date(item.startDate).getTime();
+                                const itemEnd = item.endDate ? new Date(item.endDate).getTime() : itemStart + 86400000;
+                                return noteTime >= itemStart && noteTime <= itemEnd;
+                            }).map(n => ({ body: n.body, date: n.date }))
+                        }))
+                    };
+
+                    const dayLastSaved = orderedItems.reduce((max, item) =>
+                        item.lastSaved && item.lastSaved > max ? item.lastSaved : max, '');
+                    const lastUpdated = dayLastSaved ? new Date(dayLastSaved).getTime() : Date.now();
+
+                    const result = await importDayToDB(dayKey, monthKey, dayData, 'backup-import', lastUpdated, existingMetadata);
+
+                    if (result.action === 'added') addedDays.push(dayKey);
+                    else if (result.action === 'updated') updatedDays.push(dayKey);
+
+                    savedDays++;
+                    if (savedDays % 20 === 0) {
+                        const savePercent = Math.round((savedDays / sortedDays.length) * 20);
+                        const totalPercent = 80 + savePercent;
+                        progressFill.style.width = totalPercent + '%';
+                        progressFill.textContent = totalPercent + '%';
+                        progressText.textContent = `Saving: ${savedDays}/${sortedDays.length} days`;
+                        await new Promise(r => setTimeout(r, SAFARI_PAUSE_MS));
+                    }
+                }
+
+                // Save sync time
+                await saveMetadata('lastBackupSync', maxLastSaved);
+
+                // Reset checkbox
+                const forceCheckbox = document.getElementById('backupForceRescan');
+                if (forceCheckbox) forceCheckbox.checked = false;
+
+                importAddedDays = addedDays;
+                importUpdatedDays = updatedDays;
+
+                // Invalidate cache
+                const affectedMonths = new Set();
+                [...addedDays, ...updatedDays].forEach(dk => affectedMonths.add(dk.substring(0, 7)));
+                affectedMonths.forEach(mk => {
+                    if (generatedDiaries[mk]) delete generatedDiaries[mk];
+                });
+
+                await saveMetadata('importAddedDays', addedDays);
+                await saveMetadata('importUpdatedDays', updatedDays);
+
+                if (addedDays.length > 0 || updatedDays.length > 0) {
+                    updateAnalysisDataInBackground([...addedDays, ...updatedDays]);
+                }
+
+                addLog('\n✅ Backup import complete!');
+                addLog(`  Days added: ${addedDays.length.toLocaleString()}`);
+                addLog(`  Days updated: ${updatedDays.length.toLocaleString()}`);
+
+                if (addedDays.length > 0) {
+                    addLog(`  New data range: ${addedDays[0]} to ${addedDays[addedDays.length - 1]}`);
+                }
+
+                // Report any files that failed to read
+                if (failedFiles.length > 0) {
+                    addLog(`\n⚠️ ${failedFiles.length} files could not be read:`);
+                    // Show first 10 failed files
+                    const showCount = Math.min(failedFiles.length, 10);
+                    for (let i = 0; i < showCount; i++) {
+                        addLog(`  • ${failedFiles[i].path}`);
+                    }
+                    if (failedFiles.length > 10) {
+                        addLog(`  ... and ${failedFiles.length - 10} more`);
+                    }
+                }
+
+                progress.style.display = 'none';
+                cancelBtn.style.display = 'none';
+
+                const results = document.getElementById('results');
+                if (results) {
+                    results.style.display = 'block';
+                    const resultsList = document.getElementById('resultsList');
+                    if (resultsList) {
+                        resultsList.innerHTML = `
+                            <p><strong>${addedDays.length}</strong> days added</p>
+                            <p><strong>${updatedDays.length}</strong> days updated</p>
+                            <p>Total: <strong>${sortedDays.length}</strong> days processed</p>
+                            ${failedFiles.length > 0 ? `<p style="color: #856404;"><strong>${failedFiles.length}</strong> files unreadable</p>` : ''}
+                        `;
+                    }
+                }
+
+                // Refresh display
+                await updateDBStatusDisplay();
+                await loadMostRecentMonth();
+
+            } catch (err) {
+                addLog(`\n❌ Error: ${err.message}`, 'error');
+                console.error('Backup import error:', err);
+                progress.style.display = 'none';
+                cancelBtn.style.display = 'none';
+            }
+        }
+
         // Import from Arc Timeline iCloud backup
         // Helper: get ISO week string from date (e.g., "2025-W03")
         function getISOWeek(dateStr) {
@@ -3862,6 +4676,7 @@ function moveMapSmart(latlng, zoom) {
         // Track days added/updated in last import (for diary display)
         let importAddedDays = [];
         let importUpdatedDays = [];
+        let importChangedItemIds = new Set(); // itemIds changed in last import (for + bullet)
         let lastImportReport = ''; // For copy to clipboard
         
         // Year/Month tracking for selector
@@ -3961,7 +4776,382 @@ function moveMapSmart(latlng, zoom) {
                 return true; // Added
             }
         }
-        
+
+        // ========================================
+        // Events Management (Multi-day date ranges)
+        // ========================================
+
+        const EVENTS_STORAGE_KEY = 'arcDiaryEvents';
+        const CATEGORIES_STORAGE_KEY = 'arcDiaryEventCategories';
+        let events = [];
+        let eventCategories = [];
+
+        // Default categories
+        const DEFAULT_CATEGORIES = [
+            { id: 'vacation', name: 'Vacation', color: '#4CAF50' },
+            { id: 'conference', name: 'Conference', color: '#2196F3' },
+            { id: 'trip', name: 'Trip', color: '#FF9800' },
+            { id: 'business', name: 'Business', color: '#607D8B' },
+            { id: 'family', name: 'Family', color: '#E91E63' },
+            { id: 'other', name: 'Other', color: '#9C27B0' }
+        ];
+
+        // Event creation state
+        let eventCreationState = {
+            active: false,
+            editingEventId: null,  // null for new event, ID for editing
+            startDate: null,
+            startTime: null,
+            startItemId: null,
+            endDate: null,
+            endTime: null,
+            endItemId: null
+        };
+
+        /**
+         * Load events from localStorage
+         */
+        function loadEvents() {
+            try {
+                const stored = localStorage.getItem(EVENTS_STORAGE_KEY);
+                events = stored ? JSON.parse(stored) : [];
+                logDebug(`📅 Loaded ${events.length} events`);
+            } catch (error) {
+                logError('Error loading events:', error);
+                events = [];
+            }
+        }
+
+        /**
+         * Save events to localStorage
+         */
+        function saveEvents() {
+            try {
+                localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(events));
+                logDebug(`📅 Saved ${events.length} events`);
+            } catch (error) {
+                logError('Error saving events:', error);
+            }
+        }
+
+        /**
+         * Load event categories from localStorage
+         */
+        function loadEventCategories() {
+            try {
+                const stored = localStorage.getItem(CATEGORIES_STORAGE_KEY);
+                eventCategories = stored ? JSON.parse(stored) : [...DEFAULT_CATEGORIES];
+                logDebug(`📅 Loaded ${eventCategories.length} event categories`);
+            } catch (error) {
+                logError('Error loading event categories:', error);
+                eventCategories = [...DEFAULT_CATEGORIES];
+            }
+        }
+
+        /**
+         * Save event categories to localStorage
+         */
+        function saveEventCategories() {
+            try {
+                localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(eventCategories));
+                logDebug(`📅 Saved ${eventCategories.length} event categories`);
+            } catch (error) {
+                logError('Error saving event categories:', error);
+            }
+        }
+
+        /**
+         * Generate unique event ID
+         */
+        function generateEventId() {
+            return 'evt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        /**
+         * Create a new event
+         * @param {Object} eventData - Event data
+         * @returns {Object} The created event
+         */
+        function createEvent(eventData) {
+            const event = {
+                eventId: generateEventId(),
+                name: eventData.name || 'Untitled Event',
+                startDate: eventData.startDate,
+                startTime: eventData.startTime || null,
+                startItemId: eventData.startItemId || null,
+                endDate: eventData.endDate,
+                endTime: eventData.endTime || null,
+                endItemId: eventData.endItemId || null,
+                description: eventData.description || '',
+                category: eventData.category || 'other',
+                color: eventData.color || '#9C27B0',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+
+            events.push(event);
+            saveEvents();
+            logInfo(`📅 Created event: ${event.name} (${event.startDate} to ${event.endDate})`);
+            return event;
+        }
+
+        /**
+         * Update an existing event
+         * @param {string} eventId - Event ID to update
+         * @param {Object} updates - Fields to update
+         * @returns {Object|null} Updated event or null if not found
+         */
+        function updateEvent(eventId, updates) {
+            const index = events.findIndex(e => e.eventId === eventId);
+            if (index === -1) {
+                logError(`Event not found: ${eventId}`);
+                return null;
+            }
+
+            events[index] = {
+                ...events[index],
+                ...updates,
+                updatedAt: new Date().toISOString()
+            };
+
+            saveEvents();
+            logInfo(`📅 Updated event: ${events[index].name}`);
+            return events[index];
+        }
+
+        /**
+         * Delete an event
+         * @param {string} eventId - Event ID to delete
+         * @returns {boolean} True if deleted
+         */
+        function deleteEvent(eventId) {
+            const index = events.findIndex(e => e.eventId === eventId);
+            if (index === -1) {
+                return false;
+            }
+
+            const deletedEvent = events.splice(index, 1)[0];
+            saveEvents();
+            logInfo(`📅 Deleted event: ${deletedEvent.name}`);
+            return true;
+        }
+
+        /**
+         * Get event by ID
+         * @param {string} eventId - Event ID
+         * @returns {Object|null} Event or null
+         */
+        function getEventById(eventId) {
+            return events.find(e => e.eventId === eventId) || null;
+        }
+
+        /**
+         * Get all events sorted by start date (newest first)
+         * @returns {Array} Sorted events
+         */
+        function getAllEvents() {
+            return [...events].sort((a, b) => b.startDate.localeCompare(a.startDate));
+        }
+
+        /**
+         * Check if a day falls within any event's date range
+         * @param {string} dayKey - Day key (YYYY-MM-DD)
+         * @returns {Array} Events that contain this day
+         */
+        function getEventsForDay(dayKey) {
+            return events.filter(event => {
+                return dayKey >= event.startDate && dayKey <= event.endDate;
+            });
+        }
+
+        /**
+         * Check if a specific datetime falls within an event (considering time bounds)
+         * @param {string} dayKey - Day key (YYYY-MM-DD)
+         * @param {string} time - Time (HH:MM)
+         * @returns {Array} Events that contain this datetime
+         */
+        function getEventsForDateTime(dayKey, time) {
+            return events.filter(event => {
+                // Check date bounds first
+                if (dayKey < event.startDate || dayKey > event.endDate) {
+                    return false;
+                }
+
+                // If on start day, check start time
+                if (dayKey === event.startDate && event.startTime && time) {
+                    if (time < event.startTime) {
+                        return false;
+                    }
+                }
+
+                // If on end day, check end time
+                if (dayKey === event.endDate && event.endTime && time) {
+                    if (time > event.endTime) {
+                        return false;
+                    }
+                }
+
+                return true;
+            });
+        }
+
+        /**
+         * Get events within a date range (for Analysis)
+         * @param {string} startDate - Start date (YYYY-MM-DD)
+         * @param {string} endDate - End date (YYYY-MM-DD)
+         * @returns {Array} Events that overlap with the range
+         */
+        function getEventsInRange(startDate, endDate) {
+            return events.filter(event => {
+                // Event overlaps if it starts before range ends AND ends after range starts
+                return event.startDate <= endDate && event.endDate >= startDate;
+            });
+        }
+
+        /**
+         * Add a new category
+         * @param {string} name - Category name
+         * @param {string} color - Category color (hex)
+         * @returns {Object} The created category
+         */
+        function addEventCategory(name, color = '#9C27B0') {
+            const id = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+
+            // Check for duplicate
+            if (eventCategories.some(c => c.id === id)) {
+                logError(`Category already exists: ${name}`);
+                return null;
+            }
+
+            const category = { id, name, color };
+            eventCategories.push(category);
+            saveEventCategories();
+            logInfo(`📅 Added category: ${name}`);
+            return category;
+        }
+
+        /**
+         * Update a category
+         * @param {string} categoryId - Category ID
+         * @param {Object} updates - Fields to update (name, color)
+         * @returns {Object|null} Updated category or null
+         */
+        function updateEventCategory(categoryId, updates) {
+            const index = eventCategories.findIndex(c => c.id === categoryId);
+            if (index === -1) {
+                return null;
+            }
+
+            eventCategories[index] = { ...eventCategories[index], ...updates };
+            saveEventCategories();
+            return eventCategories[index];
+        }
+
+        /**
+         * Delete a category (moves events to 'other')
+         * @param {string} categoryId - Category ID to delete
+         * @returns {boolean} True if deleted
+         */
+        function deleteEventCategory(categoryId) {
+            if (categoryId === 'other') {
+                logError('Cannot delete the "other" category');
+                return false;
+            }
+
+            const index = eventCategories.findIndex(c => c.id === categoryId);
+            if (index === -1) {
+                return false;
+            }
+
+            // Move events with this category to 'other'
+            events.forEach(event => {
+                if (event.category === categoryId) {
+                    event.category = 'other';
+                }
+            });
+            saveEvents();
+
+            eventCategories.splice(index, 1);
+            saveEventCategories();
+            logInfo(`📅 Deleted category: ${categoryId}`);
+            return true;
+        }
+
+        /**
+         * Get category by ID
+         * @param {string} categoryId - Category ID
+         * @returns {Object|null} Category or null
+         */
+        function getEventCategory(categoryId) {
+            return eventCategories.find(c => c.id === categoryId) || null;
+        }
+
+        /**
+         * Export events data for backup
+         * @returns {Object} Events export data
+         */
+        function exportEventsData() {
+            return {
+                events: events,
+                categories: eventCategories,
+                exportedAt: new Date().toISOString()
+            };
+        }
+
+        /**
+         * Import events data from backup
+         * @param {Object} data - Events data to import
+         * @param {boolean} merge - If true, merge with existing; if false, replace
+         * @returns {Object} Import result with counts
+         */
+        function importEventsData(data, merge = true) {
+            const result = { eventsAdded: 0, eventsUpdated: 0, categoriesAdded: 0 };
+
+            if (!data) return result;
+
+            // Import categories first
+            if (data.categories && Array.isArray(data.categories)) {
+                data.categories.forEach(cat => {
+                    if (!eventCategories.some(c => c.id === cat.id)) {
+                        eventCategories.push(cat);
+                        result.categoriesAdded++;
+                    }
+                });
+                saveEventCategories();
+            }
+
+            // Import events
+            if (data.events && Array.isArray(data.events)) {
+                if (merge) {
+                    data.events.forEach(importedEvent => {
+                        const existingIndex = events.findIndex(e => e.eventId === importedEvent.eventId);
+                        if (existingIndex === -1) {
+                            events.push(importedEvent);
+                            result.eventsAdded++;
+                        } else {
+                            // Update if imported version is newer
+                            if (importedEvent.updatedAt > events[existingIndex].updatedAt) {
+                                events[existingIndex] = importedEvent;
+                                result.eventsUpdated++;
+                            }
+                        }
+                    });
+                } else {
+                    // Replace all
+                    result.eventsAdded = data.events.length;
+                    events = data.events;
+                }
+                saveEvents();
+            }
+
+            logInfo(`📅 Imported events: ${result.eventsAdded} added, ${result.eventsUpdated} updated, ${result.categoriesAdded} categories`);
+            return result;
+        }
+
+        // Initialize events on load
+        loadEvents();
+        loadEventCategories();
+
         let map = null;
         let currentTileLayer = null;
         let currentMapStyle = 'street';
@@ -4101,7 +5291,72 @@ function moveMapSmart(latlng, zoom) {
         
         // Setup backup import handler
         setupBackupImportHandler();
-        
+
+        // Initialize import module (if loaded)
+        if (window.ArcImportModule) {
+            window.ArcImportModule.init({
+                // Database access
+                getDB: () => db,
+                getDayFromDB: getDayFromDB,
+
+                // State access
+                getSelectedFiles: () => selectedFiles,
+                getCancelProcessing: () => cancelProcessing,
+                setCancelProcessing: (val) => { cancelProcessing = val; },
+
+                // Metadata functions
+                getMetadata: getMetadata,
+                saveMetadata: saveMetadata,
+
+                // UI functions
+                addLog: addLog,
+                updateDBStatusDisplay: updateDBStatusDisplay,
+                loadMostRecentMonth: loadMostRecentMonth,
+
+                // Data processing
+                decompressFile: decompressFile,
+                applyImportFixes: applyImportFixes,
+
+                // Cache management
+                invalidateMonthCache: (affectedMonths) => {
+                    affectedMonths.forEach(monthKey => {
+                        if (generatedDiaries[monthKey]) {
+                            logDebug(`🗑️ Invalidating cache for ${monthKey}`);
+                            delete generatedDiaries[monthKey];
+                        }
+                    });
+                },
+
+                // Places management
+                updatePlacesById: (placeLookup) => {
+                    for (const [placeId, place] of placeLookup) {
+                        if (place.name) {
+                            placesById[placeId] = place.name;
+                        }
+                    }
+                    saveMetadata('placesById', placesById);
+                },
+
+                // Analysis update
+                updateAnalysisDataInBackground: updateAnalysisDataInBackground,
+
+                // File input reset
+                resetFileInput: () => {
+                    fileInput.value = '';
+                    selectedFiles = [];
+                    fileCount.textContent = '';
+                },
+
+                // Update import tracking (syncs import.js state to app.js)
+                updateImportTracking: (added, updated, changedIds) => {
+                    importAddedDays = added || [];
+                    importUpdatedDays = updated || [];
+                    importChangedItemIds = changedIds instanceof Set ? changedIds : new Set(changedIds || []);
+                }
+            });
+            logInfo('📦 Import module connected');
+        }
+
         async function openDiaryReader(skipMapInit = false) {
             // Check if we have data - either in old generatedDiaries or in IndexedDB
             const hasOldData = Object.keys(generatedDiaries).length > 0;
@@ -5572,7 +6827,24 @@ function moveMapSmart(latlng, zoom) {
                             const dayKey = locationData.dataset.daykey;
                             const entryId = `${lat},${lng}`;
                             const date = locationData.dataset.date;
-                            
+                            const placeId = locationData.dataset.placeId;
+
+                            // Check if we're in event bound selection mode
+                            if (eventCreationState.active && eventBoundMode) {
+                                // Extract time from date - parse as Date for proper timezone handling
+                                let time = null;
+                                if (date) {
+                                    const d = new Date(date);
+                                    if (!isNaN(d.getTime())) {
+                                        const hours = d.getHours().toString().padStart(2, '0');
+                                        const mins = d.getMinutes().toString().padStart(2, '0');
+                                        time = `${hours}:${mins}`;
+                                    }
+                                }
+                                handleEventBoundSelection(dayKey, time, placeId || entryId);
+                                return;
+                            }
+
                             // All selection via NavigationController
                             // Pass date for unique matching when multiple entries have same coordinates
                             NavigationController.selectEntry(entryId, dayKey, {
@@ -5610,7 +6882,23 @@ function moveMapSmart(latlng, zoom) {
                         const dayKey = locationData.dataset.daykey;
                         const activityStartTime = new Date(startDate).getTime();
                         const entryId = `activity-${activityStartTime}`;
-                        
+
+                        // Check if we're in event bound selection mode
+                        if (eventCreationState.active && eventBoundMode) {
+                            // Extract time from startDate - parse as Date for proper timezone handling
+                            let time = null;
+                            if (startDate) {
+                                const d = new Date(startDate);
+                                if (!isNaN(d.getTime())) {
+                                    const hours = d.getHours().toString().padStart(2, '0');
+                                    const mins = d.getMinutes().toString().padStart(2, '0');
+                                    time = `${hours}:${mins}`;
+                                }
+                            }
+                            handleEventBoundSelection(dayKey, time, entryId);
+                            return;
+                        }
+
                         // All selection via NavigationController
                         NavigationController.selectEntry(entryId, dayKey, {
                             source: 'diary',
@@ -6102,39 +7390,57 @@ function moveMapSmart(latlng, zoom) {
                     }, 50);
                 }
             } else {
-                // Hide diary - also close search slider if open
+                // Hide diary - close sliders first, then hide diary after slider animation completes
                 const searchSlider = document.getElementById('searchResultsSlider');
+                const eventSlider = document.getElementById('eventSlider');
+                const hasOpenSlider = (searchSlider && searchSlider.classList.contains('open')) ||
+                                      (eventSlider && eventSlider.classList.contains('open'));
+
+                // Close sliders first
                 if (searchSlider && searchSlider.classList.contains('open')) {
                     closeSearchResults();
                 }
-                
-                diaryFloat.style.display = 'none';
-                if (toggleBtn) {
-                    toggleBtn.innerHTML = '&times;';
-                    toggleBtn.title = 'Hide diary';
+                if (eventSlider && eventSlider.classList.contains('open')) {
+                    closeEventSlider();
                 }
-                if (floatToggle) {
-                    floatToggle.style.display = 'flex';
-                }
-                
-                // Calculate delta (negative since diary is closing)
-                const newWidth = 0;
-                const delta = newWidth - oldWidth;
-                
-                // Update margin tracking only (no automatic refit)
-                NavigationController.updateViewportMargins({ left: 0, sliderLeft: 0 }, { noRefit: true });
-                
-                // Pan map to keep visible content stable
-                if (delta !== 0) {
-                    const center = map.getCenter();
-                    const zoom = map.getZoom();
-                    const centerPoint = map.project(center, zoom);
-                    const newCenterPoint = L.point(centerPoint.x - delta / 2, centerPoint.y);
-                    const newCenter = map.unproject(newCenterPoint, zoom);
-                    
-                    setTimeout(() => {
-                        map.panTo(newCenter, { animate: true, duration: 0.3 });
-                    }, 0);
+
+                // Function to hide diary
+                const hideDiary = () => {
+                    diaryFloat.style.display = 'none';
+                    if (toggleBtn) {
+                        toggleBtn.innerHTML = '&times;';
+                        toggleBtn.title = 'Hide diary';
+                    }
+                    if (floatToggle) {
+                        floatToggle.style.display = 'flex';
+                    }
+
+                    // Calculate delta (negative since diary is closing)
+                    const newWidth = 0;
+                    const delta = newWidth - oldWidth;
+
+                    // Update margin tracking only (no automatic refit)
+                    NavigationController.updateViewportMargins({ left: 0, sliderLeft: 0 }, { noRefit: true });
+
+                    // Pan map to keep visible content stable
+                    if (delta !== 0) {
+                        const center = map.getCenter();
+                        const zoom = map.getZoom();
+                        const centerPoint = map.project(center, zoom);
+                        const newCenterPoint = L.point(centerPoint.x - delta / 2, centerPoint.y);
+                        const newCenter = map.unproject(newCenterPoint, zoom);
+
+                        setTimeout(() => {
+                            map.panTo(newCenter, { animate: true, duration: 0.3 });
+                        }, 0);
+                    }
+                };
+
+                // If slider was open, wait for its animation to complete before hiding diary
+                if (hasOpenSlider) {
+                    setTimeout(hideDiary, 350); // Slider transition is 0.3s
+                } else {
+                    hideDiary();
                 }
             }
             
@@ -6459,11 +7765,13 @@ function moveMapSmart(latlng, zoom) {
             // Helper function to update transparency
             function updateTransparency(mapFocused) {
                 const sliderEl = document.getElementById('searchResultsSlider');
-                
+                const eventSliderEl = document.getElementById('eventSlider');
+
                 if (mapFocused) {
                     diaryFloat.classList.add('unfocused');
                     if (sliderEl) sliderEl.classList.add('unfocused');
-                    
+                    if (eventSliderEl) eventSliderEl.classList.add('unfocused');
+
                     // Get the dynamic opacity value based on current map style
                     const contentOpacity = parseFloat(diaryFloat.dataset.unfocusedOpacity) || 0.05;
                     const diaryPanel = diaryFloat.querySelector('.diary-panel');
@@ -6475,7 +7783,7 @@ function moveMapSmart(latlng, zoom) {
                     if (diaryHeader) {
                         diaryHeader.style.background = `rgba(255, 255, 255, ${contentOpacity})`;
                     }
-                    // Apply same opacity to slider
+                    // Apply same opacity to search slider
                     if (sliderEl) {
                         sliderEl.style.background = `rgba(255, 255, 255, ${contentOpacity})`;
                         const sliderHeader = sliderEl.querySelector('.search-results-header');
@@ -6483,11 +7791,20 @@ function moveMapSmart(latlng, zoom) {
                             sliderHeader.style.background = `rgba(248, 249, 250, ${contentOpacity})`;
                         }
                     }
+                    // Apply same opacity to event slider
+                    if (eventSliderEl) {
+                        eventSliderEl.style.background = `rgba(255, 255, 255, ${contentOpacity})`;
+                        const eventSliderHeader = eventSliderEl.querySelector('.event-slider-header');
+                        if (eventSliderHeader) {
+                            eventSliderHeader.style.background = `rgba(248, 249, 250, ${contentOpacity})`;
+                        }
+                    }
                     // Note: Map titlebar transparency does NOT change on focus - only via slider control
                 } else {
                     diaryFloat.classList.remove('unfocused');
                     if (sliderEl) sliderEl.classList.remove('unfocused');
-                    
+                    if (eventSliderEl) eventSliderEl.classList.remove('unfocused');
+
                     // Restore default focused opacity (0.95)
                     const diaryPanel = diaryFloat.querySelector('.diary-panel');
                     const diaryHeader = diaryFloat.querySelector('.diary-header');
@@ -6497,7 +7814,7 @@ function moveMapSmart(latlng, zoom) {
                     if (diaryHeader) {
                         diaryHeader.style.background = ''; // Remove inline style, use CSS default (0.95)
                     }
-                    // Restore slider opacity
+                    // Restore search slider opacity
                     if (sliderEl) {
                         sliderEl.style.background = '';
                         const sliderHeader = sliderEl.querySelector('.search-results-header');
@@ -6505,15 +7822,32 @@ function moveMapSmart(latlng, zoom) {
                             sliderHeader.style.background = '';
                         }
                     }
+                    // Restore event slider opacity
+                    if (eventSliderEl) {
+                        eventSliderEl.style.background = '';
+                        const eventSliderHeader = eventSliderEl.querySelector('.event-slider-header');
+                        if (eventSliderHeader) {
+                            eventSliderHeader.style.background = '';
+                        }
+                    }
                     // Note: Map titlebar stays at its current transparency
                 }
             }
-            
+
             // Diary panel focus/click handlers
             diaryFloat.addEventListener('mousedown', () => {
                 diaryHasFocus = true;
                 updateTransparency(false);
             });
+
+            // Event slider focus/click handler - restores focus to both slider and diary
+            const eventSliderEl = document.getElementById('eventSlider');
+            if (eventSliderEl) {
+                eventSliderEl.addEventListener('mousedown', () => {
+                    diaryHasFocus = true;
+                    updateTransparency(false);
+                });
+            }
             
             diaryFloat.addEventListener('focus', () => {
                 diaryHasFocus = true;
@@ -9506,7 +10840,13 @@ scrollToDiaryDay(currentDayKey);
         async function performFindSearch() {
             const query = searchInput.value.trim();
             if (query.length < 2) return;
-            
+
+            // Close event slider if open
+            const eventSlider = document.getElementById('eventSlider');
+            if (eventSlider && eventSlider.classList.contains('open')) {
+                closeEventSlider();
+            }
+
             // Check for date first
             const dateKey = parseDateQuery(query);
             if (dateKey) {
@@ -9717,16 +11057,18 @@ scrollToDiaryDay(currentDayKey);
             // Remove progress element
             const progressEl = document.getElementById('searchProgress');
             if (progressEl) progressEl.remove();
-            
-            // Render any remaining matches
-            if (matches.length > lastRenderedCount) {
-                appendSearchResults(matches, lastRenderedCount, highlightRegex);
-            }
-            
+
+            // Sort matches in reverse chronological order (newest first)
+            matches.sort((a, b) => b.dayKey.localeCompare(a.dayKey));
+
+            // Clear and re-render all results in sorted order
+            resultsList.innerHTML = '';
+            appendSearchResults(matches, 0, highlightRegex);
+
             // Final status
             const wasAborted = window.searchAborted;
             window.searchAborted = false;
-            
+
             if (matches.length === 0) {
                 searchCount.textContent = 'No matches found';
                 resultsTitle.textContent = 'No results';
@@ -10077,6 +11419,12 @@ scrollToDiaryDay(currentDayKey);
             if (slider && slider.classList.contains('open')) {
                 positionSearchSlider();
             }
+
+            // Also reposition event slider
+            const eventSlider = document.getElementById('eventSlider');
+            if (eventSlider && eventSlider.classList.contains('open')) {
+                positionEventSlider();
+            }
             
             // Reposition replay controller if visible
             const replayControllerEl = document.getElementById('replayController');
@@ -10098,7 +11446,656 @@ scrollToDiaryDay(currentDayKey);
                 }, { delay: 100 });
             }
         });
-        
+
+        // ========================================
+        // Event Slider UI Functions
+        // ========================================
+
+        let eventBoundMode = null; // 'start' | 'end' | null
+
+        /**
+         * Open the event slider (for creating or editing)
+         * @param {string|null} eventId - Event ID to edit, or null for new event
+         */
+        function openEventSlider(eventId = null) {
+            const slider = document.getElementById('eventSlider');
+            const content = document.querySelector('.event-slider-content');
+            const listContainer = document.getElementById('eventListContainer');
+            const title = document.getElementById('eventSliderTitle');
+            const deleteBtn = document.getElementById('eventDeleteBtn');
+
+            if (!slider) return;
+
+            // Check if slider is already open (switching from list to edit)
+            const wasAlreadyOpen = slider.classList.contains('open');
+
+            // Close search slider if open
+            closeSearchResults();
+
+            // Position slider like search results
+            positionEventSlider();
+
+            // Reset state
+            eventCreationState = {
+                active: true,
+                editingEventId: eventId,
+                startDate: null,
+                startTime: null,
+                startItemId: null,
+                endDate: null,
+                endTime: null,
+                endItemId: null
+            };
+            eventBoundMode = null;
+
+            // Populate category dropdown
+            populateEventCategories();
+
+            if (eventId) {
+                // Editing existing event
+                const event = getEventById(eventId);
+                if (event) {
+                    title.textContent = 'Edit Event';
+                    deleteBtn.style.display = 'block';
+
+                    document.getElementById('eventName').value = event.name;
+                    document.getElementById('eventDescription').value = event.description || '';
+                    document.getElementById('eventCategory').value = event.category;
+
+                    // Set start/end from event
+                    eventCreationState.startDate = event.startDate;
+                    eventCreationState.startTime = event.startTime;
+                    eventCreationState.startItemId = event.startItemId;
+                    eventCreationState.endDate = event.endDate;
+                    eventCreationState.endTime = event.endTime;
+                    eventCreationState.endItemId = event.endItemId;
+
+                    updateEventDateTimeDisplay('start');
+                    updateEventDateTimeDisplay('end');
+                }
+            } else {
+                // New event
+                title.textContent = 'New Event';
+                deleteBtn.style.display = 'none';
+
+                document.getElementById('eventName').value = '';
+                document.getElementById('eventDescription').value = '';
+                document.getElementById('eventCategory').value = 'vacation';
+
+                // Clear date/time inputs
+                document.getElementById('eventStartDate').value = '';
+                document.getElementById('eventStartTime').value = '';
+                document.getElementById('eventEndDate').value = '';
+                document.getElementById('eventEndTime').value = '';
+            }
+
+            // Show content, hide list
+            content.style.display = 'block';
+            listContainer.style.display = 'none';
+
+            // Open slider (only update map padding if slider wasn't already open)
+            slider.classList.add('open');
+            if (!wasAlreadyOpen) {
+                updateMapPaddingForSlider(true);
+            }
+
+            // Focus name input
+            setTimeout(() => {
+                document.getElementById('eventName')?.focus();
+            }, 300);
+        }
+
+        /**
+         * Open event slider showing list of events (or close if already open)
+         */
+        function openEventList() {
+            const slider = document.getElementById('eventSlider');
+            const content = document.querySelector('.event-slider-content');
+            const listContainer = document.getElementById('eventListContainer');
+            const title = document.getElementById('eventSliderTitle');
+
+            if (!slider) return;
+
+            // Toggle: if already open, close it
+            if (slider.classList.contains('open')) {
+                closeEventSlider();
+                return;
+            }
+
+            // Close search slider if open
+            closeSearchResults();
+
+            // Position slider
+            positionEventSlider();
+
+            // Reset creation state
+            eventCreationState.active = false;
+            eventBoundMode = null;
+            clearEventBoundMarkers();
+
+            title.textContent = 'Events';
+
+            // Populate event list
+            populateEventList();
+
+            // Show list, hide content
+            content.style.display = 'none';
+            listContainer.style.display = 'block';
+
+            // Open slider
+            slider.classList.add('open');
+            updateMapPaddingForSlider(true);
+        }
+
+        /**
+         * Close the event slider
+         */
+        function closeEventSlider() {
+            const slider = document.getElementById('eventSlider');
+            if (slider) slider.classList.remove('open');
+
+            // Reset state
+            eventCreationState.active = false;
+            eventBoundMode = null;
+            clearEventBoundMarkers();
+            document.body.classList.remove('event-bound-mode-active');
+
+            // Update map padding
+            updateMapPaddingForSlider(false);
+        }
+
+        /**
+         * Cancel event edit and return to list view
+         */
+        function cancelEventEdit() {
+            const content = document.querySelector('.event-slider-content');
+            const listContainer = document.getElementById('eventListContainer');
+            const title = document.getElementById('eventSliderTitle');
+
+            // Reset state
+            eventCreationState.active = false;
+            eventBoundMode = null;
+            clearEventBoundMarkers();
+            document.body.classList.remove('event-bound-mode-active');
+
+            // Switch to list view
+            title.textContent = 'Events';
+            content.style.display = 'none';
+            listContainer.style.display = 'block';
+
+            // Refresh list
+            populateEventList();
+        }
+
+        /**
+         * Position event slider to match diary position
+         */
+        function positionEventSlider() {
+            const slider = document.getElementById('eventSlider');
+            const diaryFloat = document.querySelector('.diary-float');
+            const modalHeader = document.querySelector('.modal-header');
+
+            if (!slider || !diaryFloat) return;
+
+            const diaryRect = diaryFloat.getBoundingClientRect();
+            const headerBottom = modalHeader ? modalHeader.getBoundingClientRect().bottom + 15 : 0;
+
+            const sliderTop = Math.max(diaryRect.top, headerBottom);
+
+            slider.style.left = (diaryRect.right - 20) + 'px';
+            slider.style.top = sliderTop + 'px';
+            slider.style.bottom = (window.innerHeight - diaryRect.bottom) + 'px';
+            slider.style.height = 'auto';
+        }
+
+        /**
+         * Escape HTML special characters to prevent XSS
+         */
+        function escapeHtml(text) {
+            if (!text) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        /**
+         * Populate category dropdown
+         */
+        function populateEventCategories() {
+            const select = document.getElementById('eventCategory');
+            if (!select) return;
+
+            select.innerHTML = eventCategories.map(cat =>
+                `<option value="${cat.id}">${escapeHtml(cat.name)}</option>`
+            ).join('');
+        }
+
+        /**
+         * Populate event list
+         */
+        function populateEventList() {
+            const list = document.getElementById('eventList');
+            if (!list) return;
+
+            const allEvents = getAllEvents();
+
+            if (allEvents.length === 0) {
+                list.innerHTML = '<div class="event-list-empty">No events defined yet.<br>Create one to get started!</div>';
+                return;
+            }
+
+            list.innerHTML = allEvents.map(event => {
+                const category = getEventCategory(event.category);
+                const startFormatted = formatEventDate(event.startDate, event.startTime);
+                const endFormatted = formatEventDate(event.endDate, event.endTime);
+
+                return `
+                    <div class="event-list-item" onclick="navigateToEvent('${event.eventId}')">
+                        <div class="event-list-item-name">${escapeHtml(event.name)}</div>
+                        <div class="event-list-item-dates">${startFormatted} → ${endFormatted}</div>
+                        <div class="event-list-item-footer">
+                            <div class="event-list-item-category">${category ? category.name : 'Other'}</div>
+                            <button class="event-list-edit-btn" onclick="event.stopPropagation(); openEventSlider('${event.eventId}')">Edit</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        /**
+         * Navigate to an event's start date
+         */
+        async function navigateToEvent(eventId) {
+            const event = getEventById(eventId);
+            if (!event || !event.startDate) return;
+
+            // Close the event slider
+            closeEventSlider();
+
+            // Navigate to the start date
+            // startDate is in YYYY-MM-DD format
+            const dayKey = event.startDate;
+            const monthKey = dayKey.substring(0, 7); // YYYY-MM
+
+            // Check if we need to change month
+            if (monthKey !== currentMonth) {
+                await NavigationController.selectMonth(monthKey);
+            }
+
+            // Navigate to the day
+            NavigationController.selectDay(dayKey);
+        }
+
+        /**
+         * Format event date for display
+         */
+        function formatEventDate(date, time) {
+            if (!date) return '—';
+            const d = new Date(date + 'T12:00:00');
+            const formatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            return time ? `${formatted} ${time}` : formatted;
+        }
+
+        /**
+         * Update the start or end datetime input fields from state
+         */
+        function updateEventDateTimeDisplay(bound) {
+            const dateInput = document.getElementById(bound === 'start' ? 'eventStartDate' : 'eventEndDate');
+            const timeInput = document.getElementById(bound === 'start' ? 'eventStartTime' : 'eventEndTime');
+
+            const date = bound === 'start' ? eventCreationState.startDate : eventCreationState.endDate;
+            const time = bound === 'start' ? eventCreationState.startTime : eventCreationState.endTime;
+
+            if (dateInput) dateInput.value = date || '';
+            if (timeInput) timeInput.value = time || '';
+        }
+
+        /**
+         * Update event bound from manual input
+         */
+        function updateEventBoundFromInput(bound) {
+            const dateInput = document.getElementById(bound === 'start' ? 'eventStartDate' : 'eventEndDate');
+            const timeInput = document.getElementById(bound === 'start' ? 'eventStartTime' : 'eventEndTime');
+
+            const date = dateInput?.value || null;
+            const time = timeInput?.value || null;
+
+            if (bound === 'start') {
+                eventCreationState.startDate = date;
+                eventCreationState.startTime = time;
+                eventCreationState.startItemId = null; // Clear item association when manually set
+            } else {
+                eventCreationState.endDate = date;
+                eventCreationState.endTime = time;
+                eventCreationState.endItemId = null;
+            }
+        }
+
+        /**
+         * Enter bound selection mode (pick from diary)
+         */
+        function setEventBoundMode(mode) {
+            const startBtn = document.getElementById('eventSetStartBtn');
+            const endBtn = document.getElementById('eventSetEndBtn');
+
+            // Ensure we're in active creation mode
+            if (!eventCreationState.active) {
+                eventCreationState.active = true;
+            }
+
+            // Toggle mode
+            if (eventBoundMode === mode) {
+                eventBoundMode = null;
+                document.body.classList.remove('event-bound-mode-active');
+                startBtn?.classList.remove('active');
+                endBtn?.classList.remove('active');
+            } else {
+                eventBoundMode = mode;
+                document.body.classList.add('event-bound-mode-active');
+                startBtn?.classList.toggle('active', mode === 'start');
+                endBtn?.classList.toggle('active', mode === 'end');
+            }
+        }
+
+        /**
+         * Handle diary entry click when in event bound mode
+         * Called from diary entry click handlers
+         */
+        function handleEventBoundSelection(dayKey, time, itemId) {
+            if (!eventCreationState.active || !eventBoundMode) return false;
+
+            if (eventBoundMode === 'start') {
+                eventCreationState.startDate = dayKey;
+                eventCreationState.startTime = time || null;
+                eventCreationState.startItemId = itemId || null;
+                updateEventDateTimeDisplay('start');
+                highlightEventBound('start', dayKey, itemId);
+            } else if (eventBoundMode === 'end') {
+                eventCreationState.endDate = dayKey;
+                eventCreationState.endTime = time || null;
+                eventCreationState.endItemId = itemId || null;
+                updateEventDateTimeDisplay('end');
+                highlightEventBound('end', dayKey, itemId);
+            }
+
+            // Exit bound mode
+            setEventBoundMode(null);
+            return true;
+        }
+
+        /**
+         * Highlight the selected start/end entry in diary
+         */
+        function highlightEventBound(bound, dayKey, itemId) {
+            // Remove existing marker of this type
+            document.querySelectorAll(`.event-${bound}-marker`).forEach(el => {
+                el.classList.remove(`event-${bound}-marker`);
+            });
+
+            // Find and highlight the entry
+            if (itemId) {
+                const entry = document.querySelector(`[data-item-id="${itemId}"]`);
+                if (entry) {
+                    entry.closest('li')?.classList.add(`event-${bound}-marker`);
+                }
+            }
+        }
+
+        /**
+         * Clear all event bound markers
+         */
+        function clearEventBoundMarkers() {
+            document.querySelectorAll('.event-start-marker, .event-end-marker').forEach(el => {
+                el.classList.remove('event-start-marker', 'event-end-marker');
+            });
+        }
+
+        /**
+         * Save the current event (create or update)
+         */
+        function saveEvent() {
+            const name = document.getElementById('eventName')?.value.trim();
+            const description = document.getElementById('eventDescription')?.value.trim();
+            const category = document.getElementById('eventCategory')?.value;
+            // Get color from category
+            const categoryObj = getEventCategory(category);
+            const color = categoryObj?.color || '#9C27B0';
+
+            // Read dates/times directly from input fields
+            const startDate = document.getElementById('eventStartDate')?.value || null;
+            const startTime = document.getElementById('eventStartTime')?.value || null;
+            const endDate = document.getElementById('eventEndDate')?.value || null;
+            const endTime = document.getElementById('eventEndTime')?.value || null;
+
+            if (!name) {
+                alert('Please enter an event name.');
+                document.getElementById('eventName')?.focus();
+                return;
+            }
+
+            if (!startDate) {
+                alert('Please set a start date.');
+                document.getElementById('eventStartDate')?.focus();
+                return;
+            }
+
+            if (!endDate) {
+                alert('Please set an end date.');
+                document.getElementById('eventEndDate')?.focus();
+                return;
+            }
+
+            // Validate start <= end
+            const startDT = startDate + (startTime || '00:00');
+            const endDT = endDate + (endTime || '23:59');
+            if (startDT > endDT) {
+                alert('End date/time must be after start date/time.');
+                return;
+            }
+
+            const eventData = {
+                name,
+                description,
+                category,
+                color,
+                startDate: startDate,
+                startTime: startTime,
+                startItemId: eventCreationState.startItemId,
+                endDate: endDate,
+                endTime: endTime,
+                endItemId: eventCreationState.endItemId
+            };
+
+            if (eventCreationState.editingEventId) {
+                updateEvent(eventCreationState.editingEventId, eventData);
+            } else {
+                createEvent(eventData);
+            }
+
+            // Refresh diary to show [EVENT] tags
+            if (typeof renderMonth === 'function') {
+                renderMonth();
+            }
+
+            // Return to event list
+            cancelEventEdit();
+        }
+
+        /**
+         * Delete the current event being edited
+         */
+        function deleteCurrentEvent() {
+            if (!eventCreationState.editingEventId) return;
+
+            const event = getEventById(eventCreationState.editingEventId);
+            if (!event) return;
+
+            if (confirm(`Delete event "${event.name}"?`)) {
+                deleteEvent(eventCreationState.editingEventId);
+
+                // Refresh diary to remove [EVENT] tags
+                if (typeof renderMonth === 'function') {
+                    renderMonth();
+                }
+
+                // Return to event list
+                cancelEventEdit();
+            }
+        }
+
+        /**
+         * Start creating a new event (from event list view)
+         */
+        function startNewEvent() {
+            openEventSlider(null);
+        }
+
+        // ========================================
+        // Category Manager Functions
+        // ========================================
+
+        /**
+         * Open the category manager modal
+         */
+        function openCategoryManager() {
+            const backdrop = document.getElementById('categoryManagerBackdrop');
+            const modal = document.getElementById('categoryManagerModal');
+
+            if (backdrop) backdrop.classList.add('open');
+            if (modal) modal.classList.add('open');
+
+            populateCategoryList();
+        }
+
+        /**
+         * Close the category manager modal
+         */
+        function closeCategoryManager() {
+            const backdrop = document.getElementById('categoryManagerBackdrop');
+            const modal = document.getElementById('categoryManagerModal');
+
+            if (backdrop) backdrop.classList.remove('open');
+            if (modal) modal.classList.remove('open');
+
+            // Clear the new category input
+            const nameInput = document.getElementById('newCategoryName');
+            if (nameInput) nameInput.value = '';
+
+            // Refresh the category dropdown in the event form
+            populateEventCategories();
+        }
+
+        /**
+         * Populate the category list in the manager
+         */
+        function populateCategoryList() {
+            const list = document.getElementById('categoryList');
+            if (!list) return;
+
+            list.innerHTML = eventCategories.map(cat => `
+                <div class="category-item" data-category-id="${cat.id}">
+                    <input type="color" class="category-item-color" value="${cat.color}"
+                           onchange="updateCategoryColor('${cat.id}', this.value)">
+                    <input type="text" class="category-item-name" value="${escapeHtml(cat.name)}"
+                           onblur="updateCategoryName('${cat.id}', this.value)"
+                           onkeypress="if(event.key==='Enter') this.blur()">
+                    <button class="category-item-delete" onclick="deleteCategoryFromManager('${cat.id}')"
+                            title="${cat.id === 'other' ? 'Cannot delete "Other" category' : 'Delete category'}"
+                            ${cat.id === 'other' ? 'disabled' : ''}>✕</button>
+                </div>
+            `).join('');
+        }
+
+        /**
+         * Update a category's color
+         */
+        function updateCategoryColor(categoryId, newColor) {
+            updateEventCategory(categoryId, { color: newColor });
+            populateCategoryList();
+        }
+
+        /**
+         * Update a category's name
+         */
+        function updateCategoryName(categoryId, newName) {
+            if (!newName.trim()) {
+                populateCategoryList(); // Reset to original
+                return;
+            }
+            updateEventCategory(categoryId, { name: newName.trim() });
+        }
+
+        /**
+         * Delete a category from the manager
+         */
+        function deleteCategoryFromManager(categoryId) {
+            const category = getEventCategory(categoryId);
+            if (!category) return;
+
+            // Count events using this category
+            const eventsUsingCategory = events.filter(e => e.category === categoryId).length;
+
+            let message = `Delete category "${category.name}"?`;
+            if (eventsUsingCategory > 0) {
+                message += `\n\n${eventsUsingCategory} event(s) using this category will be moved to "Other".`;
+            }
+
+            if (confirm(message)) {
+                deleteEventCategory(categoryId);
+                populateCategoryList();
+            }
+        }
+
+        /**
+         * Add a new category from the form
+         */
+        function addNewCategory() {
+            const nameInput = document.getElementById('newCategoryName');
+            const colorInput = document.getElementById('newCategoryColor');
+
+            const name = nameInput?.value.trim();
+            const color = colorInput?.value || '#9C27B0';
+
+            if (!name) {
+                nameInput?.focus();
+                return;
+            }
+
+            const result = addEventCategory(name, color);
+            if (result) {
+                nameInput.value = '';
+                populateCategoryList();
+            } else {
+                alert('A category with this name already exists.');
+            }
+        }
+
+        // Expose event functions globally
+        window.openEventSlider = openEventSlider;
+        window.openEventList = openEventList;
+        window.closeEventSlider = closeEventSlider;
+        window.cancelEventEdit = cancelEventEdit;
+        window.navigateToEvent = navigateToEvent;
+        window.setEventBoundMode = setEventBoundMode;
+        window.handleEventBoundSelection = handleEventBoundSelection;
+        window.updateEventBoundFromInput = updateEventBoundFromInput;
+        window.saveEvent = saveEvent;
+        window.deleteCurrentEvent = deleteCurrentEvent;
+        window.startNewEvent = startNewEvent;
+        window.getEventsForDay = getEventsForDay;
+        window.getAllEvents = getAllEvents;
+        window.exportEventsData = exportEventsData;
+        window.openCategoryManager = openCategoryManager;
+        window.closeCategoryManager = closeCategoryManager;
+        window.updateCategoryColor = updateCategoryColor;
+        window.updateCategoryName = updateCategoryName;
+        window.deleteCategoryFromManager = deleteCategoryFromManager;
+        window.addNewCategory = addNewCategory;
+        window.importEventsData = importEventsData;
+
         // Listen for navigation messages from analysis page via BroadcastChannel
         // This allows communication between independent browser windows/tabs
         const navChannel = new BroadcastChannel('arc-diary-nav');
@@ -11587,6 +13584,9 @@ scrollToDiaryDay(currentDayKey);
             function hasGpsData(item) {
                 if (item.samples && item.samples.length > 0) return true;
                 if (item.center && item.center.latitude && item.center.longitude) return true;
+                // Arc may have distance/duration metadata even without raw samples
+                // This proves the item has location data from Arc's processing
+                if (item.distance && item.distance > 0) return true;
                 return false;
             }
             
@@ -11838,20 +13838,28 @@ scrollToDiaryDay(currentDayKey);
                     let lat = item.center?.latitude;
                     let lng = item.center?.longitude;
                     let altitude = item.center?.altitude;
-                    
-                    // For routes without a center point, use the first sample point
+
+                    // For routes without a center point, find the first sample with valid location
                     if ((lat == null || lng == null) && item.samples && item.samples.length > 0) {
-                        const firstPoint = item.samples[0];
-                        // Arc Timeline samples have location property
-                        lat = firstPoint.location?.latitude || firstPoint.latitude;
-                        lng = firstPoint.location?.longitude || firstPoint.longitude;
-                        altitude = firstPoint.location?.altitude || firstPoint.altitude;
+                        // Find first sample with valid location data (don't assume samples[0] is valid)
+                        const validSample = item.samples.find(s =>
+                            s.location && s.location.latitude != null && s.location.longitude != null
+                        );
+                        if (validSample) {
+                            lat = validSample.location.latitude;
+                            lng = validSample.location.longitude;
+                            altitude = validSample.location.altitude;
+                        }
                     }
-                    
+
                     // Even if we have center lat/lng, try to get altitude from samples if not in center
                     if ((altitude === null || altitude === undefined) && item.samples && item.samples.length > 0) {
-                        const firstPoint = item.samples[0];
-                        altitude = firstPoint.location?.altitude || firstPoint.altitude;
+                        const sampleWithAlt = item.samples.find(s =>
+                            s.location?.altitude != null || s.altitude != null
+                        );
+                        if (sampleWithAlt) {
+                            altitude = sampleWithAlt.location?.altitude ?? sampleWithAlt.altitude;
+                        }
                     }
                     
                     // Determine the display date for this entry
@@ -12844,10 +14852,19 @@ scrollToDiaryDay(currentDayKey);
                     importTag = ' <span class="import-tag import-updated" title="Updated in last import">UPDATED</span>';
                 }
 
+                // Check if this day is part of any event
+                let eventTag = '';
+                const dayEvents = getEventsForDay(day);
+                if (dayEvents.length > 0) {
+                    const eventNames = dayEvents.map(e => e.name).join(', ');
+                    const eventColor = dayEvents[0].color || '#9C27B0';
+                    eventTag = ` <span class="import-tag event-tag" style="background: ${eventColor};" title="${escapeHtml(eventNames)}" onclick="openEventSlider('${dayEvents[0].eventId}')" data-event-id="${dayEvents[0].eventId}">EVENT</span>`;
+                }
+
                 if (dayHasLocations || dayHasRoute) {
-                    md += `## <span class="day-map-title" data-day="${day}" title="Click to show day statistics" style="cursor:pointer;">${fullDayName}</span>${importTag}\n\n`;
+                    md += `## <span class="day-map-title" data-day="${day}" title="Click to show day statistics" style="cursor:pointer;">${fullDayName}</span>${importTag}${eventTag}\n\n`;
                 } else {
-                    md += `## ${fullDayName}${importTag}\n\n`;
+                    md += `## ${fullDayName}${importTag}${eventTag}\n\n`;
                 }
                 
                 for (const note of visibleNotes) {
@@ -12933,10 +14950,14 @@ scrollToDiaryDay(currentDayKey);
                     }
                     
                     const noteBody = note.body || '';
-                    
+
+                    // Mark changed items - the li:has(.item-changed) selector will color the bullet
+                    const isChanged = note.timelineItemId && importChangedItemIds.has(note.timelineItemId);
+                    const changeMarker = isChanged ? '<span class="item-changed"></span>' : '';
+
                     if (noteBody.trim() === '') {
                         // Just header (Location info), no body
-                        md += `- ${bulletHeader}\n`;
+                        md += `- ${changeMarker}${bulletHeader}\n`;
                     } else {
                         // Header + Body
                         const lines = noteBody.split('\n');
@@ -12946,9 +14967,9 @@ scrollToDiaryDay(currentDayKey);
                                 return line.trim() === '' ? '' : '  ' + line;
                             });
                             const indentedBody = [firstLine, ...continuationLines].join('\n');
-                            md += `- ${bulletHeader} ${indentedBody}\n`;
+                            md += `- ${changeMarker}${bulletHeader} ${indentedBody}\n`;
                         } else {
-                            md += `- ${bulletHeader} ${noteBody}\n`;
+                            md += `- ${changeMarker}${bulletHeader} ${noteBody}\n`;
                         }
                     }
                 }
@@ -13038,8 +15059,14 @@ scrollToDiaryDay(currentDayKey);
                     const fileDate = match[1];
                     const [year, month, day] = fileDate.split('-');
                     const monthKey = `${year}-${month}`;
-                    
+
                     const data = await decompressFile(file);
+
+                    // Filter out ghost items (0-sample duplicates) before extraction
+                    if (data.timelineItems) {
+                        data.timelineItems = filterGhostItems(data.timelineItems);
+                    }
+
                     const notes = extractNotesFromData(data, fileDate);
                     const pins = extractPinsFromData(data);
                     const tracks = extractTracksFromData(data);
@@ -13260,64 +15287,64 @@ scrollToDiaryDay(currentDayKey);
                 const cancelBtn = document.getElementById('cancelBtn');
                 if (progress) progress.style.display = 'none';
                 if (cancelBtn) cancelBtn.style.display = 'none';
-                
+
                 // Show loading indicator
                 const dbStatusSection = document.getElementById('dbStatusSection');
                 const fileInputSection = document.getElementById('fileInputSection');
                 const dbLoadingBar = document.getElementById('dbLoadingBar');
-                
+                const dbStats = document.getElementById('dbStats');
+
                 // Show temporary loading state with animated bar
-                dbStatusSection.style.display = 'block';
-                fileInputSection.style.display = 'none';
-                dbLoadingBar.style.display = 'block';
-                document.getElementById('dbStats').textContent = 'Initializing database...';
-                
+                if (dbStatusSection) dbStatusSection.style.display = 'block';
+                if (fileInputSection) fileInputSection.style.display = 'none';
+                if (dbLoadingBar) dbLoadingBar.style.display = 'block';
+                if (dbStats) dbStats.textContent = 'Initializing database...';
+
                 // Initialize database
                 await initDatabase();
                 _dbReadyResolve(db); // Signal that DB is ready
-                logDebug('✅ Database ready');
-                
+
                 // Check if analysis data needs rebuilding (after DB upgrade)
                 checkAndRebuildAnalysisData();
-                
+
                 // Load favorites from localStorage
                 loadFavorites();
-                
+
                 // Load import tags from IndexedDB (for persistence)
                 const savedAddedDays = await getMetadata('importAddedDays');
                 const savedUpdatedDays = await getMetadata('importUpdatedDays');
+                const savedChangedItemIds = await getMetadata('importChangedItemIds');
                 if (savedAddedDays) importAddedDays = savedAddedDays;
                 if (savedUpdatedDays) importUpdatedDays = savedUpdatedDays;
-                
-                
+                if (savedChangedItemIds) importChangedItemIds = new Set(savedChangedItemIds);
+
                 // Load place-name mappings (if previously imported)
                 const savedPlaces = await getMetadata('placesById');
                 if (savedPlaces) placesById = savedPlaces;
-// Update status display
+
+                // Update status display
                 await updateDBStatusDisplay();
-                
+
                 // Check if database has data
                 const stats = await getDBStats();
-                
+
                 if (stats.dayCount > 0) {
                     // Show loading message
-                    document.getElementById('dbStats').textContent = `Loading most recent month from ${stats.dayCount} days...`;
-                    
+                    if (dbStats) dbStats.textContent = `Loading most recent month from ${stats.dayCount} days...`;
+
                     // Auto-load most recent month
-                    logDebug(`📊 Found ${stats.dayCount} days in database, auto-loading...`);
                     await loadMostRecentMonth();
-                    
+
                     // Hide loading bar, update to final stats
-                    dbLoadingBar.style.display = 'none';
+                    if (dbLoadingBar) dbLoadingBar.style.display = 'none';
                     await updateDBStatusDisplay();
                 } else {
-                    logDebug('📂 No data in database, showing file import');
                     // Hide loading, show file input
-                    dbLoadingBar.style.display = 'none';
-                    dbStatusSection.style.display = 'none';
-                    fileInputSection.style.display = 'block';
+                    if (dbLoadingBar) dbLoadingBar.style.display = 'none';
+                    if (dbStatusSection) dbStatusSection.style.display = 'none';
+                    if (fileInputSection) fileInputSection.style.display = 'block';
                 }
-                
+
             } catch (error) {
                 logError('Error initializing app:', error);
                 const dbLoadingBar = document.getElementById('dbLoadingBar');

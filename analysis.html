@@ -209,12 +209,59 @@
         .date-input:focus {
             box-shadow: 0 0 0 2px var(--accent-dim);
         }
-        
+
+        .time-input {
+            padding: 6px 8px;
+            border: none;
+            border-radius: 6px;
+            font-size: 11px;
+            background: var(--bg-input);
+            color: var(--text-primary);
+            outline: none;
+            width: 70px;
+            transition: all 0.15s ease;
+        }
+
+        .time-input:focus {
+            box-shadow: 0 0 0 2px var(--accent-dim);
+        }
+
+        body:not(.light-mode) .time-input::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+        }
+
+        .event-selector-group {
+            display: flex;
+            align-items: center;
+        }
+
+        .event-selector {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            background: var(--bg-input);
+            color: var(--text-primary);
+            outline: none;
+            cursor: pointer;
+            max-width: 150px;
+            transition: all 0.15s ease;
+        }
+
+        .event-selector:focus {
+            box-shadow: 0 0 0 2px var(--accent-dim);
+        }
+
+        .event-selector option {
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
+
         .date-separator {
             color: var(--text-muted);
             font-size: 14px;
         }
-        
+
         /* Presets */
         .presets {
             display: flex;
@@ -1729,10 +1776,17 @@
                     <!-- Controls Tile -->
                     <div class="controls-tile">
                         <div class="control-row">
+                            <div class="event-selector-group">
+                                <select id="eventSelector" class="event-selector" title="Select an event to load its date range">
+                                    <option value="">— Events —</option>
+                                </select>
+                            </div>
                             <div class="date-group">
                                 <input type="date" id="startDate" class="date-input">
+                                <input type="time" id="startTime" class="time-input" title="Start time (optional)">
                                 <span class="date-separator">→</span>
                                 <input type="date" id="endDate" class="date-input">
+                                <input type="time" id="endTime" class="time-input" title="End time (optional)">
                             </div>
                             <div class="presets" id="presets">
                                 <button class="preset-btn" data-preset="1m">1M</button>
@@ -2049,17 +2103,42 @@
         }
         
         function setupEventListeners() {
+            // Populate and setup event selector
+            populateEventSelector();
+
             // Tabs
             document.querySelectorAll('.analysis-tab').forEach(tab => {
                 tab.addEventListener('click', () => switchTab(tab.dataset.tab));
             });
-            
+
+            // Event selector change
+            document.getElementById('eventSelector')?.addEventListener('change', (e) => {
+                const eventId = e.target.value;
+                if (eventId) {
+                    const events = loadEventsFromStorage();
+                    const event = events.find(ev => ev.eventId === eventId);
+                    if (event) {
+                        // Populate date/time fields
+                        document.getElementById('startDate').value = event.startDate;
+                        document.getElementById('endDate').value = event.endDate;
+                        document.getElementById('startTime').value = event.startTime || '';
+                        document.getElementById('endTime').value = event.endTime || '';
+                        // Clear preset selection
+                        document.querySelectorAll('#presets .preset-btn').forEach(b => b.classList.remove('active'));
+                        // Run analysis with the event dates
+                        runAnalysis();
+                    }
+                }
+            });
+
             // Activity Presets
             document.querySelectorAll('#presets .preset-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     applyPreset(btn.dataset.preset, 'activity');
                     document.querySelectorAll('#presets .preset-btn').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
+                    // Clear event selector when using presets
+                    document.getElementById('eventSelector').value = '';
                 });
             });
             
@@ -2072,15 +2151,21 @@
                 });
             });
             
-            // Activity Date inputs - clear preset and run analysis
+            // Activity Date inputs - clear preset and event selector, run analysis
             document.getElementById('startDate')?.addEventListener('change', () => {
                 document.querySelectorAll('#presets .preset-btn').forEach(b => b.classList.remove('active'));
+                document.getElementById('eventSelector').value = '';
                 runAnalysis();
             });
             document.getElementById('endDate')?.addEventListener('change', () => {
                 document.querySelectorAll('#presets .preset-btn').forEach(b => b.classList.remove('active'));
+                document.getElementById('eventSelector').value = '';
                 runAnalysis();
             });
+
+            // Time inputs - run analysis when changed
+            document.getElementById('startTime')?.addEventListener('change', runAnalysis);
+            document.getElementById('endTime')?.addEventListener('change', runAnalysis);
             
             // Location Date inputs - auto-run if locations are selected
             document.getElementById('locationStartDate')?.addEventListener('change', () => {
@@ -5143,7 +5228,49 @@
         function capitalize(s) {
             return s.charAt(0).toUpperCase() + s.slice(1);
         }
-        
+
+        // Event management functions
+        const EVENTS_STORAGE_KEY = 'arcDiaryEvents';
+
+        function loadEventsFromStorage() {
+            try {
+                const stored = localStorage.getItem(EVENTS_STORAGE_KEY);
+                return stored ? JSON.parse(stored) : [];
+            } catch (e) {
+                console.error('Error loading events:', e);
+                return [];
+            }
+        }
+
+        function populateEventSelector() {
+            const selector = document.getElementById('eventSelector');
+            if (!selector) return;
+
+            const events = loadEventsFromStorage();
+
+            // Sort by start date (newest first)
+            events.sort((a, b) => b.startDate.localeCompare(a.startDate));
+
+            // Clear existing options except the placeholder
+            selector.innerHTML = '<option value="">— Events —</option>';
+
+            if (events.length === 0) {
+                selector.innerHTML = '<option value="">No events defined</option>';
+                selector.disabled = true;
+                return;
+            }
+
+            selector.disabled = false;
+            events.forEach(event => {
+                const option = document.createElement('option');
+                option.value = event.eventId;
+                const dateRange = `${event.startDate} → ${event.endDate}`;
+                option.textContent = `${event.name} (${dateRange})`;
+                option.title = event.description || '';
+                selector.appendChild(option);
+            });
+        }
+
         function debounce(fn, ms) {
             let timeout;
             return (...args) => {

@@ -32,7 +32,7 @@ SOFTWARE.
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"  crossorigin="anonymous" />
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = 695;
+  window.__ARC_BUILD__ = 707;
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -66,9 +66,19 @@ SOFTWARE.
       var r = document.createElement('script');
       r.src = 'replay.js?v=' + b;
       r.async = false;
-      r.onload = function() { loadMainApp(); };
-      r.onerror = function() { loadMainApp(); }; // Continue even if missing
+      r.onload = function() { loadImport(); };
+      r.onerror = function() { loadImport(); }; // Continue even if missing
       document.body.appendChild(r);
+    }
+
+    function loadImport() {
+      // Load import.js (data import functionality)
+      var i = document.createElement('script');
+      i.src = 'import.js?v=' + b;
+      i.async = false;
+      i.onload = function() { loadMainApp(); };
+      i.onerror = function() { loadMainApp(); }; // Continue even if missing
+      document.body.appendChild(i);
     }
 
     function loadMainApp() {
@@ -190,8 +200,9 @@ SOFTWARE.
                         </label>
                     </div>
                     <div id="backupBrowserWarning" style="display: none; margin-top: 16px; padding: 12px; background: #fff3cd; border-radius: 8px; font-size: 13px; color: #856404;">
-                        ⚠️ Backup import requires Chrome or Edge. Safari is not supported for large folder access.
+                        ⚠️ Safari mode: Import may be slower for large backups. Chrome/Edge recommended for best performance.
                     </div>
+                    <input type="file" id="backupFolderInput" webkitdirectory directory multiple style="display: none;" onchange="handleBackupFolderSelected(this.files)">
                 </div>
                 
                 <button id="cancelBtn" onclick="cancelProcessing = true; event.stopPropagation();" style="display: none; background: #ff3b30; color: white; border: none; padding: 12px 28px; border-radius: 12px; cursor: pointer; margin-top: 20px; font-size: 17px; font-weight: 600; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">Cancel Import</button>
@@ -454,6 +465,7 @@ SOFTWARE.
                                 <button class="btn-search" id="prevSearchBtn" onclick="navigateSearch(-1)" disabled title="Previous match" style="display: none;">‹</button>
                                 <button class="btn-search" id="nextSearchBtn" onclick="navigateSearch(1)" disabled title="Next match" style="display: none;">›</button>
                                 <button class="btn-search" id="clearSearchBtn" onclick="clearSearch()" title="Clear search" style="display: none;">✕</button>
+                                <button class="btn-events" id="eventsBtn" onclick="openEventList()" title="Events (multi-day trips, vacations)">📅</button>
                             </div>
                         </div>
                     </div>
@@ -476,9 +488,93 @@ SOFTWARE.
                 </div>
                 <div class="search-results-list" id="searchResultsList"></div>
             </div>
+
+            <!-- Event Creation/Edit Slider -->
+            <div class="event-slider" id="eventSlider">
+                <div class="event-slider-header">
+                    <span class="event-slider-title" id="eventSliderTitle">New Event</span>
+                    <button class="btn-close-slider" onclick="closeEventSlider()">✕</button>
+                </div>
+                <div class="event-slider-content">
+                    <!-- Event Name -->
+                    <div class="event-field">
+                        <label for="eventName">Event Name</label>
+                        <input type="text" id="eventName" placeholder="e.g., Hawaii Vacation" autocomplete="off">
+                    </div>
+
+                    <!-- Start Selection -->
+                    <div class="event-field">
+                        <label>Start</label>
+                        <div class="event-datetime-inputs">
+                            <input type="date" id="eventStartDate" class="event-date-input" onchange="updateEventBoundFromInput('start')">
+                            <input type="time" id="eventStartTime" class="event-time-input" onchange="updateEventBoundFromInput('start')">
+                        </div>
+                        <button class="event-set-btn" id="eventSetStartBtn" onclick="setEventBoundMode('start')">Pick from Diary</button>
+                    </div>
+
+                    <!-- End Selection -->
+                    <div class="event-field">
+                        <label>End</label>
+                        <div class="event-datetime-inputs">
+                            <input type="date" id="eventEndDate" class="event-date-input" onchange="updateEventBoundFromInput('end')">
+                            <input type="time" id="eventEndTime" class="event-time-input" onchange="updateEventBoundFromInput('end')">
+                        </div>
+                        <button class="event-set-btn" id="eventSetEndBtn" onclick="setEventBoundMode('end')">Pick from Diary</button>
+                    </div>
+
+                    <!-- Category -->
+                    <div class="event-field">
+                        <label for="eventCategory">Category</label>
+                        <select id="eventCategory">
+                            <!-- Populated dynamically -->
+                        </select>
+                        <button class="event-manage-categories-btn" onclick="openCategoryManager()" title="Add, edit, or remove categories">Manage…</button>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="event-field">
+                        <label for="eventDescription">Description (optional)</label>
+                        <textarea id="eventDescription" rows="3" placeholder="Notes about this event..."></textarea>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="event-actions">
+                        <button class="event-btn event-btn-cancel" onclick="cancelEventEdit()">Cancel</button>
+                        <button class="event-btn event-btn-delete" id="eventDeleteBtn" onclick="deleteCurrentEvent()" style="display: none;">Delete</button>
+                        <button class="event-btn event-btn-save" id="eventSaveBtn" onclick="saveEvent()">Save</button>
+                    </div>
+                </div>
+
+                <!-- Event List (shown when not creating/editing) -->
+                <div class="event-list-container" id="eventListContainer" style="display: none;">
+                    <div class="event-list" id="eventList">
+                        <!-- Populated dynamically -->
+                    </div>
+                    <button class="event-btn event-btn-new" onclick="startNewEvent()">+ New Event</button>
+                </div>
+            </div>
+
+            <!-- Category Manager Modal -->
+            <div class="category-manager-backdrop" id="categoryManagerBackdrop" onclick="closeCategoryManager()"></div>
+            <div class="category-manager-modal" id="categoryManagerModal">
+                <div class="category-manager-header">
+                    <span>Manage Categories</span>
+                    <button class="btn-close-slider" onclick="closeCategoryManager()">✕</button>
+                </div>
+                <div class="category-manager-content">
+                    <div class="category-list" id="categoryList">
+                        <!-- Populated dynamically -->
+                    </div>
+                    <div class="category-add-form">
+                        <input type="text" id="newCategoryName" placeholder="New category name" autocomplete="off">
+                        <input type="color" id="newCategoryColor" value="#9C27B0">
+                        <button class="event-btn event-btn-save" onclick="addNewCategory()">Add</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-    
+
     <!-- Activity Filter Modal -->
     <div class="filter-modal-backdrop" id="filterModalBackdrop" onclick="closeFilterModal()"></div>
     <div class="filter-modal" id="filterModal">

@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader
 
-**Current Build: 695**
+**Current Build: 711**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracking data that generates interactive diaries with maps.
 
@@ -20,8 +20,18 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracki
 - **Keyboard Navigation** - Arrow keys for days/entries, Home/End for first/last
 - **Search** - Find entries by location name, date, or notes
 - **Favourites** - Star locations for quick access
+- **Events** - Define multi-day date ranges (vacations, trips) with start/end times
 - **Dark Mode** - System-aware theme with toggle
 - **Raw Toggle** - View uncoalesced timeline data for debugging
+
+### Events
+- **Multi-Day Ranges** - Group days into named events (vacations, conferences, trips)
+- **Precise Bounds** - Set start/end date and time to include only relevant activities
+- **Visual Creation** - Click diary entries to set event boundaries
+- **Categories** - Custom categories with colors (Vacation, Conference, Trip, etc.)
+- **Event Slider** - Dedicated panel for browsing and editing events
+- **Analysis Integration** - Select events to auto-fill date range in Analysis page
+- **Export/Import** - Events included in data export for backup and sync
 
 ### Day Trip Replay
 - **Animated Playback** - Watch your day's journey animated on the map
