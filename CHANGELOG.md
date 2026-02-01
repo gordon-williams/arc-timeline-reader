@@ -1,5 +1,100 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 762 (2026-02-02)
+
+### Fix - Waypoint Navigation Accuracy (v3)
+- **Correct offset math**: Calculates safe area center vs map center offset properly
+- **No animation**: Uses `setView` without animation to avoid blurry tiles during zoom
+- **Pre-calculated position**: Converts waypoint to adjusted latlng before setting view
+- **Fixes**: Target now centers in safe area, not at edge; tiles load crisp
+
+---
+
+## Build 761 (2026-02-02)
+
+### Fix - Waypoint Navigation Accuracy (v2)
+- **Two-step animation**: First flies to waypoint, then pans to center in safe area
+- **Post-zoom offset**: Offset calculation now happens after zoom completes, at the correct scale
+- **Smoother animation**: Slight visual two-step but more accurate final position
+
+---
+
+## Build 760 (2026-02-02)
+
+### Fix - Waypoint Navigation Accuracy
+- **More reliable centering**: Switched from `panToLocation` to `flyToBounds` for waypoint navigation
+- **Proper padding handling**: `flyToBounds` correctly applies padding during the animation, not before
+- **Consistent first-try accuracy**: Waypoints now center correctly on the first selection
+- **Issue was**: Offset calculation happened before zoom animation, causing slight misalignment
+
+---
+
+## Build 759 (2026-02-02)
+
+### Enhancement - More Elevation Data Points
+- **Increased resolution**: Now samples up to 500 points (was 100) for better elevation profile detail
+- **Batch requests**: Splits large requests into 200-point batches with small delays between
+- **Even sampling**: Uses improved algorithm to evenly distribute sample points along route
+- **Long trip support**: Better elevation profiles for longer journeys
+
+---
+
+## Build 758 (2026-02-02)
+
+### Enhancement - Route Search Elevation Panel Integration
+- **Elevation panel support**: Route search elevation data now displays in the elevation graph panel
+- **Automatic update**: Elevation panel refreshes when route search elevation data loads
+- **State management**: Route search state (`routeSearchState`) exposed globally for cross-module access
+- **Clean cleanup**: Elevation data cleared when route search is cleared
+
+---
+
+## Build 757 (2026-02-02)
+
+### Enhancement - Route Search with Mapbox & Elevation
+- **Mapbox Directions**: Uses Mapbox Directions API when token available (better routing quality)
+- **OSRM fallback**: Falls back to free OSRM routing when no Mapbox token configured
+- **Elevation data**: Fetches elevation profile via Open-Elevation API for all routes
+- **Elevation stats**: Shows total climb (↑) and descent (↓) in route info popup
+- **Async loading**: Elevation fetched after route displays, doesn't block UI
+
+---
+
+## Build 756 (2026-02-02)
+
+### Enhancement - Route Search Navigation
+- **Safe area centering**: Waypoint navigation now centers locations in the visible map area, accounting for diary panel overlay
+- **Tile loading**: Waits for map pan/zoom to complete and tiles to load before opening popup
+- **Uses NavigationController**: Integrates with existing viewport margin calculations for consistent centering
+
+---
+
+## Build 755 (2026-02-02)
+
+### Enhancement - Route Search UI Cleanup
+- **Removed divider line**: Removed unnecessary horizontal line above action buttons
+- **Clean map view**: Map layers cleared when search opens (like replay), restored when closed
+- **Exposed map functions**: `clearMapLayers()` and `showDayMap()` now available globally for external tools
+
+---
+
+## Build 754 (2026-02-02)
+
+### Enhancement - Route Search Waypoint Navigation
+- **Waypoint dropdown**: "Go to..." dropdown replaces Start/End buttons, supports future multi-waypoint routes
+- **Popup offset fix**: Marker popups now offset upward so they don't obscure the pin markers
+- **Scalable design**: Waypoints stored in array, ready for intermediate waypoint support
+
+---
+
+## Build 753 (2026-02-02)
+
+### Enhancement - Route Search Improvements
+- **Better markers**: New pin-style markers with A/B labels for start/end points (green/red gradient design)
+- **Renamed Reset View to Fit**: Clearer button label, fits entire route in view
+
+---
+
 ## Build 752 (2026-02-02)
 
 ### Fix - Replay Popup Alignment

@@ -3755,16 +3755,20 @@
     font-size: 14px;
     outline: none;
     box-sizing: border-box;
+    -webkit-appearance: none;  /* Remove browser default styling */
+    appearance: none;
+    box-shadow: none;  /* Remove any inner shadow/underline */
 }
 
 .search-popup input:focus {
     border-color: #667eea;
-    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2) !important;  /* Outer glow only, no inner shadow */
 }
 
 .search-popup input.has-selection {
     background: #f0f7ff;
     border-color: #667eea;
+    box-shadow: none;  /* Remove any inner shadow/underline effect */
 }
 
 .search-popup .search-results {
@@ -3780,6 +3784,11 @@
     max-height: 200px;
     overflow-y: auto;
     z-index: 2001; /* Above the popup itself */
+}
+
+/* Hide empty search results dropdown */
+.search-popup .search-results:empty {
+    display: none;
 }
 
 .search-popup .search-results .search-result-item {
@@ -3812,8 +3821,6 @@
     justify-content: flex-end;
     gap: 8px;
     margin-top: 16px;
-    padding-top: 12px;
-    border-top: 1px solid #eee;
 }
 
 .search-popup .btn-search-clear {
@@ -3867,10 +3874,10 @@
 }
 
 .search-popup .btn-search-reset {
-    background: #34c759;
+    background: #8e8e93;
     color: white;
     border: none;
-    padding: 8px 16px;
+    padding: 8px 12px;
     border-radius: 6px;
     font-size: 13px;
     font-weight: 500;
@@ -3878,12 +3885,89 @@
 }
 
 .search-popup .btn-search-reset:hover {
-    background: #2db84d;
+    background: #7a7a7f;
 }
 
 .search-popup .btn-search-reset:active {
-    background: #26a344;
+    background: #636366;
     transform: scale(0.97);
+}
+
+.search-popup .btn-search-waypoints {
+    background: #f0f0f0;
+    color: #333;
+    border: 1px solid #ccc;
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    min-width: 100px;
+}
+
+.search-popup .btn-search-waypoints:hover {
+    background: #e8e8e8;
+    border-color: #bbb;
+}
+
+.search-popup .btn-search-waypoints:focus {
+    outline: none;
+    border-color: #007aff;
+}
+
+/* Route search markers */
+.route-marker-start,
+.route-marker-end,
+.route-marker-single {
+    background: transparent !important;
+    border: none !important;
+}
+
+.route-marker-pin {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.route-marker-pin .pin-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+.route-marker-pin .pin-icon span {
+    transform: rotate(45deg);
+    font-size: 14px;
+    font-weight: bold;
+    color: white;
+}
+
+.route-marker-pin.start .pin-icon {
+    background: linear-gradient(135deg, #4CAF50 0%, #388e3c 100%);
+}
+
+.route-marker-pin.end .pin-icon {
+    background: linear-gradient(135deg, #f44336 0%, #c62828 100%);
+}
+
+.route-marker-pin.single .pin-icon {
+    background: linear-gradient(135deg, #007aff 0%, #0055b3 100%);
+}
+
+.route-marker-pin .pin-label {
+    margin-top: 4px;
+    padding: 2px 6px;
+    background: rgba(0,0,0,0.75);
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 3px;
+    white-space: nowrap;
 }
 
 /* Clickable diary locations for route search */

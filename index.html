@@ -32,7 +32,7 @@ SOFTWARE.
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"  crossorigin="anonymous" />
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = 752;
+  window.__ARC_BUILD__ = 762;
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -656,7 +656,10 @@ SOFTWARE.
         </div>
         <div class="search-actions">
             <button class="btn-search-clear" onclick="clearRouteSearch()">Clear</button>
-            <button class="btn-search-reset" id="btnResetView" onclick="resetRouteView()" style="display: none;">Reset View</button>
+            <select class="btn-search-waypoints" id="waypointSelect" onchange="gotoWaypoint(this.value)" style="display: none;">
+                <option value="">Go to...</option>
+            </select>
+            <button class="btn-search-reset" id="btnResetView" onclick="resetRouteView()" style="display: none;">Fit</button>
             <button class="btn-search-route" id="btnGetRoute" onclick="getRouteFromSearch()" disabled>Go</button>
         </div>
     </div>

@@ -32,6 +32,101 @@ function formatSearchDistance(km) {
     }
 }
 
+/**
+ * Fetch elevation data for route coordinates using Open-Elevation API
+ * Samples coordinates for longer routes, batches requests for very long routes
+ * @param {Array} coords - Array of [lat, lng] coordinates
+ * @returns {Promise<Array>} - Array of {lat, lng, elevation} objects, or null if failed
+ */
+async function fetchRouteElevation(coords) {
+    if (!coords || coords.length === 0) return null;
+
+    // Target ~500 points for good detail, max 200 per API request batch
+    const maxPoints = 500;
+    const batchSize = 200;
+
+    let sampledCoords;
+    if (coords.length <= maxPoints) {
+        sampledCoords = coords;
+    } else {
+        // Sample evenly, always include first and last points
+        const step = (coords.length - 1) / (maxPoints - 1);
+        sampledCoords = [];
+        for (let i = 0; i < maxPoints; i++) {
+            const idx = Math.round(i * step);
+            sampledCoords.push(coords[idx]);
+        }
+    }
+
+    try {
+        // Use Open-Elevation API (free, no key required)
+        // Batch requests if needed
+        const allResults = [];
+
+        for (let i = 0; i < sampledCoords.length; i += batchSize) {
+            const batch = sampledCoords.slice(i, i + batchSize);
+            const locations = batch.map(c => ({ latitude: c[0], longitude: c[1] }));
+
+            const response = await fetch('https://api.open-elevation.com/api/v1/lookup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ locations })
+            });
+
+            if (!response.ok) throw new Error('Elevation API request failed');
+
+            const data = await response.json();
+            if (data.results && data.results.length > 0) {
+                allResults.push(...data.results);
+            }
+
+            // Small delay between batches to be nice to the API
+            if (i + batchSize < sampledCoords.length) {
+                await new Promise(r => setTimeout(r, 100));
+            }
+        }
+
+        if (allResults.length > 0) {
+            return allResults.map(r => ({
+                lat: r.latitude,
+                lng: r.longitude,
+                elevation: r.elevation
+            }));
+        }
+    } catch (err) {
+        console.warn('Elevation fetch failed:', err.message);
+    }
+
+    return null;
+}
+
+/**
+ * Calculate elevation statistics from elevation data
+ * @param {Array} elevationData - Array of {elevation} objects
+ * @returns {Object} - {gain, loss, min, max}
+ */
+function calculateElevationStats(elevationData) {
+    if (!elevationData || elevationData.length < 2) return null;
+
+    let gain = 0, loss = 0;
+    let min = elevationData[0].elevation;
+    let max = elevationData[0].elevation;
+
+    for (let i = 1; i < elevationData.length; i++) {
+        const prev = elevationData[i - 1].elevation;
+        const curr = elevationData[i].elevation;
+        const diff = curr - prev;
+
+        if (diff > 0) gain += diff;
+        else loss += Math.abs(diff);
+
+        if (curr < min) min = curr;
+        if (curr > max) max = curr;
+    }
+
+    return { gain: Math.round(gain), loss: Math.round(loss), min: Math.round(min), max: Math.round(max) };
+}
+
 // ========== Measurement Tool ==========
 
 class MeasurementTool {
@@ -391,14 +486,17 @@ function cancelMeasurement() {
 
 // ========== Route Search ==========
 
-// State for route search
+// State for route search (exposed globally for elevation panel integration)
 const routeSearchState = {
     from: null,  // { lat, lng, name }
     to: null,    // { lat, lng, name }
     activeField: null,  // 'from' or 'to'
     searchTimeout: null,
-    routeBounds: null  // Store route bounds for reset view
+    routeBounds: null,  // Store route bounds for reset view
+    elevationData: null,  // Array of {lat, lng, elevation} from API
+    elevationStats: null  // {gain, loss, min, max}
 };
+window.routeSearchState = routeSearchState;  // Expose for app.js elevation panel
 
 function activateLocationSearch() {
     const popup = document.getElementById('searchPopup');
@@ -418,6 +516,11 @@ function activateLocationSearch() {
 
     // Show the popup (CSS will center it)
     popup.style.display = 'block';
+
+    // Clear map layers for clean search view (like replay does)
+    if (window.clearMapLayers) {
+        window.clearMapLayers();
+    }
 
     // Enable diary location click mode
     enableDiaryLocationClickMode();
@@ -507,6 +610,25 @@ function closeSearchPopup() {
 
     // Disable diary location click mode
     disableDiaryLocationClickMode();
+
+    // Clear any route search markers and layers
+    if (window.routeSearchLayer && window.map) {
+        window.map.removeLayer(window.routeSearchLayer);
+        window.routeSearchLayer = null;
+    }
+    if (window.routeSearchMarkerFrom && window.map) {
+        window.map.removeLayer(window.routeSearchMarkerFrom);
+        window.routeSearchMarkerFrom = null;
+    }
+    if (window.routeSearchMarkerTo && window.map) {
+        window.map.removeLayer(window.routeSearchMarkerTo);
+        window.routeSearchMarkerTo = null;
+    }
+
+    // Restore map to current day view
+    if (window.showDayMap && window.NavigationController?.dayKey) {
+        window.showDayMap(window.NavigationController.dayKey);
+    }
 }
 
 function clearRouteSearch() {
@@ -531,12 +653,19 @@ function clearRouteSearch() {
     if (resultsTo) resultsTo.replaceChildren();
     if (btnRoute) btnRoute.disabled = true;
 
-    // Hide reset button
+    // Hide navigation controls
     const btnReset = document.getElementById('btnResetView');
+    const waypointSelect = document.getElementById('waypointSelect');
     if (btnReset) btnReset.style.display = 'none';
+    if (waypointSelect) waypointSelect.style.display = 'none';
 
-    // Clear route bounds
+    // Clear waypoints
+    routeSearchState.waypoints = [];
+
+    // Clear route bounds and elevation data
     routeSearchState.routeBounds = null;
+    routeSearchState.elevationData = null;
+    routeSearchState.elevationStats = null;
 
     // Clear any existing route on map (map is global from app.js)
     if (window.routeSearchLayer && window.map) {
@@ -679,23 +808,28 @@ async function getRouteFromSearch() {
 
     // If only From is selected, just go to that location
     if (!to) {
-        // Add a marker at the location
+        // Add a marker at the location with offset popup
         window.routeSearchMarkerFrom = L.marker([from.lat, from.lng], {
             icon: L.divIcon({
                 className: 'route-marker-single',
-                html: '<div style="background:#007aff;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap;">📍</div>',
-                iconAnchor: [15, 10]
+                html: `<div class="route-marker-pin single">
+                    <div class="pin-icon"><span>●</span></div>
+                </div>`,
+                iconSize: [32, 40],
+                iconAnchor: [16, 40]
             })
-        }).addTo(map).bindPopup(`<b>${from.name}</b>`).openPopup();
+        }).addTo(map).bindPopup(`<b>${from.name}</b>`, { offset: [0, -35] }).openPopup();
 
         // Fly to the location
         map.flyTo([from.lat, from.lng], 16, { duration: 1 });
 
-        // Store bounds for reset
+        // Store bounds and waypoints for navigation
         routeSearchState.routeBounds = L.latLngBounds([[from.lat, from.lng]]);
+        routeSearchState.waypoints = [{ lat: from.lat, lng: from.lng, name: from.name, marker: window.routeSearchMarkerFrom }];
 
-        // Show reset button and restore cursor
+        // Show controls and populate waypoint dropdown
         if (btnReset) btnReset.style.display = '';
+        populateWaypointSelect();
         if (btnGo) {
             btnGo.classList.remove('loading');
             btnGo.disabled = false;
@@ -706,19 +840,39 @@ async function getRouteFromSearch() {
 
     // Both From and To selected - get route
     try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
-        const response = await fetch(url);
-        const data = await response.json();
+        const mapboxToken = localStorage.getItem('arc_mapbox_token');
+        let coords, distanceKm, durationMin;
 
-        if (data.code !== 'Ok' || !data.routes || !data.routes[0]) {
-            alert('Could not find a route between these locations');
-            return;
+        if (mapboxToken) {
+            // Use Mapbox Directions API (better routing, more options)
+            const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson&access_token=${mapboxToken}`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.code !== 'Ok' || !data.routes || !data.routes[0]) {
+                throw new Error('Mapbox routing failed, falling back to OSRM');
+            }
+
+            const route = data.routes[0];
+            coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+            distanceKm = route.distance / 1000;
+            durationMin = Math.round(route.duration / 60);
+        } else {
+            // Fallback to OSRM (free, no API key)
+            const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.code !== 'Ok' || !data.routes || !data.routes[0]) {
+                alert('Could not find a route between these locations');
+                return;
+            }
+
+            const route = data.routes[0];
+            coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+            distanceKm = route.distance / 1000;
+            durationMin = Math.round(route.duration / 60);
         }
-
-        const route = data.routes[0];
-        const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
-        const distanceKm = route.distance / 1000;
-        const durationMin = Math.round(route.duration / 60);
 
         // Draw route
         window.routeSearchLayer = L.polyline(coords, {
@@ -727,25 +881,37 @@ async function getRouteFromSearch() {
             opacity: 0.8
         }).addTo(map);
 
-        // Add markers
+        // Add markers with improved pin design and offset popups
         window.routeSearchMarkerFrom = L.marker([from.lat, from.lng], {
             icon: L.divIcon({
                 className: 'route-marker-start',
-                html: '<div style="background:#4CAF50;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap;">Start</div>',
-                iconAnchor: [20, 10]
+                html: `<div class="route-marker-pin start">
+                    <div class="pin-icon"><span>A</span></div>
+                </div>`,
+                iconSize: [32, 40],
+                iconAnchor: [16, 40]
             })
-        }).addTo(map).bindPopup(`<b>From:</b> ${from.name}`);
+        }).addTo(map).bindPopup(`<b>Start:</b> ${from.name}`, { offset: [0, -35] });
 
         window.routeSearchMarkerTo = L.marker([to.lat, to.lng], {
             icon: L.divIcon({
                 className: 'route-marker-end',
-                html: '<div style="background:#f44336;color:white;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap;">End</div>',
-                iconAnchor: [15, 10]
+                html: `<div class="route-marker-pin end">
+                    <div class="pin-icon"><span>B</span></div>
+                </div>`,
+                iconSize: [32, 40],
+                iconAnchor: [16, 40]
             })
-        }).addTo(map).bindPopup(`<b>To:</b> ${to.name}`);
+        }).addTo(map).bindPopup(`<b>End:</b> ${to.name}`, { offset: [0, -35] });
 
-        // Store and fit bounds with proper padding for diary panel
+        // Store bounds and waypoints
         routeSearchState.routeBounds = window.routeSearchLayer.getBounds();
+        routeSearchState.waypoints = [
+            { lat: from.lat, lng: from.lng, name: from.name, marker: window.routeSearchMarkerFrom, label: 'A' },
+            { lat: to.lat, lng: to.lng, name: to.name, marker: window.routeSearchMarkerTo, label: 'B' }
+        ];
+
+        // Fit bounds with proper padding for diary panel
         const padding = (window.NavigationController && window.NavigationController.mapPadding)
             ? window.NavigationController.mapPadding
             : { paddingTopLeft: [50, 50], paddingBottomRight: [50, 50] };
@@ -754,12 +920,12 @@ async function getRouteFromSearch() {
             paddingBottomRight: padding.paddingBottomRight
         });
 
-        // Show route info popup
+        // Show route info popup (basic info first, elevation added async)
         const durationStr = durationMin >= 60
             ? `${Math.floor(durationMin/60)}h ${durationMin%60}m`
             : `${durationMin} min`;
 
-        L.popup()
+        const routePopup = L.popup()
             .setLatLng(coords[Math.floor(coords.length / 2)])
             .setContent(`
                 <div style="text-align:center;">
@@ -769,13 +935,47 @@ async function getRouteFromSearch() {
             `)
             .openOn(map);
 
-        // Show reset button and restore cursor
+        // Show controls and populate waypoint dropdown
         if (btnReset) btnReset.style.display = '';
+        populateWaypointSelect();
         if (btnGo) {
             btnGo.classList.remove('loading');
             btnGo.disabled = false;
         }
         document.body.style.cursor = '';
+
+        // Fetch elevation data asynchronously (don't block route display)
+        fetchRouteElevation(coords).then(elevationData => {
+            if (elevationData && elevationData.length > 0) {
+                const stats = calculateElevationStats(elevationData);
+                if (stats) {
+                    // Store elevation data for elevation panel and future use
+                    routeSearchState.elevationData = elevationData;
+                    routeSearchState.elevationStats = stats;
+
+                    // Update popup with elevation info
+                    let elevationHtml = '';
+                    if (stats.gain > 0 || stats.loss > 0) {
+                        elevationHtml = `<div style="color:#666;font-size:11px;margin-top:4px;">↑${stats.gain}m ↓${stats.loss}m</div>`;
+                    }
+
+                    routePopup.setContent(`
+                        <div style="text-align:center;">
+                            <div style="font-weight:600;margin-bottom:4px;">${distanceKm.toFixed(1)} km</div>
+                            <div style="color:#666;font-size:12px;">🚗 ${durationStr}</div>
+                            ${elevationHtml}
+                        </div>
+                    `);
+
+                    // Trigger elevation panel update if it's open
+                    if (typeof window.updateElevationChart === 'function') {
+                        window.updateElevationChart();
+                    }
+                }
+            }
+        }).catch(err => {
+            console.warn('Elevation fetch error:', err);
+        });
 
     } catch (err) {
         console.error('Routing error:', err);
@@ -809,6 +1009,87 @@ function resetRouteView() {
             window.map.flyTo([routeSearchState.from.lat, routeSearchState.from.lng], 16, { duration: 0.5 });
         }
     }
+}
+
+// Populate waypoint dropdown
+function populateWaypointSelect() {
+    const select = document.getElementById('waypointSelect');
+    if (!select) return;
+
+    // Clear existing options
+    select.innerHTML = '<option value="">Go to...</option>';
+
+    // Add waypoints
+    if (routeSearchState.waypoints && routeSearchState.waypoints.length > 0) {
+        routeSearchState.waypoints.forEach((wp, idx) => {
+            const option = document.createElement('option');
+            option.value = idx;
+            const label = wp.label ? `${wp.label}: ` : '';
+            // Truncate long names
+            const name = wp.name.length > 25 ? wp.name.substring(0, 22) + '...' : wp.name;
+            option.textContent = `${label}${name}`;
+            select.appendChild(option);
+        });
+        select.style.display = '';
+    } else {
+        select.style.display = 'none';
+    }
+}
+
+// Go to selected waypoint
+function gotoWaypoint(index) {
+    if (!window.map || index === '' || index === null) return;
+
+    const idx = parseInt(index);
+    const waypoint = routeSearchState.waypoints?.[idx];
+    if (!waypoint) return;
+
+    const map = window.map;
+    const targetZoom = 17;
+
+    // Get the map container size and padding
+    const mapSize = map.getSize();
+    const padding = (window.NavigationController && window.NavigationController.mapPadding)
+        ? window.NavigationController.mapPadding
+        : { paddingTopLeft: [0, 0], paddingBottomRight: [0, 0] };
+
+    // Calculate the center of the safe (unobstructed) area
+    // Safe area: from paddingTopLeft to (mapSize - paddingBottomRight)
+    const safeLeft = padding.paddingTopLeft[0];
+    const safeTop = padding.paddingTopLeft[1];
+    const safeRight = mapSize.x - padding.paddingBottomRight[0];
+    const safeBottom = mapSize.y - padding.paddingBottomRight[1];
+
+    // Center of safe area in pixels
+    const safeCenterX = (safeLeft + safeRight) / 2;
+    const safeCenterY = (safeTop + safeBottom) / 2;
+
+    // Map center in pixels
+    const mapCenterX = mapSize.x / 2;
+    const mapCenterY = mapSize.y / 2;
+
+    // Offset needed: how much the safe center differs from map center
+    const offsetX = safeCenterX - mapCenterX;
+    const offsetY = safeCenterY - mapCenterY;
+
+    // Convert waypoint to pixel at target zoom, apply offset, convert back to latlng
+    const targetPoint = map.project([waypoint.lat, waypoint.lng], targetZoom);
+    const offsetPoint = L.point(targetPoint.x - offsetX, targetPoint.y - offsetY);
+    const offsetLatLng = map.unproject(offsetPoint, targetZoom);
+
+    // Use setView (no animation) to avoid blurry tiles, then let tiles load
+    map.setView(offsetLatLng, targetZoom, { animate: false });
+
+    // Wait for tiles to load, then open popup
+    setTimeout(() => {
+        if (waypoint.marker) {
+            waypoint.marker.openPopup();
+        }
+    }, 400);
+
+    // Reset dropdown to placeholder
+    const select = document.getElementById('waypointSelect');
+    if (select) select.value = '';
 }
 
 // Set location from diary click

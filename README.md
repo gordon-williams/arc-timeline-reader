@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader
 
-**Current Build: 752**
+**Current Build: 762**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracking data that generates interactive diaries with maps.
 
@@ -54,6 +54,14 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracki
 - **Keyboard Navigation** - Arrow keys navigate between locations
 - **Auto-Geocoding** - Automatically adds suburb names via Mapbox/Nominatim
 - **Map Integration** - Click markers to pan map, click visits to jump to diary entry
+
+### Route Search
+- **From/To Navigation** - Search for routes between any two locations in your diary
+- **Mapbox/OSRM Routing** - Uses Mapbox Directions API when token available, falls back to free OSRM
+- **Elevation Profile** - Fetches elevation data via Open-Elevation API (up to 500 sample points)
+- **Elevation Stats** - Shows total climb (↑) and descent (↓) in route info popup
+- **Waypoint Navigation** - Dropdown to jump to start/end points, centered in safe map area
+- **Elevation Panel Integration** - Route elevation displays in the elevation graph panel
 
 ### Map Features
 - **Route Visualization** - Color-coded tracks by activity type
@@ -139,6 +147,8 @@ Access via gear icon or Settings button:
 
 - [Arc Timeline](https://www.bigpaua.com/arcapp) by Big Paua
 - [Leaflet.js](https://leafletjs.com/) for maps
+- [OSRM](https://project-osrm.org/) for free routing
+- [Open-Elevation](https://open-elevation.com/) for elevation data
 - [Chart.js](https://www.chartjs.org/) for charts
 - [Mapbox](https://www.mapbox.com/) for tiles and geocoding
 - [CARTO](https://carto.com/) for free map tiles

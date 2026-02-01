@@ -8003,16 +8003,32 @@ function moveMapSmart(latlng, zoom) {
         function showMonthMap() {
             if (!currentMonth || !generatedDiaries[currentMonth]) return;
 
+            // If elevation panel is visible, auto-select first day instead of showing month view
+            // This ensures elevation data is available when navigating between months/years
+            if (elevationPanelVisible) {
+                const diary = generatedDiaries[currentMonth];
+                const routesByDay = diary.routesByDay || {};
+                const allDays = Object.keys(routesByDay).sort();
+                if (allDays.length > 0) {
+                    showDayMap(allDays[0]);
+                    // Also update day navigation state
+                    currentDayIndex = 0;
+                    highlightAndScrollToDay(allDays[0]);
+                    updateDayNavButtons();
+                    return;
+                }
+            }
+
             // FIRST: Clear any existing layers to prevent flash of old content at wrong scale
             clearMapLayers();
 
             const diary = generatedDiaries[currentMonth];
             const routesByDay = diary.routesByDay || {};
-            
+
             // Combine all routes from all days
             const allRoutes = [];
             const allDays = Object.keys(routesByDay).sort();
-            
+
             // Set mode
             mapMode = 'month';
             currentDayKey = null;
@@ -8726,7 +8742,11 @@ function moveMapSmart(latlng, zoom) {
             }
             allRouteSegments = [];
         }
-        
+
+        // Expose map functions for external tools (map-tools.js)
+        window.clearMapLayers = clearMapLayers;
+        window.showDayMap = showDayMap;
+
         function drawColorCodedRoute(routePoints, options = {}) {
             if (!map || !routePoints || routePoints.length < 2) return;
             
@@ -10735,6 +10755,43 @@ scrollToDiaryDay(currentDayKey);
             if (!canvas || !map) return;
 
             const ctx = canvas.getContext('2d');
+            const bounds = map.getBounds();
+
+            // Check for route search elevation data first
+            const routeSearchElevation = window.routeSearchState?.elevationData;
+            if (routeSearchElevation && routeSearchElevation.length > 0 && window.routeSearchLayer) {
+                // Route search is active with elevation data - use it
+                const elevationPoints = routeSearchElevation.map((pt, idx, arr) => {
+                    // Calculate cumulative distance
+                    let distance = 0;
+                    if (idx > 0) {
+                        for (let i = 1; i <= idx; i++) {
+                            const prev = arr[i - 1];
+                            const curr = arr[i];
+                            distance += haversineDistanceKm(prev.lat, prev.lng, curr.lat, curr.lng);
+                        }
+                    }
+                    return {
+                        lat: pt.lat,
+                        lng: pt.lng,
+                        altitude: pt.elevation,
+                        distance: distance,
+                        color: '#667eea',  // Route search color
+                        activityType: 'driving'
+                    };
+                });
+
+                // Hide no-data message, show canvas
+                if (noDataEl) noDataEl.style.display = 'none';
+                canvas.style.display = 'block';
+
+                // Store data for tooltip interaction
+                elevationChartData = elevationPoints;
+
+                // Render the chart
+                renderElevationChart(ctx, canvas, elevationPoints);
+                return;
+            }
 
             // Check if we're in day mode - elevation only works for specific days
             if (mapMode !== 'day' || !currentDayKey) {
@@ -10747,8 +10804,6 @@ scrollToDiaryDay(currentDayKey);
                 elevationChartData = null;
                 return;
             }
-
-            const bounds = map.getBounds();
 
             // Get visible routes with elevation data
             const visibleElevationData = getVisibleElevationData(bounds);
@@ -16208,6 +16263,7 @@ if (typeof closeElevationPanel === 'function') window.closeElevationPanel = clos
 if (typeof closeTransparencyPopup === 'function') window.closeTransparencyPopup = closeTransparencyPopup;
 if (typeof startDragModal === 'function') window.startDragModal = startDragModal;
 if (typeof updateAnimationSpeed === 'function') window.updateAnimationSpeed = updateAnimationSpeed;
+if (typeof updateElevationChart === 'function') window.updateElevationChart = updateElevationChart;
 if (typeof updateMapRoutes === 'function') window.updateMapRoutes = updateMapRoutes;
 if (typeof updateTransparencyValue === 'function') window.updateTransparencyValue = updateTransparencyValue;
 if (typeof zoomIn === 'function') window.zoomIn = zoomIn;
