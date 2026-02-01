@@ -1,5 +1,13 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 765 (2026-02-02)
+
+### Fix - Close Search Popup When Closing Diary
+- **Also close on diary exit**: Search popup now closes when closing the diary reader (not just Import Data)
+- **Root cause**: Popup is a child of document body, not the modal overlay, so it persisted when modal hid
+
+---
+
 ## Build 764 (2026-02-02)
 
 ### Enhancement - Redesigned Acknowledgements Modal

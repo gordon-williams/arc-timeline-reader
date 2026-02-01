@@ -5508,6 +5508,11 @@ function moveMapSmart(latlng, zoom) {
             modalOverlay.style.display = 'none';
             document.body.style.overflow = 'auto';
 
+            // Close route search popup if open
+            if (typeof window.closeSearchPopup === 'function') {
+                window.closeSearchPopup();
+            }
+
 				// Just reset the search UI state.
 				searchInput.value = '';
 				searchCount.textContent = '';
