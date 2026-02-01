@@ -1,5 +1,14 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 752 (2026-02-02)
+
+### Fix - Replay Popup Alignment
+- **Popup now aligns with sprite**: Location popup signs now appear directly above the sprite marker instead of at the location's database coordinates
+- **Consistent behavior**: Fixed in all code paths - animation arrival, seeking by timeline, and seeking by time
+- **Problem was**: Popup was anchored to location coords from database, while sprite was at nearest GPS route point (often 50-200m away)
+
+---
+
 ## Build 738 (2026-02-01)
 
 ### Fix - Route Search Modal UI

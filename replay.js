@@ -509,6 +509,7 @@ class ReplayController {
         this.updateSpeedometer(0);
     }
 
+
     /**
      * Build ordered stops array - locations in chronological visit order (like railway stations).
      * Each stop records its distance along the route for positioning on the timeline.
@@ -925,9 +926,9 @@ class ReplayController {
             const distanceToEnd = this.state.totalDistance - locationStop.distance;
             const isFinalDestination = distanceToEnd < 100;
 
-            const popupLat = locationStop.lat ?? point.lat;
-            const popupLng = locationStop.lng ?? point.lng;
-            this.showLocationPopup(popupLat, popupLng, locationStop.name, locationStop.time, true);
+            // Position popup at sprite location (route point), not location's database coords
+            // This ensures the popup appears directly above the sprite marker
+            this.showLocationPopup(point.lat, point.lng, locationStop.name, locationStop.time, true);
 
             this.updatePosition(locationStop.index);
             this.centerOnPoint(point.lat, point.lng);
@@ -1063,7 +1064,8 @@ class ReplayController {
                         const visitKey = `${locationName}_${visitStart}`;
                         if (!this.state.visitedLocations.has(visitKey)) {
                             this.state.visitedLocations.add(visitKey);
-                            this.showLocationPopup(loc.lat, loc.lng, locationName, currentTime);
+                            // Position popup at sprite location (lat, lng), not location's database coords
+                            this.showLocationPopup(lat, lng, locationName, currentTime);
                             this.state.pauseUntil = performance.now() + 3000;
                         }
                         return;
@@ -1077,7 +1079,8 @@ class ReplayController {
                     const visitKey = `${locationName}_${visitStart}`;
                     if (!this.state.visitedLocations.has(visitKey)) {
                         this.state.visitedLocations.add(visitKey);
-                        this.showLocationPopup(loc.lat, loc.lng, locationName, visitStart);
+                        // Position popup at sprite location (lat, lng), not location's database coords
+                        this.showLocationPopup(lat, lng, locationName, visitStart);
                         this.state.pauseUntil = performance.now() + 3000;
                     }
                     return;
@@ -1087,7 +1090,8 @@ class ReplayController {
                 if (distMeters < 50) {
                     if (!this.state.visitedLocations.has(locationName)) {
                         this.state.visitedLocations.add(locationName);
-                        this.showLocationPopup(loc.lat, loc.lng, locationName, currentTime);
+                        // Position popup at sprite location (lat, lng), not location's database coords
+                        this.showLocationPopup(lat, lng, locationName, currentTime);
                         this.state.pauseUntil = performance.now() + 3000;
                     }
                     return;
@@ -1514,14 +1518,12 @@ class ReplayController {
             }
         }
 
-        // If we landed at a location, show its popup and center on it
+        // If we landed at a location, show its popup at sprite position (route point)
         if (currentLocation) {
             const locName = currentLocation.name || currentLocation.location || 'Unknown';
-            this.showLocationPopup(currentLocation.lat, currentLocation.lng, locName, currentTime);
-            this.centerOnPoint(currentLocation.lat, currentLocation.lng);
-        } else {
-            this.centerOnPoint(point.lat, point.lng);
+            this.showLocationPopup(point.lat, point.lng, locName, currentTime);
         }
+        this.centerOnPoint(point.lat, point.lng);
     }
 
     seekToTime(targetTime) {
@@ -1603,13 +1605,12 @@ class ReplayController {
             }
         }
 
+        // If we landed at a location, show its popup at sprite position (route point)
         if (currentLocation) {
             const locName = currentLocation.name || currentLocation.location || 'Unknown';
-            this.showLocationPopup(currentLocation.lat, currentLocation.lng, locName, targetTime);
-            this.centerOnPoint(currentLocation.lat, currentLocation.lng);
-        } else {
-            this.centerOnPoint(point.lat, point.lng);
+            this.showLocationPopup(point.lat, point.lng, locName, targetTime);
         }
+        this.centerOnPoint(point.lat, point.lng);
     }
 
     // ===== Control Methods =====
@@ -1670,6 +1671,7 @@ class ReplayController {
         }
 
         this.hideLocationPopup();
+
 
         this.state.marker = null;
         this.state.routeData = null;

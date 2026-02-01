@@ -9,3 +9,18 @@ Thumbs.db
 
 # Distribution zips (can be regenerated)
 *.zip
+
+# Test data and backups (large files)
+Backups/
+Screenshots/
+arc-timeline-daily.*.json
+*.json.gz
+
+# Debug and development files
+Console*.txt
+CONSOLE_FUNCTIONS.md
+*backup*.js
+Import report.txt
+
+# Local development
+PhotoMapper.html
