@@ -32,7 +32,7 @@ SOFTWARE.
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"  crossorigin="anonymous" />
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = 707;
+  window.__ARC_BUILD__ = 749;
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -254,58 +254,47 @@ SOFTWARE.
                     </div>
                 </div>
                 
-                <!-- Location search (left of map styles) -->
-                <div class="control-popup-wrapper">
-                    <button class="map-filter-btn" id="searchBtn" onclick="toggleSearchPopup()" title="Search location" style="display: none;">
-                        🔍
-                    </button>
-                    <div class="search-popup" id="searchPopup" style="display: none;">
-                        <input type="text" id="locationSearchInput" placeholder="Search location..." onkeydown="handleSearchKeydown(event)">
-                        <div class="search-results" id="searchResults"></div>
-                    </div>
-                </div>
-                
-                <!-- Measurement tool -->
-                <button class="map-filter-btn" id="measureBtn" onclick="toggleMeasureTool()" title="Measure distance" style="display: none;">
-                    📏
-                </button>
-                
                 <!-- Map style selector -->
                 <select class="map-filter-btn" id="mapStyleSelector" onchange="changeMapStyle()" style="display: none;">
                     <option value="street">Street</option>
                     <option value="cycle">Cycle</option>
                     <option value="satellite">Satellite</option>
                 </select>
-                
+
                 <!-- Map controls on the RIGHT -->
                 <div class="map-controls-inline">
-                    <!-- Transparency control wrapper -->
-                    <div class="control-popup-wrapper">
-                        <button class="map-filter-btn" id="transparencyBtn" onclick="toggleTransparencySlider()" title="Adjust interface transparency" style="display: none;">
-                            💧
-                        </button>
-                        <!-- Transparency slider popup -->
-                        <div class="transparency-slider-popup" id="transparencySliderPopup" style="display: none;">
-                            <label>Interface transparency:</label>
-                            <input type="range" id="transparencySlider" min="0" max="100" step="1" value="5" oninput="updateTransparencyValue()">
-                            <div style="display: flex; align-items: center; margin-top: 8px;">
-                                <span id="transparencyValue">5%</span>
-                                <button class="btn-transparency-reset" onclick="resetTransparencySetting()" style="margin-left: auto; margin-right: 8px;">Reset</button>
-                                <button class="btn-transparency-set" onclick="saveTransparencySetting()">Set</button>
+                    <!-- Tools dropdown menu -->
+                    <div class="tools-dropdown-wrapper">
+                        <button class="map-filter-btn" id="toolsBtn" onclick="toggleToolsDropdown()" title="Tools" style="display: none;">Tools</button>
+                        <div class="tools-dropdown-menu" id="toolsDropdownMenu">
+                            <div class="tools-dropdown-item" onclick="selectToolFromDropdown('search')">
+                                <span class="tools-dropdown-icon">🔍</span>
+                                <span>Search Location</span>
+                            </div>
+                            <div class="tools-dropdown-item" onclick="selectToolFromDropdown('measure')">
+                                <span class="tools-dropdown-icon">📏</span>
+                                <span>Measure Distance</span>
+                            </div>
+                            <div class="tools-dropdown-item" onclick="selectToolFromDropdown('elevation')">
+                                <span class="tools-dropdown-icon">📈</span>
+                                <span>Elevation Profile</span>
+                            </div>
+                            <div class="tools-dropdown-divider"></div>
+                            <div class="tools-dropdown-item" onclick="selectToolFromDropdown('transparency')">
+                                <span class="tools-dropdown-icon">💧</span>
+                                <span>Transparency</span>
+                            </div>
+                            <div class="tools-dropdown-item" onclick="selectToolFromDropdown('animation')">
+                                <span class="tools-dropdown-icon">🎬</span>
+                                <span>Day Animation</span>
+                            </div>
+                            <div class="tools-dropdown-item" onclick="selectToolFromDropdown('filter')">
+                                <span class="tools-dropdown-icon">🎯</span>
+                                <span>Activity Filter</span>
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Day Replay control wrapper -->
-                    <div class="control-popup-wrapper">
-                        <button class="map-filter-btn" id="dayReplayBtn" onclick="toggleReplayController()" title="Day Replay - Animate through your day" style="display: none;">
-                            🎬
-                        </button>
-                    </div>
-                    
-                    <button class="map-filter-btn" id="mapFilterBtn" onclick="toggleMapFilters()" style="display: none;">
-                        Filter
-                    </button>
+
                     <button class="map-filter-btn" id="mapSaveBtn" onclick="saveMapAsImage()" style="display: none;">
                         Save
                     </button>
@@ -327,6 +316,24 @@ SOFTWARE.
                         <div class="map-placeholder-text">Loading map...</div>
                     </div>
                     
+                    <!-- Elevation Profile Panel -->
+                    <div class="elevation-panel" id="elevationPanel" style="display: none;">
+                        <div class="elevation-header">
+                            <span class="elevation-title">Elevation Profile</span>
+                            <button class="elevation-close" onclick="closeElevationPanel()">&times;</button>
+                        </div>
+                        <div class="elevation-content">
+                            <canvas id="elevationCanvas"></canvas>
+                            <div class="elevation-cursor" id="elevationCursor"></div>
+                            <div class="elevation-tooltip" id="elevationTooltip" style="display: none;">
+                                <div class="elevation-tooltip-value" id="elevationTooltipValue"></div>
+                            </div>
+                            <div class="elevation-no-data" id="elevationNoData" style="display: none;">
+                                <span>No elevation data for visible routes</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Day Replay Controller -->
                     <div class="replay-controller" id="replayController" style="display: none;">
                         <!-- Digital speedometer (left side) -->
@@ -625,5 +632,51 @@ SOFTWARE.
     if (document.title && document.title.indexOf('Build') === -1) document.title = document.title + ' • Build ' + b;
   })();
 </script>
+
+<!-- Tool Modals - Outside any containers with transforms/filters for proper fixed positioning -->
+
+<!-- Route Search Modal - Intuitive From/To interface -->
+<div class="search-popup" id="searchPopup" style="display: none;">
+    <div class="modal-drag-header" onmousedown="startDragModal(event, 'searchPopup')">
+        <span class="modal-title">Route Search</span>
+        <button class="modal-close" onclick="closeSearchPopup()">×</button>
+    </div>
+    <div class="search-content">
+        <div class="search-field-group">
+            <div class="search-field">
+                <label for="searchFromInput">From:</label>
+                <input type="text" id="searchFromInput" placeholder="Starting point..." oninput="onSearchInput('from')" onfocus="onSearchFocus('from')">
+                <div class="search-results" id="searchResultsFrom"></div>
+            </div>
+            <div class="search-field">
+                <label for="searchToInput">To:</label>
+                <input type="text" id="searchToInput" placeholder="Destination..." oninput="onSearchInput('to')" onfocus="onSearchFocus('to')">
+                <div class="search-results" id="searchResultsTo"></div>
+            </div>
+        </div>
+        <div class="search-actions">
+            <button class="btn-search-clear" onclick="clearRouteSearch()">Clear</button>
+            <button class="btn-search-reset" id="btnResetView" onclick="resetRouteView()" style="display: none;">Reset View</button>
+            <button class="btn-search-route" id="btnGetRoute" onclick="getRouteFromSearch()" disabled>Go</button>
+        </div>
+    </div>
+</div>
+
+<div class="transparency-slider-popup" id="transparencySliderPopup" style="display: none;">
+    <div class="modal-drag-header" onmousedown="startDragModal(event, 'transparencySliderPopup')">
+        <span class="modal-title">Transparency</span>
+        <button class="modal-close" onclick="closeTransparencyPopup()">×</button>
+    </div>
+    <div class="transparency-content">
+        <label>Interface transparency:</label>
+        <input type="range" id="transparencySlider" min="0" max="100" step="1" value="5" oninput="updateTransparencyValue()">
+        <div style="display: flex; align-items: center; margin-top: 8px;">
+            <span id="transparencyValue">5%</span>
+            <button class="btn-transparency-reset" onclick="resetTransparencySetting()" style="margin-left: auto; margin-right: 8px;">Reset</button>
+            <button class="btn-transparency-set" onclick="saveTransparencySetting()">Set</button>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>

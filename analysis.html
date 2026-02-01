@@ -218,7 +218,7 @@
             background: var(--bg-input);
             color: var(--text-primary);
             outline: none;
-            width: 70px;
+            width: 84px;
             transition: all 0.15s ease;
         }
 
@@ -244,7 +244,7 @@
             color: var(--text-primary);
             outline: none;
             cursor: pointer;
-            max-width: 150px;
+            max-width: 300px;
             transition: all 0.15s ease;
         }
 
@@ -5264,9 +5264,8 @@
             events.forEach(event => {
                 const option = document.createElement('option');
                 option.value = event.eventId;
-                const dateRange = `${event.startDate} → ${event.endDate}`;
-                option.textContent = `${event.name} (${dateRange})`;
-                option.title = event.description || '';
+                option.textContent = event.name;
+                option.title = `${event.startDate} → ${event.endDate}${event.description ? '\n' + event.description : ''}`;
                 selector.appendChild(option);
             });
         }

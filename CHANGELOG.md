@@ -1,5 +1,182 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 738 (2026-02-01)
+
+### Fix - Route Search Modal UI
+- **Close button placement**: Added `flex: 1` to title and `flex-shrink: 0` to close button for proper positioning
+- **Dropdown list overflow**: Changed popup `overflow` from `hidden` to `visible` so dropdowns can extend outside
+- **Dropdown z-index**: Increased dropdown z-index to 2001 to appear above the modal
+- **Compact list items**: Reduced padding (6px 10px) and line-height (1.3) for more items in view
+- **Removed border line**: Removed `border-top` from first search result item
+- **Route zoom fix**: Now uses `NavigationController.mapPadding` to account for diary panel when fitting route bounds
+
+## Build 737 (2026-02-01)
+
+### Fix - Route Search Go Button
+- **Exposed map globally**: Added `window.map = map` after map initialization
+- **Route search now works**: `getRouteFromSearch()` in map-tools.js can now access the Leaflet map instance
+
+## Build 736 (2026-02-01)
+
+### Fix - Diary Location Click for Route Search
+- **Fixed diary click targeting**: Was targeting `.location-section` which only exists in Analysis mode
+- **Now targets diary entries**: Finds `<li>` elements containing `.location-data` spans with lat/lng
+- **Gets location name**: Extracts location name from `data-location` attribute
+- **Supports both modes**: Works in regular diary view AND Analysis mode location list
+- **Updated CSS**: Added hover styling for `li.route-clickable` entries
+
+## Build 735 (2026-02-01)
+
+### Refactor - Route Search Moved to map-tools.js
+- **Moved route search**: All route search functions moved from app.js to map-tools.js where map tools belong
+- **Functions moved**: activateLocationSearch, closeSearchPopup, clearRouteSearch, onSearchFocus, onSearchInput, performRouteSearch, selectRouteLocation, getRouteFromSearch, resetRouteView, setRouteLocationFromDiary, hasActiveRouteSearch
+- **Uses window.map**: Functions now reference `window.map` since map is defined in app.js
+- **Clean separation**: app.js handles diary/UI logic, map-tools.js handles all map tool functionality
+
+## Build 734 (2026-02-01)
+
+### Cleanup - Removed Old LocationSearch Class
+- **Deleted LocationSearch class**: Removed entire 800-line class from map-tools.js (was causing conflicts)
+- **Removed bridge functions**: Deleted toggleSearchPopup, handleSearchKeydown, selectSearchResult, hasActiveLocationRoute
+- **Updated references**: All code now uses the new Route Search modal
+- **Cleaned up initialization**: Removed `window.locationSearch = new LocationSearch(map)` from map setup
+- **Updated refit logic**: NavigationController now uses `window.routeSearchLayer` instead of old class
+
+## Build 732 (2026-02-01)
+
+### Enhancement - Improved Route Search
+- **Renamed button**: "Get Route" button renamed to "Go" for simplicity
+- **Single location support**: Go button enabled when only From is entered - navigates directly to that location
+- **Diary location clicks**: Click any location name in the diary to populate From/To fields when search modal is open
+- **Visual feedback**: Diary locations show crosshair cursor and highlight when clickable
+- **Keep modal open**: Modal stays open after navigation for further interactions
+- **Reset View button**: New button appears after navigation to reset the map view to show the route/location
+- **Clear improvements**: Clear button now properly removes all route elements from the map
+
+## Build 731 (2026-02-01)
+
+### Feature - Intuitive Route Search UI
+- **From/To fields**: New dual-field interface - enter starting point and destination separately
+- **Auto-complete search**: Type to search, results appear in dropdown below each field
+- **Visual feedback**: Fields highlight when location is selected
+- **Go button**: Enabled when From location is selected
+- **Clear button**: Reset both fields and remove route from map
+- **Auto-focus**: After selecting From, automatically focuses To field
+- **Route display**: Shows route line, start/end markers, distance and duration popup
+
+## Build 728 (2026-02-01)
+
+### Fixes - Modal Fixed Positioning
+- **Moved modals to body**: Modals now placed at end of `<body>`, outside any containers with transforms/filters
+- **Root cause fixed**: `backdrop-filter` on parent `.modal-header` was creating a new containing block, breaking `position: fixed`
+- **True viewport centering**: Modals now properly center relative to the viewport, not a transformed parent
+
+## Build 727 (2026-02-01)
+
+### Fixes - Simple CSS Centering for Modals
+- **CSS-based centering**: Modals now use `position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%)` for reliable centering
+- **Removed complex JS positioning**: Deleted `positionModalInSafeSpace()` function - CSS handles initial centering
+- **Drag converts to absolute**: When dragging starts, converts from CSS transform centering to explicit left/top positioning
+- **Reset on reopen**: Modals reset to center position each time they're opened
+
+## Build 725 (2026-02-01)
+
+### Fixes - Modal Positioning and Drag
+- **Centered positioning**: Modals now center both horizontally AND vertically in safe space
+- **Pre-measure dimensions**: Temporarily shows modal with visibility:hidden to get accurate dimensions before positioning
+- **Fixed drag with routes**: Added stopPropagation and capture phase listeners to prevent map from intercepting drag events
+- **Respects bottom margin**: Accounts for elevation panel or other bottom margins when centering
+
+## Build 724 (2026-02-01)
+
+### Feature - Draggable Tool Modals
+- **New draggable modals**: Search Location and Transparency tools are now floating draggable modals
+- **Safe space positioning**: Modals open centered in the safe map space (between Diary and Stats panels)
+- **Drag header**: Click and drag the header bar to move modals anywhere on screen
+- **Close button**: Each modal has a close button in the header
+- **AppleTV style**: Frosted glass design matching other floating panels
+- **Uses NavigationController.margins**: Respects panel visibility for smart positioning
+
+## Build 722 (2026-02-01)
+
+### Fixes - Popup Positioning and Visibility
+- **Removed wrapper divs**: Eliminated unnecessary wrapper elements that were blocking popup visibility
+- **Fixed CSS override**: Use `right: unset` instead of `right: auto` to properly override CSS fixed positioning
+- **Simplified HTML**: Popups now exist directly without wrapper containers
+- **Search Location popup**: Positions directly below the Tools button
+- **Transparency popup**: Positions directly below the Tools button
+- **Mutual exclusivity**: Opening one popup closes the other
+
+## Build 720 (2026-02-01)
+
+### Fixes - Tools Dropdown and Safari Animation Flash
+- **Search Location tool**: Now properly shows wrapper element so popup is visible
+- **Transparency tool**: Now properly shows wrapper element so popup is visible
+- **Safari animation flash fix**: Animation player now sets opacity to 0 before displaying, positions, then reveals - prevents brief flash at default position in Safari
+
+## Build 718 (2026-02-01)
+
+### Fixes - Elevation Panel Dark Map Visibility
+- **Increased background opacity**: Panel background changed from 5% to 85% white for visibility on dark map styles
+- **Added subtle border**: Thin border helps panel stand out against any map background
+- **Enhanced shadow**: Stronger drop shadow provides depth separation from map
+- **Works on all map styles**: Panel now readable on satellite, dark, and light map themes
+
+## Build 717 (2026-02-01)
+
+### Enhancement - Elevation Chart Activity Colors
+- **Activity-colored fill**: Chart fill now uses activity-specific colors instead of generic blue
+- **Gradient per segment**: Each segment has its own gradient fill matching the activity type (walking, cycling, driving, etc.)
+- **Improved visibility**: Color-coded fills make it easier to identify activity types at a glance
+
+## Build 716 (2026-02-01)
+
+### Fixes - Elevation Panel Map Refit
+- **Map refit on panel open/close**: Removed `noRefit: true` so map properly adjusts bounds when elevation panel opens or closes
+- **Works in month view**: Map content now shifts up to avoid panel even in month overview mode
+
+## Build 715 (2026-02-01)
+
+### Fixes - Elevation Panel UX
+- **Smart tooltip positioning**: Tooltip now flips to left side of cursor when near right edge of panel
+- **Day mode requirement**: Panel now shows "Select a specific day to view elevation profile" when in month view
+
+## Build 714 (2026-02-01)
+
+### Fixes - Elevation Panel Integration
+- **Bottom margin registration**: Panel now registers with NavigationController.margins.bottom so map content avoids the panel area
+- **Tools button styling**: Fixed popup-open state not showing blue background (was being overridden by modal-header !important rules)
+
+## Build 713 (2026-02-01)
+
+### Fixes - Elevation Panel Refinements
+- **Dynamic positioning**: Panel now uses NavigationController.margins for safe space positioning
+- **Auto-reposition**: Panel repositions when diary/stats panels open/close
+- **Larger map marker**: Increased elevation crosshair marker from 16px to 28px for visibility
+- **Tooltip overflow**: Fixed tooltip being truncated at panel edge
+- **Proper margins**: Increased buffer to 30px so panel doesn't touch diary/stats panels
+- **No filter reset**: Fixed bug where opening elevation panel was resetting activity filters
+
+## Build 712 (2026-02-01)
+
+### Feature - Elevation Profile Panel
+- **New Elevation Profile**: Floating panel showing altitude vs distance for visible routes
+- **Interactive chart**: Hover to see altitude, distance, and grade at any point
+- **Map marker sync**: Crosshair marker appears on map at hovered position
+- **Visible routes only**: Chart only shows routes currently visible in map viewport
+- **Activity colors**: Chart line segments colored by activity type (walking, cycling, driving)
+- **Auto-update**: Chart updates when panning/zooming map or changing filters
+
+### Feature - Tools Dropdown Menu
+- **Consolidated toolbar**: Search, Measure, Elevation, Transparency, Animation, and Filter tools now in single "Tools" dropdown
+- **Cleaner UI**: Reduces toolbar clutter while keeping all tools accessible
+- **Mutual exclusivity**: Elevation panel and Animation player share same space - opening one closes the other
+
+### Technical
+- Elevation uses existing altitude data from Arc Timeline imports
+- Canvas-based chart rendering with retina display support
+- Haversine distance calculation for accurate distance measurements
+
 ## Build 711 (2026-01-20)
 
 ### Improvement - Event Slider UX Refinements

@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader - Handoff Document
 
-## Current Build: 695
+## Current Build: 700
 
 ## Project Overview
 A web-based viewer for Arc Timeline GPS tracking data that generates interactive diaries with maps. Single-file HTML applications with no server required.
@@ -98,7 +98,7 @@ The replay system animates the user's day as a journey, showing a sprite moving 
 - `selectedDayKey` - YYYY-MM-DD of day being replayed
 - `visitedLocations` - Set of locations already shown (prevents duplicates)
 
-### Recent Replay Fixes (Builds 686-694)
+### Recent Replay Fixes (Builds 686-696)
 - **Build 687**: Timeline bar changed from DISTANCE to TIME-based (reverted in 694)
 - **Build 688**: Diary clicks work during replay
   - Same day: pause and seek to entry's start time
@@ -113,6 +113,8 @@ The replay system animates the user's day as a journey, showing a sprite moving 
   - All timeline components now consistent: markers, progress bar, seeking all use distance
   - Clicking 50% on timeline = 50% of trip distance traveled
   - Long stays at one location take minimal space on timeline (trip player concept)
+- **Build 696**: Fixed popup double-showing when arriving at locations
+  - Added `visitedLocations.add()` in `checkLocationArrival()` before showing popup
 
 ### Important Design Decisions
 - Timeline uses DISTANCE (not time) - this is a "trip player" where staying at one location for hours doesn't dominate the timeline

@@ -5646,7 +5646,12 @@ function moveMapSmart(latlng, zoom) {
                 if (margins.bottom !== undefined) this.#margins.bottom = margins.bottom;
                 
                 logDebug(`🗺️ updateMargins: L=${this.#margins.left} slider=${this.#margins.sliderLeft} R=${this.#margins.right} T=${this.#margins.top}`);
-                
+
+                // Reposition elevation panel if visible
+                if (typeof positionElevationPanel === 'function') {
+                    positionElevationPanel();
+                }
+
                 // Skip refit entirely if explicitly requested (caller handles positioning)
                 if (noRefit) {
                     if (map) map.invalidateSize();
@@ -5667,9 +5672,9 @@ function moveMapSmart(latlng, zoom) {
                         return;
                     }
                     
-                    // If location route is active, refit to route bounds (not diary data)
-                    if (window.locationSearch && window.locationSearch.hasActiveRoute) {
-                        window.locationSearch.refitRoute();
+                    // If route search has active route, refit to those bounds
+                    if (window.routeSearchLayer) {
+                        map.fitBounds(window.routeSearchLayer.getBounds(), { padding: [50, 50] });
                         return;
                     }
                     
@@ -5830,9 +5835,9 @@ function moveMapSmart(latlng, zoom) {
                 
                 logDebug(`🎯 NavigationController.selectMonth(${monthKey})`);
                 
-                // Clear location route if active (user is returning to diary mode)
-                if (window.locationSearch && window.locationSearch.hasActiveRoute) {
-                    window.locationSearch.clearRoute();
+                // Clear route search if active (user is returning to diary mode)
+                if (window.routeSearchLayer) {
+                    clearRouteSearch();
                     if (typeof showDiaryRoutes === 'function') {
                         showDiaryRoutes();
                     }
@@ -5860,9 +5865,9 @@ function moveMapSmart(latlng, zoom) {
                 this.#renderVersion++;
                 logDebug(`🎯 NavigationController.selectDay(${dayKey})`);
                 
-                // Clear location route if active (user is returning to diary mode)
-                if (window.locationSearch && window.locationSearch.hasActiveRoute) {
-                    window.locationSearch.clearRoute();
+                // Clear route search if active (user is returning to diary mode)
+                if (window.routeSearchLayer) {
+                    clearRouteSearch();
                     if (typeof showDiaryRoutes === 'function') {
                         showDiaryRoutes();
                     }
@@ -5949,9 +5954,9 @@ function moveMapSmart(latlng, zoom) {
                     }
                 }
 
-                // Clear location route if active (user is returning to diary mode)
-                if (window.locationSearch && window.locationSearch.hasActiveRoute) {
-                    window.locationSearch.clearRoute();
+                // Clear route search if active (user is returning to diary mode)
+                if (window.routeSearchLayer) {
+                    clearRouteSearch();
                     if (typeof showDiaryRoutes === 'function') {
                         showDiaryRoutes();
                     }
@@ -6951,14 +6956,14 @@ function moveMapSmart(latlng, zoom) {
                 monthMapTitle.classList.add('month-title-clickable');
                 
                 monthMapTitle.addEventListener('click', function() {
-                    // Clear location route if active (user is returning to diary mode)
-                    if (window.locationSearch && window.locationSearch.hasActiveRoute) {
-                        window.locationSearch.clearRoute();
+                    // Clear route search if active (user is returning to diary mode)
+                    if (window.routeSearchLayer) {
+                        clearRouteSearch();
                         if (typeof showDiaryRoutes === 'function') {
                             showDiaryRoutes();
                         }
                     }
-                    
+
                     currentDayIndex = -1;
                     clearDayHighlights();
                     showMonthMap();
@@ -7026,7 +7031,13 @@ function moveMapSmart(latlng, zoom) {
             
             // Attach all click handlers (locations, activities, day titles, month title)
             attachDiaryClickHandlers();
-            
+
+            // Re-enable route search click mode if search popup is open
+            const searchPopup = document.getElementById('searchPopup');
+            if (searchPopup && searchPopup.style.display !== 'none' && typeof enableDiaryLocationClickMode === 'function') {
+                enableDiaryLocationClickMode();
+            }
+
             // Update favourite tags based on current favourites
             updateFavouriteTags();
 
@@ -7275,9 +7286,9 @@ function moveMapSmart(latlng, zoom) {
 
                 // Initialize measurement tool now that map exists
                 window.measurementTool = new MeasurementTool(map);
-                
-                // Initialize location search
-                window.locationSearch = new LocationSearch(map);
+
+                // Expose map globally for map-tools.js (route search, etc.)
+                window.map = map;
             }
             
             // Setup resize observer
@@ -8013,17 +8024,13 @@ function moveMapSmart(latlng, zoom) {
             const [year, month] = currentMonth.split('-');
             const monthName = new Date(year, month - 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
             document.getElementById('mapPanelTitle').textContent = `All routes — ${monthName}`;
-            
+
             // Show controls
-            document.getElementById('searchBtn').style.display = 'block';
-            document.getElementById('measureBtn').style.display = 'block';
-            document.getElementById('mapFilterBtn').style.display = 'block';
+            document.getElementById('toolsBtn').style.display = 'block';
             document.getElementById('mapSaveBtn').style.display = 'block';
             document.getElementById('mapStyleSelector').style.display = 'block';
             updateMapStyleOptions(); // Update options based on Mapbox availability
             document.getElementById('mapStyleSelector').value = currentMapStyle;
-            document.getElementById('transparencyBtn').style.display = 'block';
-            document.getElementById('dayReplayBtn').style.display = 'block';
             
             // Populate activity filters
             const activities = getUniqueActivitiesFromRoutes(routesByDay);
@@ -8184,17 +8191,13 @@ function moveMapSmart(latlng, zoom) {
             
             // Update title (Use backticks for template literal)
             document.getElementById('mapPanelTitle').textContent = `All locations — ${formatDate(dayKey)}`;
-            
+
             // Show controls
-            document.getElementById('searchBtn').style.display = 'block';
-            document.getElementById('measureBtn').style.display = 'block';
-            document.getElementById('mapFilterBtn').style.display = 'block';
+            document.getElementById('toolsBtn').style.display = 'block';
             document.getElementById('mapSaveBtn').style.display = 'block';
             document.getElementById('mapStyleSelector').style.display = 'block';
             updateMapStyleOptions(); // Update options based on Mapbox availability
             document.getElementById('mapStyleSelector').value = currentMapStyle;
-            document.getElementById('transparencyBtn').style.display = 'block';
-            document.getElementById('dayReplayBtn').style.display = 'block';
             
             // Populate activity filters
             if (routeData) {
@@ -10109,43 +10112,39 @@ scrollToDiaryDay(currentDayKey);
         
         function toggleTransparencySlider() {
             const popup = document.getElementById('transparencySliderPopup');
-            const btn = document.getElementById('transparencyBtn');
             if (!popup) return;
-            
+
             // Close other popups if open
-            const animPopup = document.getElementById('animationSettingsPopup');
-            const animBtn = document.getElementById('animationBtn');
-            if (animPopup && animPopup.style.display === 'block') {
-                animPopup.style.display = 'none';
-                if (animBtn) animBtn.classList.remove('popup-open');
-            }
             const searchPopup = document.getElementById('searchPopup');
-            const searchBtn = document.getElementById('searchBtn');
             if (searchPopup && searchPopup.style.display === 'block') {
-                searchPopup.style.display = 'none';
-                if (searchBtn) searchBtn.classList.remove('popup-open');
+                closeSearchPopup();
             }
-            
+
             if (popup.style.display === 'none' || popup.style.display === '') {
+                // Reset position to CSS default (centered via transform)
+                popup.style.left = '';
+                popup.style.top = '';
+                popup.style.transform = '';
+
+                // Show popup (CSS will center it)
                 popup.style.display = 'block';
-                if (btn) btn.classList.add('popup-open');
-                
+
                 // Immediately unfocus diary so user can see the transparency effect
                 const diaryFloat = document.querySelector('.diary-float');
                 if (diaryFloat && !diaryFloat.classList.contains('unfocused')) {
                     diaryFloat.classList.add('unfocused');
                 }
-                
+
                 // Always initialize slider with current opacity value
                 const slider = document.getElementById('transparencySlider');
                 if (slider && diaryFloat) {
                     const currentOpacity = parseFloat(diaryFloat.dataset.unfocusedOpacity) || 0.05;
-                    
+
                     // Set flag to prevent oninput from marking this as custom
                     slider.dataset.programmaticUpdate = 'true';
                     slider.value = Math.round(currentOpacity * 100);
                     delete slider.dataset.programmaticUpdate;
-                    
+
                     // Update the display
                     const valueDisplay = document.getElementById('transparencyValue');
                     if (valueDisplay) {
@@ -10153,8 +10152,8 @@ scrollToDiaryDay(currentDayKey);
                     }
                 }
             } else {
-                popup.style.display = 'none';
-                if (btn) btn.classList.remove('popup-open');
+                // Hide popup
+                closeTransparencyPopup();
             }
         }
         
@@ -10202,8 +10201,23 @@ scrollToDiaryDay(currentDayKey);
             
             // Update stats panel transparency to match
             updateStatsTransparency();
+
+            // Update elevation panel transparency to match
+            applyElevationPanelTransparency();
         }
-        
+
+        function applyElevationPanelTransparency() {
+            const panel = document.getElementById('elevationPanel');
+            const diaryFloat = document.querySelector('.diary-float');
+            if (!panel) return;
+
+            // Get current diary transparency
+            const opacity = diaryFloat ? parseFloat(diaryFloat.dataset.unfocusedOpacity) || 0.05 : 0.05;
+
+            // Apply to elevation panel background
+            panel.style.background = `rgba(255, 255, 255, ${opacity})`;
+        }
+
         function saveTransparencySetting() {
             const slider = document.getElementById('transparencySlider');
             if (!slider) return;
@@ -10481,7 +10495,647 @@ scrollToDiaryDay(currentDayKey);
                 isDragging = false;
             }
         }
-        
+
+        // ========== TOOLS DROPDOWN ==========
+
+        let toolsDropdownOpen = false;
+
+        function toggleToolsDropdown() {
+            const menu = document.getElementById('toolsDropdownMenu');
+            const btn = document.getElementById('toolsBtn');
+            if (!menu) return;
+
+            toolsDropdownOpen = !toolsDropdownOpen;
+
+            if (toolsDropdownOpen) {
+                menu.classList.add('open');
+                if (btn) btn.classList.add('popup-open');
+
+                // Close dropdown when clicking outside
+                setTimeout(() => {
+                    document.addEventListener('click', closeToolsDropdownOnClickOutside);
+                }, 0);
+            } else {
+                menu.classList.remove('open');
+                if (btn) btn.classList.remove('popup-open');
+                document.removeEventListener('click', closeToolsDropdownOnClickOutside);
+            }
+        }
+
+        function closeToolsDropdownOnClickOutside(e) {
+            const menu = document.getElementById('toolsDropdownMenu');
+            const btn = document.getElementById('toolsBtn');
+            if (!menu || !btn) return;
+
+            if (!menu.contains(e.target) && !btn.contains(e.target)) {
+                toolsDropdownOpen = false;
+                menu.classList.remove('open');
+                btn.classList.remove('popup-open');
+                document.removeEventListener('click', closeToolsDropdownOnClickOutside);
+            }
+        }
+
+        function closeToolsDropdown() {
+            const menu = document.getElementById('toolsDropdownMenu');
+            const btn = document.getElementById('toolsBtn');
+            toolsDropdownOpen = false;
+            if (menu) menu.classList.remove('open');
+            if (btn) btn.classList.remove('popup-open');
+            document.removeEventListener('click', closeToolsDropdownOnClickOutside);
+        }
+
+        function selectToolFromDropdown(tool) {
+            closeToolsDropdown();
+
+            switch (tool) {
+                case 'search':
+                    activateLocationSearch();
+                    break;
+                case 'measure':
+                    // toggleMeasureTool is defined in map-tools.js
+                    if (window.toggleMeasureTool) window.toggleMeasureTool();
+                    break;
+                case 'elevation':
+                    toggleElevationPanel();
+                    break;
+                case 'transparency':
+                    toggleTransparencySlider();
+                    break;
+                case 'animation':
+                    // Close elevation panel if open (mutually exclusive)
+                    if (elevationPanelVisible) {
+                        closeElevationPanel();
+                    }
+                    // toggleReplayController is defined in replay.js
+                    if (window.toggleReplayController) window.toggleReplayController();
+                    break;
+                case 'filter':
+                    toggleMapFilters();
+                    break;
+            }
+        }
+
+        // Route search functions are now in map-tools.js
+
+        function closeTransparencyPopup() {
+            const popup = document.getElementById('transparencySliderPopup');
+            if (popup) popup.style.display = 'none';
+        }
+
+        // Draggable modal functionality
+        let dragState = { active: false, modalId: null, startX: 0, startY: 0, modalStartX: 0, modalStartY: 0 };
+
+        function startDragModal(e, modalId) {
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+
+            // Don't start drag if clicking the close button
+            if (e.target.classList.contains('modal-close')) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Get the current visual position (works whether CSS centered or already dragged)
+            const rect = modal.getBoundingClientRect();
+
+            // Convert from CSS transform centering to explicit positioning
+            modal.style.left = rect.left + 'px';
+            modal.style.top = rect.top + 'px';
+            modal.style.transform = 'none';
+
+            dragState.active = true;
+            dragState.modalId = modalId;
+            dragState.startX = e.clientX;
+            dragState.startY = e.clientY;
+            dragState.modalStartX = rect.left;
+            dragState.modalStartY = rect.top;
+
+            document.addEventListener('mousemove', dragModal, true);
+            document.addEventListener('mouseup', stopDragModal, true);
+        }
+
+        function dragModal(e) {
+            if (!dragState.active) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const modal = document.getElementById(dragState.modalId);
+            if (!modal) return;
+
+            const dx = e.clientX - dragState.startX;
+            const dy = e.clientY - dragState.startY;
+
+            modal.style.left = (dragState.modalStartX + dx) + 'px';
+            modal.style.top = (dragState.modalStartY + dy) + 'px';
+        }
+
+        function stopDragModal(e) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            dragState.active = false;
+            document.removeEventListener('mousemove', dragModal, true);
+            document.removeEventListener('mouseup', stopDragModal, true);
+        }
+
+        // ========== ELEVATION PANEL ==========
+
+        let elevationPanelVisible = false;
+        let elevationMarker = null;
+        let elevationChartData = null;
+
+        function toggleElevationPanel() {
+            if (elevationPanelVisible) {
+                closeElevationPanel();
+            } else {
+                openElevationPanel();
+            }
+        }
+
+        function openElevationPanel() {
+            // Close animation player if open (mutually exclusive)
+            // Only close if it's actually visible
+            const replayController = document.getElementById('replayController');
+            if (replayController && replayController.style.display !== 'none' && replayController.style.display !== '') {
+                if (typeof closeReplayController === 'function') {
+                    closeReplayController();
+                }
+            }
+
+            const panel = document.getElementById('elevationPanel');
+            if (!panel) return;
+
+            elevationPanelVisible = true;
+            panel.style.display = 'block';
+            panel.classList.add('unfocused');
+
+            // Apply current diary transparency to elevation panel
+            applyElevationPanelTransparency();
+
+            // Position panel in safe space
+            positionElevationPanel();
+
+            // Register bottom margin with NavigationController so map content avoids the panel
+            // Panel is ~200px tall + 20px bottom margin
+            // Allow refit so map adjusts to show content above the panel
+            NavigationController.updateViewportMargins({ bottom: 220 }, { delay: 100 });
+
+            // Update chart with visible routes
+            updateElevationChart();
+
+            // Listen for map move events to update chart
+            if (map) {
+                map.on('moveend', updateElevationChart);
+            }
+        }
+
+        function positionElevationPanel() {
+            const panel = document.getElementById('elevationPanel');
+            if (!panel) return;
+
+            // Get current margins from NavigationController
+            const margins = NavigationController.margins;
+            const buffer = 30; // Gap between panel edges and obstructions (larger for visual spacing)
+
+            // Calculate left position: diary width + slider width + buffer
+            const leftPos = margins.left + margins.sliderLeft + buffer;
+
+            // Calculate right position: stats width + buffer
+            const rightPos = margins.right + buffer;
+
+            panel.style.left = leftPos + 'px';
+            panel.style.right = rightPos + 'px';
+        }
+
+        function closeElevationPanel() {
+            const panel = document.getElementById('elevationPanel');
+            if (!panel) return;
+
+            elevationPanelVisible = false;
+            panel.style.display = 'none';
+
+            // Clear bottom margin from NavigationController
+            // Allow refit so map can reclaim the space
+            NavigationController.updateViewportMargins({ bottom: 0 }, { delay: 100 });
+
+            // Remove elevation marker from map
+            hideElevationMapMarker();
+
+            // Stop listening for map moves
+            if (map) {
+                map.off('moveend', updateElevationChart);
+            }
+        }
+
+        function updateElevationChart() {
+            const canvas = document.getElementById('elevationCanvas');
+            const noDataEl = document.getElementById('elevationNoData');
+            if (!canvas || !map) return;
+
+            const ctx = canvas.getContext('2d');
+
+            // Check if we're in day mode - elevation only works for specific days
+            if (mapMode !== 'day' || !currentDayKey) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                if (noDataEl) {
+                    noDataEl.innerHTML = '<span>Select a specific day to view elevation profile</span>';
+                    noDataEl.style.display = 'block';
+                }
+                canvas.style.display = 'none';
+                elevationChartData = null;
+                return;
+            }
+
+            const bounds = map.getBounds();
+
+            // Get visible routes with elevation data
+            const visibleElevationData = getVisibleElevationData(bounds);
+
+            if (visibleElevationData.length === 0) {
+                // No data - show message
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                if (noDataEl) {
+                    noDataEl.innerHTML = '<span>No elevation data for visible routes</span>';
+                    noDataEl.style.display = 'block';
+                }
+                canvas.style.display = 'none';
+                elevationChartData = null;
+                return;
+            }
+
+            // Hide no-data message, show canvas
+            if (noDataEl) noDataEl.style.display = 'none';
+            canvas.style.display = 'block';
+
+            // Store data for tooltip interaction
+            elevationChartData = visibleElevationData;
+
+            // Render the chart
+            renderElevationChart(ctx, canvas, visibleElevationData);
+        }
+
+        function getVisibleElevationData(bounds) {
+            // Collect elevation points from visible route segments
+            const elevationPoints = [];
+
+            if (!allRouteSegments || allRouteSegments.length === 0) return elevationPoints;
+
+            allRouteSegments.forEach(segObj => {
+                const { segment, points, color } = segObj;
+                if (!segment || !points || points.length === 0) return;
+
+                // Check if any part of this route is visible
+                const latlngs = segment.getLatLngs();
+                const routeVisible = latlngs.some(ll => bounds.contains(ll));
+
+                if (routeVisible) {
+                    // Extract points with altitude that are within bounds
+                    points.forEach(point => {
+                        if (point.altitude !== undefined && point.altitude !== null) {
+                            const latlng = L.latLng(point.lat, point.lng);
+                            if (bounds.contains(latlng)) {
+                                const activityType = (point.activityType || 'unknown').toLowerCase();
+                                elevationPoints.push({
+                                    lat: point.lat,
+                                    lng: point.lng,
+                                    altitude: point.altitude,
+                                    activityType: activityType,
+                                    color: color,
+                                    timestamp: point.timestamp
+                                });
+                            }
+                        }
+                    });
+                }
+            });
+
+            // Sort by timestamp if available
+            elevationPoints.sort((a, b) => {
+                if (a.timestamp && b.timestamp) {
+                    return new Date(a.timestamp) - new Date(b.timestamp);
+                }
+                return 0;
+            });
+
+            // Calculate cumulative distance
+            let cumulativeDistance = 0;
+            for (let i = 0; i < elevationPoints.length; i++) {
+                if (i > 0) {
+                    const prev = elevationPoints[i - 1];
+                    const curr = elevationPoints[i];
+                    const segmentDist = haversineDistanceKm(prev.lat, prev.lng, curr.lat, curr.lng);
+                    cumulativeDistance += segmentDist;
+                }
+                elevationPoints[i].distance = cumulativeDistance;
+            }
+
+            return elevationPoints;
+        }
+
+        function haversineDistanceKm(lat1, lng1, lat2, lng2) {
+            const R = 6371; // Earth's radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+
+        function hexToRgba(hex, alpha) {
+            // Convert hex color to rgba with specified alpha
+            // Handle both #RGB and #RRGGBB formats
+            let r, g, b;
+            hex = hex.replace('#', '');
+            if (hex.length === 3) {
+                r = parseInt(hex[0] + hex[0], 16);
+                g = parseInt(hex[1] + hex[1], 16);
+                b = parseInt(hex[2] + hex[2], 16);
+            } else {
+                r = parseInt(hex.substring(0, 2), 16);
+                g = parseInt(hex.substring(2, 4), 16);
+                b = parseInt(hex.substring(4, 6), 16);
+            }
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        function renderElevationChart(ctx, canvas, data) {
+            // Get device pixel ratio for retina display
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+
+            // Set canvas size accounting for retina
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+
+            const width = rect.width;
+            const height = rect.height;
+            const padding = { top: 10, right: 15, bottom: 25, left: 45 };
+            const chartWidth = width - padding.left - padding.right;
+            const chartHeight = height - padding.top - padding.bottom;
+
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+
+            // Find min/max values
+            const altitudes = data.map(d => d.altitude);
+            const minAlt = Math.min(...altitudes);
+            const maxAlt = Math.max(...altitudes);
+            const maxDist = data[data.length - 1]?.distance || 0;
+
+            // Add padding to altitude range
+            const altRange = maxAlt - minAlt || 1;
+            const altPadding = altRange * 0.1;
+            const yMin = Math.max(0, minAlt - altPadding);
+            const yMax = maxAlt + altPadding;
+
+            // Scale functions
+            const xScale = (dist) => padding.left + (dist / maxDist) * chartWidth;
+            const yScale = (alt) => padding.top + chartHeight - ((alt - yMin) / (yMax - yMin)) * chartHeight;
+
+            // Store scale info for tooltip
+            canvas._chartInfo = {
+                padding, chartWidth, chartHeight, xScale, yScale,
+                maxDist, yMin, yMax, data
+            };
+
+            // Draw grid lines
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.lineWidth = 1;
+
+            // Horizontal grid lines (altitude)
+            const yTicks = 4;
+            for (let i = 0; i <= yTicks; i++) {
+                const y = padding.top + (chartHeight / yTicks) * i;
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(width - padding.right, y);
+                ctx.stroke();
+
+                // Y-axis labels
+                const altVal = yMax - ((yMax - yMin) / yTicks) * i;
+                ctx.fillStyle = '#86868b';
+                ctx.font = '10px -apple-system, sans-serif';
+                ctx.textAlign = 'right';
+                ctx.fillText(`${Math.round(altVal)}m`, padding.left - 5, y + 3);
+            }
+
+            // X-axis labels
+            const xTicks = 5;
+            for (let i = 0; i <= xTicks; i++) {
+                const dist = (maxDist / xTicks) * i;
+                const x = xScale(dist);
+
+                ctx.fillStyle = '#86868b';
+                ctx.font = '10px -apple-system, sans-serif';
+                ctx.textAlign = 'center';
+                const label = dist < 1 ? `${(dist * 1000).toFixed(0)}m` : `${dist.toFixed(1)}km`;
+                ctx.fillText(label, x, height - 5);
+            }
+
+            // Draw filled area under line segments with activity colors
+            if (data.length > 1) {
+                const bottomY = height - padding.bottom;
+
+                for (let i = 1; i < data.length; i++) {
+                    const prev = data[i - 1];
+                    const curr = data[i];
+
+                    // Create gradient for this segment using the activity color
+                    const segColor = curr.color || '#007aff';
+                    const gradient = ctx.createLinearGradient(0, padding.top, 0, bottomY);
+                    gradient.addColorStop(0, hexToRgba(segColor, 0.4));
+                    gradient.addColorStop(1, hexToRgba(segColor, 0.08));
+
+                    // Draw filled trapezoid for this segment
+                    ctx.beginPath();
+                    ctx.moveTo(xScale(prev.distance), yScale(prev.altitude));
+                    ctx.lineTo(xScale(curr.distance), yScale(curr.altitude));
+                    ctx.lineTo(xScale(curr.distance), bottomY);
+                    ctx.lineTo(xScale(prev.distance), bottomY);
+                    ctx.closePath();
+                    ctx.fillStyle = gradient;
+                    ctx.fill();
+                }
+            }
+
+            // Draw line segments with activity colors
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            for (let i = 1; i < data.length; i++) {
+                const prev = data[i - 1];
+                const curr = data[i];
+
+                ctx.beginPath();
+                ctx.strokeStyle = curr.color;
+                ctx.moveTo(xScale(prev.distance), yScale(prev.altitude));
+                ctx.lineTo(xScale(curr.distance), yScale(curr.altitude));
+                ctx.stroke();
+            }
+
+            // Set up mouse event handlers
+            setupElevationCanvasEvents(canvas);
+        }
+
+        function setupElevationCanvasEvents(canvas) {
+            // Remove existing handlers
+            canvas.onmousemove = null;
+            canvas.onmouseleave = null;
+
+            const cursor = document.getElementById('elevationCursor');
+
+            canvas.onmousemove = (e) => {
+                if (!canvas._chartInfo || !elevationChartData) return;
+
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const { padding, chartWidth, chartHeight, maxDist, yScale, data } = canvas._chartInfo;
+
+                // Check if mouse is in chart area
+                if (x < padding.left || x > padding.left + chartWidth) {
+                    hideElevationTooltip();
+                    hideElevationMapMarker();
+                    hideElevationCursor();
+                    return;
+                }
+
+                // Find distance at cursor position
+                const dist = ((x - padding.left) / chartWidth) * maxDist;
+
+                // Find nearest data point
+                let nearest = data[0];
+                let minDiff = Math.abs(data[0].distance - dist);
+
+                for (let i = 1; i < data.length; i++) {
+                    const diff = Math.abs(data[i].distance - dist);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        nearest = data[i];
+                    }
+                }
+
+                // Calculate grade if possible
+                const idx = data.indexOf(nearest);
+                let grade = null;
+                if (idx > 0) {
+                    const prev = data[idx - 1];
+                    const distDiff = (nearest.distance - prev.distance) * 1000; // in meters
+                    if (distDiff > 0) {
+                        const altDiff = nearest.altitude - prev.altitude;
+                        grade = (altDiff / distDiff) * 100;
+                    }
+                }
+
+                // Show cursor line from chart top to 0m baseline
+                showElevationCursor(x, padding.top, chartHeight);
+
+                // Show tooltip
+                showElevationTooltip(e.clientX, e.clientY, nearest, grade);
+
+                // Show marker on map
+                showElevationMapMarker(nearest.lat, nearest.lng);
+            };
+
+            canvas.onmouseleave = () => {
+                hideElevationTooltip();
+                hideElevationMapMarker();
+                hideElevationCursor();
+            };
+        }
+
+        function showElevationCursor(x, chartTop, chartHeight) {
+            const cursor = document.getElementById('elevationCursor');
+            if (!cursor) return;
+
+            // x is mouse position relative to canvas
+            // Canvas is inside .elevation-content which has 16px left padding and 12px top padding
+            // Cursor is positioned relative to .elevation-content, so we need to add the padding offsets
+            const contentPaddingLeft = 16;
+            const contentPaddingTop = 12;
+            cursor.style.left = (x + contentPaddingLeft) + 'px';
+            cursor.style.top = (chartTop + contentPaddingTop) + 'px';
+            cursor.style.height = chartHeight + 'px';
+            cursor.style.display = 'block';
+        }
+
+        function hideElevationCursor() {
+            const cursor = document.getElementById('elevationCursor');
+            if (cursor) {
+                cursor.style.display = 'none';
+            }
+        }
+
+        function showElevationTooltip(clientX, clientY, point, grade) {
+            const tooltip = document.getElementById('elevationTooltip');
+            const valueEl = document.getElementById('elevationTooltipValue');
+            if (!tooltip || !valueEl) return;
+
+            const distStr = point.distance < 1
+                ? `${(point.distance * 1000).toFixed(0)}m`
+                : `${point.distance.toFixed(2)}km`;
+
+            let html = `<div><strong>${Math.round(point.altitude)}m</strong> at ${distStr}</div>`;
+            if (grade !== null) {
+                const gradeStr = grade >= 0 ? `+${grade.toFixed(1)}%` : `${grade.toFixed(1)}%`;
+                html += `<div style="font-size: 11px; opacity: 0.8;">Grade: ${gradeStr}</div>`;
+            }
+
+            valueEl.innerHTML = html;
+            tooltip.style.display = 'block';
+
+            // Position tooltip away from cursor, flipping to left side if near right edge
+            const panel = document.getElementById('elevationPanel');
+            if (panel) {
+                const panelRect = panel.getBoundingClientRect();
+                const tooltipWidth = tooltip.offsetWidth || 120; // Estimate if not yet rendered
+                const cursorXInPanel = clientX - panelRect.left;
+                const spaceOnRight = panelRect.width - cursorXInPanel;
+                const tooltipOffset = 25; // Distance from cursor line
+
+                // If not enough space on right, position to the left of cursor
+                if (spaceOnRight < tooltipWidth + tooltipOffset + 10) {
+                    tooltip.style.left = `${cursorXInPanel - tooltipWidth - tooltipOffset}px`;
+                } else {
+                    tooltip.style.left = `${cursorXInPanel + tooltipOffset}px`;
+                }
+                tooltip.style.top = `${clientY - panelRect.top - 40}px`;
+            }
+        }
+
+        function hideElevationTooltip() {
+            const tooltip = document.getElementById('elevationTooltip');
+            if (tooltip) tooltip.style.display = 'none';
+        }
+
+        function showElevationMapMarker(lat, lng) {
+            if (!map) return;
+
+            if (elevationMarker) {
+                elevationMarker.setLatLng([lat, lng]);
+            } else {
+                const icon = L.divIcon({
+                    className: 'elevation-marker',
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
+                });
+                elevationMarker = L.marker([lat, lng], { icon: icon, zIndexOffset: 1000 }).addTo(map);
+            }
+        }
+
+        function hideElevationMapMarker() {
+            if (elevationMarker && map) {
+                map.removeLayer(elevationMarker);
+                elevationMarker = null;
+            }
+        }
+
         async function saveMapAsImage() {
             const mapSaveBtn = document.getElementById('mapSaveBtn');
             const mapPanelTitle = (document.getElementById('mapPanelTitle')?.textContent || 'map').trim();
@@ -15541,10 +16195,18 @@ if (typeof toggleAnalysisPanel === 'function') window.toggleAnalysisPanel = togg
                 }
             }, 150);
         };
+if (typeof positionElevationPanel === 'function') window.positionElevationPanel = positionElevationPanel;
 if (typeof toggleDiary === 'function') window.toggleDiary = toggleDiary;
+if (typeof toggleElevationPanel === 'function') window.toggleElevationPanel = toggleElevationPanel;
 if (typeof toggleFavoriteFromPopup === 'function') window.toggleFavoriteFromPopup = toggleFavoriteFromPopup;
 if (typeof toggleMapFilters === 'function') window.toggleMapFilters = toggleMapFilters;
+if (typeof toggleToolsDropdown === 'function') window.toggleToolsDropdown = toggleToolsDropdown;
 if (typeof toggleTransparencySlider === 'function') window.toggleTransparencySlider = toggleTransparencySlider;
+if (typeof selectToolFromDropdown === 'function') window.selectToolFromDropdown = selectToolFromDropdown;
+if (typeof closeElevationPanel === 'function') window.closeElevationPanel = closeElevationPanel;
+// Route search functions are now in map-tools.js (no exports needed - they're global)
+if (typeof closeTransparencyPopup === 'function') window.closeTransparencyPopup = closeTransparencyPopup;
+if (typeof startDragModal === 'function') window.startDragModal = startDragModal;
 if (typeof updateAnimationSpeed === 'function') window.updateAnimationSpeed = updateAnimationSpeed;
 if (typeof updateMapRoutes === 'function') window.updateMapRoutes = updateMapRoutes;
 if (typeof updateTransparencyValue === 'function') window.updateTransparencyValue = updateTransparencyValue;

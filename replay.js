@@ -1,6 +1,6 @@
 // =====================================================
 // Replay System - Arc Timeline Diary Reader
-// Extracted from app.js for modularity (Build 693)
+// Extracted from app.js for modularity (Build 696)
 // =====================================================
 
 /**
@@ -48,7 +48,9 @@ class ReplayController {
             locationClearTime: 0,
             lastLocationEndTime: 0,
             eventsSetup: false,
-            nextStopLocation: null
+            nextStopLocation: null,
+            orderedStops: [],      // Pre-computed array of locations in route order with distances
+            nextStopIndex: 0       // Index into orderedStops for next location to visit
         };
 
         // Activity icons for replay (pictogram style)
@@ -121,20 +123,19 @@ class ReplayController {
         const monthSelector = document.getElementById('monthSelector');
         const prevMonthBtn = document.getElementById('prevMonthBtn');
         const nextMonthBtn = document.getElementById('nextMonthBtn');
-        const searchBtn = document.getElementById('searchBtn');
-        const measureBtn = document.getElementById('measureBtn');
-        const filterBtn = document.getElementById('mapFilterBtn');
+        const toolsBtn = document.getElementById('toolsBtn');
 
         if (yearSelector) yearSelector.disabled = true;
         if (monthSelector) monthSelector.disabled = true;
         if (prevMonthBtn) prevMonthBtn.disabled = true;
         if (nextMonthBtn) nextMonthBtn.disabled = true;
-        if (searchBtn) searchBtn.style.display = 'none';
-        if (measureBtn) measureBtn.style.display = 'none';
-        if (filterBtn) filterBtn.style.display = 'none';
+        if (toolsBtn) toolsBtn.style.display = 'none';
 
+        // Close any open popups
         const searchPopup = document.getElementById('searchPopup');
         if (searchPopup) searchPopup.style.display = 'none';
+        const toolsMenu = document.getElementById('toolsDropdownMenu');
+        if (toolsMenu) toolsMenu.classList.remove('open');
 
         if (this.cancelMeasurement) {
             this.cancelMeasurement();
@@ -146,17 +147,13 @@ class ReplayController {
         const monthSelector = document.getElementById('monthSelector');
         const prevMonthBtn = document.getElementById('prevMonthBtn');
         const nextMonthBtn = document.getElementById('nextMonthBtn');
-        const searchBtn = document.getElementById('searchBtn');
-        const measureBtn = document.getElementById('measureBtn');
-        const filterBtn = document.getElementById('mapFilterBtn');
+        const toolsBtn = document.getElementById('toolsBtn');
 
         if (yearSelector) yearSelector.disabled = false;
         if (monthSelector) monthSelector.disabled = false;
         if (prevMonthBtn) prevMonthBtn.disabled = false;
         if (nextMonthBtn) nextMonthBtn.disabled = false;
-        if (searchBtn) searchBtn.style.display = '';
-        if (measureBtn) measureBtn.style.display = '';
-        if (filterBtn) filterBtn.style.display = '';
+        if (toolsBtn) toolsBtn.style.display = '';
     }
 
     // ===== Controller UI =====
@@ -166,8 +163,20 @@ class ReplayController {
         if (!controller) return;
 
         if (controller.style.display === 'none' || !controller.style.display) {
+            // Close elevation panel if open (mutually exclusive)
+            if (typeof closeElevationPanel === 'function') {
+                closeElevationPanel();
+            }
+
+            // Position controller BEFORE making visible (prevents Safari flash)
+            controller.style.opacity = '0';
             controller.style.display = 'flex';
             this.positionController();
+
+            // Force layout calculation, then reveal
+            controller.offsetHeight; // Force reflow
+            controller.style.opacity = '1';
+
             this.disableMapControls();
             this.setupControllerEvents(controller);
             this.setupDatePicker();
@@ -270,7 +279,6 @@ class ReplayController {
             });
 
             timelineBar.addEventListener('click', (e) => {
-                console.log('[Replay] Timeline bar clicked', e.clientX);
                 this.seekTo(e);
             });
         }
@@ -490,12 +498,90 @@ class ReplayController {
         this.state.lastHighlightedEntry = null;
         this.state.lastLocationEndTime = 0;
 
+        // Build ordered stops array - locations in chronological order with their route distances
+        this.buildOrderedStops();
+
         this.centerOnPoint(firstPoint.lat, firstPoint.lng);
         this.showLocationPopupAtStart();
 
         this.updateTimeDisplay();
         this.updateProgress();
         this.updateSpeedometer(0);
+    }
+
+    /**
+     * Build ordered stops array - locations in chronological visit order (like railway stations).
+     * Each stop records its distance along the route for positioning on the timeline.
+     * The array order is the visit order, NOT sorted by distance.
+     */
+    buildOrderedStops() {
+        this.state.orderedStops = [];
+        this.state.nextStopIndex = 0;
+
+        if (!this.state.dayLocations.length || !this.state.routeData || !this.state.cumulativeDistances) {
+            return;
+        }
+
+        // Process locations in their original chronological order
+        for (let locIndex = 0; locIndex < this.state.dayLocations.length; locIndex++) {
+            const loc = this.state.dayLocations[locIndex];
+            if (!loc.lat || !loc.lng) continue;
+
+            const locationName = loc.name || loc.location || 'Unknown';
+            const visitStart = loc.startDate ? new Date(loc.startDate).getTime() : null;
+            const visitKey = visitStart ? `${locationName}_${visitStart}` : locationName;
+
+            // Find the route point for this location using TIME, not just distance
+            // This correctly handles loop routes where we pass the same place twice
+            let closestIdx = -1;
+            let closestDist = Infinity;
+
+            if (visitStart) {
+                // Find route point closest in TIME to when we visited this location
+                let closestTimeDiff = Infinity;
+                for (let i = 0; i < this.state.routeData.length; i++) {
+                    const point = this.state.routeData[i];
+                    const pointTime = this.getPointTime(point);
+                    if (!pointTime) continue;
+
+                    const timeDiff = Math.abs(pointTime - visitStart);
+                    if (timeDiff < closestTimeDiff) {
+                        closestTimeDiff = timeDiff;
+                        closestIdx = i;
+                        // Also track distance for logging
+                        closestDist = this.calculateDistanceMeters(point.lat, point.lng, loc.lat, loc.lng);
+                    }
+                }
+            } else {
+                // Fallback: no time info, use spatial distance
+                for (let i = 0; i < this.state.routeData.length; i++) {
+                    const point = this.state.routeData[i];
+                    const dist = this.calculateDistanceMeters(point.lat, point.lng, loc.lat, loc.lng);
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        closestIdx = i;
+                    }
+                }
+            }
+
+            if (closestIdx < 0 || closestDist > 500) continue;
+
+            const distanceOnRoute = this.state.cumulativeDistances[closestIdx];
+            const point = this.state.routeData[closestIdx];
+            const pointTime = this.getPointTime(point);
+
+            this.state.orderedStops.push({
+                locIndex: locIndex,
+                name: locationName,
+                visitKey: visitKey,
+                distance: distanceOnRoute,
+                routeIndex: closestIdx,
+                lat: loc.lat,
+                lng: loc.lng,
+                time: pointTime || Date.now(),
+                loc: loc
+            });
+        }
     }
 
     createTimelineMarkers() {
@@ -514,7 +600,7 @@ class ReplayController {
         for (const loc of this.state.dayLocations) {
             if (!loc.lat || !loc.lng) continue;
 
-            // Find closest route point to this location
+            // Find closest route point to this location (for accurate positioning)
             let closestIdx = -1;
             let closestDist = Infinity;
             for (let i = 0; i < this.state.routeData.length; i++) {
@@ -815,7 +901,18 @@ class ReplayController {
         const distanceAdvance = (deltaMs / 1000) * metersPerSecond;
 
         const proposedDistance = this.state.currentDistance + distanceAdvance;
-        const locationStop = this.checkForLocationInPath(this.state.currentDistance, proposedDistance);
+
+        // Find the route index for the proposed distance
+        let proposedRouteIndex = 0;
+        for (let i = 1; i < this.state.cumulativeDistances.length; i++) {
+            if (this.state.cumulativeDistances[i] >= proposedDistance) {
+                proposedRouteIndex = i - 1;
+                break;
+            }
+            proposedRouteIndex = i;
+        }
+
+        const locationStop = this.checkForLocationInPath(this.state.currentIndex, proposedRouteIndex);
 
         if (locationStop) {
             this.state.currentDistance = locationStop.distance;
@@ -905,104 +1002,48 @@ class ReplayController {
 
     // ===== Location Detection =====
 
-    checkForLocationInPath(currentDist, proposedDist) {
-        if (!this.state.dayLocations.length || !this.state.routeData || !this.state.cumulativeDistances) return null;
+    /**
+     * Check if we've reached the next stop.
+     * Uses routeIndex - have we passed the point on the route where this location is?
+     */
+    checkForLocationInPath(currentRouteIndex, proposedRouteIndex) {
+        // No stops left
+        if (this.state.nextStopIndex >= this.state.orderedStops.length) return null;
 
-        for (const loc of this.state.dayLocations) {
-            if (!loc.lat || !loc.lng) continue;
-            const locationName = loc.name || loc.location || 'Unknown';
+        const stop = this.state.orderedStops[this.state.nextStopIndex];
 
-            const visitStart = loc.startDate ? new Date(loc.startDate).getTime() : null;
-            const visitKey = visitStart ? `${locationName}_${visitStart}` : locationName;
-
-            if (this.state.visitedLocations.has(visitKey)) continue;
-
-            let closestIdx = -1;
-            let closestDist = Infinity;
-
-            for (let i = 0; i < this.state.routeData.length; i++) {
-                const point = this.state.routeData[i];
-                const dist = this.calculateDistanceMeters(point.lat, point.lng, loc.lat, loc.lng);
-                if (dist < closestDist) {
-                    closestDist = dist;
-                    closestIdx = i;
-                }
-            }
-
-            if (closestIdx < 0 || closestDist > 200) continue;
-
-            const locationDistOnRoute = this.state.cumulativeDistances[closestIdx];
-
-            if (locationDistOnRoute > currentDist && locationDistOnRoute <= proposedDist) {
-                const point = this.state.routeData[closestIdx];
-                const pointTime = this.getPointTime(point);
-
-                return {
-                    distance: locationDistOnRoute,
-                    index: closestIdx,
-                    name: locationName,
-                    time: pointTime || Date.now(),
-                    visitKey: visitKey,
-                    lat: loc.lat,
-                    lng: loc.lng
-                };
-            }
+        // Have we reached or passed this stop's position on the route?
+        if (proposedRouteIndex >= stop.routeIndex) {
+            this.state.nextStopIndex++;
+            return {
+                distance: stop.distance,
+                index: stop.routeIndex,
+                name: stop.name,
+                time: stop.time,
+                visitKey: stop.visitKey,
+                lat: stop.lat,
+                lng: stop.lng
+            };
         }
 
         return null;
     }
 
+    /**
+     * Find the nearest upcoming stop - just returns the next stop in the array.
+     */
     findNearestStop() {
-        if (!this.state.dayLocations.length) return null;
-        if (!this.state.cumulativeDistances || !this.state.routeData) return null;
+        if (this.state.nextStopIndex >= this.state.orderedStops.length) return null;
 
-        const currentDistance = this.state.currentDistance;
-        let nearest = null;
-        let minDistance = Infinity;
+        const stop = this.state.orderedStops[this.state.nextStopIndex];
+        const distanceToStop = stop.distance - this.state.currentDistance;
 
-        for (const loc of this.state.dayLocations) {
-            if (!loc.lat || !loc.lng) continue;
-
-            let closestIdx = -1;
-            let closestDist = Infinity;
-
-            for (let i = 0; i < this.state.routeData.length; i++) {
-                const point = this.state.routeData[i];
-                const dist = this.calculateDistanceMeters(point.lat, point.lng, loc.lat, loc.lng);
-                if (dist < closestDist) {
-                    closestDist = dist;
-                    closestIdx = i;
-                }
-            }
-
-            if (closestIdx < 0 || closestDist > 200) continue;
-
-            const locationDistanceOnRoute = this.state.cumulativeDistances[closestIdx];
-            const distanceToLocation = locationDistanceOnRoute - currentDistance;
-
-            if (distanceToLocation > 0 && distanceToLocation < minDistance) {
-                minDistance = distanceToLocation;
-                nearest = {
-                    loc,
-                    direction: 'approaching',
-                    distanceMeters: distanceToLocation,
-                    name: loc.name || loc.location
-                };
-            } else if (distanceToLocation < 0 && distanceToLocation > -150) {
-                const distAway = Math.abs(distanceToLocation);
-                if (distAway < minDistance) {
-                    minDistance = distAway;
-                    nearest = {
-                        loc,
-                        direction: 'leaving',
-                        distanceMeters: distAway,
-                        name: loc.name || loc.location
-                    };
-                }
-            }
-        }
-
-        return nearest;
+        return {
+            loc: stop.loc,
+            direction: distanceToStop > 0 ? 'approaching' : 'leaving',
+            distanceMeters: Math.abs(distanceToStop),
+            name: stop.name
+        };
     }
 
     checkLocationArrival(prevIndex, currentIndex, lat, lng) {
@@ -1021,6 +1062,7 @@ class ReplayController {
                     if (distMeters < 100) {
                         const visitKey = `${locationName}_${visitStart}`;
                         if (!this.state.visitedLocations.has(visitKey)) {
+                            this.state.visitedLocations.add(visitKey);
                             this.showLocationPopup(loc.lat, loc.lng, locationName, currentTime);
                             this.state.pauseUntil = performance.now() + 3000;
                         }
@@ -1034,6 +1076,7 @@ class ReplayController {
                 if (distMeters < 100 && timeDiff < 120000) {
                     const visitKey = `${locationName}_${visitStart}`;
                     if (!this.state.visitedLocations.has(visitKey)) {
+                        this.state.visitedLocations.add(visitKey);
                         this.showLocationPopup(loc.lat, loc.lng, locationName, visitStart);
                         this.state.pauseUntil = performance.now() + 3000;
                     }
@@ -1043,6 +1086,7 @@ class ReplayController {
                 const distMeters = this.calculateDistanceMeters(lat, lng, loc.lat, loc.lng);
                 if (distMeters < 50) {
                     if (!this.state.visitedLocations.has(locationName)) {
+                        this.state.visitedLocations.add(locationName);
                         this.showLocationPopup(loc.lat, loc.lng, locationName, currentTime);
                         this.state.pauseUntil = performance.now() + 3000;
                     }
@@ -1436,19 +1480,29 @@ class ReplayController {
         this.state.lastLocationEndTime = 0;
         this.state.lastHighlightedEntry = null;
 
+        // Reset nextStopIndex - find the first stop we haven't passed yet
+        // Use routeIndex (position in GPS breadcrumb trail) to determine which stops we've passed
+        this.state.nextStopIndex = 0;
+        for (let i = 0; i < this.state.orderedStops.length; i++) {
+            if (this.state.orderedStops[i].routeIndex > bestIdx) {
+                this.state.nextStopIndex = i;
+                break;
+            }
+            // Mark passed stops as visited
+            this.state.visitedLocations.add(this.state.orderedStops[i].visitKey);
+            this.state.nextStopIndex = i + 1;
+        }
+
         const currentTime = this.getPointTime(point);
         let currentLocation = null;
 
         for (const loc of this.state.dayLocations) {
             if (!loc.lat || !loc.lng) continue;
-            const locationName = loc.name || loc.location || 'Unknown';
             const visitStart = loc.startDate ? new Date(loc.startDate).getTime() : null;
             const visitEnd = loc.endDate ? new Date(loc.endDate).getTime() : null;
-            const visitKey = visitStart ? `${locationName}_${visitStart}` : locationName;
 
-            // If location ended before current position, mark as visited
+            // Track last location end time
             if (visitEnd && currentTime && visitEnd < currentTime) {
-                this.state.visitedLocations.add(visitKey);
                 if (visitEnd > this.state.lastLocationEndTime) {
                     this.state.lastLocationEndTime = visitEnd;
                 }
@@ -1515,19 +1569,30 @@ class ReplayController {
         this.state.lastLocationEndTime = 0;
         this.state.lastHighlightedEntry = null;
 
+        // Reset nextStopIndex - find the first stop we haven't passed yet
+        // Use routeIndex (position in GPS breadcrumb trail) to determine which stops we've passed
+        this.state.nextStopIndex = 0;
+        for (let i = 0; i < this.state.orderedStops.length; i++) {
+            if (this.state.orderedStops[i].routeIndex > bestIdx) {
+                this.state.nextStopIndex = i;
+                break;
+            }
+            // Mark passed stops as visited
+            this.state.visitedLocations.add(this.state.orderedStops[i].visitKey);
+            this.state.nextStopIndex = i + 1;
+        }
+
         const currentTime = this.getPointTime(point);
 
         let currentLocation = null;
 
         for (const loc of this.state.dayLocations) {
             if (!loc.lat || !loc.lng) continue;
-            const locationName = loc.name || loc.location || 'Unknown';
             const visitStart = loc.startDate ? new Date(loc.startDate).getTime() : null;
             const visitEnd = loc.endDate ? new Date(loc.endDate).getTime() : null;
-            const visitKey = visitStart ? `${locationName}_${visitStart}` : locationName;
 
+            // Track last location end time
             if (visitEnd && currentTime && visitEnd < currentTime) {
-                this.state.visitedLocations.add(visitKey);
                 if (visitEnd > this.state.lastLocationEndTime) {
                     this.state.lastLocationEndTime = visitEnd;
                 }
@@ -1559,6 +1624,7 @@ class ReplayController {
         this.state.visitedLocations.clear();
         this.state.lastHighlightedEntry = null;
         this.state.lastLocationEndTime = 0;
+        this.state.nextStopIndex = 0;  // Reset to first stop
 
         this.hideLocationPopup();
 

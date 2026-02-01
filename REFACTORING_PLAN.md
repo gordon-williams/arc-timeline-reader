@@ -1,13 +1,20 @@
 # Refactoring Plan - Arc Timeline Diary Reader
 
-## Current State (Build 447)
+## Current State (Build 693)
 
 | Metric | Count |
 |--------|-------|
-| Lines in app.js | 9,890 |
-| Lines in map-tools.js | 1,507 |
-| Lines in analysis.js | 1,185 |
-| Total | 12,582 |
+| Lines in app.js | 13,526 |
+| Lines in replay.js | 1,566 |
+| Lines in map-tools.js | 1,180 |
+| Lines in analysis.html | ~5,600 (embedded) |
+| Lines in styles.css | ~3,500 |
+| Total JS | ~16,300 |
+
+### History
+- Build 447: app.js had 9,890 lines
+- Build 692: app.js grew to 15,214 lines (+54%, primarily Replay System)
+- Build 693: Replay System extracted to replay.js (-1,688 lines from app.js)
 
 ## Progress
 
@@ -106,12 +113,19 @@ class DiaryUI {
 
 ## Implementation Order (Remaining)
 
-### Phase 3: Diary Classes
+### Phase 3: Replay System Extraction ✅ (Complete - Build 693)
+- Extracted ~1,688 lines to `replay.js`
+- Created `ReplayController` class with dependency injection
+- Uses getter functions for async-created objects (`getMap`, `getGeneratedDiaries`, `getCurrentDayKey`)
+- Direct function references for utilities (`getMapPadding`, `clearMapLayers`, `showDayMap`, `calculateDistance`, `calculateDistanceMeters`, `getPointTime`, `cancelMeasurement`)
+- Maintains backward compatibility via global window exports (`window.replayState`, `window.loadReplayDay`, etc.)
+
+### Phase 4: Diary Classes
 - DiaryRenderer (markdown generation)
 - DiaryUI (panel management)
 - Move to diary.js
 
-### Phase 4: Cleanup App.js
+### Phase 5: Cleanup App.js
 - DataStore (clean up AppDB)
 - PlacesManager
 - PopupController
@@ -133,4 +147,4 @@ The current approach (MeasurementTool, LocationSearch, RouteAnimator) extracts *
 
 ---
 
-**Next: Phase 3 - Diary Classes**
+**Next: Phase 4 - Diary Classes** (optional - diary rendering is tightly coupled with data)
