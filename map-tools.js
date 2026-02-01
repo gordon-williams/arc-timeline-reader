@@ -630,6 +630,7 @@ function closeSearchPopup() {
         window.showDayMap(window.NavigationController.dayKey);
     }
 }
+window.closeSearchPopup = closeSearchPopup;  // Expose for app.js to close when returning to import screen
 
 function clearRouteSearch() {
     routeSearchState.from = null;

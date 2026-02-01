@@ -1,5 +1,14 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 763 (2026-02-02)
+
+### Fix - Close Search Popup on Import
+- **Auto-close**: Location search popup now closes when user clicks "Import Data" button
+- **Clean state**: Prevents stale search UI when returning to import screen
+- **Exposed function**: `closeSearchPopup` now available globally via `window.closeSearchPopup`
+
+---
+
 ## Build 762 (2026-02-02)
 
 ### Fix - Waypoint Navigation Accuracy (v3)

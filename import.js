@@ -754,6 +754,11 @@
      * Import More Files button handler
      */
     function importMoreFiles() {
+        // Close location search popup if open
+        if (typeof window.closeSearchPopup === 'function') {
+            window.closeSearchPopup();
+        }
+
         const logDiv = document.getElementById('log');
         if (logDiv) logDiv.style.display = 'none';
 

@@ -3238,6 +3238,11 @@ function moveMapSmart(latlng, zoom) {
         
         // Import More Files button handler
         function importMoreFiles() {
+            // Close location search popup if open
+            if (typeof window.closeSearchPopup === 'function') {
+                window.closeSearchPopup();
+            }
+
             // Delegate to import module if available
             if (window.ArcImport?.importMoreFiles) {
                 return window.ArcImport.importMoreFiles();
