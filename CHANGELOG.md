@@ -1,5 +1,17 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 764 (2026-02-02)
+
+### Enhancement - Redesigned Acknowledgements Modal
+- **Card-based layout**: Clean categorized sections with icons
+- **Added OSRM**: Free routing engine now credited in Services
+- **Added Open-Elevation**: Elevation data API now credited in Services
+- **Clickable links**: All libraries and services link to their websites
+- **License badges**: Shows license type (MIT, BSD-2, ODbL) where applicable
+- **Better visual hierarchy**: Category headers with icons, consistent spacing
+
+---
+
 ## Build 763 (2026-02-02)
 
 ### Fix - Close Search Popup on Import

@@ -10065,66 +10065,101 @@ scrollToDiaryDay(currentDayKey);
         
         
         // ========== Credits Modal ==========
-        
+
         function showCredits() {
+            // Card-based layout with categories
+            const categories = [
+                {
+                    title: 'Libraries',
+                    icon: '📚',
+                    items: [
+                        { name: 'Leaflet', desc: 'Interactive maps', license: 'BSD-2', url: 'https://leafletjs.com/' },
+                        { name: 'Leaflet.markercluster', desc: 'Marker clustering', license: 'MIT', url: 'https://github.com/Leaflet/Leaflet.markercluster' },
+                        { name: 'Chart.js', desc: 'Charts & graphs', license: 'MIT', url: 'https://www.chartjs.org/' },
+                        { name: 'Pako', desc: 'Compression', license: 'MIT', url: 'https://github.com/nodeca/pako' },
+                        { name: 'Marked', desc: 'Markdown parser', license: 'MIT', url: 'https://marked.js.org/' }
+                    ]
+                },
+                {
+                    title: 'Map Tiles',
+                    icon: '🗺️',
+                    items: [
+                        { name: 'Mapbox', desc: 'Premium tiles & geocoding', url: 'https://www.mapbox.com/' },
+                        { name: 'CARTO', desc: 'Street map tiles', url: 'https://carto.com/' },
+                        { name: 'CyclOSM', desc: 'Cycle map tiles', url: 'https://www.cyclosm.org/' },
+                        { name: 'Esri', desc: 'Satellite imagery', url: 'https://www.esri.com/' }
+                    ]
+                },
+                {
+                    title: 'Services',
+                    icon: '🌐',
+                    items: [
+                        { name: 'OpenStreetMap', desc: 'Map data', license: 'ODbL', url: 'https://www.openstreetmap.org/' },
+                        { name: 'Nominatim', desc: 'Geocoding', url: 'https://nominatim.org/' },
+                        { name: 'OSRM', desc: 'Routing engine', url: 'https://project-osrm.org/' },
+                        { name: 'Open-Elevation', desc: 'Elevation data', url: 'https://open-elevation.com/' }
+                    ]
+                },
+                {
+                    title: 'Data & Tools',
+                    icon: '🛠️',
+                    items: [
+                        { name: 'Arc Timeline', desc: 'iOS location history', url: 'https://www.bigpaua.com/arcapp' },
+                        { name: 'Claude Code', desc: 'AI pair programming', url: 'https://claude.ai/claude-code' }
+                    ]
+                }
+            ];
+
+            const renderCategory = (cat) => {
+                const itemsHtml = cat.items.map(item => {
+                    const license = item.license ? `<span style="background: #f0f0f0; color: #666; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">${item.license}</span>` : '';
+                    const link = item.url ? `<a href="${item.url}" target="_blank" rel="noopener" style="color: #007AFF; text-decoration: none; font-weight: 500;">${item.name}</a>` : `<span style="font-weight: 500;">${item.name}</span>`;
+                    return `<div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f5f5f5;">
+                        <div>${link}${license}</div>
+                        <div style="color: #86868b; font-size: 13px;">${item.desc}</div>
+                    </div>`;
+                }).join('');
+
+                return `
+                    <div style="margin-bottom: 20px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                            <span style="font-size: 18px;">${cat.icon}</span>
+                            <span style="font-weight: 600; color: #1d1d1f;">${cat.title}</span>
+                        </div>
+                        <div style="background: #fafafa; border-radius: 10px; padding: 4px 12px;">
+                            ${itemsHtml}
+                        </div>
+                    </div>
+                `;
+            };
+
             const creditsHtml = `
-                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; max-height: 70vh; overflow-y: auto;">
-                    <h3 style="margin-top: 0; color: #333;">Libraries</h3>
-                    <ul style="padding-left: 20px; line-height: 1.8;">
-                        <li><strong>Leaflet</strong> 1.9.4 — Interactive maps (BSD 2-Clause)</li>
-                        <li><strong>Leaflet.markercluster</strong> 1.5.3 — Marker clustering (MIT)</li>
-                        <li><strong>Marked</strong> — Markdown parser (MIT)</li>
-                        <li><strong>Chart.js</strong> 4.4.1 — Charts & graphs (MIT)</li>
-                        <li><strong>Pako</strong> 2.1.0 — Compression (MIT)</li>
-                    </ul>
-                    
-                    <h3 style="color: #333;">Map Tiles</h3>
-                    <ul style="padding-left: 20px; line-height: 1.8;">
-                        <li><strong>CARTO</strong> — Street map tiles</li>
-                        <li><strong>CyclOSM</strong> — Cycle map tiles</li>
-                        <li><strong>Esri</strong> — Satellite imagery</li>
-                    </ul>
-                    
-                    <h3 style="color: #333;">Services</h3>
-                    <ul style="padding-left: 20px; line-height: 1.8;">
-                        <li><strong>OpenStreetMap</strong> — Map data (ODbL)</li>
-                        <li><strong>Nominatim</strong> — Location search</li>
-                    </ul>
-                    
-                    <h3 style="color: #333;">Data Source</h3>
-                    <ul style="padding-left: 20px; line-height: 1.8;">
-                        <li><strong>Arc Timeline</strong> by Big Paua — iOS location history app</li>
-                    </ul>
-
-                    <h3 style="color: #333;">Development</h3>
-                    <ul style="padding-left: 20px; line-height: 1.8;">
-                        <li><strong>Claude Code</strong> by Anthropic — AI pair programming assistant</li>
-                    </ul>
-
-                    <p style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; color: #666; font-size: 13px;">
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; width: 420px; max-height: 70vh; overflow-y: auto;">
+                    ${categories.map(renderCategory).join('')}
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e5e5; text-align: center; color: #86868b; font-size: 12px;">
                         Arc Timeline Diary Reader © 2025–2026 Gordon Williams<br>
-                        Released under the MIT License
-                    </p>
+                        <span style="color: #007AFF;">MIT License</span>
+                    </div>
                 </div>
             `;
-            
+
             // Create modal
             const modal = document.createElement('div');
             modal.id = 'creditsModal';
             modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100000;';
             modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-            
+
             const content = document.createElement('div');
             content.style.cssText = 'background: white; padding: 24px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative;';
             content.innerHTML = `
                 <button onclick="this.closest('#creditsModal').remove()" style="position: absolute; top: 12px; right: 12px; background: rgba(0,0,0,0.06); border: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center;">×</button>
-                <h2 style="margin: 0 0 16px 0; color: #1d1d1f;">Acknowledgements</h2>
+                <h2 style="margin: 0 0 20px 0; color: #1d1d1f; font-size: 22px;">Acknowledgements</h2>
                 ${creditsHtml}
             `;
-            
+
             modal.appendChild(content);
             document.body.appendChild(modal);
-            
+
             // Close on Escape
             const closeOnEsc = (e) => {
                 if (e.key === 'Escape') {
