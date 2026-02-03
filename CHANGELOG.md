@@ -1,5 +1,15 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 766 (2026-02-03)
+
+### Fix - Sanitize Rendered HTML + Robust Day Hash
+- **Sanitize Markdown render**: Diary view now sanitizes `marked` output to prevent injected HTML execution
+- **Sanitize location view**: Location markdown is sanitized before display
+- **Use DOMPurify**: Added DOMPurify for HTML sanitization, with escape fallback
+- **Robust content hash**: Handles numeric `placeId` and `item.place` IDs to avoid hash errors and missed updates
+
+---
+
 ## Build 765 (2026-02-02)
 
 ### Fix - Close Search Popup When Closing Diary

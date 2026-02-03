@@ -1894,7 +1894,7 @@
 
     <script>
         // Build version
-        const ANALYSIS_BUILD = 600;
+        const ANALYSIS_BUILD = 601;
         
         // Database and state
         let db = null;
@@ -2095,11 +2095,16 @@
             const container = document.getElementById('activityCheckboxes');
             container.innerHTML = sorted.map((a, i) => {
                 const color = activityColors[a] || defaultColor;
+                // Default to walking checked so users see data immediately
+                const isWalking = a.toLowerCase() === 'walking';
                 return `<label class="activity-checkbox" style="--activity-color: ${color}">
-                    <input type="checkbox" value="${a}">
+                    <input type="checkbox" value="${a}"${isWalking ? ' checked' : ''}>
                     <span>${capitalize(a)}</span>
                 </label>`;
             }).join('');
+
+            // Trigger chart update to show walking data
+            updateChart();
         }
         
         function setupEventListeners() {

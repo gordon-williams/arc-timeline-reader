@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GZip File Compressor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .drop-zone {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+        
+        .drop-zone:hover {
+            background: #eef1ff;
+            border-color: #764ba2;
+        }
+        
+        .drop-zone.dragover {
+            background: #e0e7ff;
+            border-color: #764ba2;
+            transform: scale(1.02);
+        }
+        
+        .drop-zone-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .drop-zone-text {
+            color: #667eea;
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        
+        .drop-zone-hint {
+            color: #999;
+            font-size: 13px;
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        .file-info {
+            background: #f5f5f5;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .file-info.visible {
+            display: block;
+        }
+        
+        .file-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            word-break: break-all;
+        }
+        
+        .file-details {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        
+        .rename-section {
+            margin-top: 15px;
+        }
+        
+        .rename-section label {
+            display: block;
+            color: #555;
+            font-weight: 500;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .rename-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            transition: border-color 0.3s ease;
+        }
+        
+        .rename-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .filename-hint {
+            color: #999;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        
+        .compress-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .compress-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .compress-btn:active {
+            transform: translateY(0);
+        }
+        
+        .compress-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .progress-section {
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .progress-section.visible {
+            display: block;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        
+        .progress-text {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .result {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .result.visible {
+            display: block;
+        }
+        
+        .result-icon {
+            font-size: 20px;
+            margin-right: 8px;
+        }
+        
+        .stats {
+            margin-top: 10px;
+            font-size: 13px;
+            opacity: 0.9;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .error.visible {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📦 GZip File Compressor</h1>
+        <p class="subtitle">Compress Arc Timeline JSON files for efficient storage</p>
+        
+        <div class="drop-zone" id="dropZone">
+            <div class="drop-zone-icon">📄</div>
+            <div class="drop-zone-text">Drop JSON file here or click to browse</div>
+            <div class="drop-zone-hint">Supports .json files</div>
+        </div>
+        
+        <input type="file" id="fileInput" accept=".json,application/json">
+        
+        <div class="file-info" id="fileInfo">
+            <div class="file-name" id="fileName"></div>
+            <div class="file-details" id="fileDetails"></div>
+            
+            <div class="rename-section">
+                <label for="outputName">Output filename (without .gz extension):</label>
+                <input type="text" id="outputName" class="rename-input" placeholder="2025-12-29.json">
+                <div class="filename-hint">💡 Tip: Use format YYYY-MM-DD.json to match Arc Export bulk files</div>
+            </div>
+        </div>
+        
+        <button class="compress-btn" id="compressBtn" disabled>Compress & Download</button>
+        
+        <div class="progress-section" id="progressSection">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">Processing...</div>
+        </div>
+        
+        <div class="result" id="result">
+            <span class="result-icon">✅</span>
+            <strong>Compression successful!</strong>
+            <div class="stats" id="stats"></div>
+        </div>
+        
+        <div class="error" id="error"></div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileDetails = document.getElementById('fileDetails');
+        const outputName = document.getElementById('outputName');
+        const compressBtn = document.getElementById('compressBtn');
+        const progressSection = document.getElementById('progressSection');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const result = document.getElementById('result');
+        const stats = document.getElementById('stats');
+        const error = document.getElementById('error');
+        
+        let selectedFile = null;
+        
+        // Click to browse
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        // Drag and drop handlers
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+        
+        // File input change
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+        
+        // Handle file selection
+        function handleFile(file) {
+            // Reset UI
+            result.classList.remove('visible');
+            error.classList.remove('visible');
+            progressSection.classList.remove('visible');
+            
+            // Validate file type
+            if (!file.name.endsWith('.json')) {
+                showError('Please select a JSON file');
+                return;
+            }
+            
+            selectedFile = file;
+            
+            // Show file info
+            fileName.textContent = `📄 ${file.name}`;
+            
+            const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+            fileDetails.textContent = `Size: ${sizeMB} MB | Type: ${file.type || 'application/json'}`;
+            
+            // Suggest output filename
+            // Try to extract date from filename (e.g., "arc-timeline-daily_2025-12-29.json" -> "2025-12-29.json")
+            let suggestedName = file.name.replace('.json', '');
+            
+            // Look for date pattern YYYY-MM-DD
+            const dateMatch = file.name.match(/(\d{4}-\d{2}-\d{2})/);
+            if (dateMatch) {
+                suggestedName = `${dateMatch[1]}.json`;
+            } else {
+                // If no date found, just remove "arc-timeline-daily_" prefix
+                suggestedName = file.name.replace(/^arc-timeline-daily_/, '').replace('.json', '.json');
+            }
+            
+            outputName.value = suggestedName;
+            
+            fileInfo.classList.add('visible');
+            compressBtn.disabled = false;
+        }
+        
+        // Compress and download
+        compressBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+            
+            try {
+                // Disable button
+                compressBtn.disabled = true;
+                
+                // Show progress
+                progressSection.classList.add('visible');
+                progressFill.style.width = '20%';
+                progressText.textContent = 'Reading file...';
+                
+                // Read file
+                const fileContent = await selectedFile.text();
+                
+                progressFill.style.width = '50%';
+                progressText.textContent = 'Compressing...';
+                
+                // Compress with gzip
+                const compressed = pako.gzip(fileContent);
+                
+                progressFill.style.width = '80%';
+                progressText.textContent = 'Creating download...';
+                
+                // Create blob and download
+                const blob = new Blob([compressed], { type: 'application/gzip' });
+                const url = URL.createObjectURL(blob);
+                
+                // Get output filename
+                let finalName = outputName.value.trim();
+                if (!finalName) {
+                    finalName = selectedFile.name.replace('.json', '.json');
+                }
+                
+                // Ensure it ends with .json (not .json.gz yet)
+                if (!finalName.endsWith('.json')) {
+                    finalName += '.json';
+                }
+                
+                // Add .gz extension
+                finalName += '.gz';
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = finalName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                progressFill.style.width = '100%';
+                progressText.textContent = 'Complete!';
+                
+                // Show results
+                const originalSize = (selectedFile.size / 1024).toFixed(2);
+                const compressedSize = (compressed.length / 1024).toFixed(2);
+                const ratio = ((1 - compressed.length / selectedFile.size) * 100).toFixed(1);
+                
+                stats.innerHTML = `
+                    Original: ${originalSize} KB<br>
+                    Compressed: ${compressedSize} KB<br>
+                    Compression: ${ratio}% reduction<br>
+                    Output: ${finalName}
+                `;
+                
+                result.classList.add('visible');
+                
+                // Reset after delay
+                setTimeout(() => {
+                    progressSection.classList.remove('visible');
+                    compressBtn.disabled = false;
+                    progressFill.style.width = '0%';
+                }, 2000);
+                
+            } catch (err) {
+                console.error('Compression error:', err);
+                showError(`Compression failed: ${err.message}`);
+                compressBtn.disabled = false;
+                progressSection.classList.remove('visible');
+            }
+        });
+        
+        function showError(message) {
+            error.textContent = `❌ ${message}`;
+            error.classList.add('visible');
+            
+            setTimeout(() => {
+                error.classList.remove('visible');
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

@@ -636,7 +636,8 @@ function moveMapSmart(latlng, zoom) {
             // - Item count (changes when merging/deleting)
             const parts = items.map(item => {
                 const type = item.activityType || (item.isVisit ? 'visit' : 'trip');
-                const place = item.placeId?.substring(0, 8) || '';
+                const placeId = item.placeId ?? item.place?.placeId ?? item.place?.id;
+                const place = placeId ? String(placeId).slice(0, 8) : '';
                 const hasNote = item.noteId ? 'N' : '';
                 return `${type}:${place}:${hasNote}`;
             });
@@ -7017,6 +7018,16 @@ function moveMapSmart(latlng, zoom) {
             setTimeout(() => updateStatsForCurrentView(), 10);
         }
         
+        function sanitizeHtml(html) {
+            if (window.DOMPurify) {
+                return window.DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+            }
+            // Fail-safe fallback: escape HTML if sanitizer isn't available.
+            const div = document.createElement('div');
+            div.textContent = html;
+            return div.innerHTML;
+        }
+
         function displayDiary(monthKey, skipSearch = false, onComplete = null) {
             const diary = generatedDiaries[monthKey];
             if (!diary) return;
@@ -7026,7 +7037,7 @@ function moveMapSmart(latlng, zoom) {
             const includeAll = !notesOnly; // Inverted logic: notesOnly checked = includeAll false
             const md = generateMarkdown(diary.monthData, includeAll, includeAll);
             diary.markdown = md; 
-            markdownContent.innerHTML = marked.parse(md);
+            markdownContent.innerHTML = sanitizeHtml(marked.parse(md));
             
             // Store original for search (before any highlighting)
             originalContent = markdownContent.innerHTML;
@@ -13022,7 +13033,7 @@ scrollToDiaryDay(currentDayKey);
             // Generate location-focused content with subtitle header
             const markdown = generateLocationMarkdown(mergedLocations);
             if (markdownContent) {
-                markdownContent.innerHTML = markdown;
+                markdownContent.innerHTML = sanitizeHtml(markdown);
                 markdownContent.scrollTop = 0;
             }
             

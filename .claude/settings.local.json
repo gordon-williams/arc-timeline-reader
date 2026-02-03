@@ -11,7 +11,24 @@
       "Bash(/opt/homebrew/bin/gh auth status)",
       "Bash(/opt/homebrew/bin/gh repo create:*)",
       "Bash(git push)",
-      "Bash(node -c:*)"
+      "Bash(node -c:*)",
+      "Bash(gunzip:*)",
+      "Bash(find:*)",
+      "Bash(python3:*)",
+      "Bash(grep:*)",
+      "Bash(git reset:*)",
+      "Bash(git push:*)",
+      "Bash(git restore:*)",
+      "Bash(ls:*)",
+      "Bash(node --check:*)",
+      "Bash(/usr/local/bin/node --check app.js)",
+      "Bash(/opt/homebrew/bin/node --check app.js)",
+      "Bash(xxd:*)",
+      "Bash(awk:*)",
+      "Bash(node:*)",
+      "Bash(/usr/bin/python3:*)",
+      "Bash(file:*)",
+      "Bash(gh api:*)"
     ]
   }
 }

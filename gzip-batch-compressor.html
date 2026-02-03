@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GZip Batch Compressor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .drop-zone {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+        
+        .drop-zone:hover {
+            background: #eef1ff;
+            border-color: #764ba2;
+        }
+        
+        .drop-zone.dragover {
+            background: #e0e7ff;
+            border-color: #764ba2;
+            transform: scale(1.02);
+        }
+        
+        .drop-zone-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .drop-zone-text {
+            color: #667eea;
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        
+        .drop-zone-hint {
+            color: #999;
+            font-size: 13px;
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        .file-list {
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .file-list.visible {
+            display: block;
+        }
+        
+        .file-list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .file-count {
+            font-weight: 600;
+            color: #333;
+            font-size: 16px;
+        }
+        
+        .clear-all {
+            background: #f5f5f5;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #666;
+            transition: all 0.2s;
+        }
+        
+        .clear-all:hover {
+            background: #e0e0e0;
+            color: #333;
+        }
+        
+        .file-item {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        
+        .file-item:hover {
+            border-color: #e0e7ff;
+        }
+        
+        .file-item.processing {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        
+        .file-item.success {
+            border-color: #4caf50;
+            background: #f1f8f4;
+        }
+        
+        .file-item.error {
+            border-color: #f44336;
+            background: #fff5f5;
+        }
+        
+        .file-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .file-original-name {
+            font-weight: 500;
+            color: #555;
+            font-size: 13px;
+            flex: 1;
+            word-break: break-all;
+        }
+        
+        .file-size {
+            color: #999;
+            font-size: 12px;
+            margin-left: 10px;
+            white-space: nowrap;
+        }
+        
+        .remove-file {
+            background: none;
+            border: none;
+            color: #999;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0 5px;
+            margin-left: 10px;
+            transition: color 0.2s;
+        }
+        
+        .remove-file:hover {
+            color: #f44336;
+        }
+        
+        .file-rename {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .file-rename-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'Monaco', 'Courier New', monospace;
+        }
+        
+        .file-rename-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .file-status {
+            font-size: 12px;
+            margin-top: 8px;
+            display: none;
+        }
+        
+        .file-status.visible {
+            display: block;
+        }
+        
+        .file-status.processing {
+            color: #667eea;
+        }
+        
+        .file-status.success {
+            color: #4caf50;
+        }
+        
+        .file-status.error {
+            color: #f44336;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .compress-btn, .download-all-btn {
+            flex: 1;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .compress-btn:hover, .download-all-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .compress-btn:active, .download-all-btn:active {
+            transform: translateY(0);
+        }
+        
+        .compress-btn:disabled, .download-all-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .overall-progress {
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .overall-progress.visible {
+            display: block;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        
+        .progress-text {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .summary {
+            background: #f5f5f5;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .summary.visible {
+            display: block;
+        }
+        
+        .summary-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            font-size: 13px;
+        }
+        
+        .summary-stat {
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .summary-stat-label {
+            color: #666;
+        }
+        
+        .summary-stat-value {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .summary-stat-value.success {
+            color: #4caf50;
+        }
+        
+        .summary-stat-value.error {
+            color: #f44336;
+        }
+        
+        .download-notice {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            display: none;
+        }
+        
+        .download-notice.visible {
+            display: block;
+        }
+        
+        .download-notice strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📦 GZip Batch Compressor</h1>
+        <p class="subtitle">Compress multiple Arc Timeline JSON files efficiently</p>
+        
+        <div class="drop-zone" id="dropZone">
+            <div class="drop-zone-icon">📄</div>
+            <div class="drop-zone-text">Drop JSON files here or click to browse</div>
+            <div class="drop-zone-hint">Supports multiple .json files • Auto-renames to YYYY-MM-DD.json format</div>
+        </div>
+        
+        <input type="file" id="fileInput" accept=".json,application/json" multiple>
+        
+        <div class="download-notice" id="downloadNotice">
+            <strong>📥 Browser Download Permission</strong>
+            If your browser blocks multiple downloads, click "Allow" when prompted. Files will download one at a time with a short delay.
+        </div>
+        
+        <div class="file-list" id="fileList">
+            <div class="file-list-header">
+                <div class="file-count" id="fileCount">0 files selected</div>
+                <button class="clear-all" id="clearAll">Clear All</button>
+            </div>
+            <div id="fileItems"></div>
+        </div>
+        
+        <div class="action-buttons">
+            <button class="compress-btn" id="compressBtn" disabled>Compress All Files</button>
+        </div>
+        
+        <div class="overall-progress" id="overallProgress">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">Processing...</div>
+        </div>
+        
+        <div class="summary" id="summary">
+            <div class="summary-title">Compression Summary</div>
+            <div class="summary-stats" id="summaryStats"></div>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const downloadNotice = document.getElementById('downloadNotice');
+        const fileList = document.getElementById('fileList');
+        const fileCount = document.getElementById('fileCount');
+        const fileItems = document.getElementById('fileItems');
+        const clearAll = document.getElementById('clearAll');
+        const compressBtn = document.getElementById('compressBtn');
+        const overallProgress = document.getElementById('overallProgress');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const summary = document.getElementById('summary');
+        const summaryStats = document.getElementById('summaryStats');
+        
+        let selectedFiles = [];
+        
+        // Click to browse
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        // Drag and drop handlers
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            
+            const files = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.json'));
+            if (files.length > 0) {
+                addFiles(files);
+            }
+        });
+        
+        // File input change
+        fileInput.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files).filter(f => f.name.endsWith('.json'));
+            if (files.length > 0) {
+                addFiles(files);
+            }
+            // Reset input so same files can be selected again
+            fileInput.value = '';
+        });
+        
+        // Clear all files
+        clearAll.addEventListener('click', () => {
+            selectedFiles = [];
+            updateFileList();
+        });
+        
+        // Add files to the list
+        function addFiles(files) {
+            for (const file of files) {
+                // Check if file already exists
+                const exists = selectedFiles.some(f => f.file.name === file.name && f.file.size === file.size);
+                if (!exists) {
+                    selectedFiles.push({
+                        file: file,
+                        outputName: suggestOutputName(file.name),
+                        status: 'pending',
+                        compressed: null
+                    });
+                }
+            }
+            updateFileList();
+        }
+        
+        // Suggest output filename from input
+        function suggestOutputName(filename) {
+            // Try to extract date pattern YYYY-MM-DD
+            const dateMatch = filename.match(/(\d{4}-\d{2}-\d{2})/);
+            if (dateMatch) {
+                return `${dateMatch[1]}.json`;
+            }
+            
+            // Remove arc-timeline-daily_ prefix if present
+            let name = filename.replace(/^arc-timeline-daily_/, '');
+            
+            // Remove .json extension
+            name = name.replace(/\.json$/, '');
+            
+            return `${name}.json`;
+        }
+        
+        // Update file list UI
+        function updateFileList() {
+            if (selectedFiles.length === 0) {
+                fileList.classList.remove('visible');
+                compressBtn.disabled = true;
+                summary.classList.remove('visible');
+                return;
+            }
+            
+            fileList.classList.add('visible');
+            compressBtn.disabled = false;
+            
+            fileCount.textContent = `${selectedFiles.length} file${selectedFiles.length !== 1 ? 's' : ''} selected`;
+            
+            fileItems.innerHTML = '';
+            selectedFiles.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'file-item';
+                if (item.status !== 'pending') {
+                    div.classList.add(item.status);
+                }
+                
+                const sizeMB = (item.file.size / 1024 / 1024).toFixed(2);
+                
+                div.innerHTML = `
+                    <div class="file-item-header">
+                        <div class="file-original-name">📄 ${item.file.name}</div>
+                        <div class="file-size">${sizeMB} MB</div>
+                        <button class="remove-file" data-index="${index}">×</button>
+                    </div>
+                    <div class="file-rename">
+                        <input type="text" class="file-rename-input" value="${item.outputName}" data-index="${index}">
+                    </div>
+                    <div class="file-status" id="status-${index}"></div>
+                `;
+                
+                fileItems.appendChild(div);
+            });
+            
+            // Add event listeners for remove buttons
+            document.querySelectorAll('.remove-file').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const index = parseInt(e.target.dataset.index);
+                    selectedFiles.splice(index, 1);
+                    updateFileList();
+                });
+            });
+            
+            // Add event listeners for rename inputs
+            document.querySelectorAll('.file-rename-input').forEach(input => {
+                input.addEventListener('change', (e) => {
+                    const index = parseInt(e.target.dataset.index);
+                    selectedFiles[index].outputName = e.target.value;
+                });
+            });
+        }
+        
+        // Compress all files
+        compressBtn.addEventListener('click', async () => {
+            compressBtn.disabled = true;
+            overallProgress.classList.add('visible');
+            downloadNotice.classList.add('visible');
+            summary.classList.remove('visible');
+            
+            let successCount = 0;
+            let errorCount = 0;
+            let totalOriginalSize = 0;
+            let totalCompressedSize = 0;
+            
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const item = selectedFiles[i];
+                const progress = ((i) / selectedFiles.length) * 100;
+                
+                progressFill.style.width = `${progress}%`;
+                progressText.textContent = `Processing ${i + 1} of ${selectedFiles.length}: ${item.file.name}`;
+                
+                // Update item status
+                item.status = 'processing';
+                updateFileItemStatus(i);
+                
+                try {
+                    // Read file
+                    const fileContent = await item.file.text();
+                    
+                    // Compress
+                    const compressed = pako.gzip(fileContent);
+                    
+                    // Store compressed data
+                    item.compressed = compressed;
+                    item.status = 'success';
+                    
+                    totalOriginalSize += item.file.size;
+                    totalCompressedSize += compressed.length;
+                    
+                    updateFileItemStatus(i, 'success', `Compressed: ${(compressed.length / 1024).toFixed(2)} KB`);
+                    successCount++;
+                    
+                    // Download with staggered timing to prevent browser blocking
+                    // 500ms delay per file
+                    downloadCompressedFile(item, i * 500);
+                    
+                } catch (err) {
+                    console.error(`Error compressing ${item.file.name}:`, err);
+                    item.status = 'error';
+                    updateFileItemStatus(i, 'error', `Error: ${err.message}`);
+                    errorCount++;
+                }
+            }
+            
+            // Complete
+            progressFill.style.width = '100%';
+            progressText.textContent = `Complete! ${successCount} file${successCount !== 1 ? 's' : ''} downloading...`;
+            
+            // Show summary
+            const compressionRatio = ((1 - totalCompressedSize / totalOriginalSize) * 100).toFixed(1);
+            
+            summaryStats.innerHTML = `
+                <div class="summary-stat">
+                    <span class="summary-stat-label">Total Files:</span>
+                    <span class="summary-stat-value">${selectedFiles.length}</span>
+                </div>
+                <div class="summary-stat">
+                    <span class="summary-stat-label">Successful:</span>
+                    <span class="summary-stat-value success">${successCount}</span>
+                </div>
+                ${errorCount > 0 ? `
+                <div class="summary-stat">
+                    <span class="summary-stat-label">Failed:</span>
+                    <span class="summary-stat-value error">${errorCount}</span>
+                </div>
+                ` : ''}
+                <div class="summary-stat">
+                    <span class="summary-stat-label">Original Size:</span>
+                    <span class="summary-stat-value">${(totalOriginalSize / 1024 / 1024).toFixed(2)} MB</span>
+                </div>
+                <div class="summary-stat">
+                    <span class="summary-stat-label">Compressed:</span>
+                    <span class="summary-stat-value">${(totalCompressedSize / 1024 / 1024).toFixed(2)} MB</span>
+                </div>
+                <div class="summary-stat">
+                    <span class="summary-stat-label">Saved:</span>
+                    <span class="summary-stat-value success">${compressionRatio}%</span>
+                </div>
+            `;
+            
+            summary.classList.add('visible');
+            
+            setTimeout(() => {
+                overallProgress.classList.remove('visible');
+                compressBtn.disabled = false;
+                progressFill.style.width = '0%';
+            }, 2000);
+        });
+        
+        // Update individual file item status
+        function updateFileItemStatus(index, status = null, message = null) {
+            const item = selectedFiles[index];
+            const fileItem = fileItems.children[index];
+            
+            if (status) {
+                fileItem.className = `file-item ${status}`;
+            } else {
+                fileItem.className = `file-item ${item.status}`;
+            }
+            
+            const statusDiv = document.getElementById(`status-${index}`);
+            if (message) {
+                statusDiv.textContent = message;
+                statusDiv.className = `file-status visible ${status || item.status}`;
+            }
+        }
+        
+        // Download compressed file with delay to prevent browser blocking
+        function downloadCompressedFile(item, delay = 0) {
+            setTimeout(() => {
+                const blob = new Blob([item.compressed], { type: 'application/gzip' });
+                const url = URL.createObjectURL(blob);
+                
+                let finalName = item.outputName.trim();
+                if (!finalName.endsWith('.json')) {
+                    finalName += '.json';
+                }
+                finalName += '.gz';
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = finalName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                // Clean up after a delay
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }, delay);
+        }
+    </script>
+</body>
+</html>
