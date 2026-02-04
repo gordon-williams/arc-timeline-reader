@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader
 
-**Current Build: 796**
+**Current Build: 805**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracking data that generates interactive diaries with maps.
 
@@ -66,8 +66,9 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracki
 ### Map Features
 - **Route Visualization** - Color-coded tracks by activity type
 - **Elevation Profile** - Interactive altitude chart for visible routes with hover tooltip and map marker sync
+- **Speed Profile** - Interactive speed chart with selection stats and spike filtering
 - **Google Street View** - Links in location popups and right-click context menu
-- **Tools Menu** - Consolidated dropdown for Search, Measure, Elevation, Transparency, Animation, Filter
+- **Tools Menu** - Consolidated dropdown for Search, Measure, Elevation & Speed, Transparency, Animation, Filter
 - **Measure Tool** - Click to measure distances between points
 - **Location Search** - Mapbox-powered place search
 - **Multiple Tile Providers** - Mapbox (streets, dark, satellite, outdoors) or CARTO

@@ -1,5 +1,70 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 805 (2026-02-04)
+
+### Fix - Dynamic Speed Y-Axis Label Gutter
+- **No left clipping at high speeds**: Speed chart now measures y-axis label width and expands left padding dynamically
+
+---
+
+## Build 804 (2026-02-04)
+
+### UI - High-Speed Axis Label Room
+- **Speed y-axis gutter widened**: Increased left chart padding so high-speed labels (e.g., 1000+ km/h) are not clipped
+
+---
+
+## Build 803 (2026-02-04)
+
+### UI - Reduced Chart Headroom
+- **Top padding tuned**: Reduced profile chart top padding now that y-axis clipping is fixed
+
+---
+
+## Build 802 (2026-02-04)
+
+### Fix - Y-Axis Top Label Clipping
+- **Tick bounds corrected**: Major y-axis ticks now stay within chart bounds
+- **Label anchor corrected**: Y-axis labels are centered on grid lines without extra pixel offset
+
+---
+
+## Build 801 (2026-02-04)
+
+### UI - Taller Profile Panel
+- **Fixed taller panel**: Increased profile chart height to reduce top y-axis label clipping
+- **Map padding adjusted**: Increased bottom viewport margin so routes are not hidden behind taller panel
+
+---
+
+## Build 800 (2026-02-04)
+
+### Fix - Top Axis Label Clipping
+- **Lowered chart y-max pixel region**: Increased chart top padding so top y-axis labels have headroom
+
+---
+
+## Build 799 (2026-02-04)
+
+### UI - Axis Label Baseline
+- **Y-axis labels centered**: Canvas y-axis labels now use middle baseline to reduce top-label clipping
+
+---
+
+## Build 798 (2026-02-04)
+
+### UI - Profile Panel Height
+- **Fixed taller panel**: Increased profile chart area height to reduce top y-axis label truncation
+
+---
+
+## Build 797 (2026-02-04)
+
+### UI - Speed Axis Tick Steps
+- **Nice steps**: Speed profile y-axis now uses 2/5/10/20-style increments based on range
+
+---
+
 ## Build 796 (2026-02-04)
 
 ### UI - Elevation Gain/Delta Ordering + Gain Consistency

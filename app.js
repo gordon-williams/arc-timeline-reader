@@ -10871,9 +10871,9 @@ scrollToDiaryDay(currentDayKey);
             }
 
             // Register bottom margin with NavigationController so map content avoids the panel
-            // Panel is ~200px tall + 20px bottom margin
+            // Panel is ~236px tall + 20px bottom margin
             // Allow refit so map adjusts to show content above the panel
-            NavigationController.updateViewportMargins({ bottom: 220 }, { delay: 100 });
+            NavigationController.updateViewportMargins({ bottom: 260 }, { delay: 100 });
 
             // Update chart with visible routes
             updateElevationChart();
@@ -11469,7 +11469,7 @@ scrollToDiaryDay(currentDayKey);
 
             const width = rect.width;
             const height = rect.height;
-            const padding = { top: 14, right: 15, bottom: 25, left: 45 };
+            const padding = { top: 16, right: 15, bottom: 25, left: 60 };
             const chartWidth = width - padding.left - padding.right;
             const chartHeight = height - padding.top - padding.bottom;
 
@@ -11512,8 +11512,9 @@ scrollToDiaryDay(currentDayKey);
             const niceSteps = [5, 10, 20, 50, 100];
             const nice = niceSteps.find(s => s >= normalized) || 100;
             const step = nice * pow10;
-            const yStart = Math.floor(yMin / step) * step;
-            const yEnd = Math.ceil(yMax / step) * step;
+            // Keep major ticks inside the drawable range to avoid clipped top labels.
+            const yStart = Math.ceil(yMin / step) * step;
+            const yEnd = Math.floor(yMax / step) * step;
 
             for (let altVal = yStart; altVal <= yEnd; altVal += step) {
                 const y = yScale(altVal);
@@ -11526,7 +11527,8 @@ scrollToDiaryDay(currentDayKey);
                 ctx.fillStyle = '#86868b';
                 ctx.font = '10px -apple-system, sans-serif';
                 ctx.textAlign = 'right';
-                ctx.fillText(`${Math.round(altVal)}m`, padding.left - 5, y + 3);
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`${Math.round(altVal)}m`, padding.left - 5, y);
             }
 
             // Draw subtle zero line if elevations include negative values
@@ -11545,7 +11547,8 @@ scrollToDiaryDay(currentDayKey);
                 ctx.fillStyle = '#86868b';
                 ctx.font = '10px -apple-system, sans-serif';
                 ctx.textAlign = 'right';
-                ctx.fillText('0m', padding.left - 5, zeroY + 3);
+                ctx.textBaseline = 'middle';
+                ctx.fillText('0m', padding.left - 5, zeroY);
             }
 
             // X-axis labels
@@ -11557,6 +11560,7 @@ scrollToDiaryDay(currentDayKey);
                 ctx.fillStyle = '#86868b';
                 ctx.font = '10px -apple-system, sans-serif';
                 ctx.textAlign = 'center';
+                ctx.textBaseline = 'alphabetic';
                 const label = dist < 1 ? `${(dist * 1000).toFixed(0)}m` : `${dist.toFixed(1)}km`;
                 ctx.fillText(label, x, height - 5);
             }
@@ -11619,9 +11623,8 @@ scrollToDiaryDay(currentDayKey);
 
             const width = rect.width;
             const height = rect.height;
-            const padding = { top: 14, right: 15, bottom: 25, left: 45 };
-            const chartWidth = width - padding.left - padding.right;
-            const chartHeight = height - padding.top - padding.bottom;
+            const basePadding = { top: 16, right: 15, bottom: 25, left: 45 };
+            const chartHeight = height - basePadding.top - basePadding.bottom;
 
             // Clear canvas
             ctx.clearRect(0, 0, width, height);
@@ -11638,6 +11641,31 @@ scrollToDiaryDay(currentDayKey);
             const yMin = Math.max(0, minSpeed - speedPadding);
             const yMax = maxSpeed + speedPadding;
 
+            // Horizontal grid lines (speed) with "nice" step sizes
+            const range = yMax - yMin;
+            const rawStep = range / 4;
+            const pow10 = Math.pow(10, Math.floor(Math.log10(rawStep || 1)));
+            const normalized = rawStep / pow10;
+            const niceSteps = [2, 5, 10, 20];
+            const nice = niceSteps.find(s => s >= normalized) || 20;
+            const step = nice * pow10;
+            // Keep major ticks inside the drawable range to avoid clipped top labels.
+            const yStart = Math.ceil(yMin / step) * step;
+            const yEnd = Math.floor(yMax / step) * step;
+
+            // Dynamic left gutter for large speed labels (e.g., 1000+ km/h).
+            ctx.font = '10px -apple-system, sans-serif';
+            let maxYLabelWidth = 0;
+            for (let speedVal = yStart; speedVal <= yEnd; speedVal += step) {
+                const label = step < 1 ? speedVal.toFixed(1) : Math.round(speedVal).toString();
+                const text = `${label}km/h`;
+                maxYLabelWidth = Math.max(maxYLabelWidth, ctx.measureText(text).width);
+            }
+            const padding = {
+                ...basePadding,
+                left: Math.max(basePadding.left, Math.ceil(maxYLabelWidth) + 10)
+            };
+            const chartWidth = width - padding.left - padding.right;
             // Scale functions
             const xScale = (dist) => padding.left + (dist / maxDist) * chartWidth;
             const yScale = (speed) => padding.top + chartHeight - ((speed - yMin) / (yMax - yMin)) * chartHeight;
@@ -11652,21 +11680,20 @@ scrollToDiaryDay(currentDayKey);
             ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
             ctx.lineWidth = 1;
 
-            // Horizontal grid lines (speed)
-            const yTicks = 4;
-            for (let i = 0; i <= yTicks; i++) {
-                const y = padding.top + (chartHeight / yTicks) * i;
+            for (let speedVal = yStart; speedVal <= yEnd; speedVal += step) {
+                const y = yScale(speedVal);
                 ctx.beginPath();
                 ctx.moveTo(padding.left, y);
                 ctx.lineTo(width - padding.right, y);
                 ctx.stroke();
 
                 // Y-axis labels
-                const speedVal = yMax - ((yMax - yMin) / yTicks) * i;
                 ctx.fillStyle = '#86868b';
                 ctx.font = '10px -apple-system, sans-serif';
                 ctx.textAlign = 'right';
-                ctx.fillText(`${Math.round(speedVal)}km/h`, padding.left - 5, y + 3);
+                ctx.textBaseline = 'middle';
+                const label = step < 1 ? speedVal.toFixed(1) : Math.round(speedVal).toString();
+                ctx.fillText(`${label}km/h`, padding.left - 5, y);
             }
 
             // X-axis labels
@@ -11678,6 +11705,7 @@ scrollToDiaryDay(currentDayKey);
                 ctx.fillStyle = '#86868b';
                 ctx.font = '10px -apple-system, sans-serif';
                 ctx.textAlign = 'center';
+                ctx.textBaseline = 'alphabetic';
                 const label = dist < 1 ? `${(dist * 1000).toFixed(0)}m` : `${dist.toFixed(1)}km`;
                 ctx.fillText(label, x, height - 5);
             }

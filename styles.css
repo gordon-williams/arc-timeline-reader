@@ -4692,7 +4692,7 @@ li.route-clickable:hover {
 .elevation-content {
     position: relative;
     padding: 12px 16px 16px;
-    height: 140px;
+    height: 184px;
     overflow: hidden;  /* Clip cursor line to content area */
 }
 
