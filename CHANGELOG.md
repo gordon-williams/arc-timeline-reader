@@ -1,5 +1,96 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 815 (2026-02-04)
+
+### Fix - Replay Visit Markers Fallback
+- Added visit coordinate fallback to `place.center` in diary note extraction, normalized entry extraction, and pin extraction
+- This restores replay/location markers even for already-imported Arc Editor data where visit center coordinates were absent
+- No reimport required for this fallback behavior
+
+---
+
+## Build 814 (2026-02-04)
+
+### Fix - Replay Visits Missing For Arc Editor Imports
+- Fixed Arc Editor visit normalization so missing `visit.latitude/longitude` does not create an invalid empty center object
+- Importers now correctly fall back to place center coordinates when visit center is absent
+- Restores visit markers/stops in replay animation for Arc Editor data
+
+---
+
+## Build 813 (2026-02-04)
+
+### Fix - Diary/Stats Hiding Valid Car Trips
+- Updated location-radius activity suppression in both diary rendering and stats filtering
+- Motorized trips (`car`, `bus`, `train`, `motorcycle`, `boat`, `airplane`) are no longer suppressed by nearby visit radii
+- Added distance-aware guard so longer trips are not hidden as local in-place noise
+- Kept visit-radius cap (`150m`) for noise suppression stability
+
+---
+
+## Build 812 (2026-02-04)
+
+### Fix - Oversized Visit Radius Hiding Trips
+- Capped visit-radius filtering used by diary/stats activity suppression to a sane maximum (`150m`)
+- Prevents very large place radii (from backup data) from hiding legitimate trip entries and undercounting day activity stats
+- Map polylines logic unchanged
+
+---
+
+## Build 811 (2026-02-04)
+
+### Tweak - Containment For Short Visits
+- Updated containment so **any visit duration** can act as a container (short visits included)
+- Preserved prior fix that **trip/activity entries are not hidden by containment**
+- This keeps short-visit noise suppression while avoiding missing car trip lines
+
+---
+
+## Build 810 (2026-02-04)
+
+### Fix - Missing Car Trips In Diary
+- **Containment logic narrowed** so only long visits (>= 30 minutes) can act as containers
+- **Trips/activities are no longer hidden by containment**, which restores missing car trip entries in diary output
+- Keeps suppression behavior focused on nested visit noise instead of removing valid travel segments
+
+---
+
+## Build 809 (2026-02-04)
+
+### Diagnostics - Sample Rejection Breakdown
+- **Tightened sample diagnostics** to split rejected samples into:
+  - `invalid` (failed normalization)
+  - `out-of-scope` (valid sample whose `timelineItemId` is not in the current import set)
+- Applies to both log panel and console diagnostics output
+
+---
+
+## Build 808 (2026-02-04)
+
+### Diagnostics - Console Mirror
+- **Import diagnostics now also write to browser console** (in addition to the in-app import log panel)
+- Makes it easier to copy/paste Arc Editor import validation output from DevTools
+
+---
+
+## Build 807 (2026-02-04)
+
+### Diagnostics - Backup Import Visibility
+- **Added import diagnostics summary** at the end of backup imports (Chrome File System Access + Safari file-input modes)
+- **Shows per-data-type counts** for files processed and records seen/accepted/rejected for places, notes, timeline items, and samples
+- **Shows detected backup format** (`Arc Timeline` vs `Arc Editor`) in the import log
+
+---
+
+## Build 806 (2026-02-04)
+
+### Feature - Arc Editor Backup Import Support
+- **Folder validation updated**: Backup import now accepts Arc Editor directory structure (`items`, `places`, `notes`, `samples`) in addition to legacy Arc Timeline folders
+- **Schema normalization**: Import now normalizes Arc Editor records for timeline items, places, notes, and samples during both directory and Safari file-input workflows
+- **Batch JSON handling**: Import now reads both single-object and array-based JSON files, enabling Arc Editor monthly/week bucket files to import correctly
+
+---
+
 ## Build 805 (2026-02-04)
 
 ### Fix - Dynamic Speed Y-Axis Label Gutter

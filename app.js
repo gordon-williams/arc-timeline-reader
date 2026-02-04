@@ -947,13 +947,12 @@ function moveMapSmart(latlng, zoom) {
                 return aStart - bStart;
             });
 
-            let lastSignificantEnd = 0;
+            let activeContainerEnd = 0;
 
             // Main pass: Track containers and mark contained items
-            // Any item can be a container - Arc defines what's meaningful
-            // Contained = item that STARTS AND ENDS within the container's timespan
-            // Items that start inside but end outside are departure trips (show them!)
-            // This hides: brief stops during trips, GPS gaps, noise inside visits, etc.
+            // Only long VISITS become containers.
+            // Contained = VISIT that starts and ends inside an active container.
+            // Activities/trips are never hidden by containment (fixes missing car entries).
             for (let i = 0; i < sortedItems.length; i++) {
                 const item = sortedItems[i];
                 if (!item.startDate) continue;
@@ -961,27 +960,18 @@ function moveMapSmart(latlng, zoom) {
                 const itemId = item.itemId || item.startDate;
                 const itemStart = new Date(item.startDate).getTime();
                 const itemEnd = item.endDate ? new Date(item.endDate).getTime() : itemStart;
-                const durationMs = itemEnd - itemStart;
-
-                // Check if this item is contained (skip items with customTitle)
-                // Only check if a container has been established (lastSignificantEnd > 0)
-                // Key rule: item must START AND END within the container to be hidden
-                // If item starts inside but ends outside, it's a departure trip (show it!)
-                // E.g., walking inside Garden City = hidden, car trip leaving Garden City = shown
-                if (!item.customTitle && lastSignificantEnd > 0 && itemStart < lastSignificantEnd) {
-                    // Only hide if the item ALSO ends within the container
-                    if (itemEnd <= lastSignificantEnd) {
+                // Check if this VISIT is contained (skip custom-titled items)
+                if (item.isVisit && !item.customTitle && activeContainerEnd > 0 && itemStart < activeContainerEnd) {
+                    // Hide only if visit also ends within current container
+                    if (itemEnd <= activeContainerEnd) {
                         containedIds.add(itemId);
                         continue; // Don't let contained items become containers
                     }
-                    // Item ends after container - it's a departure, show it
-                    // Update container end to this item's start to allow subsequent items
-                    lastSignificantEnd = itemStart;
                 }
 
-                // This item becomes a container - any item Arc defines can contain noise
-                if (itemEnd > lastSignificantEnd) {
-                    lastSignificantEnd = itemEnd;
+                // Any visit can become a container (short visits can legitimately contain noise too)
+                if (item.isVisit && itemEnd > activeContainerEnd) {
+                    activeContainerEnd = itemEnd;
                 }
             }
 
@@ -3377,36 +3367,39 @@ function moveMapSmart(latlng, zoom) {
             // Yield to let UI update before validation
             await new Promise(r => setTimeout(r, 50));
 
-            // Quick validation: sample files from throughout the list for TimelineItem folder
+            // Quick validation: sample files from throughout the list for known backup folders
             // Safari may order files differently on subsequent selections, so we sample broadly
-            let hasTimelineItem = false;
+            let hasLegacyTimelineItem = false;
+            let hasArcEditorItems = false;
             const totalFiles = files.length;
 
             // Check up to 10000 files, sampling evenly throughout
             const samplesToCheck = Math.min(totalFiles, 10000);
             const step = Math.max(1, Math.floor(totalFiles / samplesToCheck));
 
-            for (let i = 0; i < totalFiles && !hasTimelineItem; i += step) {
-                if (files[i].webkitRelativePath.includes('/TimelineItem/')) {
-                    hasTimelineItem = true;
-                }
+            for (let i = 0; i < totalFiles && !(hasLegacyTimelineItem || hasArcEditorItems); i += step) {
+                const rp = files[i].webkitRelativePath;
+                if (rp.includes('/TimelineItem/')) hasLegacyTimelineItem = true;
+                if (rp.includes('/items/')) hasArcEditorItems = true;
             }
 
             // If not found with sampling, do a full scan (string checks are cheap)
-            if (!hasTimelineItem) {
+            if (!(hasLegacyTimelineItem || hasArcEditorItems)) {
                 backupFileCount.innerHTML = `<div style="color: #666;">Full validation scan...</div>`;
                 await new Promise(r => setTimeout(r, 10));
 
                 for (let i = 0; i < totalFiles; i++) {
-                    if (files[i].webkitRelativePath.includes('/TimelineItem/')) {
-                        hasTimelineItem = true;
+                    const rp = files[i].webkitRelativePath;
+                    if (rp.includes('/TimelineItem/')) hasLegacyTimelineItem = true;
+                    if (rp.includes('/items/')) hasArcEditorItems = true;
+                    if (hasLegacyTimelineItem || hasArcEditorItems) {
                         break;
                     }
                 }
             }
 
-            if (!hasTimelineItem) {
-                backupFileCount.innerHTML = '<div style="color: #d32f2f;">Not a valid backup folder. Expected TimelineItem/ subdirectory.</div>';
+            if (!(hasLegacyTimelineItem || hasArcEditorItems)) {
+                backupFileCount.innerHTML = '<div style="color: #d32f2f;">Not a valid backup folder. Expected TimelineItem/ or items/ subdirectory.</div>';
                 return;
             }
 
@@ -3432,8 +3425,8 @@ function moveMapSmart(latlng, zoom) {
 
                 backupFileCount.innerHTML = '<div style="color: #666;">Validating backup structure...</div>';
 
-                // Validate it has the expected subdirectories
-                const expectedDirs = ['TimelineItem', 'LocomotionSample', 'Place', 'Note'];
+                // Validate it has the expected subdirectories (legacy Arc Timeline or Arc Editor)
+                const expectedDirs = ['TimelineItem', 'LocomotionSample', 'Place', 'Note', 'items', 'samples', 'places', 'notes'];
                 const foundDirs = [];
 
                 for await (const entry of dirHandle.values()) {
@@ -3442,8 +3435,10 @@ function moveMapSmart(latlng, zoom) {
                     }
                 }
 
-                if (!foundDirs.includes('TimelineItem')) {
-                    backupFileCount.innerHTML = '<div style="color: #d32f2f;">Not a valid backup folder. Expected TimelineItem/ subdirectory.</div>';
+                const hasLegacy = foundDirs.includes('TimelineItem');
+                const hasArcEditor = foundDirs.includes('items');
+                if (!hasLegacy && !hasArcEditor) {
+                    backupFileCount.innerHTML = '<div style="color: #d32f2f;">Not a valid backup folder. Expected TimelineItem/ or items/ subdirectory.</div>';
                     return;
                 }
 
@@ -3465,6 +3460,17 @@ function moveMapSmart(latlng, zoom) {
         // Helper: Read all JSON files from a directory with hex subdirs (TimelineItem, Place, Note)
         async function* readJsonFilesFromHexDirs(parentDirHandle, progressCallback) {
             let fileCount = 0;
+
+            // Support Arc Editor bucket files stored directly in directory root.
+            for await (const entry of parentDirHandle.values()) {
+                if (entry.kind === 'file' && entry.name.endsWith('.json')) {
+                    fileCount++;
+                    if (progressCallback && fileCount % 1000 === 0) {
+                        progressCallback(fileCount);
+                    }
+                    yield entry;
+                }
+            }
 
             for await (const subEntry of parentDirHandle.values()) {
                 if (subEntry.kind === 'directory') {
@@ -3492,6 +3498,158 @@ function moveMapSmart(latlng, zoom) {
             } catch (err) {
                 return null;
             }
+        }
+
+        function toRecordArray(jsonValue) {
+            if (Array.isArray(jsonValue)) return jsonValue;
+            if (jsonValue && typeof jsonValue === 'object') return [jsonValue];
+            return [];
+        }
+
+        function mapArcEditorActivityType(code) {
+            // Arc Editor/LocoKit numeric activity type mapping (common values).
+            const map = {
+                0: 'unknown',
+                1: 'stationary',
+                2: 'walking',
+                3: 'running',
+                4: 'cycling',
+                5: 'car',
+                6: 'airplane',
+                20: 'boat',
+                21: 'train',
+                23: 'bus',
+                24: 'motorcycle',
+                28: 'car',
+                29: 'bus',
+                30: 'train',
+                34: 'airplane',
+                56: 'tuktuk',
+                61: 'tractor'
+            };
+            return map[code] || 'unknown';
+        }
+
+        function normalizeBackupItem(rawItem) {
+            if (!rawItem || typeof rawItem !== 'object') return null;
+
+            // Arc Editor schema: { base, trip? | visit? }
+            if (rawItem.base && typeof rawItem.base === 'object') {
+                const base = rawItem.base;
+                const trip = rawItem.trip || null;
+                const visit = rawItem.visit || null;
+                const activityCode = trip?.confirmedActivityType ?? trip?.classifiedActivityType;
+                const center = (visit && visit.latitude != null && visit.longitude != null)
+                    ? { latitude: visit.latitude, longitude: visit.longitude }
+                    : null;
+                return {
+                    itemId: base.id || trip?.itemId || visit?.itemId || null,
+                    isVisit: !!base.isVisit,
+                    activityType: base.isVisit ? 'stationary' : mapArcEditorActivityType(activityCode),
+                    manualActivityType: false,
+                    startDate: base.startDate || null,
+                    endDate: base.endDate || null,
+                    placeId: visit?.placeId || null,
+                    streetAddress: visit?.streetAddress || null,
+                    customTitle: visit?.customTitle || null,
+                    previousItemId: base.previousItemId || null,
+                    nextItemId: base.nextItemId || null,
+                    lastSaved: visit?.lastSaved || trip?.lastSaved || base.lastSaved || null,
+                    deleted: !!base.deleted,
+                    center
+                };
+            }
+
+            // Legacy schema (already flattened)
+            return {
+                ...rawItem,
+                itemId: rawItem.itemId || rawItem.id || null,
+                isVisit: !!rawItem.isVisit,
+                deleted: !!rawItem.deleted
+            };
+        }
+
+        function normalizeBackupPlace(rawPlace) {
+            if (!rawPlace || typeof rawPlace !== 'object') return null;
+            if (rawPlace.deleted) return null;
+            // Arc Editor: {id, latitude, longitude, radiusMean, name}
+            if (rawPlace.id && rawPlace.latitude != null && rawPlace.longitude != null) {
+                return {
+                    placeId: rawPlace.id,
+                    name: rawPlace.name || '',
+                    center: { latitude: rawPlace.latitude, longitude: rawPlace.longitude },
+                    radiusMeters: rawPlace.radiusMean || 50
+                };
+            }
+            // Legacy
+            if (rawPlace.placeId) {
+                return {
+                    placeId: rawPlace.placeId,
+                    name: rawPlace.name || '',
+                    center: rawPlace.center || null,
+                    radiusMeters: rawPlace.radiusMeters || rawPlace.radius || 50
+                };
+            }
+            return null;
+        }
+
+        function normalizeBackupNote(rawNote) {
+            if (!rawNote || typeof rawNote !== 'object') return null;
+            if (rawNote.deleted) return null;
+            const date = rawNote.date || rawNote.startDate || rawNote.creationDate || null;
+            if (!date || !rawNote.body) return null;
+            return {
+                date,
+                body: rawNote.body
+            };
+        }
+
+        function normalizeBackupSample(rawSample) {
+            if (!rawSample || typeof rawSample !== 'object') return null;
+            const location = rawSample.location || (
+                rawSample.latitude != null && rawSample.longitude != null
+                    ? {
+                        latitude: rawSample.latitude,
+                        longitude: rawSample.longitude,
+                        altitude: rawSample.altitude
+                    }
+                    : null
+            );
+            if (!rawSample.timelineItemId || !location) return null;
+            return {
+                timelineItemId: rawSample.timelineItemId,
+                location,
+                date: rawSample.date,
+                movingState: rawSample.movingState,
+                classifiedType: rawSample.classifiedType ?? rawSample.classifiedActivityType
+            };
+        }
+
+        function createBackupImportDiagnostics(mode) {
+            return {
+                mode,
+                format: 'Unknown',
+                places: { files: 0, seen: 0, accepted: 0, rejected: 0 },
+                notes: { files: 0, seen: 0, accepted: 0, rejected: 0 },
+                timeline: { files: 0, seen: 0, accepted: 0, rejected: 0, deleted: 0 },
+                samples: { files: 0, seen: 0, accepted: 0, rejected: 0, invalid: 0, outOfScope: 0 }
+            };
+        }
+
+        function logBackupImportDiagnostics(diag) {
+            addLog('\n🧪 Import diagnostics');
+            addLog(`  Mode/format: ${diag.mode} / ${diag.format}`);
+            addLog(`  Places: files ${diag.places.files}, records ${diag.places.accepted}/${diag.places.seen} accepted (${diag.places.rejected} rejected)`);
+            addLog(`  Notes: files ${diag.notes.files}, records ${diag.notes.accepted}/${diag.notes.seen} accepted (${diag.notes.rejected} rejected)`);
+            addLog(`  Timeline: files ${diag.timeline.files}, records ${diag.timeline.accepted}/${diag.timeline.seen} accepted (${diag.timeline.rejected} rejected, ${diag.timeline.deleted} deleted)`);
+            addLog(`  Samples: files ${diag.samples.files}, records ${diag.samples.accepted}/${diag.samples.seen} accepted (${diag.samples.rejected} rejected: ${diag.samples.invalid} invalid, ${diag.samples.outOfScope} out-of-scope)`);
+            // Mirror diagnostics to browser console for easier copy/paste during testing.
+            console.log('🧪 Import diagnostics');
+            console.log(`  Mode/format: ${diag.mode} / ${diag.format}`);
+            console.log(`  Places: files ${diag.places.files}, records ${diag.places.accepted}/${diag.places.seen} accepted (${diag.places.rejected} rejected)`);
+            console.log(`  Notes: files ${diag.notes.files}, records ${diag.notes.accepted}/${diag.notes.seen} accepted (${diag.notes.rejected} rejected)`);
+            console.log(`  Timeline: files ${diag.timeline.files}, records ${diag.timeline.accepted}/${diag.timeline.seen} accepted (${diag.timeline.rejected} rejected, ${diag.timeline.deleted} deleted)`);
+            console.log(`  Samples: files ${diag.samples.files}, records ${diag.samples.accepted}/${diag.samples.seen} accepted (${diag.samples.rejected} rejected: ${diag.samples.invalid} invalid, ${diag.samples.outOfScope} out-of-scope)`);
         }
         
         // Helper: Order items by linked list (previousItemId/nextItemId)
@@ -3600,11 +3758,27 @@ function moveMapSmart(latlng, zoom) {
             }
 
             try {
+                const importDiag = createBackupImportDiagnostics('File System Access API');
+
                 // Get directory handles
-                const timelineDir = await dirHandle.getDirectoryHandle('TimelineItem');
-                const placeDir = await dirHandle.getDirectoryHandle('Place').catch(() => null);
-                const noteDir = await dirHandle.getDirectoryHandle('Note').catch(() => null);
-                const sampleDir = await dirHandle.getDirectoryHandle('LocomotionSample').catch(() => null);
+                const timelineDir = await dirHandle.getDirectoryHandle('TimelineItem').catch(() => null);
+                const arcEditorItemsDir = await dirHandle.getDirectoryHandle('items').catch(() => null);
+                const placeDir = await dirHandle.getDirectoryHandle('Place').catch(async () =>
+                    await dirHandle.getDirectoryHandle('places').catch(() => null)
+                );
+                const noteDir = await dirHandle.getDirectoryHandle('Note').catch(async () =>
+                    await dirHandle.getDirectoryHandle('notes').catch(() => null)
+                );
+                const sampleDir = await dirHandle.getDirectoryHandle('LocomotionSample').catch(async () =>
+                    await dirHandle.getDirectoryHandle('samples').catch(() => null)
+                );
+                const activeTimelineDir = timelineDir || arcEditorItemsDir;
+                if (!activeTimelineDir) {
+                    throw new Error('Backup missing TimelineItem/ or items/ folder');
+                }
+                const backupFormat = arcEditorItemsDir ? 'Arc Editor' : 'Arc Timeline';
+                importDiag.format = backupFormat;
+                addLog(`📦 Detected backup format: ${backupFormat}`);
 
                 // For "missing only" mode: get existing days first
                 let existingDays = new Set();
@@ -3623,10 +3797,18 @@ function moveMapSmart(latlng, zoom) {
                     let placeCount = 0;
                     for await (const fileHandle of readJsonFilesFromHexDirs(placeDir)) {
                         if (cancelProcessing) break;
-                        const place = await readFileAsJson(fileHandle);
-                        if (place && place.placeId && !place.deleted) {
-                            placeLookup.set(place.placeId, place);
-                            placeCount++;
+                        importDiag.places.files++;
+                        const jsonValue = await readFileAsJson(fileHandle);
+                        for (const rawPlace of toRecordArray(jsonValue)) {
+                            importDiag.places.seen++;
+                            const place = normalizeBackupPlace(rawPlace);
+                            if (place && place.placeId) {
+                                placeLookup.set(place.placeId, place);
+                                placeCount++;
+                                importDiag.places.accepted++;
+                            } else {
+                                importDiag.places.rejected++;
+                            }
                         }
                         if (placeCount % 500 === 0) {
                             progressText.textContent = `Loading places: ${placeCount.toLocaleString()}...`;
@@ -3654,18 +3836,26 @@ function moveMapSmart(latlng, zoom) {
                     let noteCount = 0;
                     for await (const fileHandle of readJsonFilesFromHexDirs(noteDir)) {
                         if (cancelProcessing) break;
-                        const note = await readFileAsJson(fileHandle);
-                        if (note && note.date && note.body && !note.deleted) {
-                            // Convert UTC date to local date for proper day matching
-                            const noteDate = new Date(note.date);
-                            const dayKey = noteDate.getFullYear() + '-' + 
-                                String(noteDate.getMonth() + 1).padStart(2, '0') + '-' + 
-                                String(noteDate.getDate()).padStart(2, '0');
-                            if (!notesByDate.has(dayKey)) {
-                                notesByDate.set(dayKey, []);
+                        importDiag.notes.files++;
+                        const jsonValue = await readFileAsJson(fileHandle);
+                        for (const rawNote of toRecordArray(jsonValue)) {
+                            importDiag.notes.seen++;
+                            const note = normalizeBackupNote(rawNote);
+                            if (note) {
+                                // Convert UTC date to local date for proper day matching
+                                const noteDate = new Date(note.date);
+                                const dayKey = noteDate.getFullYear() + '-' + 
+                                    String(noteDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                                    String(noteDate.getDate()).padStart(2, '0');
+                                if (!notesByDate.has(dayKey)) {
+                                    notesByDate.set(dayKey, []);
+                                }
+                                notesByDate.get(dayKey).push(note);
+                                noteCount++;
+                                importDiag.notes.accepted++;
+                            } else {
+                                importDiag.notes.rejected++;
                             }
-                            notesByDate.get(dayKey).push(note);
-                            noteCount++;
                         }
                         if (noteCount % 500 === 0) {
                             progressText.textContent = `Loading notes: ${noteCount.toLocaleString()}...`;
@@ -3695,7 +3885,7 @@ function moveMapSmart(latlng, zoom) {
                 const BATCH_SIZE = 50;
                 let batch = [];
                 
-                for await (const fileHandle of readJsonFilesFromHexDirs(timelineDir, (count) => {
+                for await (const fileHandle of readJsonFilesFromHexDirs(activeTimelineDir, (count) => {
                     progressText.textContent = `Scanning timeline: ${count.toLocaleString()}...`;
                 })) {
                     if (cancelProcessing) break;
@@ -3704,72 +3894,82 @@ function moveMapSmart(latlng, zoom) {
                     
                     if (batch.length >= BATCH_SIZE) {
                         const results = await Promise.all(batch.map(fh => readFileAsJson(fh)));
+                        importDiag.timeline.files += results.length;
                         
-                        for (const item of results) {
-                            scannedCount++;
-                            if (!item) continue;
+                        for (const jsonValue of results) {
+                            for (const rawItem of toRecordArray(jsonValue)) {
+                                importDiag.timeline.seen++;
+                                scannedCount++;
+                                const item = normalizeBackupItem(rawItem);
+                                if (!item) {
+                                    importDiag.timeline.rejected++;
+                                    continue;
+                                }
                             
-                            if (item.deleted) {
-                                skippedDeleted++;
-                                continue;
-                            }
+                                if (item.deleted) {
+                                    skippedDeleted++;
+                                    importDiag.timeline.deleted++;
+                                    continue;
+                                }
                             
-                            if (item.lastSaved && item.lastSaved > maxLastSaved) {
-                                maxLastSaved = item.lastSaved;
-                            }
+                                if (item.lastSaved && item.lastSaved > maxLastSaved) {
+                                    maxLastSaved = item.lastSaved;
+                                }
                             
-                            if (!item.startDate) continue;
+                                if (!item.startDate) continue;
                             
-                            const startDayKey = getLocalDayKey(item.startDate);
-                            const endDayKey = item.endDate ? getLocalDayKey(item.endDate) : startDayKey;
+                                const startDayKey = getLocalDayKey(item.startDate);
+                                const endDayKey = item.endDate ? getLocalDayKey(item.endDate) : startDayKey;
                             
-                            // In missingOnly mode, check if this item spans into any missing days
-                            let spansIntoMissingDay = false;
-                            if (missingOnly && item.isVisit && endDayKey > startDayKey) {
-                                let checkDay = startDayKey;
-                                while (checkDay <= endDayKey) {
-                                    if (!existingDays.has(checkDay)) {
-                                        spansIntoMissingDay = true;
-                                        break;
+                                // In missingOnly mode, check if this item spans into any missing days
+                                let spansIntoMissingDay = false;
+                                if (missingOnly && item.isVisit && endDayKey > startDayKey) {
+                                    let checkDay = startDayKey;
+                                    while (checkDay <= endDayKey) {
+                                        if (!existingDays.has(checkDay)) {
+                                            spansIntoMissingDay = true;
+                                            break;
+                                        }
+                                        const nextDate = new Date(checkDay + 'T12:00:00');
+                                        nextDate.setDate(nextDate.getDate() + 1);
+                                        checkDay = nextDate.toISOString().substring(0, 10);
                                     }
-                                    const nextDate = new Date(checkDay + 'T12:00:00');
-                                    nextDate.setDate(nextDate.getDate() + 1);
-                                    checkDay = nextDate.toISOString().substring(0, 10);
                                 }
-                            }
                             
-                            if (missingOnly && existingDays.has(startDayKey) && !spansIntoMissingDay) {
-                                skippedExisting++;
-                                continue;
-                            }
-                            
-                            // Skip unchanged items UNLESS they span into missing days
-                            if (lastBackupSync && item.lastSaved && item.lastSaved <= lastBackupSync && !spansIntoMissingDay) {
-                                skippedUnchanged++;
-                                continue;
-                            }
-                            
-                            // Attach place info
-                            if (item.placeId && placeLookup.has(item.placeId)) {
-                                const place = placeLookup.get(item.placeId);
-                                item.place = { 
-                                    name: place.name, 
-                                    center: place.center,
-                                    radiusMeters: place.radiusMeters || place.radius || 50
-                                };
-                                if (!item.center && place.center) {
-                                    item.center = place.center;
+                                if (missingOnly && existingDays.has(startDayKey) && !spansIntoMissingDay) {
+                                    skippedExisting++;
+                                    continue;
                                 }
-                            }
                             
-                            changedItems.push(item);
-                            changedItemIds.add(item.itemId);
-                            changedDays.add(startDayKey);
-                            changedWeeks.add(getISOWeek(item.startDate));
+                                // Skip unchanged items UNLESS they span into missing days
+                                if (lastBackupSync && item.lastSaved && item.lastSaved <= lastBackupSync && !spansIntoMissingDay) {
+                                    skippedUnchanged++;
+                                    continue;
+                                }
+                            
+                                // Attach place info
+                                if (item.placeId && placeLookup.has(item.placeId)) {
+                                    const place = placeLookup.get(item.placeId);
+                                    item.place = { 
+                                        name: place.name, 
+                                        center: place.center,
+                                        radiusMeters: place.radiusMeters || place.radius || 50
+                                    };
+                                    if ((!item.center || item.center.latitude == null || item.center.longitude == null) && place.center) {
+                                        item.center = place.center;
+                                    }
+                                }
+                            
+                                changedItems.push(item);
+                                changedItemIds.add(item.itemId);
+                                changedDays.add(startDayKey);
+                                changedWeeks.add(getISOWeek(item.startDate));
+                                importDiag.timeline.accepted++;
 
-                            // Track if this was included because it spans into missing days
-                            if (spansIntoMissingDay) {
-                                includedForSpanning++;
+                                // Track if this was included because it spans into missing days
+                                if (spansIntoMissingDay) {
+                                    includedForSpanning++;
+                                }
                             }
                         }
                         
@@ -3790,47 +3990,61 @@ function moveMapSmart(latlng, zoom) {
                 // Process remaining batch
                 if (batch.length > 0) {
                     const results = await Promise.all(batch.map(fh => readFileAsJson(fh)));
-                    for (const item of results) {
-                        scannedCount++;
-                        if (!item || item.deleted || !item.startDate) continue;
-                        
-                        const startDayKey = getLocalDayKey(item.startDate);
-                        const endDayKey = item.endDate ? getLocalDayKey(item.endDate) : startDayKey;
-                        
-                        // In missingOnly mode, check if this item spans into any missing days
-                        let spansIntoMissingDay = false;
-                        if (missingOnly && item.isVisit && endDayKey > startDayKey) {
-                            let checkDay = startDayKey;
-                            while (checkDay <= endDayKey) {
-                                if (!existingDays.has(checkDay)) {
-                                    spansIntoMissingDay = true;
-                                    break;
-                                }
-                                const nextDate = new Date(checkDay + 'T12:00:00');
-                                nextDate.setDate(nextDate.getDate() + 1);
-                                checkDay = nextDate.toISOString().substring(0, 10);
+                    importDiag.timeline.files += results.length;
+                    for (const jsonValue of results) {
+                        for (const rawItem of toRecordArray(jsonValue)) {
+                            importDiag.timeline.seen++;
+                            scannedCount++;
+                            const item = normalizeBackupItem(rawItem);
+                            if (!item) {
+                                importDiag.timeline.rejected++;
+                                continue;
                             }
+                            if (item.deleted) {
+                                importDiag.timeline.deleted++;
+                                continue;
+                            }
+                            if (!item.startDate) continue;
+                        
+                            const startDayKey = getLocalDayKey(item.startDate);
+                            const endDayKey = item.endDate ? getLocalDayKey(item.endDate) : startDayKey;
+                        
+                            // In missingOnly mode, check if this item spans into any missing days
+                            let spansIntoMissingDay = false;
+                            if (missingOnly && item.isVisit && endDayKey > startDayKey) {
+                                let checkDay = startDayKey;
+                                while (checkDay <= endDayKey) {
+                                    if (!existingDays.has(checkDay)) {
+                                        spansIntoMissingDay = true;
+                                        break;
+                                    }
+                                    const nextDate = new Date(checkDay + 'T12:00:00');
+                                    nextDate.setDate(nextDate.getDate() + 1);
+                                    checkDay = nextDate.toISOString().substring(0, 10);
+                                }
+                            }
+                        
+                            if (missingOnly && existingDays.has(startDayKey) && !spansIntoMissingDay) continue;
+                            // Skip unchanged items UNLESS they span into missing days
+                            if (lastBackupSync && item.lastSaved && item.lastSaved <= lastBackupSync && !spansIntoMissingDay) continue;
+                        
+                            if (item.placeId && placeLookup.has(item.placeId)) {
+                                const place = placeLookup.get(item.placeId);
+                                item.place = { 
+                                    name: place.name, 
+                                    center: place.center,
+                                    radiusMeters: place.radiusMeters || place.radius || 50
+                                };
+                                if ((!item.center || item.center.latitude == null || item.center.longitude == null) && place.center) item.center = place.center;
+                            }
+                        
+                            changedItems.push(item);
+                            changedItemIds.add(item.itemId);
+                            changedDays.add(startDayKey);
+                            changedWeeks.add(getISOWeek(item.startDate));
+                            importDiag.timeline.accepted++;
+                            if (spansIntoMissingDay) includedForSpanning++;
                         }
-                        
-                        if (missingOnly && existingDays.has(startDayKey) && !spansIntoMissingDay) continue;
-                        // Skip unchanged items UNLESS they span into missing days
-                        if (lastBackupSync && item.lastSaved && item.lastSaved <= lastBackupSync && !spansIntoMissingDay) continue;
-                        
-                        if (item.placeId && placeLookup.has(item.placeId)) {
-                            const place = placeLookup.get(item.placeId);
-                            item.place = { 
-                                name: place.name, 
-                                center: place.center,
-                                radiusMeters: place.radiusMeters || place.radius || 50
-                            };
-                            if (!item.center && place.center) item.center = place.center;
-                        }
-                        
-                        changedItems.push(item);
-                        changedItemIds.add(item.itemId);
-                        changedDays.add(startDayKey);
-                        changedWeeks.add(getISOWeek(item.startDate));
-                        if (spansIntoMissingDay) includedForSpanning++;
                     }
                 }
                 
@@ -3885,21 +4099,33 @@ function moveMapSmart(latlng, zoom) {
                                 continue;
                             }
                         }
+                        importDiag.samples.files++;
 
                         if (Array.isArray(samples)) {
                             for (const sample of samples) {
-                                if (sample.timelineItemId && sample.location && changedItemIds.has(sample.timelineItemId)) {
-                                    if (!samplesByItemId.has(sample.timelineItemId)) {
-                                        samplesByItemId.set(sample.timelineItemId, []);
-                                    }
-                                    samplesByItemId.get(sample.timelineItemId).push({
-                                        location: sample.location,
-                                        date: sample.date,
-                                        movingState: sample.movingState,
-                                        classifiedType: sample.classifiedType
-                                    });
-                                    sampleCount++;
+                                importDiag.samples.seen++;
+                                const normalizedSample = normalizeBackupSample(sample);
+                                if (!normalizedSample) {
+                                    importDiag.samples.rejected++;
+                                    importDiag.samples.invalid++;
+                                    continue;
                                 }
+                                if (!changedItemIds.has(normalizedSample.timelineItemId)) {
+                                    importDiag.samples.rejected++;
+                                    importDiag.samples.outOfScope++;
+                                    continue;
+                                }
+                                if (!samplesByItemId.has(normalizedSample.timelineItemId)) {
+                                    samplesByItemId.set(normalizedSample.timelineItemId, []);
+                                }
+                                samplesByItemId.get(normalizedSample.timelineItemId).push({
+                                    location: normalizedSample.location,
+                                    date: normalizedSample.date,
+                                    movingState: normalizedSample.movingState,
+                                    classifiedType: normalizedSample.classifiedType
+                                });
+                                sampleCount++;
+                                importDiag.samples.accepted++;
                             }
                         }
                         weekCount++;
@@ -4098,6 +4324,7 @@ function moveMapSmart(latlng, zoom) {
                 addLog('\n✅ Backup import complete!');
                 addLog(`  Days added: ${addedDays.length.toLocaleString()}`);
                 addLog(`  Days updated: ${updatedDays.length.toLocaleString()}`);
+                logBackupImportDiagnostics(importDiag);
 
                 if (addedDays.length > 0) {
                     addLog(`  New data range: ${addedDays[0]} to ${addedDays[addedDays.length - 1]}`);
@@ -4167,6 +4394,8 @@ function moveMapSmart(latlng, zoom) {
             }
 
             try {
+                const importDiag = createBackupImportDiagnostics('Safari File Input');
+
                 // Categorize files by subdirectory (yield periodically to keep UI responsive)
                 // Note: Iterate FileList directly - don't use Array.from() which blocks on 200k+ files
                 const placeFiles = [];
@@ -4180,13 +4409,13 @@ function moveMapSmart(latlng, zoom) {
                 for (let i = 0; i < totalFiles; i++) {
                     const file = files[i];
                     const path = file.webkitRelativePath;
-                    if (path.includes('/TimelineItem/') && file.name.endsWith('.json')) {
+                    if ((path.includes('/TimelineItem/') || path.includes('/items/')) && file.name.endsWith('.json')) {
                         timelineFiles.push(file);
-                    } else if (path.includes('/Place/') && file.name.endsWith('.json')) {
+                    } else if ((path.includes('/Place/') || path.includes('/places/')) && file.name.endsWith('.json')) {
                         placeFiles.push(file);
-                    } else if (path.includes('/Note/') && file.name.endsWith('.json')) {
+                    } else if ((path.includes('/Note/') || path.includes('/notes/')) && file.name.endsWith('.json')) {
                         noteFiles.push(file);
-                    } else if (path.includes('/LocomotionSample/') && (file.name.endsWith('.json') || file.name.endsWith('.json.gz'))) {
+                    } else if ((path.includes('/LocomotionSample/') || path.includes('/samples/')) && (file.name.endsWith('.json') || file.name.endsWith('.json.gz'))) {
                         sampleFiles.push(file);
                     }
 
@@ -4203,6 +4432,10 @@ function moveMapSmart(latlng, zoom) {
                         await new Promise(r => setTimeout(r, 0));
                     }
                 }
+
+                const hasArcEditorPath = timelineFiles.some(f => (f.webkitRelativePath || '').includes('/items/'));
+                importDiag.format = hasArcEditorPath ? 'Arc Editor' : 'Arc Timeline';
+                addLog(`📦 Detected backup format: ${importDiag.format}`);
 
                 addLog(`📂 Indexed ${totalFiles.toLocaleString()} files`);
                 addLog(`  Timeline items: ${timelineFiles.length.toLocaleString()} files`);
@@ -4259,10 +4492,18 @@ function moveMapSmart(latlng, zoom) {
                     if (cancelProcessing) break;
                     const batch = placeFiles.slice(i, i + SAFARI_BATCH_SIZE);
                     const results = await Promise.all(batch.map(f => readFileAsJsonSafari(f)));
+                    importDiag.places.files += results.length;
 
-                    for (const place of results) {
-                        if (place && place.placeId && !place.deleted) {
-                            placeLookup.set(place.placeId, place);
+                    for (const jsonValue of results) {
+                        for (const rawPlace of toRecordArray(jsonValue)) {
+                            importDiag.places.seen++;
+                            const place = normalizeBackupPlace(rawPlace);
+                            if (place && place.placeId) {
+                                placeLookup.set(place.placeId, place);
+                                importDiag.places.accepted++;
+                            } else {
+                                importDiag.places.rejected++;
+                            }
                         }
                     }
 
@@ -4291,17 +4532,25 @@ function moveMapSmart(latlng, zoom) {
                     if (cancelProcessing) break;
                     const batch = noteFiles.slice(i, i + SAFARI_BATCH_SIZE);
                     const results = await Promise.all(batch.map(f => readFileAsJsonSafari(f)));
+                    importDiag.notes.files += results.length;
 
-                    for (const note of results) {
-                        if (note && note.date && note.body && !note.deleted) {
-                            const noteDate = new Date(note.date);
-                            const dayKey = noteDate.getFullYear() + '-' +
-                                String(noteDate.getMonth() + 1).padStart(2, '0') + '-' +
-                                String(noteDate.getDate()).padStart(2, '0');
-                            if (!notesByDate.has(dayKey)) {
-                                notesByDate.set(dayKey, []);
+                    for (const jsonValue of results) {
+                        for (const rawNote of toRecordArray(jsonValue)) {
+                            importDiag.notes.seen++;
+                            const note = normalizeBackupNote(rawNote);
+                            if (note) {
+                                const noteDate = new Date(note.date);
+                                const dayKey = noteDate.getFullYear() + '-' +
+                                    String(noteDate.getMonth() + 1).padStart(2, '0') + '-' +
+                                    String(noteDate.getDate()).padStart(2, '0');
+                                if (!notesByDate.has(dayKey)) {
+                                    notesByDate.set(dayKey, []);
+                                }
+                                notesByDate.get(dayKey).push(note);
+                                importDiag.notes.accepted++;
+                            } else {
+                                importDiag.notes.rejected++;
                             }
-                            notesByDate.get(dayKey).push(note);
                         }
                     }
 
@@ -4330,66 +4579,76 @@ function moveMapSmart(latlng, zoom) {
                     if (cancelProcessing) break;
                     const batch = timelineFiles.slice(i, i + SAFARI_BATCH_SIZE);
                     const results = await Promise.all(batch.map(f => readFileAsJsonSafari(f)));
+                    importDiag.timeline.files += results.length;
 
-                    for (const item of results) {
-                        scannedCount++;
-                        if (!item) continue;
+                    for (const jsonValue of results) {
+                        for (const rawItem of toRecordArray(jsonValue)) {
+                            importDiag.timeline.seen++;
+                            const item = normalizeBackupItem(rawItem);
+                            scannedCount++;
+                            if (!item) {
+                                importDiag.timeline.rejected++;
+                                continue;
+                            }
 
-                        if (item.deleted) {
-                            skippedDeleted++;
-                            continue;
-                        }
+                            if (item.deleted) {
+                                skippedDeleted++;
+                                importDiag.timeline.deleted++;
+                                continue;
+                            }
 
-                        if (item.lastSaved && item.lastSaved > maxLastSaved) {
-                            maxLastSaved = item.lastSaved;
-                        }
+                            if (item.lastSaved && item.lastSaved > maxLastSaved) {
+                                maxLastSaved = item.lastSaved;
+                            }
 
-                        if (!item.startDate) continue;
+                            if (!item.startDate) continue;
 
-                        const startDayKey = getLocalDayKey(item.startDate);
-                        const endDayKey = item.endDate ? getLocalDayKey(item.endDate) : startDayKey;
+                            const startDayKey = getLocalDayKey(item.startDate);
+                            const endDayKey = item.endDate ? getLocalDayKey(item.endDate) : startDayKey;
 
-                        // In missingOnly mode, check if this item spans into any missing days
-                        let spansIntoMissingDay = false;
-                        if (missingOnly && item.isVisit && endDayKey > startDayKey) {
-                            let checkDay = startDayKey;
-                            while (checkDay <= endDayKey) {
-                                if (!existingDays.has(checkDay)) {
-                                    spansIntoMissingDay = true;
-                                    break;
+                            // In missingOnly mode, check if this item spans into any missing days
+                            let spansIntoMissingDay = false;
+                            if (missingOnly && item.isVisit && endDayKey > startDayKey) {
+                                let checkDay = startDayKey;
+                                while (checkDay <= endDayKey) {
+                                    if (!existingDays.has(checkDay)) {
+                                        spansIntoMissingDay = true;
+                                        break;
+                                    }
+                                    const nextDate = new Date(checkDay + 'T12:00:00');
+                                    nextDate.setDate(nextDate.getDate() + 1);
+                                    checkDay = nextDate.toISOString().substring(0, 10);
                                 }
-                                const nextDate = new Date(checkDay + 'T12:00:00');
-                                nextDate.setDate(nextDate.getDate() + 1);
-                                checkDay = nextDate.toISOString().substring(0, 10);
                             }
-                        }
 
-                        if (missingOnly && existingDays.has(startDayKey) && !spansIntoMissingDay) {
-                            skippedExisting++;
-                            continue;
-                        }
-
-                        if (lastBackupSync && item.lastSaved && item.lastSaved <= lastBackupSync && !spansIntoMissingDay) {
-                            skippedUnchanged++;
-                            continue;
-                        }
-
-                        // Attach place info
-                        if (item.placeId && placeLookup.has(item.placeId)) {
-                            const place = placeLookup.get(item.placeId);
-                            item.place = {
-                                name: place.name,
-                                center: place.center,
-                                radiusMeters: place.radiusMeters || place.radius || 50
-                            };
-                            if (!item.center && place.center) {
-                                item.center = place.center;
+                            if (missingOnly && existingDays.has(startDayKey) && !spansIntoMissingDay) {
+                                skippedExisting++;
+                                continue;
                             }
-                        }
 
-                        changedItems.push(item);
-                        changedDays.add(startDayKey);
-                        changedWeeks.add(getISOWeek(item.startDate));
+                            if (lastBackupSync && item.lastSaved && item.lastSaved <= lastBackupSync && !spansIntoMissingDay) {
+                                skippedUnchanged++;
+                                continue;
+                            }
+
+                            // Attach place info
+                            if (item.placeId && placeLookup.has(item.placeId)) {
+                                const place = placeLookup.get(item.placeId);
+                                item.place = {
+                                    name: place.name,
+                                    center: place.center,
+                                    radiusMeters: place.radiusMeters || place.radius || 50
+                                };
+                                if ((!item.center || item.center.latitude == null || item.center.longitude == null) && place.center) {
+                                    item.center = place.center;
+                                }
+                            }
+
+                            changedItems.push(item);
+                            changedDays.add(startDayKey);
+                            changedWeeks.add(getISOWeek(item.startDate));
+                            importDiag.timeline.accepted++;
+                        }
                     }
 
                     // Update progress (10-60%)
@@ -4451,9 +4710,24 @@ function moveMapSmart(latlng, zoom) {
                     } else {
                         samples = await readFileAsJsonSafari(file);
                     }
+                    importDiag.samples.files++;
 
-                    if (samples && Array.isArray(samples)) {
-                        samplesByWeek.set(weekKey, samples);
+                    if (samples) {
+                        const normalizedSamples = [];
+                        for (const rawSample of toRecordArray(samples)) {
+                            importDiag.samples.seen++;
+                            const sample = normalizeBackupSample(rawSample);
+                            if (sample) {
+                                normalizedSamples.push(sample);
+                                importDiag.samples.accepted++;
+                            } else {
+                                importDiag.samples.rejected++;
+                                importDiag.samples.invalid++;
+                            }
+                        }
+                        if (normalizedSamples.length > 0) {
+                            samplesByWeek.set(weekKey, normalizedSamples);
+                        }
                     }
 
                     // Update progress (60-80%)
@@ -4620,6 +4894,7 @@ function moveMapSmart(latlng, zoom) {
                 addLog('\n✅ Backup import complete!');
                 addLog(`  Days added: ${addedDays.length.toLocaleString()}`);
                 addLog(`  Days updated: ${updatedDays.length.toLocaleString()}`);
+                logBackupImportDiagnostics(importDiag);
 
                 if (addedDays.length > 0) {
                     addLog(`  New data range: ${addedDays[0]} to ${addedDays[addedDays.length - 1]}`);
@@ -15385,6 +15660,13 @@ scrollToDiaryDay(currentDayKey);
                     let lng = item.center?.longitude;
                     let altitude = item.center?.altitude;
 
+                    // For visits, fall back to place center when item center is missing
+                    if ((lat == null || lng == null) && item.place?.center) {
+                        lat = item.place.center.latitude;
+                        lng = item.place.center.longitude;
+                        altitude = item.place.center.altitude ?? altitude;
+                    }
+
                     // For routes without a center point, find the first sample with valid location
                     if ((lat == null || lng == null) && item.samples && item.samples.length > 0) {
                         // Find first sample with valid location data (don't assume samples[0] is valid)
@@ -15480,6 +15762,13 @@ scrollToDiaryDay(currentDayKey);
                 let lat = item.center?.latitude ?? null;
                 let lng = item.center?.longitude ?? null;
                 let altitude = item.center?.altitude ?? null;
+
+                // For visits, fall back to place center when item center is missing
+                if ((lat == null || lng == null) && item.place?.center) {
+                    lat = item.place.center.latitude;
+                    lng = item.place.center.longitude;
+                    altitude = item.place.center.altitude ?? altitude;
+                }
                 
                 // For routes without center, use first sample
                 if ((lat == null || lng == null) && item.samples?.length > 0) {
@@ -15817,9 +16106,16 @@ scrollToDiaryDay(currentDayKey);
                 // 🎯 Use smart location naming
                 const locationName = getSmartLocationName(item, locationClusters);
 
-                const lat = item.center?.latitude;
-                const lng = item.center?.longitude;
+                let lat = item.center?.latitude;
+                let lng = item.center?.longitude;
                 let altitude = item.center?.altitude; // Try center first
+
+                // For visits, fall back to place center when item center is missing
+                if ((lat == null || lng == null) && item.place?.center) {
+                    lat = item.place.center.latitude;
+                    lng = item.place.center.longitude;
+                    altitude = item.place.center.altitude ?? altitude;
+                }
                 
                 // If no altitude in center, try to get from samples (first sample)
                 if ((altitude === null || altitude === undefined) && item.samples && item.samples.length > 0) {
@@ -15982,19 +16278,32 @@ scrollToDiaryDay(currentDayKey);
             
             // Filter out activities inside location GPS radius
             const locationVisits = visibleNotes.filter(n => n.isVisit && n.radiusMeters && n.latitude && n.longitude);
+            const MAX_VISIT_FILTER_RADIUS_M = 150; // Prevent oversized place radii from swallowing real trips
             
             if (locationVisits.length > 0) {
                 visibleNotes = visibleNotes.filter(note => {
                     if (note.isVisit) return true;
                     if (!note.latitude || !note.longitude) return true;
+
+                    // Never suppress motorized/long-distance trips by visit radius.
+                    const activityType = getActivityFilterType(note.activityType || '');
+                    if (['car', 'bus', 'train', 'motorcycle', 'boat', 'airplane'].includes(activityType)) {
+                        return true;
+                    }
                     
                     for (const visit of locationVisits) {
                         const distance = calculateDistance(
                             note.latitude, note.longitude,
                             visit.latitude, visit.longitude
                         );
+                        const effectiveRadius = Math.min(Math.max(Number(visit.radiusMeters) || 50, 1), MAX_VISIT_FILTER_RADIUS_M);
+
+                        // If activity distance is materially larger than radius, keep it.
+                        if ((note.distance || 0) > effectiveRadius * 2) {
+                            continue;
+                        }
                         
-                        if (distance <= visit.radiusMeters) {
+                        if (distance <= effectiveRadius) {
                             return false;
                         }
                     }
@@ -16349,6 +16658,7 @@ scrollToDiaryDay(currentDayKey);
                 // 3. Filter out activities that are inside location GPS radius
                 // Get all visits (locations) with radius for this day
                 const locationVisits = visibleNotes.filter(n => n.isVisit && n.radiusMeters && n.latitude && n.longitude);
+                const MAX_VISIT_FILTER_RADIUS_M = 150; // Prevent oversized place radii from swallowing real trips
                 
                 if (locationVisits.length > 0) {
                     visibleNotes = visibleNotes.filter(note => {
@@ -16357,6 +16667,12 @@ scrollToDiaryDay(currentDayKey);
                         
                         // For activities, check if they're inside any location's radius
                         if (!note.latitude || !note.longitude) return true; // Keep if no coordinates
+
+                        // Never suppress motorized/long-distance trips by visit radius.
+                        const activityType = getActivityFilterType(note.activityType || '');
+                        if (['car', 'bus', 'train', 'motorcycle', 'boat', 'airplane'].includes(activityType)) {
+                            return true;
+                        }
                         
                         // Check if activity is inside any location's radius
                         for (const visit of locationVisits) {
@@ -16364,9 +16680,15 @@ scrollToDiaryDay(currentDayKey);
                                 note.latitude, note.longitude,
                                 visit.latitude, visit.longitude
                             );
+                            const effectiveRadius = Math.min(Math.max(Number(visit.radiusMeters) || 50, 1), MAX_VISIT_FILTER_RADIUS_M);
+
+                            // If activity distance is materially larger than radius, keep it.
+                            if ((note.distance || 0) > effectiveRadius * 2) {
+                                continue;
+                            }
                             
                             // If activity is inside this location's radius, exclude it
-                            if (distance <= visit.radiusMeters) {
+                            if (distance <= effectiveRadius) {
                                 return false;
                             }
                         }

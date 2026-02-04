@@ -1,14 +1,17 @@
 # Arc Timeline Diary Reader
 
-**Current Build: 805**
+**Current Build: 815**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracking data that generates interactive diaries with maps.
+
+> **Warning:** Arc Editor backup import support is currently under active testing. Unexpected issues may still occur.
 
 ## Features
 
 ### Data Import
 - **JSON Export** - Import daily Arc Timeline JSON export files (fast incremental updates)
 - **iCloud Backup** - Import directly from Arc's iCloud backup folder (full data recovery)
+- **Arc Editor Backup** - Supports the new Arc Editor backup format (`items/`, `places/`, `notes/`, `samples/`)
 - **Incremental Sync** - Backup imports only process changed items after first import
 - **Automatic Detection** - Validates backup folder structure before import
 - **Smart Coalescing** - iCloud imports automatically clean up GPS noise and data gaps
