@@ -5872,7 +5872,7 @@ function moveMapSmart(latlng, zoom) {
              * Select a day within current month
              * @param {string} dayKey - YYYY-MM-DD format
              */
-            selectDay(dayKey) {
+            selectDay(dayKey, options = {}) {
                 this.#renderVersion++;
                 logDebug(`🎯 NavigationController.selectDay(${dayKey})`);
                 
@@ -5908,7 +5908,7 @@ function moveMapSmart(latlng, zoom) {
                 // Render
                 clearDayHighlights();
                 clearLocationHighlights();
-                highlightAndScrollToDay(dayKey);
+                highlightAndScrollToDay(dayKey, { instant: !!options.instant });
                 showDayMap(dayKey);
                 
                 // NOW update currentDayKey (after map has checked/rebuilt)
@@ -6213,6 +6213,7 @@ function moveMapSmart(latlng, zoom) {
             async #navigateByDay(delta, version) {
                 const monthKey = this.#monthKey || currentMonth;
                 if (!monthKey) return false;
+                const fromDayKey = this.#dayKey || currentDayKey || null;
                 
                 const days = getDaysFromModel(monthKey);
                 if (days.length === 0) return false;
@@ -6221,7 +6222,7 @@ function moveMapSmart(latlng, zoom) {
                 if (this.#dayKey === null && this.#entryId === null) {
                     if (delta > 0) {
                         // Right → first day
-                        this.selectDay(days[0]);
+                        this.selectDay(days[0], { instant: shouldUseInstantDayJump(fromDayKey, days[0]) });
                     } else {
                         // Left → previous month's last day
                         const prevMonthIdx = monthKeys.indexOf(monthKey) - 1;
@@ -6235,7 +6236,8 @@ function moveMapSmart(latlng, zoom) {
                         
                         const prevDays = getDaysFromModel(prevMonth);
                         if (prevDays.length > 0) {
-                            this.selectDay(prevDays[prevDays.length - 1]);
+                            const targetDay = prevDays[prevDays.length - 1];
+                            this.selectDay(targetDay, { instant: shouldUseInstantDayJump(fromDayKey, targetDay) });
                         }
                     }
                     return true;
@@ -6249,7 +6251,7 @@ function moveMapSmart(latlng, zoom) {
                 if (!this.#atDayLevel) {
                     if (delta < 0) {
                         // Left: go to current day's day level
-                        this.selectDay(days[currentIdx]);
+                        this.selectDay(days[currentIdx], { instant: shouldUseInstantDayJump(fromDayKey, days[currentIdx]) });
                         return true;
                     }
                     // Right: fall through to next day
@@ -6271,7 +6273,8 @@ function moveMapSmart(latlng, zoom) {
                     
                     const prevDays = getDaysFromModel(prevMonth);
                     if (prevDays.length > 0) {
-                        this.selectDay(prevDays[prevDays.length - 1]);
+                        const targetDay = prevDays[prevDays.length - 1];
+                        this.selectDay(targetDay, { instant: shouldUseInstantDayJump(fromDayKey, targetDay) });
                     }
                     return true;
                 }
@@ -6288,13 +6291,14 @@ function moveMapSmart(latlng, zoom) {
                     
                     const nextDays = getDaysFromModel(nextMonth);
                     if (nextDays.length > 0) {
-                        this.selectDay(nextDays[0]);
+                        const targetDay = nextDays[0];
+                        this.selectDay(targetDay, { instant: shouldUseInstantDayJump(fromDayKey, targetDay) });
                     }
                     return true;
                 }
                 
                 // Same month
-                this.selectDay(days[newIdx]);
+                this.selectDay(days[newIdx], { instant: shouldUseInstantDayJump(fromDayKey, days[newIdx]) });
                 return true;
             }
             
@@ -6578,10 +6582,22 @@ function moveMapSmart(latlng, zoom) {
             const dayTitles = markdownContent.querySelectorAll('.day-map-title');
             return Array.from(dayTitles).map(el => el.dataset.day).filter(Boolean);
         }
+
+        function shouldUseInstantDayJump(fromDayKey, toDayKey) {
+            if (!fromDayKey || !toDayKey) return false;
+            // Month boundary transitions should always be instant.
+            if (fromDayKey.slice(0, 7) !== toDayKey.slice(0, 7)) return true;
+            const fromMs = Date.parse(fromDayKey + 'T00:00:00Z');
+            const toMs = Date.parse(toDayKey + 'T00:00:00Z');
+            if (!Number.isFinite(fromMs) || !Number.isFinite(toMs)) return false;
+            const dayDelta = Math.abs((toMs - fromMs) / (24 * 60 * 60 * 1000));
+            return dayDelta > 5;
+        }
         
         async function navigateDay(direction) {
             const days = getDaysInCurrentMonth();
             if (days.length === 0) return;
+            const fromDayKey = currentDayKey || days[Math.max(0, currentDayIndex)] || null;
             
             // Clear previous day highlight
             clearDayHighlights();
@@ -6606,13 +6622,15 @@ function moveMapSmart(latlng, zoom) {
                     const prevMonthDays = getDaysInCurrentMonth();
                     currentDayIndex = prevMonthDays.length - 1;
                     if (prevMonthDays.length > 0) {
-                        highlightAndScrollToDay(prevMonthDays[currentDayIndex]);
+                        const targetDayKey = prevMonthDays[currentDayIndex];
+                        highlightAndScrollToDay(targetDayKey, { instant: shouldUseInstantDayJump(fromDayKey, targetDayKey) });
                     }
                     return;
                 } else {
                     // Already at first month, wrap to last day of current month
                     currentDayIndex = days.length - 1;
-                    highlightAndScrollToDay(days[currentDayIndex]);
+                    const targetDayKey = days[currentDayIndex];
+                    highlightAndScrollToDay(targetDayKey, { instant: shouldUseInstantDayJump(fromDayKey, targetDayKey) });
                 }
             } else if (newIndex >= days.length) {
                 // Going forward from last day - try to go to next month
@@ -6626,18 +6644,21 @@ function moveMapSmart(latlng, zoom) {
                     currentDayIndex = 0;
                     const nextMonthDays = getDaysInCurrentMonth();
                     if (nextMonthDays.length > 0) {
-                        highlightAndScrollToDay(nextMonthDays[0]);
+                        const targetDayKey = nextMonthDays[0];
+                        highlightAndScrollToDay(targetDayKey, { instant: shouldUseInstantDayJump(fromDayKey, targetDayKey) });
                     }
                     return;
                 } else {
                     // Already at last month, wrap to first day of current month
                     currentDayIndex = 0;
-                    highlightAndScrollToDay(days[0]);
+                    const targetDayKey = days[0];
+                    highlightAndScrollToDay(targetDayKey, { instant: shouldUseInstantDayJump(fromDayKey, targetDayKey) });
                 }
             } else {
                 // Normal navigation within same month
                 currentDayIndex = newIndex;
-                highlightAndScrollToDay(days[currentDayIndex]);
+                const targetDayKey = days[currentDayIndex];
+                highlightAndScrollToDay(targetDayKey, { instant: shouldUseInstantDayJump(fromDayKey, targetDayKey) });
             }
             
             // Update day nav button states
@@ -6647,7 +6668,8 @@ function moveMapSmart(latlng, zoom) {
             updateStatsForCurrentView();
         }
         
-        function highlightAndScrollToDay(dayKey) {
+        function highlightAndScrollToDay(dayKey, options = {}) {
+            const instant = !!options.instant;
             // Find and highlight the day title
             const dayTitle = markdownContent.querySelector(`.day-map-title[data-day="${dayKey}"]`);
             if (dayTitle) {
@@ -6669,13 +6691,23 @@ function moveMapSmart(latlng, zoom) {
                     
                     // Scroll so the h2 is 37px from the top (clean day start, previous day hidden)
                     const targetScroll = currentScroll + h2OffsetFromViewport - 37;
-                    diaryPanel.scrollTo({
-                        top: Math.max(0, targetScroll),
-                        behavior: 'smooth'
-                    });
+                    const nextTop = Math.max(0, targetScroll);
+                    if (instant) {
+                        // Hard jump to cancel any in-flight smooth scrolling.
+                        diaryPanel.scrollTop = nextTop;
+                    } else {
+                        diaryPanel.scrollTo({
+                            top: nextTop,
+                            behavior: 'smooth'
+                        });
+                    }
                 } else {
                     // Fallback to standard scrollIntoView
-                    dayTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    if (instant) {
+                        dayTitle.scrollIntoView({ block: 'start' });
+                    } else {
+                        dayTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
                 }
                 
                 // Show day on map
@@ -6704,6 +6736,11 @@ function moveMapSmart(latlng, zoom) {
                 seg.segment._isHighlighted = false;
                 seg.border._isHighlighted = false;
             });
+
+            // Clear selected profile segment
+            selectedProfileSegmentPoints = null;
+            selectedProfileSegmentColor = null;
+            if (elevationPanelVisible) updateElevationChart();
             
             // Clear diary highlights
             clearDiaryHighlights();
@@ -9036,7 +9073,7 @@ function moveMapSmart(latlng, zoom) {
                         performHighlight(zoomToSegment);
                     };
                     
-                    const performHighlight = function(zoomToSegment = false) {
+                        const performHighlight = function(zoomToSegment = false) {
                         allRouteSegments.forEach(seg => {
                             seg.segment.setStyle({ 
                                 opacity: 0.2, 
@@ -9082,6 +9119,12 @@ function moveMapSmart(latlng, zoom) {
                                 highlightDiaryEntryByTime(dayKey, tStart, activity);
                             }
                         }
+
+                        hideProfileSelection();
+                        // Sync elevation/speed panel to this segment
+                        selectedProfileSegmentPoints = validPoints;
+                        selectedProfileSegmentColor = color;
+                        if (elevationPanelVisible) updateElevationChart();
                     };
                     
                     segment.on('click', highlightSegment);
@@ -9182,6 +9225,12 @@ scrollToDiaryDay(currentDayKey);
                                 highlightDiaryEntryByTime(currentDayKey, tStart, activity);
                             }
                         }
+
+                        hideProfileSelection();
+                        // Sync elevation/speed panel to this segment
+                        selectedProfileSegmentPoints = validPoints;
+                        selectedProfileSegmentColor = color;
+                        if (elevationPanelVisible) updateElevationChart();
                     };
                     
                     segment.on('click', scrollToDay);
@@ -10721,12 +10770,63 @@ scrollToDiaryDay(currentDayKey);
         let elevationPanelVisible = false;
         let elevationMarker = null;
         let elevationChartData = null;
+        let speedChartData = null;
+        let elevationProfileMode = 'elevation';
+        let selectedProfileSegmentPoints = null;
+        let selectedProfileSegmentColor = null;
+        let _elevationPanelDragGuardAttached = false;
+        let _isProfileSelecting = false;
+        let _profileSelectStartX = 0;
+        let _profileSelectEndX = 0;
+        let _profileSelectionRange = null; // { startDist, endDist }
+        let _elevationMoveEndHandler = null;
+        let speedOutlierFilterEnabled = true;
 
         function toggleElevationPanel() {
             if (elevationPanelVisible) {
                 closeElevationPanel();
             } else {
                 openElevationPanel();
+            }
+        }
+
+        function setElevationProfile(mode) {
+            const nextMode = mode === 'speed' ? 'speed' : 'elevation';
+            if (elevationProfileMode === nextMode) return;
+            elevationProfileMode = nextMode;
+            hideProfileSelection();
+            updateElevationTabs();
+            updateElevationChart();
+        }
+
+        function updateElevationTabs() {
+            const tabs = document.querySelectorAll('.elevation-tab');
+            tabs.forEach(tab => {
+                const profile = tab.dataset.profile;
+                if (profile === elevationProfileMode) {
+                    tab.classList.add('active');
+                } else {
+                    tab.classList.remove('active');
+                }
+            });
+            const panel = document.getElementById('elevationPanel');
+            if (panel) panel.dataset.mode = elevationProfileMode;
+            updateProfileSelectionStats();
+        }
+
+        function initSpeedOutlierToggle() {
+            const stored = localStorage.getItem('arc_speed_filter_enabled');
+            speedOutlierFilterEnabled = stored ? stored === 'true' : true;
+            const toggle = document.getElementById('speedOutlierToggle');
+            if (toggle) {
+                toggle.checked = speedOutlierFilterEnabled;
+                toggle.addEventListener('change', () => {
+                    speedOutlierFilterEnabled = toggle.checked;
+                    localStorage.setItem('arc_speed_filter_enabled', String(speedOutlierFilterEnabled));
+                    if (elevationPanelVisible) {
+                        updateElevationChart();
+                    }
+                });
             }
         }
 
@@ -10747,11 +10847,28 @@ scrollToDiaryDay(currentDayKey);
             panel.style.display = 'block';
             panel.classList.add('unfocused');
 
+            updateElevationTabs();
+            attachElevationPanelDragGuard();
+            initSpeedOutlierToggle();
+            attachElevationPanelDblClickGuard();
+
             // Apply current diary transparency to elevation panel
             applyElevationPanelTransparency();
 
             // Position panel in safe space
             positionElevationPanel();
+
+            // If no day selected yet, default to first day of current month
+            if (!currentDayKey) {
+                const days = getDaysInCurrentMonth();
+                if (days.length > 0) {
+                    if (window.NavigationController && typeof NavigationController.selectDay === 'function') {
+                        NavigationController.selectDay(days[0]);
+                    } else {
+                        showDayMap(days[0]);
+                    }
+                }
+            }
 
             // Register bottom margin with NavigationController so map content avoids the panel
             // Panel is ~200px tall + 20px bottom margin
@@ -10761,10 +10878,19 @@ scrollToDiaryDay(currentDayKey);
             // Update chart with visible routes
             updateElevationChart();
 
+            // Refit map bounds to respect the new panel margins
+            setTimeout(() => refitMapBounds(true), 120);
+
             // Listen for map move events to update chart
             if (map) {
-                map.on('moveend', updateElevationChart);
+                _elevationMoveEndHandler = () => {
+                    hideProfileSelection();
+                    updateElevationChart();
+                };
+                map.on('moveend', _elevationMoveEndHandler);
             }
+
+            window.addEventListener('resize', handleElevationPanelResize);
         }
 
         function positionElevationPanel() {
@@ -10792,6 +10918,13 @@ scrollToDiaryDay(currentDayKey);
             elevationPanelVisible = false;
             panel.style.display = 'none';
 
+            if (panel._draggingDisabledByPanel && map && map.dragging) {
+                map.dragging.enable();
+                panel._draggingDisabledByPanel = false;
+            }
+
+            hideProfileSelection();
+
             // Clear bottom margin from NavigationController
             // Allow refit so map can reclaim the space
             NavigationController.updateViewportMargins({ bottom: 0 }, { delay: 100 });
@@ -10801,8 +10934,60 @@ scrollToDiaryDay(currentDayKey);
 
             // Stop listening for map moves
             if (map) {
-                map.off('moveend', updateElevationChart);
+                if (_elevationMoveEndHandler) {
+                    map.off('moveend', _elevationMoveEndHandler);
+                    _elevationMoveEndHandler = null;
+                }
             }
+
+            window.removeEventListener('resize', handleElevationPanelResize);
+        }
+
+        function handleElevationPanelResize() {
+            if (!elevationPanelVisible) return;
+            updateElevationChart();
+            refreshProfileSelectionOverlay();
+        }
+
+        function attachElevationPanelDragGuard() {
+            const panel = document.getElementById('elevationPanel');
+            if (!panel || _elevationPanelDragGuardAttached) return;
+
+            let draggingWasEnabled = false;
+
+            const disableMapDrag = () => {
+                if (!map || !map.dragging) return;
+                draggingWasEnabled = map.dragging.enabled();
+                if (draggingWasEnabled) {
+                    map.dragging.disable();
+                    panel._draggingDisabledByPanel = true;
+                }
+            };
+
+            const enableMapDrag = () => {
+                if (!map || !map.dragging) return;
+                if (draggingWasEnabled && panel._draggingDisabledByPanel) {
+                    map.dragging.enable();
+                    panel._draggingDisabledByPanel = false;
+                }
+            };
+
+            panel.addEventListener('mouseenter', disableMapDrag);
+            panel.addEventListener('mouseleave', enableMapDrag);
+            panel.addEventListener('touchstart', disableMapDrag, { passive: true });
+            panel.addEventListener('touchend', enableMapDrag, { passive: true });
+
+            _elevationPanelDragGuardAttached = true;
+        }
+
+        function attachElevationPanelDblClickGuard() {
+            const panel = document.getElementById('elevationPanel');
+            if (!panel || panel._dblclickGuardAttached) return;
+            panel.addEventListener('dblclick', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+            panel._dblclickGuardAttached = true;
         }
 
         function updateElevationChart() {
@@ -10812,6 +10997,52 @@ scrollToDiaryDay(currentDayKey);
 
             const ctx = canvas.getContext('2d');
             const bounds = map.getBounds();
+            const mode = elevationProfileMode;
+
+            function showNoData(message) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                if (noDataEl) {
+                    noDataEl.innerHTML = `<span>${message}</span>`;
+                    noDataEl.style.display = 'block';
+                }
+                canvas.style.display = 'none';
+            }
+
+            function renderActiveProfile() {
+                if (mode === 'speed') {
+                    if (speedChartData && speedChartData.length > 0) {
+                        if (noDataEl) noDataEl.style.display = 'none';
+                        canvas.style.display = 'block';
+                        renderSpeedChart(ctx, canvas, speedChartData);
+                        updateProfileSelectionStats();
+                        refreshProfileSelectionOverlay();
+                    } else {
+                        showNoData('No speed data for visible routes');
+                        updateProfileSelectionStats();
+                    }
+                    return;
+                }
+
+                if (elevationChartData && elevationChartData.length > 0) {
+                    if (noDataEl) noDataEl.style.display = 'none';
+                    canvas.style.display = 'block';
+                    renderElevationChart(ctx, canvas, elevationChartData);
+                    updateProfileSelectionStats();
+                    refreshProfileSelectionOverlay();
+                } else {
+                    showNoData('No elevation data for visible routes');
+                    updateProfileSelectionStats();
+                }
+            }
+
+            // Prefer a selected segment when user clicks a polyline
+            if (selectedProfileSegmentPoints && selectedProfileSegmentPoints.length >= 2) {
+                const basePoints = buildProfileBasePoints(selectedProfileSegmentPoints, selectedProfileSegmentColor);
+                elevationChartData = basePoints.filter(p => p.altitude != null);
+                speedChartData = buildSpeedDataFromElevation(basePoints);
+                renderActiveProfile();
+                return;
+            }
 
             // Check for route search elevation data first
             const routeSearchElevation = window.routeSearchState?.elevationData;
@@ -10833,31 +11064,27 @@ scrollToDiaryDay(currentDayKey);
                         altitude: pt.elevation,
                         distance: distance,
                         color: '#667eea',  // Route search color
-                        activityType: 'driving'
+                        activityType: 'driving',
+                        segmentId: 0
                     };
                 });
 
-                // Hide no-data message, show canvas
-                if (noDataEl) noDataEl.style.display = 'none';
-                canvas.style.display = 'block';
-
-                // Store data for tooltip interaction
                 elevationChartData = elevationPoints;
+                speedChartData = buildSpeedDataFromElevation(elevationPoints);
 
-                // Render the chart
-                renderElevationChart(ctx, canvas, elevationPoints);
+                renderActiveProfile();
                 return;
             }
 
             // Check if we're in day mode - elevation only works for specific days
             if (mapMode !== 'day' || !currentDayKey) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                if (noDataEl) {
-                    noDataEl.innerHTML = '<span>Select a specific day to view elevation profile</span>';
-                    noDataEl.style.display = 'block';
-                }
-                canvas.style.display = 'none';
                 elevationChartData = null;
+                speedChartData = null;
+                const msg = mode === 'speed'
+                    ? 'Select a specific day to view speed profile'
+                    : 'Select a specific day to view elevation profile';
+                showNoData(msg);
+                updateProfileSelectionStats();
                 return;
             }
 
@@ -10865,26 +11092,16 @@ scrollToDiaryDay(currentDayKey);
             const visibleElevationData = getVisibleElevationData(bounds);
 
             if (visibleElevationData.length === 0) {
-                // No data - show message
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                if (noDataEl) {
-                    noDataEl.innerHTML = '<span>No elevation data for visible routes</span>';
-                    noDataEl.style.display = 'block';
-                }
-                canvas.style.display = 'none';
                 elevationChartData = null;
+                speedChartData = null;
+                renderActiveProfile();
                 return;
             }
 
-            // Hide no-data message, show canvas
-            if (noDataEl) noDataEl.style.display = 'none';
-            canvas.style.display = 'block';
-
-            // Store data for tooltip interaction
             elevationChartData = visibleElevationData;
+            speedChartData = buildSpeedDataFromElevation(visibleElevationData);
 
-            // Render the chart
-            renderElevationChart(ctx, canvas, visibleElevationData);
+            renderActiveProfile();
         }
 
         function getVisibleElevationData(bounds) {
@@ -10893,7 +11110,7 @@ scrollToDiaryDay(currentDayKey);
 
             if (!allRouteSegments || allRouteSegments.length === 0) return elevationPoints;
 
-            allRouteSegments.forEach(segObj => {
+            allRouteSegments.forEach((segObj, segIdx) => {
                 const { segment, points, color } = segObj;
                 if (!segment || !points || points.length === 0) return;
 
@@ -10914,7 +11131,8 @@ scrollToDiaryDay(currentDayKey);
                                     altitude: point.altitude,
                                     activityType: activityType,
                                     color: color,
-                                    timestamp: point.timestamp
+                                    timestamp: point.timestamp,
+                                    segmentId: segIdx
                                 });
                             }
                         }
@@ -10943,6 +11161,272 @@ scrollToDiaryDay(currentDayKey);
             }
 
             return elevationPoints;
+        }
+
+        function buildProfileBasePoints(points, colorOverride = null) {
+            if (!Array.isArray(points) || points.length < 2) return [];
+
+            const basePoints = [];
+            let cumulativeDistance = 0;
+
+            for (let i = 0; i < points.length; i++) {
+                if (i > 0) {
+                    const prev = points[i - 1];
+                    const curr = points[i];
+                    const segmentDist = haversineDistanceKm(prev.lat, prev.lng, curr.lat, curr.lng);
+                    cumulativeDistance += segmentDist;
+                }
+
+                const p = points[i];
+                basePoints.push({
+                    lat: p.lat,
+                    lng: p.lng,
+                    altitude: p.altitude,
+                    distance: cumulativeDistance,
+                    color: colorOverride || p.color,
+                    activityType: p.activityType || 'unknown',
+                    timestamp: p.timestamp,
+                    segmentId: p.segmentId ?? 0
+                });
+            }
+
+            return basePoints;
+        }
+
+        function hideProfileSelection() {
+            const selectionEl = document.getElementById('elevationSelection');
+            if (selectionEl) selectionEl.style.display = 'none';
+            _profileSelectionRange = null;
+            updateProfileSelectionStats();
+        }
+
+        function setStatValue(key, value) {
+            const el = document.querySelector(`.elevation-stat-tag[data-stat="${key}"]`);
+            if (el) el.textContent = value;
+        }
+
+        function updateProfileSelectionStats() {
+            const mode = elevationProfileMode;
+            const data = mode === 'speed' ? speedChartData : elevationChartData;
+            if (!Array.isArray(data) || data.length === 0) {
+                setStatValue('dist', 'Dist --');
+                setStatValue('dur', 'Dur --');
+                setStatValue('min', 'Min --');
+                setStatValue('med', 'Med --');
+                setStatValue('avg', 'Avg --');
+                setStatValue('max', 'Max --');
+                setStatValue('gain', 'Gain --');
+                setStatValue('diff', 'Δ --');
+                return;
+            }
+
+            const startDist = _profileSelectionRange
+                ? Math.min(_profileSelectionRange.startDist, _profileSelectionRange.endDist)
+                : 0;
+            const endDist = _profileSelectionRange
+                ? Math.max(_profileSelectionRange.startDist, _profileSelectionRange.endDist)
+                : (data[data.length - 1]?.distance || 0);
+            const selected = data.filter(p => p.distance >= startDist && p.distance <= endDist);
+            if (selected.length === 0) {
+                setStatValue('dist', 'Dist --');
+                setStatValue('dur', 'Dur --');
+                setStatValue('min', 'Min --');
+                setStatValue('med', 'Med --');
+                setStatValue('avg', 'Avg --');
+                setStatValue('max', 'Max --');
+                setStatValue('gain', 'Gain --');
+                setStatValue('diff', 'Δ --');
+                return;
+            }
+
+            const distanceKm = Math.max(0, endDist - startDist);
+            let durationText = '';
+            const tStart = selected[0].timestamp ? Date.parse(selected[0].timestamp) : null;
+            const tEnd = selected[selected.length - 1].timestamp ? Date.parse(selected[selected.length - 1].timestamp) : null;
+            if (Number.isFinite(tStart) && Number.isFinite(tEnd) && tEnd > tStart) {
+                durationText = formatRouteTime(tEnd - tStart);
+            }
+
+            if (mode === 'speed') {
+                const speeds = selected.map(p => p.speedKmh).filter(v => Number.isFinite(v));
+                if (speeds.length === 0) {
+                    setStatValue('dist', 'Dist --');
+                    setStatValue('dur', 'Dur --');
+                    setStatValue('min', 'Min --');
+                    setStatValue('med', 'Med --');
+                    setStatValue('avg', 'Avg --');
+                    setStatValue('max', 'Max --');
+                    setStatValue('gain', '');
+                    setStatValue('diff', '');
+                    return;
+                }
+                const max = Math.max(...speeds);
+                const min = Math.min(...speeds);
+                const avg = speeds.reduce((a, b) => a + b, 0) / speeds.length;
+                const sorted = speeds.slice().sort((a, b) => a - b);
+                const mid = Math.floor(sorted.length / 2);
+                const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+
+                setStatValue('dist', `Dist ${distanceKm.toFixed(distanceKm < 1 ? 2 : 1)}km`);
+                setStatValue('dur', durationText ? `Dur ${durationText}` : 'Dur --');
+                setStatValue('min', `Min ${min.toFixed(1)}`);
+                setStatValue('med', `Med ${median.toFixed(1)}`);
+                setStatValue('avg', `Avg ${avg.toFixed(1)}`);
+                setStatValue('max', `Max ${max.toFixed(1)} km/h`);
+                setStatValue('gain', '');
+                setStatValue('diff', '');
+                return;
+            }
+
+            const elevations = selected.map(p => p.altitude).filter(v => Number.isFinite(v));
+            if (elevations.length === 0) {
+                setStatValue('dist', 'Dist --');
+                setStatValue('dur', 'Dur --');
+                setStatValue('min', 'Min --');
+                setStatValue('med', 'Med --');
+                setStatValue('avg', 'Avg --');
+                setStatValue('max', 'Max --');
+                setStatValue('gain', 'Gain --');
+                setStatValue('diff', 'Δ --');
+                return;
+            }
+            const max = Math.max(...elevations);
+            const min = Math.min(...elevations);
+            const avg = elevations.reduce((a, b) => a + b, 0) / elevations.length;
+            const diff = max - min;
+            let gain = 0;
+            for (let i = 1; i < selected.length; i++) {
+                const prevAlt = selected[i - 1].altitude;
+                const currAlt = selected[i].altitude;
+                const sameSegment = (selected[i - 1].segmentId ?? null) === (selected[i].segmentId ?? null);
+                if (sameSegment && Number.isFinite(prevAlt) && Number.isFinite(currAlt)) {
+                    const delta = currAlt - prevAlt;
+                    if (delta > 0) gain += delta;
+                }
+            }
+
+            setStatValue('dist', `Dist ${distanceKm.toFixed(distanceKm < 1 ? 2 : 1)}km`);
+            setStatValue('dur', durationText ? `Dur ${durationText}` : 'Dur --');
+            setStatValue('min', `Min ${Math.round(min)}m`);
+            setStatValue('med', '');
+            setStatValue('avg', `Avg ${Math.round(avg)}m`);
+            setStatValue('max', `Max ${Math.round(max)}m`);
+            setStatValue('gain', `Gain ${Math.round(gain)}m`);
+            setStatValue('diff', `Δ ${Math.round(diff)}m`);
+        }
+
+        function refreshProfileSelectionOverlay() {
+            const canvas = document.getElementById('elevationCanvas');
+            if (!canvas || !canvas._chartInfo || !_profileSelectionRange) return;
+            if (typeof canvas._updateSelectionOverlayFromRange === 'function') {
+                canvas._updateSelectionOverlayFromRange(canvas._chartInfo);
+            }
+        }
+
+        function buildSpeedDataFromElevation(points) {
+            if (!Array.isArray(points) || points.length < 2) return [];
+
+            const speedPoints = [];
+            for (let i = 1; i < points.length; i++) {
+                const prev = points[i - 1];
+                const curr = points[i];
+                if (!prev || !curr) continue;
+                if (!prev.timestamp || !curr.timestamp) continue;
+
+                const t1 = Date.parse(prev.timestamp);
+                const t2 = Date.parse(curr.timestamp);
+                if (!Number.isFinite(t1) || !Number.isFinite(t2)) continue;
+
+                const dtSec = (t2 - t1) / 1000;
+                if (!(dtSec > 0 && dtSec < 3600)) continue;
+
+                const distKm = Math.max(0, (curr.distance ?? 0) - (prev.distance ?? 0));
+                const speedKmh = (distKm / dtSec) * 3600;
+
+                speedPoints.push({
+                    lat: curr.lat,
+                    lng: curr.lng,
+                    distance: curr.distance ?? 0,
+                    speedKmh,
+                    color: curr.color,
+                    activityType: curr.activityType,
+                    timestamp: curr.timestamp
+                });
+            }
+
+            if (!speedOutlierFilterEnabled) return speedPoints;
+            return filterSpeedOutliers(speedPoints, 5, 3.5);
+        }
+
+        function median(values) {
+            if (!values.length) return 0;
+            const sorted = values.slice().sort((a, b) => a - b);
+            const mid = Math.floor(sorted.length / 2);
+            return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+        }
+
+        function filterSpeedOutliers(points, windowSize = 5, madThreshold = 3.5) {
+            const result = points.map(p => ({ ...p }));
+            const speeds = points.map(p => p.speedKmh);
+
+            function accelThreshold(activityType) {
+                const act = (activityType || '').toLowerCase();
+                if (act.includes('walk')) return 1.5;      // m/s^2
+                if (act.includes('cycl') || act.includes('bike')) return 3.0;
+                if (act.includes('car') || act.includes('auto') || act.includes('drive')) return 6.0;
+                return 4.0;
+            }
+
+            for (let i = 0; i < points.length; i++) {
+                const start = Math.max(0, i - windowSize);
+                const end = Math.min(points.length - 1, i + windowSize);
+                const window = [];
+                for (let j = start; j <= end; j++) {
+                    const v = speeds[j];
+                    if (Number.isFinite(v)) window.push(v);
+                }
+                if (window.length < 3) continue;
+
+                const med = median(window);
+                const deviations = window.map(v => Math.abs(v - med));
+                const mad = median(deviations);
+
+                const speed = speeds[i];
+                if (!Number.isFinite(speed)) continue;
+
+                const diff = Math.abs(speed - med);
+                let isOutlier = false;
+
+                if (mad > 0) {
+                    isOutlier = diff > madThreshold * mad;
+                } else {
+                    const fallback = Math.max(1, med * 0.3);
+                    isOutlier = diff > fallback;
+                }
+
+                if (i > 0) {
+                    const prev = points[i - 1];
+                    if (prev && prev.timestamp && points[i].timestamp) {
+                        const t1 = Date.parse(prev.timestamp);
+                        const t2 = Date.parse(points[i].timestamp);
+                        if (Number.isFinite(t1) && Number.isFinite(t2) && t2 > t1) {
+                            const dtSec = (t2 - t1) / 1000;
+                            const v1 = (prev.speedKmh || 0) / 3.6;
+                            const v2 = (speed || 0) / 3.6;
+                            const accel = Math.abs(v2 - v1) / dtSec;
+                            if (accel > accelThreshold(points[i].activityType)) {
+                                isOutlier = true;
+                            }
+                        }
+                    }
+                }
+
+                if (isOutlier) {
+                    result[i].speedKmh = med;
+                }
+            }
+
+            return result;
         }
 
         function haversineDistanceKm(lat1, lng1, lat2, lng2) {
@@ -10985,7 +11469,7 @@ scrollToDiaryDay(currentDayKey);
 
             const width = rect.width;
             const height = rect.height;
-            const padding = { top: 10, right: 15, bottom: 25, left: 45 };
+            const padding = { top: 14, right: 15, bottom: 25, left: 45 };
             const chartWidth = width - padding.left - padding.right;
             const chartHeight = height - padding.top - padding.bottom;
 
@@ -10998,11 +11482,13 @@ scrollToDiaryDay(currentDayKey);
             const maxAlt = Math.max(...altitudes);
             const maxDist = data[data.length - 1]?.distance || 0;
 
-            // Add padding to altitude range
+            // Add padding to altitude range (asymmetric for below/above sea level)
             const altRange = maxAlt - minAlt || 1;
             const altPadding = altRange * 0.1;
-            const yMin = Math.max(0, minAlt - altPadding);
-            const yMax = maxAlt + altPadding;
+            const negPadding = minAlt < 0 ? Math.abs(minAlt) * 0.1 : altPadding;
+            const posPadding = maxAlt > 0 ? maxAlt * 0.1 : altPadding;
+            const yMin = minAlt < 0 ? (minAlt - negPadding) : Math.max(0, minAlt - altPadding);
+            const yMax = maxAlt + posPadding;
 
             // Scale functions
             const xScale = (dist) => padding.left + (dist / maxDist) * chartWidth;
@@ -11011,28 +11497,55 @@ scrollToDiaryDay(currentDayKey);
             // Store scale info for tooltip
             canvas._chartInfo = {
                 padding, chartWidth, chartHeight, xScale, yScale,
-                maxDist, yMin, yMax, data
+                maxDist, yMin, yMax, data, mode: 'elevation'
             };
 
             // Draw grid lines
             ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
             ctx.lineWidth = 1;
 
-            // Horizontal grid lines (altitude)
-            const yTicks = 4;
-            for (let i = 0; i <= yTicks; i++) {
-                const y = padding.top + (chartHeight / yTicks) * i;
+            // Horizontal grid lines (altitude) with "nice" step sizes
+            const range = yMax - yMin;
+            const rawStep = range / 4;
+            const pow10 = Math.pow(10, Math.floor(Math.log10(rawStep || 1)));
+            const normalized = rawStep / pow10;
+            const niceSteps = [5, 10, 20, 50, 100];
+            const nice = niceSteps.find(s => s >= normalized) || 100;
+            const step = nice * pow10;
+            const yStart = Math.floor(yMin / step) * step;
+            const yEnd = Math.ceil(yMax / step) * step;
+
+            for (let altVal = yStart; altVal <= yEnd; altVal += step) {
+                const y = yScale(altVal);
                 ctx.beginPath();
                 ctx.moveTo(padding.left, y);
                 ctx.lineTo(width - padding.right, y);
                 ctx.stroke();
 
                 // Y-axis labels
-                const altVal = yMax - ((yMax - yMin) / yTicks) * i;
                 ctx.fillStyle = '#86868b';
                 ctx.font = '10px -apple-system, sans-serif';
                 ctx.textAlign = 'right';
                 ctx.fillText(`${Math.round(altVal)}m`, padding.left - 5, y + 3);
+            }
+
+            // Draw subtle zero line if elevations include negative values
+            if (yMin < 0 && yMax > 0) {
+                const zeroY = yScale(0);
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.18)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(padding.left, zeroY);
+                ctx.lineTo(width - padding.right, zeroY);
+                ctx.stroke();
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+                ctx.lineWidth = 1;
+
+                // Ensure 0 is labeled on the y-axis
+                ctx.fillStyle = '#86868b';
+                ctx.font = '10px -apple-system, sans-serif';
+                ctx.textAlign = 'right';
+                ctx.fillText('0m', padding.left - 5, zeroY + 3);
             }
 
             // X-axis labels
@@ -11094,26 +11607,235 @@ scrollToDiaryDay(currentDayKey);
             setupElevationCanvasEvents(canvas);
         }
 
+        function renderSpeedChart(ctx, canvas, data) {
+            // Get device pixel ratio for retina display
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+
+            // Set canvas size accounting for retina
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+
+            const width = rect.width;
+            const height = rect.height;
+            const padding = { top: 14, right: 15, bottom: 25, left: 45 };
+            const chartWidth = width - padding.left - padding.right;
+            const chartHeight = height - padding.top - padding.bottom;
+
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+
+            // Find min/max values
+            const speeds = data.map(d => d.speedKmh);
+            const minSpeed = Math.min(...speeds, 0);
+            const maxSpeed = Math.max(...speeds, 1);
+            const maxDist = data[data.length - 1]?.distance || 0;
+
+            // Add padding to speed range
+            const speedRange = maxSpeed - minSpeed || 1;
+            const speedPadding = speedRange * 0.1;
+            const yMin = Math.max(0, minSpeed - speedPadding);
+            const yMax = maxSpeed + speedPadding;
+
+            // Scale functions
+            const xScale = (dist) => padding.left + (dist / maxDist) * chartWidth;
+            const yScale = (speed) => padding.top + chartHeight - ((speed - yMin) / (yMax - yMin)) * chartHeight;
+
+            // Store scale info for tooltip
+            canvas._chartInfo = {
+                padding, chartWidth, chartHeight, xScale, yScale,
+                maxDist, yMin, yMax, data, mode: 'speed'
+            };
+
+            // Draw grid lines
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.lineWidth = 1;
+
+            // Horizontal grid lines (speed)
+            const yTicks = 4;
+            for (let i = 0; i <= yTicks; i++) {
+                const y = padding.top + (chartHeight / yTicks) * i;
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(width - padding.right, y);
+                ctx.stroke();
+
+                // Y-axis labels
+                const speedVal = yMax - ((yMax - yMin) / yTicks) * i;
+                ctx.fillStyle = '#86868b';
+                ctx.font = '10px -apple-system, sans-serif';
+                ctx.textAlign = 'right';
+                ctx.fillText(`${Math.round(speedVal)}km/h`, padding.left - 5, y + 3);
+            }
+
+            // X-axis labels
+            const xTicks = 5;
+            for (let i = 0; i <= xTicks; i++) {
+                const dist = (maxDist / xTicks) * i;
+                const x = xScale(dist);
+
+                ctx.fillStyle = '#86868b';
+                ctx.font = '10px -apple-system, sans-serif';
+                ctx.textAlign = 'center';
+                const label = dist < 1 ? `${(dist * 1000).toFixed(0)}m` : `${dist.toFixed(1)}km`;
+                ctx.fillText(label, x, height - 5);
+            }
+
+            // Draw filled area under line segments with activity colors
+            if (data.length > 1) {
+                const bottomY = height - padding.bottom;
+
+                for (let i = 1; i < data.length; i++) {
+                    const prev = data[i - 1];
+                    const curr = data[i];
+
+                    // Create gradient for this segment using the activity color
+                    const segColor = curr.color || '#34c759';
+                    const gradient = ctx.createLinearGradient(0, padding.top, 0, bottomY);
+                    gradient.addColorStop(0, hexToRgba(segColor, 0.35));
+                    gradient.addColorStop(1, hexToRgba(segColor, 0.08));
+
+                    // Draw filled trapezoid for this segment
+                    ctx.beginPath();
+                    ctx.moveTo(xScale(prev.distance), yScale(prev.speedKmh));
+                    ctx.lineTo(xScale(curr.distance), yScale(curr.speedKmh));
+                    ctx.lineTo(xScale(curr.distance), bottomY);
+                    ctx.lineTo(xScale(prev.distance), bottomY);
+                    ctx.closePath();
+                    ctx.fillStyle = gradient;
+                    ctx.fill();
+                }
+            }
+
+            // Draw line segments with activity colors
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            for (let i = 1; i < data.length; i++) {
+                const prev = data[i - 1];
+                const curr = data[i];
+
+                ctx.beginPath();
+                ctx.strokeStyle = curr.color || '#34c759';
+                ctx.moveTo(xScale(prev.distance), yScale(prev.speedKmh));
+                ctx.lineTo(xScale(curr.distance), yScale(curr.speedKmh));
+                ctx.stroke();
+            }
+
+            // Set up mouse event handlers
+            setupElevationCanvasEvents(canvas);
+        }
+
         function setupElevationCanvasEvents(canvas) {
             // Remove existing handlers
             canvas.onmousemove = null;
             canvas.onmouseleave = null;
+            canvas.onmousedown = null;
+            canvas.onmouseup = null;
 
             const cursor = document.getElementById('elevationCursor');
 
+            function clamp(val, min, max) {
+                return Math.max(min, Math.min(max, val));
+            }
+
+            function updateSelectionOverlay(chartInfo, startX, endX) {
+                const selectionEl = document.getElementById('elevationSelection');
+                if (!selectionEl || !chartInfo) return;
+
+                const leftX = Math.min(startX, endX);
+                const rightX = Math.max(startX, endX);
+
+                const contentPaddingLeft = 16;
+                const contentPaddingTop = 12;
+
+                selectionEl.style.left = (leftX + contentPaddingLeft) + 'px';
+                selectionEl.style.top = (chartInfo.padding.top + contentPaddingTop) + 'px';
+                selectionEl.style.width = Math.max(1, rightX - leftX) + 'px';
+                selectionEl.style.height = chartInfo.chartHeight + 'px';
+                selectionEl.style.display = 'block';
+            }
+
+            function updateSelectionRange(chartInfo, startX, endX) {
+                if (!chartInfo) return;
+                const { padding, chartWidth, maxDist } = chartInfo;
+                const startDist = ((startX - padding.left) / chartWidth) * maxDist;
+                const endDist = ((endX - padding.left) / chartWidth) * maxDist;
+                _profileSelectionRange = {
+                    startDist: clamp(startDist, 0, maxDist),
+                    endDist: clamp(endDist, 0, maxDist)
+                };
+            }
+
+            function findNearestPointByDistance(data, dist) {
+                if (!Array.isArray(data) || data.length === 0) return null;
+                let nearest = data[0];
+                let minDiff = Math.abs(data[0].distance - dist);
+                for (let i = 1; i < data.length; i++) {
+                    const diff = Math.abs(data[i].distance - dist);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        nearest = data[i];
+                    }
+                }
+                return nearest;
+            }
+
+            function updateSelectionOverlayFromRange(chartInfo) {
+                if (!chartInfo || !_profileSelectionRange) return;
+                const { padding, chartWidth, maxDist } = chartInfo;
+                if (maxDist <= 0) return;
+
+                const startX = padding.left + (Math.min(_profileSelectionRange.startDist, _profileSelectionRange.endDist) / maxDist) * chartWidth;
+                const endX = padding.left + (Math.max(_profileSelectionRange.startDist, _profileSelectionRange.endDist) / maxDist) * chartWidth;
+                updateSelectionOverlay(chartInfo, startX, endX);
+            }
+
+            canvas.onmousedown = (e) => {
+                if (!canvas._chartInfo) return;
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const { padding, chartWidth } = canvas._chartInfo;
+                if (x < padding.left || x > padding.left + chartWidth) return;
+
+                _isProfileSelecting = true;
+                _profileSelectStartX = x;
+                _profileSelectEndX = x;
+                hideElevationTooltip();
+                hideElevationCursor();
+
+                updateSelectionRange(canvas._chartInfo, _profileSelectStartX, _profileSelectEndX);
+                updateSelectionOverlay(canvas._chartInfo, _profileSelectStartX, _profileSelectEndX);
+                updateProfileSelectionStats();
+            };
+
             canvas.onmousemove = (e) => {
-                if (!canvas._chartInfo || !elevationChartData) return;
+                if (!canvas._chartInfo) return;
 
                 const rect = canvas.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
-                const { padding, chartWidth, chartHeight, maxDist, yScale, data } = canvas._chartInfo;
+                const { padding, chartWidth, chartHeight, maxDist, data, mode } = canvas._chartInfo;
 
                 // Check if mouse is in chart area
                 if (x < padding.left || x > padding.left + chartWidth) {
+                    if (_isProfileSelecting) return;
                     hideElevationTooltip();
                     hideElevationMapMarker();
                     hideElevationCursor();
+                    return;
+                }
+
+                if (_isProfileSelecting) {
+                    _profileSelectEndX = x;
+                    updateSelectionRange(canvas._chartInfo, _profileSelectStartX, _profileSelectEndX);
+                    updateSelectionOverlay(canvas._chartInfo, _profileSelectStartX, _profileSelectEndX);
+                    updateProfileSelectionStats();
+                    const dist = ((x - padding.left) / chartWidth) * maxDist;
+                    const nearest = findNearestPointByDistance(data, dist);
+                    if (nearest) showElevationMapMarker(nearest.lat, nearest.lng);
                     return;
                 }
 
@@ -11132,15 +11854,16 @@ scrollToDiaryDay(currentDayKey);
                     }
                 }
 
-                // Calculate grade if possible
-                const idx = data.indexOf(nearest);
                 let grade = null;
-                if (idx > 0) {
-                    const prev = data[idx - 1];
-                    const distDiff = (nearest.distance - prev.distance) * 1000; // in meters
-                    if (distDiff > 0) {
-                        const altDiff = nearest.altitude - prev.altitude;
-                        grade = (altDiff / distDiff) * 100;
+                if (mode === 'elevation') {
+                    const idx = data.indexOf(nearest);
+                    if (idx > 0) {
+                        const prev = data[idx - 1];
+                        const distDiff = (nearest.distance - prev.distance) * 1000; // in meters
+                        if (distDiff > 0) {
+                            const altDiff = nearest.altitude - prev.altitude;
+                            grade = (altDiff / distDiff) * 100;
+                        }
                     }
                 }
 
@@ -11148,17 +11871,42 @@ scrollToDiaryDay(currentDayKey);
                 showElevationCursor(x, padding.top, chartHeight);
 
                 // Show tooltip
-                showElevationTooltip(e.clientX, e.clientY, nearest, grade);
+                showProfileTooltip(e.clientX, e.clientY, nearest, mode, grade);
 
                 // Show marker on map
                 showElevationMapMarker(nearest.lat, nearest.lng);
             };
 
+            canvas.onmouseup = (e) => {
+                if (!_isProfileSelecting || !canvas._chartInfo) return;
+                _isProfileSelecting = false;
+
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                _profileSelectEndX = x;
+
+                const dragWidth = Math.abs(_profileSelectEndX - _profileSelectStartX);
+                if (dragWidth < 4) {
+                    hideProfileSelection();
+                    updateProfileSelectionStats();
+                    return;
+                }
+
+                updateSelectionRange(canvas._chartInfo, _profileSelectStartX, _profileSelectEndX);
+                updateSelectionOverlay(canvas._chartInfo, _profileSelectStartX, _profileSelectEndX);
+                updateProfileSelectionStats();
+            };
+
             canvas.onmouseleave = () => {
+                if (_isProfileSelecting) {
+                    _isProfileSelecting = false;
+                }
                 hideElevationTooltip();
                 hideElevationMapMarker();
                 hideElevationCursor();
             };
+
+            canvas._updateSelectionOverlayFromRange = updateSelectionOverlayFromRange;
         }
 
         function showElevationCursor(x, chartTop, chartHeight) {
@@ -11183,7 +11931,7 @@ scrollToDiaryDay(currentDayKey);
             }
         }
 
-        function showElevationTooltip(clientX, clientY, point, grade) {
+        function showProfileTooltip(clientX, clientY, point, mode, grade) {
             const tooltip = document.getElementById('elevationTooltip');
             const valueEl = document.getElementById('elevationTooltipValue');
             if (!tooltip || !valueEl) return;
@@ -11192,10 +11940,15 @@ scrollToDiaryDay(currentDayKey);
                 ? `${(point.distance * 1000).toFixed(0)}m`
                 : `${point.distance.toFixed(2)}km`;
 
-            let html = `<div><strong>${Math.round(point.altitude)}m</strong> at ${distStr}</div>`;
-            if (grade !== null) {
-                const gradeStr = grade >= 0 ? `+${grade.toFixed(1)}%` : `${grade.toFixed(1)}%`;
-                html += `<div style="font-size: 11px; opacity: 0.8;">Grade: ${gradeStr}</div>`;
+            let html = '';
+            if (mode === 'speed') {
+                html = `<div><strong>${point.speedKmh.toFixed(1)} km/h</strong> at ${distStr}</div>`;
+            } else {
+                html = `<div><strong>${Math.round(point.altitude)}m</strong> at ${distStr}</div>`;
+                if (grade !== null) {
+                    const gradeStr = grade >= 0 ? `+${grade.toFixed(1)}%` : `${grade.toFixed(1)}%`;
+                    html += `<div style="font-size: 11px; opacity: 0.8;">Grade: ${gradeStr}</div>`;
+                }
             }
 
             valueEl.innerHTML = html;
@@ -16309,6 +17062,7 @@ if (typeof toggleAnalysisPanel === 'function') window.toggleAnalysisPanel = togg
 if (typeof positionElevationPanel === 'function') window.positionElevationPanel = positionElevationPanel;
 if (typeof toggleDiary === 'function') window.toggleDiary = toggleDiary;
 if (typeof toggleElevationPanel === 'function') window.toggleElevationPanel = toggleElevationPanel;
+if (typeof setElevationProfile === 'function') window.setElevationProfile = setElevationProfile;
 if (typeof toggleFavoriteFromPopup === 'function') window.toggleFavoriteFromPopup = toggleFavoriteFromPopup;
 if (typeof toggleMapFilters === 'function') window.toggleMapFilters = toggleMapFilters;
 if (typeof toggleToolsDropdown === 'function') window.toggleToolsDropdown = toggleToolsDropdown;

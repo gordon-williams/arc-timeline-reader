@@ -853,9 +853,9 @@
             position: absolute;
             left: 15px;
             top: 15px;  /* Back to original top margin - titlebar no longer blocks left side! */
-            width: 30%;
+            width: 33%;
             max-width: none;  /* Allow JavaScript to control max width */
-            min-width: 380px;  /* Wide enough to show title and build number */
+            min-width: 420px;  /* Wide enough to show title and build number */
             bottom: 15px;
             background: rgba(255, 255, 255, 0.95);  /* Less transparent - CarPlay style */
             backdrop-filter: blur(20px);  /* Stronger blur */
@@ -4495,13 +4495,14 @@ li.route-clickable:hover {
 .tools-dropdown-item {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
+    gap: 10px;
+    padding: 9px 14px;
     cursor: pointer;
     transition: background 0.15s;
     font-size: 14px;
     font-weight: 500;
     color: #1d1d1f;
+    line-height: 1.2;
 }
 
 .tools-dropdown-item:hover {
@@ -4522,7 +4523,7 @@ li.route-clickable:hover {
 .tools-dropdown-divider {
     height: 1px;
     background: rgba(0, 0, 0, 0.1);
-    margin: 4px 0;
+    margin: 3px 0;
 }
 
 /* ===== ELEVATION PROFILE PANEL ===== */
@@ -4566,11 +4567,105 @@ li.route-clickable:hover {
     border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
+.elevation-title-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
 .elevation-title {
     font-size: 15px;
     font-weight: 600;
     color: #1d1d1f;
     letter-spacing: -0.2px;
+}
+
+.elevation-stats {
+    flex: 1;
+    text-align: right;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-right: 8px;
+}
+
+.elevation-stat-tag {
+    font-size: 12px;
+    color: #5b5b60;
+    background: rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    padding: 0 8px;
+    border-radius: 6px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+}
+
+.elevation-panel[data-mode="elevation"] .elevation-stat-tag[data-stat="med"] {
+    display: none;
+}
+
+.elevation-panel[data-mode="speed"] .elevation-stat-tag[data-stat="diff"] {
+    display: none;
+}
+
+.elevation-panel[data-mode="speed"] .elevation-stat-tag[data-stat="gain"] {
+    display: none;
+}
+
+.elevation-filter-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #4b4b4f;
+    white-space: nowrap;
+}
+
+.elevation-filter-toggle input {
+    margin: 0;
+}
+
+.elevation-stats {
+    margin-right: 12px;
+}
+
+.elevation-panel[data-mode="elevation"] #speedOutlierToggleWrap {
+    display: none;
+}
+
+.elevation-tabs {
+    display: flex;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.06);
+    padding: 3px;
+    border-radius: 10px;
+}
+
+.elevation-tab {
+    border: none;
+    background: transparent;
+    padding: 0 10px;
+    height: 24px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #4b4b4f;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    display: inline-flex;
+    align-items: center;
+}
+
+.elevation-tab.active {
+    background: rgba(255, 255, 255, 0.9);
+    color: #1d1d1f;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+.elevation-tab:hover {
+    color: #1d1d1f;
 }
 
 .elevation-close {
@@ -4605,6 +4700,16 @@ li.route-clickable:hover {
     width: 100%;
     height: 100%;
     display: block;
+}
+
+.elevation-selection {
+    position: absolute;
+    display: none;
+    background: rgba(0, 122, 255, 0.12);
+    border: 1px solid rgba(0, 122, 255, 0.35);
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 4;
 }
 
 /* Vertical cursor line for elevation chart */
@@ -5184,4 +5289,3 @@ li.route-clickable:hover {
 .replay-popup .leaflet-popup-tip {
     background: #006B3F;
 }
-

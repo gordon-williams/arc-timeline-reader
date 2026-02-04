@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader
 
-**Current Build: 766**
+**Current Build: 796**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracking data that generates interactive diaries with maps.
 

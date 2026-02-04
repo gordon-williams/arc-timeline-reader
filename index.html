@@ -32,7 +32,7 @@ SOFTWARE.
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"  crossorigin="anonymous" />
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = 766;
+  window.__ARC_BUILD__ = 796;
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -277,7 +277,7 @@ SOFTWARE.
                             </div>
                             <div class="tools-dropdown-item" onclick="selectToolFromDropdown('elevation')">
                                 <span class="tools-dropdown-icon">📈</span>
-                                <span>Elevation Profile</span>
+                                <span>Elevation &amp; Speed</span>
                             </div>
                             <div class="tools-dropdown-divider"></div>
                             <div class="tools-dropdown-item" onclick="selectToolFromDropdown('transparency')">
@@ -319,11 +319,32 @@ SOFTWARE.
                     <!-- Elevation Profile Panel -->
                     <div class="elevation-panel" id="elevationPanel" style="display: none;">
                         <div class="elevation-header">
-                            <span class="elevation-title">Elevation Profile</span>
+                            <div class="elevation-title-group">
+                                <span class="elevation-title">Profile</span>
+                                <div class="elevation-tabs">
+                                    <button class="elevation-tab active" data-profile="elevation" onclick="setElevationProfile('elevation')">Elevation</button>
+                                    <button class="elevation-tab" data-profile="speed" onclick="setElevationProfile('speed')">Speed</button>
+                                </div>
+                            </div>
+                            <div class="elevation-stats" id="elevationStats">
+                                <span class="elevation-stat-tag" data-stat="dist">Dist --</span>
+                                <span class="elevation-stat-tag" data-stat="dur">Dur --</span>
+                                <span class="elevation-stat-tag" data-stat="min">Min --</span>
+                                <span class="elevation-stat-tag" data-stat="med">Med --</span>
+                                <span class="elevation-stat-tag" data-stat="avg">Avg --</span>
+                                <span class="elevation-stat-tag" data-stat="max">Max --</span>
+                                <span class="elevation-stat-tag" data-stat="gain">Gain --</span>
+                                <span class="elevation-stat-tag" data-stat="diff">Δ --</span>
+                                <label class="elevation-filter-toggle elevation-stat-tag" id="speedOutlierToggleWrap">
+                                    <input type="checkbox" id="speedOutlierToggle">
+                                    <span>Filter spikes</span>
+                                </label>
+                            </div>
                             <button class="elevation-close" onclick="closeElevationPanel()">&times;</button>
                         </div>
                         <div class="elevation-content">
                             <canvas id="elevationCanvas"></canvas>
+                            <div class="elevation-selection" id="elevationSelection"></div>
                             <div class="elevation-cursor" id="elevationCursor"></div>
                             <div class="elevation-tooltip" id="elevationTooltip" style="display: none;">
                                 <div class="elevation-tooltip-value" id="elevationTooltipValue"></div>
@@ -423,7 +444,7 @@ SOFTWARE.
                         <div class="diary-title-row">
                             <div class="diary-title-group">
                                 <span class="diary-title" id="diaryTitle">Diary Timeline</span>
-                                <span class="diary-build" id="diaryBuild">Build 766</span>
+                                <span class="diary-build" id="diaryBuild">Build 796</span>
                             </div>
                             <div class="diary-nav-group" id="diaryNavGroup">
                                 <button class="btn-diary-nav btn-nav-circular" id="prevDayBtn" onclick="NavigationController.navigateBy(-1, 'day')" title="Previous day">‹</button>

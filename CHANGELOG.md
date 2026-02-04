@@ -1,5 +1,219 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 796 (2026-02-04)
+
+### UI - Elevation Gain/Delta Ordering + Gain Consistency
+- **Tag order**: Elevation `Gain` now appears immediately before `Δ`
+- **Gain calc**: Elevation gain in profile now avoids cross-segment jumps to better match day stats
+
+---
+
+## Build 795 (2026-02-04)
+
+### UI - Elevation Stats Alignment
+- **Elevation panel now shows both Gain and Δ** for the selected/full range
+- **Speed panel unchanged** (still shows Median, no Δ)
+
+---
+
+## Build 794 (2026-02-04)
+
+### Fix - NavigationController Instant Day Scroll
+- **Main path fixed**: `NavigationController.navigateBy('day')` now passes instant-scroll intent to day selection
+- **Boundary behavior respected**: Cross-month day navigation now uses hard jump as intended
+
+---
+
+## Build 793 (2026-02-04)
+
+### Fix - True Instant Diary Jump
+- **No smooth fallback**: Instant mode now sets `scrollTop` directly to cancel in-flight smooth scrolling
+- **Boundary navigation**: Cross-month moves now perform an actual hard jump in the diary panel
+
+---
+
+## Build 792 (2026-02-04)
+
+### UX - Day Navigation Boundary Behavior
+- **Instant at month boundaries**: Adjacent cross-month day moves now scroll instantly
+- **Within-month rule unchanged**: Same-month moves still use day-delta threshold
+
+---
+
+## Build 791 (2026-02-04)
+
+### UX - Adaptive Day Scroll Speed
+- **Day-delta based**: Instant scroll now uses actual day gap (>5 days), not keypress burst count
+- **Boundary correctness**: Adjacent month boundary moves (e.g. 2026-02-01 → 2026-01-31) remain smooth
+
+---
+
+## Build 790 (2026-02-04)
+
+### UI - Default Day Selection via NavigationController
+- **Selects day + highlights title**: Uses `NavigationController.selectDay` when opening profile panel
+
+---
+
+## Build 788 (2026-02-04)
+
+### Fix - Profile Panel Map Refit
+- **Bounds adjust**: Refit map bounds after opening the profile panel so routes avoid the panel
+
+---
+
+## Build 787 (2026-02-04)
+
+### UI - Speed Stats + Default Day Selection
+- **Speed Δ removed**: Delta stat is hidden in Speed mode
+- **Default day**: Opening the profile panel selects the first day if none is selected
+
+---
+
+## Build 786 (2026-02-04)
+
+### UI - Asymmetric Below/Above Sea-Level Padding
+- **Independent padding**: Negative and positive elevation ranges now pad independently
+
+---
+
+## Build 785 (2026-02-04)
+
+### UI - Axis Label Padding
+- **Top label visibility**: Increased chart top padding to avoid truncated y-axis labels
+
+---
+
+## Build 784 (2026-02-04)
+
+### UI - Elevation Axis Tick Steps
+- **Nice steps**: Major y-axis lines now use 5/10/20/50/100-style steps based on range
+
+---
+
+## Build 783 (2026-02-04)
+
+### Fix - Zero Line Refinement
+- **Subtle zero line**: Reduced prominence for below-sea-level charts
+- **0m label**: Ensures a 0 mark on the y-axis when negatives are present
+
+---
+
+## Build 782 (2026-02-04)
+
+### Fix - Zero Line for Negative Elevation
+- **Prominent zero line**: Adds a stronger 0m line when data crosses below sea level
+
+---
+
+## Build 781 (2026-02-04)
+
+### Fix - Negative Elevation Support
+- **Below sea level**: Elevation chart now allows negative values when present
+
+---
+
+## Build 780 (2026-02-04)
+
+### UI - Filter Spikes Selection Behavior
+- **Preserve selection**: Toggling the speed spike filter no longer clears the active range
+
+---
+
+## Build 779 (2026-02-04)
+
+### UI - Speed Delta Stat
+- **Speed Δ**: Speed panel now shows max-min delta instead of '--'
+
+---
+
+## Build 778 (2026-02-04)
+
+### UI - Profile Panel Polishing
+- **Filter spikes tag**: Aligned with stats tags and matched height
+- **Dbl-click guard**: Elevation/Speed panel consumes double-clicks so map doesn't zoom
+
+---
+
+## Build 777 (2026-02-04)
+
+### Enhancement - Speed Outlier Filtering
+- **Robust filter**: Rolling median + MAD to clamp GPS spikes
+- **Acceleration check**: Activity-aware acceleration threshold catches extreme jumps
+- **User toggle**: Speed spike filter can be enabled/disabled in the profile panel
+
+---
+
+## Build 776 (2026-02-04)
+
+### UI - Profile Stats + Selection Tweaks
+- **Stats height match**: Stat tags now match the Elevation/Speed toggle button height
+- **Selection marker**: Map marker now moves during drag selection
+
+---
+
+## Build 775 (2026-02-04)
+
+### UI - Profile Selection Tweaks
+- **Clear on tab switch**: Selection resets when toggling Elevation/Speed
+- **Elevation stats**: Median tag hidden in Elevation mode
+- **Stats size**: Increased stat tag font size
+- **Marker behavior**: Map position marker remains during selection drag
+
+---
+
+## Build 774 (2026-02-04)
+
+### UI - Profile Selection Stats Refinements
+- **Stats as tags**: Each statistic appears in its own pill for readability
+- **Header spacing**: Added breathing room before the close button
+- **Selection lifecycle**: Clears selection on map bounds changes or segment selection
+- **Selection scaling**: Selection adjusts on window resize/panel width changes
+- **Full-range stats**: Stats show full profile when no selection is active
+
+---
+
+## Build 773 (2026-02-04)
+
+### Enhancement - Profile Selection Stats
+- **Drag-to-select range**: Select a portion of the Elevation/Speed chart
+- **Stats in header**: Elevation shows Max/Min/Avg/Δ, Speed shows Max/Min/Median/Avg
+- **Added distance & duration**: Always shown for the selected range when timestamps are available
+
+---
+
+## Build 772 (2026-02-04)
+
+### UI - Tools Menu Label + Tighter Spacing
+- **Rename**: "Elevation Profile" is now "Elevation & Speed"
+- **Tighter list**: Reduced item padding and line height for a more compact menu
+
+---
+
+## Build 771 (2026-02-04)
+
+### UI - Wider Default Diary Panel
+- **Default width**: Set diary panel initial width to 33% to show full header controls by default
+
+---
+
+## Build 770 (2026-02-04)
+
+### Enhancement - Profile Panel Interaction + Segment Sync
+- **Disable map drag over panel**: Prevents map panning when cursor is inside the elevation/speed panel
+- **Segment-linked profiles**: Clicking a route polyline now uses that segment for elevation/speed charts
+
+---
+
+## Build 767 (2026-02-04)
+
+### Enhancement - Speed Profile in Elevation Panel
+- **Single panel toggle**: Added Elevation/Speed tabs to the existing profile panel
+- **Speed chart**: Renders speed (km/h) from timestamped route points with matching map cursor
+- **Graceful fallback**: Shows a no-data message when speed data is unavailable
+
+---
+
 ## Build 766 (2026-02-03)
 
 ### Fix - Sanitize Rendered HTML + Robust Day Hash
