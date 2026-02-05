@@ -1,0 +1,25 @@
+{
+  "extensions" : {
+    "notes" : {
+      "recordCount" : 6319
+    }
+  },
+  "sessionStartDate" : "2026-01-03T03:45:42Z",
+  "samplesCompleted" : true,
+  "sessionFinishDate" : "2026-01-03T03:46:38Z",
+  "itemsCompleted" : true,
+  "lastBackupDate" : "2026-01-03T03:45:42Z",
+  "stats" : {
+    "itemCount" : 56375,
+    "sampleCount" : 6409429,
+    "placeCount" : 2359
+  },
+  "exportId" : "D2432F6E-4671-4D25-86ED-0559DF4C2364",
+  "placesCompleted" : true,
+  "exportType" : "incremental",
+  "exportMode" : "bucketed",
+  "schemaVersion" : "2.2.0",
+  "appMetadata" : {
+    "deviceName" : "iPhone 17 Pro (7432)"
+  }
+}

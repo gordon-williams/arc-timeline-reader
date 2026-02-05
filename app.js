@@ -5039,6 +5039,7 @@ function moveMapSmart(latlng, zoom) {
                 const addedDays = [];
                 const updatedDays = [];
                 let savedDays = 0;
+                let dayIdx = 0;  // For debug logging
 
                 for (const dayKey of sortedDays) {
                     if (cancelProcessing) break;
@@ -5066,19 +5067,39 @@ function moveMapSmart(latlng, zoom) {
                     const orderedItems = orderItemsByLinkedList(items);
 
                     // Attach GPS samples
+                    // DEBUG: Log sample attachment for specific days
+                    const isDebugDay = dayKey === '2013-11-20' || dayKey === '2025-12-01';
                     for (const item of orderedItems) {
                         if (!item.isVisit && item.startDate) {
-                            const weekKey = getISOWeek(item.startDate);
-                            const weekSamples = samplesByWeek.get(weekKey);
-                            if (weekSamples) {
-                                const itemStart = new Date(item.startDate).getTime();
-                                const itemEnd = item.endDate ? new Date(item.endDate).getTime() : itemStart + 3600000;
-                                item.samples = weekSamples.filter(s => {
-                                    if (!s.date) return false;
+                            const itemStart = new Date(item.startDate).getTime();
+                            const itemEnd = item.endDate ? new Date(item.endDate).getTime() : itemStart + 3600000;
+                            const candidateWeeks = getCandidateWeekKeysForItem(item.startDate);
+
+                            const mergedSamples = [];
+                            for (const wk of candidateWeeks) {
+                                const weekSamples = samplesByWeek.get(wk);
+                                if (!weekSamples) continue;
+
+                                for (const s of weekSamples) {
+                                    if (!s.date) continue;
                                     const sampleTime = new Date(s.date).getTime();
-                                    return sampleTime >= itemStart && sampleTime <= itemEnd;
+                                    if (sampleTime >= itemStart && sampleTime <= itemEnd) {
+                                        mergedSamples.push(s);
+                                    }
+                                }
+                            }
+
+                            if (mergedSamples.length > 0) {
+                                const seen = new Set();
+                                item.samples = mergedSamples.filter(s => {
+                                    const key = s.sampleId || s.id || s.date;
+                                    if (seen.has(key)) return false;
+                                    seen.add(key);
+                                    return true;
                                 });
                                 item.samples.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+                            } else {
+                                item.samples = [];
                             }
                         }
                     }
@@ -5215,6 +5236,54 @@ function moveMapSmart(latlng, zoom) {
             const yearStart = new Date(thursday.getFullYear(), 0, 1);
             const weekNum = Math.ceil(((thursday - yearStart) / 86400000 + 1) / 7);
             return `${thursday.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+        }
+
+        // ISO week using UTC (prevents local-time week shifts near boundaries)
+        function getISOWeekUTC(dateStr) {
+            if (!dateStr) return null;
+            const date = new Date(dateStr);
+            const thursday = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+            thursday.setUTCDate(thursday.getUTCDate() + (4 - (thursday.getUTCDay() || 7)));
+            thursday.setUTCHours(0, 0, 0, 0);
+            const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
+            const weekNum = Math.ceil(((thursday - yearStart) / 86400000 + 1) / 7);
+            return `${thursday.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+        }
+
+        function getAdjacentWeekKeys(weekKey) {
+            if (!weekKey || !/^\d{4}-W\d{2}$/.test(weekKey)) return [];
+            const [yStr, wStr] = weekKey.split('-W');
+            const year = Number(yStr);
+            const week = Number(wStr);
+            if (!year || !week) return [];
+
+            // Compute Monday of the ISO week in UTC
+            const simple = new Date(Date.UTC(year, 0, 1 + (week - 1) * 7));
+            const dow = simple.getUTCDay() || 7;
+            const isoMonday = new Date(simple);
+            isoMonday.setUTCDate(simple.getUTCDate() + (1 - dow));
+
+            const prev = new Date(isoMonday);
+            prev.setUTCDate(prev.getUTCDate() - 7);
+            const next = new Date(isoMonday);
+            next.setUTCDate(next.getUTCDate() + 7);
+
+            return [getISOWeekUTC(prev.toISOString()), getISOWeekUTC(next.toISOString())];
+        }
+
+        function getCandidateWeekKeysForItem(itemStartDate) {
+            const keys = new Set();
+            const localKey = getISOWeek(itemStartDate);
+            if (localKey) keys.add(localKey);
+            const utcKey = getISOWeekUTC(itemStartDate);
+            if (utcKey) keys.add(utcKey);
+            for (const k of [localKey, utcKey]) {
+                if (!k) continue;
+                for (const adj of getAdjacentWeekKeys(k)) {
+                    if (adj) keys.add(adj);
+                }
+            }
+            return [...keys];
         }
         // Track days added/updated in last import (for diary display)
         let importAddedDays = [];
@@ -7655,86 +7724,6 @@ function moveMapSmart(latlng, zoom) {
             }
         }
 
-        // ============================
-        // Developer Tools Modal
-        // ============================
-        function openDeveloperModal() {
-            const modal = document.getElementById('devModal');
-            const backdrop = document.getElementById('devModalBackdrop');
-            if (!modal || !backdrop) return;
-
-            const monthInput = document.getElementById('devMonthKey');
-            const dayInput = document.getElementById('devDayKey');
-            if (monthInput) monthInput.value = currentMonth || '';
-            if (dayInput) dayInput.value = currentDayKey || '';
-
-            backdrop.style.display = 'block';
-            modal.style.display = 'block';
-        }
-
-        function closeDeveloperModal() {
-            const modal = document.getElementById('devModal');
-            const backdrop = document.getElementById('devModalBackdrop');
-            if (modal) modal.style.display = 'none';
-            if (backdrop) backdrop.style.display = 'none';
-        }
-
-        function devLog(message) {
-            const el = document.getElementById('devLog');
-            if (!el) return;
-            const ts = new Date().toLocaleTimeString();
-            el.textContent = `[${ts}] ${message}\n` + el.textContent;
-        }
-
-        async function runDevAction(action) {
-            try {
-                const monthKey = document.getElementById('devMonthKey')?.value?.trim();
-                const dayKey = document.getElementById('devDayKey')?.value?.trim();
-
-                if (action === 'listMonths') {
-                    const months = await window.listMonthsFromDays();
-                    devLog(`Months: ${months?.length || 0}`);
-                    return;
-                }
-                if (action === 'clearLog') {
-                    const el = document.getElementById('devLog');
-                    if (el) el.textContent = '';
-                    return;
-                }
-                if (action === 'rebuildMonthStored') {
-                    if (!monthKey) { devLog('Month key required'); return; }
-                    await window.rebuildDiaryNotesFromStoredTimeline(monthKey);
-                    devLog(`Rebuilt month (stored): ${monthKey}`);
-                    return;
-                }
-                if (action === 'rebuildDayStored') {
-                    if (!dayKey) { devLog('Day key required'); return; }
-                    await window.rebuildDiaryNotesForDayFromStoredTimeline(dayKey);
-                    devLog(`Rebuilt day (stored): ${dayKey}`);
-                    return;
-                }
-                if (action === 'rebuildMonthRaw') {
-                    if (!monthKey) { devLog('Month key required'); return; }
-                    await window.rebuildDiaryNotesFromRawData(monthKey);
-                    devLog(`Rebuilt month (raw): ${monthKey}`);
-                    return;
-                }
-                if (action === 'rebuildDayRaw') {
-                    if (!dayKey) { devLog('Day key required'); return; }
-                    await window.rebuildDiaryNotesForDay(dayKey);
-                    devLog(`Rebuilt day (raw): ${dayKey}`);
-                    return;
-                }
-                devLog(`Unknown action: ${action}`);
-            } catch (err) {
-                devLog(`Error: ${err.message}`);
-            }
-        }
-
-        // Expose dev modal functions globally for inline HTML handlers
-        window.openDeveloperModal = openDeveloperModal;
-        window.closeDeveloperModal = closeDeveloperModal;
-        window.runDevAction = runDevAction;
         
         // Update favourite tags on diary entries based on current favourites
         function updateFavouriteTags() {

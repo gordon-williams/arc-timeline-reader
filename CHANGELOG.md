@@ -1,5 +1,21 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 836 (2026-02-05)
+
+### Cleanup - Remove Dev Modal + Debug Logs
+- Removed Developer Tools modal and button
+- Removed console debug sample-attachment diagnostics
+
+---
+
+## Build 835 (2026-02-05)
+
+### Fix - Sample Week Boundary Attachment
+- Uses both local and UTC ISO week keys plus adjacent weeks to attach GPS samples near week boundaries
+- Prevents missing samples when activity timestamps fall in a different week file due to timezone shifts
+
+---
+
 ## Build 830 (2026-02-05)
 
 ### Fix - Safari/Chrome Arc Timeline Backup GPS Samples Regression

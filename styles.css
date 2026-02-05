@@ -3407,7 +3407,7 @@
             z-index: 10001;
         }
         
-        .filter-modal {
+.filter-modal {
             display: none;
             position: fixed;
             top: 50%;
@@ -3664,6 +3664,7 @@
     }
 
 }
+
 
 /* Location Search Popup - Draggable Modal */
 .search-popup {

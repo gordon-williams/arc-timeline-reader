@@ -1,0 +1,32 @@
+[
+  {
+    "startDate" : "2018-06-06T00:00:53Z",
+    "body" : "I rode to Biomerieux to drive Anita home because she was suffering from vertigo and couldn’t drive.",
+    "deleted" : false,
+    "endDate" : "2018-06-06T00:00:53Z",
+    "source" : "LocoKit",
+    "id" : "28B9B86D-92B7-416C-9D37-FBA0A4B04268",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2018-06-06T00:22:16Z",
+    "body" : "Before going home we had a meal at Zac’s Bistro.",
+    "deleted" : false,
+    "endDate" : "2018-06-06T00:22:16Z",
+    "source" : "LocoKit",
+    "id" : "1566FD44-1F6D-4325-8239-6E0642A79790",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2018-06-10T00:13:06Z",
+    "body" : "Meeting with the biographer",
+    "deleted" : false,
+    "endDate" : "2018-06-10T00:13:06Z",
+    "source" : "LocoKit",
+    "id" : "B21209E6-835F-49F8-BCE2-DF8E8E0D52BE",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  }
+]

@@ -1,0 +1,522 @@
+[
+  {
+    "startDate" : "2022-04-01T02:37:26Z",
+    "body" : "Anita was getting her flu vaccine at the Chemist Warehouse.",
+    "deleted" : false,
+    "endDate" : "2022-04-01T02:37:26Z",
+    "source" : "LocoKit",
+    "id" : "73B855EA-234A-423A-9380-9D64CD901E4E",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-01T02:56:58Z",
+    "body" : "We went to the other huge discount chemist store to buy some honey eye drops. They are called Optimax.",
+    "deleted" : false,
+    "endDate" : "2022-04-01T02:56:58Z",
+    "source" : "LocoKit",
+    "id" : "057682A9-5C90-44D9-A7A5-65375DE84847",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-01T03:12:11Z",
+    "body" : "Katherine was on the 170 bus and stopped at the shopping centre when she saw we were there. She needed some buttons for the patchwork jumper she made.",
+    "deleted" : false,
+    "endDate" : "2022-04-01T03:12:11Z",
+    "source" : "LocoKit",
+    "id" : "B5A463FF-E719-4995-9188-3E78E5D6BD89",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-01T18:28:57Z",
+    "body" : "Anita took the LEAF to Wilston for her dentists appointment.",
+    "deleted" : false,
+    "endDate" : "2022-04-01T18:28:57Z",
+    "source" : "LocoKit",
+    "id" : "2D1020BD-2EBF-4750-ABA8-A8FF3A5137DD",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-02T02:13:34Z",
+    "body" : "Anita tracked down a hepa filter for the vacuum cleaner at the Logan Hyperdome. Godfrey’s was not where Google said it was!",
+    "deleted" : false,
+    "endDate" : "2022-04-02T02:13:34Z",
+    "source" : "LocoKit",
+    "id" : "3A35D854-509F-486B-A5C4-9549F00772CB",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-02T02:47:59Z",
+    "body" : "Needed some milk",
+    "deleted" : false,
+    "endDate" : "2022-04-02T02:47:59Z",
+    "source" : "LocoKit",
+    "id" : "8C8B7272-BA16-4593-9CA5-F02143AAB26B",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-02T06:49:26Z",
+    "body" : "Great afternoon for a chill ride along Bulimba Creek.",
+    "deleted" : false,
+    "endDate" : "2022-04-02T06:49:26Z",
+    "source" : "LocoKit",
+    "id" : "7A70649D-A70A-49C0-A235-49D4AEA0728B",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-03T04:09:45Z",
+    "body" : "Lots of shopping since we haven’t been for a while. Only a few people are wearing masks now despite the increasing infection rate with the BA-2 variant.",
+    "deleted" : false,
+    "endDate" : "2022-04-03T04:09:45Z",
+    "source" : "LocoKit",
+    "id" : "4B8E4521-A9E8-4738-BF6B-07DD04FD8D51",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-03T06:47:20Z",
+    "body" : "Scooter ride to Toohey Forest with the Burley Trailer. There were lots of people on the trail this afternoon. It’s not surprising as the weather is ideal.",
+    "deleted" : false,
+    "endDate" : "2022-04-03T06:47:20Z",
+    "source" : "LocoKit",
+    "id" : "5FEBFED4-D7BC-4177-8B41-126372B2C1D2",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-03T07:17:30Z",
+    "body" : "The carpark was full. There wasn’t anything to take a picture of. The only bird I tried to photograph was a hawk flying high above",
+    "deleted" : false,
+    "endDate" : "2022-04-03T07:17:30Z",
+    "source" : "LocoKit",
+    "id" : "AA191A34-E79E-4EE6-A658-C6E1400A582D",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-09T01:58:50Z",
+    "body" : "I drove the LEAF down to Yatala starting with only 75% charge. It consumed 25% getting there leaving 50% remaining.\n\nThe traffic was terrible as there was an accident at Springwood. A Tesla Model 3 long range was also stopped. Perhaps there were waiting for the police to show them the camera footage.",
+    "deleted" : false,
+    "endDate" : "2022-04-09T01:58:50Z",
+    "source" : "LocoKit",
+    "id" : "0CCA0553-170E-431E-AFAA-04DB1AABC8D0",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-09T02:32:21Z",
+    "body" : "I went to the motorcycle accessories Wharehouse to buy a full face dual purpose helmet to use on the scooter. I ended up with a lightweight carbon fibre AGV helmet for $700.00.",
+    "deleted" : false,
+    "endDate" : "2022-04-09T02:32:21Z",
+    "source" : "LocoKit",
+    "id" : "DC773926-57ED-4C2D-9A26-41ABB5322D88",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-09T03:26:07Z",
+    "body" : "I decided to go to the new DC charger at Calamvale Central. I got there with just 14% charge so the low battery warning was on. It only took 15 minutes to get back up to 70% again.\n\nThere was a Tesla Model 3 there. Fortunately they were using the AC charger otherwise I would have had a much longer wait!",
+    "deleted" : false,
+    "endDate" : "2022-04-09T03:26:07Z",
+    "source" : "LocoKit",
+    "id" : "4D3E3768-F0E1-47A3-8818-3C73A04ECE0A",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-10T05:27:27Z",
+    "body" : "Trying out my new full face helmet. It’s a motorcross - road dual-purpose helmet made by AGV. It’s a carbon fibre composite helmet so is lighter than the usual polycarbonate models. \n\nIt’s quiet when wearing the helmet with the visor down and there is no breeze inside. There are",
+    "deleted" : false,
+    "endDate" : "2022-04-10T05:27:27Z",
+    "source" : "LocoKit",
+    "id" : "D98609F6-9FB4-4F83-948A-7A74AEE507F1",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-10T07:44:07Z",
+    "body" : "Ordered whiting, potato scallop and a Pluto Pup.",
+    "deleted" : false,
+    "endDate" : "2022-04-10T07:44:07Z",
+    "source" : "LocoKit",
+    "id" : "75F0701E-5A3F-4398-94A4-A733595E297B",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-10T21:45:08Z",
+    "body" : "My first trip to work wearing the full face helmet. It was probably the fastest I’ve ever gone! For some reason the helmet makes you feel safer. It disconnects the wearer from the outside world especially when the visor is closed. \n\nI have to find some anti fog treatment. When I have the visor down when it’s cold, the glasses totally fog up.",
+    "deleted" : false,
+    "endDate" : "2022-04-10T21:45:08Z",
+    "source" : "LocoKit",
+    "id" : "C27CAEE6-ACD7-4783-91DC-2FFD74E8451A",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-11T06:29:39Z",
+    "body" : "I was wondering what was there at the post office. It turned out to be the Elanga Charging Card for the new chargers at Calamvale and Sunnybank.",
+    "deleted" : false,
+    "endDate" : "2022-04-11T06:29:39Z",
+    "source" : "LocoKit",
+    "id" : "FE404BB1-4234-48C5-BDE1-FC19B86A4219",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-11T08:57:37Z",
+    "body" : "Filled up the Forester with the usual 98 Octane. Today it was a more reasonable $1.78 per litre.",
+    "deleted" : false,
+    "endDate" : "2022-04-11T08:57:37Z",
+    "source" : "LocoKit",
+    "id" : "86E5B02F-D573-4B44-A36F-981469CD6525",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-13T22:11:08Z",
+    "body" : "Drove to work because the weather forecast was predicting rain. It ended up being a beautiful day!",
+    "deleted" : false,
+    "endDate" : "2022-04-13T22:11:08Z",
+    "source" : "LocoKit",
+    "id" : "F1FFE487-346B-4A28-AB99-B24A5A61E140",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-15T05:01:00Z",
+    "body" : "Anita wanted to go somewhere near the river for lunch, so we went over to Northshore where we could also recharge the LEAF afterwards.\n\nWe found a spot in the nearby park. It was windy so we picked a place next to bushes in the hope they would reduce the force of the wind.",
+    "deleted" : false,
+    "endDate" : "2022-04-15T05:01:00Z",
+    "source" : "LocoKit",
+    "id" : "8AA090E6-C542-4767-A6AE-74B5C986D029",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-15T05:41:39Z",
+    "body" : "I put the chairs and other gear back in the car and then we went for a walk around the perimeter of the apartments.",
+    "deleted" : false,
+    "endDate" : "2022-04-15T05:41:39Z",
+    "source" : "LocoKit",
+    "id" : "156E99C9-D8E4-4BF7-A5BC-BA5F5DA1BD3F",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-15T06:04:12Z",
+    "body" : "We charged the LEAF at the QESH DC charger. I topped it up to 85% for the trip home and enough to last the next day without having to charge overnight.\n\nThe was a Hyundai Ioniq charging on the other DC unit.",
+    "deleted" : false,
+    "endDate" : "2022-04-15T06:04:12Z",
+    "source" : "LocoKit",
+    "id" : "0363E142-88B0-40FA-ACDC-31E54A99716B",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-15T06:33:22Z",
+    "body" : "It was a very relaxing drive home from the QESH charger. We went through the central business district of Brisbane City. Being Easter Friday, the streets were nearly empty of cars.",
+    "deleted" : false,
+    "endDate" : "2022-04-15T06:33:22Z",
+    "source" : "LocoKit",
+    "id" : "BDC7980F-C7DD-4205-8DE2-9158019DBE12",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-16T01:59:45Z",
+    "body" : "Took the WRX for a drive to charge up the 12V battery. The car has been in the garage for a few weeks.\n\nIt’s very noticeable that the WRX is a quick car after not having driven it for several weeks. I enjoyed the drive, except for the long sections stuck behind slower cars.",
+    "deleted" : false,
+    "endDate" : "2022-04-16T01:59:45Z",
+    "source" : "LocoKit",
+    "id" : "6FC791BF-C4CC-44D3-94B5-1A458509DAC5",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-16T02:31:05Z",
+    "body" : "Refuelled and checked the tyre pressures. I’m trying the same pressures front and back this time. They are all 34 psi warm.",
+    "deleted" : false,
+    "endDate" : "2022-04-16T02:31:05Z",
+    "source" : "LocoKit",
+    "id" : "5ADF881C-40FB-4CC2-9CFD-F17C78E2E405",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-16T06:38:19Z",
+    "body" : "Saturday: Washed the LEAF this afternoon, but there was some light rain preventing me from doing the inside of the car and the polishing. It will have to wait until tomorrow afternoon?",
+    "deleted" : false,
+    "endDate" : "2022-04-16T06:38:19Z",
+    "source" : "LocoKit",
+    "id" : "ABEAD190-D306-4860-9FAC-1DD8BAF68EBA",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-16T14:50:29Z",
+    "body" : "Sunday: Vacuumed the inside of the LEAF and cleaned the rest of the interior.",
+    "deleted" : false,
+    "endDate" : "2022-04-16T14:50:29Z",
+    "source" : "LocoKit",
+    "id" : "6D34DD22-7521-4070-9199-7C89CBD6046C",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-17T03:03:44Z",
+    "body" : "I ordered two crispy chicken salads but when we got home and opened the boxes, there was no chicken; only salad for $10.00 ea.!",
+    "deleted" : false,
+    "endDate" : "2022-04-17T03:03:44Z",
+    "source" : "LocoKit",
+    "id" : "632B3F84-9C35-45FB-8EE4-4AB662F25A6A",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-17T07:18:59Z",
+    "body" : "Walked to Keema and back. There were no LEAFs; only one Ioniq and a Kona.",
+    "deleted" : false,
+    "endDate" : "2022-04-17T07:18:59Z",
+    "source" : "LocoKit",
+    "id" : "2AADB38C-3009-4FAC-8823-F5BA25470EE7",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-18T02:53:50Z",
+    "body" : "Katherine had a 30 minute French Horn lesson.",
+    "deleted" : false,
+    "endDate" : "2022-04-18T02:53:50Z",
+    "source" : "LocoKit",
+    "id" : "D986681B-9688-4CF4-8BC3-EC9A5EBFAF16",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-18T03:13:02Z",
+    "body" : "We drove to the park beside the river at Tennyson. This was the site of the old power station and is where they built the new tennis pavilion.",
+    "deleted" : false,
+    "endDate" : "2022-04-18T03:13:02Z",
+    "source" : "LocoKit",
+    "id" : "63D13DF9-CA93-4EEF-B548-D5B483E03952",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-18T03:24:17Z",
+    "body" : "We hurried back to pick up Katherine but her lesson went overtime.",
+    "deleted" : false,
+    "endDate" : "2022-04-18T03:24:17Z",
+    "source" : "LocoKit",
+    "id" : "923714BA-CF12-46FC-98DF-3DB63509BC27",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-18T04:14:31Z",
+    "body" : "No one wears masks anymore and it’s a tight space for customers. One of the staff was wearing theirs however.",
+    "deleted" : false,
+    "endDate" : "2022-04-18T04:14:31Z",
+    "source" : "LocoKit",
+    "id" : "0106883B-7988-499D-BD1B-A44BE377B133",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-18T07:12:41Z",
+    "body" : "I went for a quick shooter ride wearing the full face helmet. My conclusion is to not wear it for local trips as it takes away from experiencing the environment.",
+    "deleted" : false,
+    "endDate" : "2022-04-18T07:12:41Z",
+    "source" : "LocoKit",
+    "id" : "B3198C64-71AE-4207-99FF-276A3F51AF62",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-18T21:05:51Z",
+    "body" : "Monday: We went for a drive in the LEAF to Victoria Point for fish and potato scallops.",
+    "deleted" : false,
+    "endDate" : "2022-04-18T21:05:51Z",
+    "source" : "LocoKit",
+    "id" : "AEF09D35-DFD5-4AB7-BB8C-1F841C865487",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-21T23:50:43Z",
+    "body" : "I had them check the wheel alignment on the LEAF for $75.00.",
+    "deleted" : false,
+    "endDate" : "2022-04-21T23:50:43Z",
+    "source" : "LocoKit",
+    "id" : "93D1951E-3FEC-4BE5-9264-48C6C42D4A8D",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-22T00:04:48Z",
+    "body" : "Went to Bunnings to kill some time while I waited for the car. I might have bought a mini cabinet for keeping the nuts and bolts? I had a look at the electric whipper snippers. Maybe one that uses an extension lead would be the best for our place?",
+    "deleted" : false,
+    "endDate" : "2022-04-22T00:04:48Z",
+    "source" : "LocoKit",
+    "id" : "D1E89C54-3FBF-4249-8284-BA6E302B1093",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-22T00:32:24Z",
+    "body" : "I wanted another Google mesh network station, but they didn’t have any. They are called Nest stations now. Are they compatible?",
+    "deleted" : false,
+    "endDate" : "2022-04-22T00:32:24Z",
+    "source" : "LocoKit",
+    "id" : "60FCCDE2-1F6D-4590-860C-5F175AB2FF5B",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-22T00:32:24Z",
+    "body" : "I bought some USB video adapters for VGA and Display Port.",
+    "deleted" : false,
+    "endDate" : "2022-04-22T00:32:24Z",
+    "source" : "LocoKit",
+    "id" : "A6CC6B96-764D-4B31-829F-D5000BD91612",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-22T00:53:49Z",
+    "body" : "They made some minor adjustments. They did find a problem in the rear that wasn’t adjustable.",
+    "deleted" : false,
+    "endDate" : "2022-04-22T00:53:49Z",
+    "source" : "LocoKit",
+    "id" : "17C5C2A3-3677-47E1-8E01-E389EEEFF2FA",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-22T01:11:15Z",
+    "body" : "Another PSA blood test in preparation for my next visit to see Dr Swindle.",
+    "deleted" : false,
+    "endDate" : "2022-04-22T01:11:15Z",
+    "source" : "LocoKit",
+    "id" : "38DD0233-0C68-4697-A298-E8736484A896",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-22T08:19:58Z",
+    "body" : "Katherine’s QYO rehearsal was at St Peters Lutheran College this week.",
+    "deleted" : false,
+    "endDate" : "2022-04-22T08:19:58Z",
+    "source" : "LocoKit",
+    "id" : "B5BB93DF-4FF7-45E9-A641-472193A9CD15",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-22T11:45:47Z",
+    "body" : "Just made it to KFC before they closed.",
+    "deleted" : false,
+    "endDate" : "2022-04-22T11:45:47Z",
+    "source" : "LocoKit",
+    "id" : "25784753-5089-4421-B69C-4474A3EF929D",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-24T04:29:57Z",
+    "body" : "With all the rain, we were only to get out of the cabin for about 15 minutes before it started raining again.",
+    "deleted" : false,
+    "endDate" : "2022-04-24T04:29:57Z",
+    "source" : "LocoKit",
+    "id" : "D83EE3A5-0CBA-4C5B-A933-00414F2C7145",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-24T15:03:24Z",
+    "body" : "I spent most of the days tending to the fire and looking out the window at the view.",
+    "deleted" : false,
+    "endDate" : "2022-04-24T15:03:24Z",
+    "source" : "LocoKit",
+    "id" : "68554944-E8D7-4ABD-9D15-F7C31D55B43D",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-28T01:53:53Z",
+    "body" : "Had lunch with Katherine, and a noisy minor looking for a free lunch.",
+    "deleted" : false,
+    "endDate" : "2022-04-28T01:53:53Z",
+    "source" : "LocoKit",
+    "id" : "6A3B3188-C692-4005-B3D8-9BB6E1F8B47D",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-28T04:42:18Z",
+    "body" : "I got my flu vaccination shot today. It’s the version for people over 65. I wasn’t in HBCIS so I had to complete a more detailed registration form as well as the vaccination one! The whole thing ended up taking 50 minutes!",
+    "deleted" : false,
+    "endDate" : "2022-04-28T04:42:18Z",
+    "source" : "LocoKit",
+    "id" : "C5311C27-E3FA-4E86-89D7-EDA19454E7D9",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-30T04:55:43Z",
+    "body" : "Katherine wanted a meatball sandwich, but they were completely out of meatballs! I looked up where the other nearby subways were located and we set off for the one at MtGravatt near where we go to Coles.",
+    "deleted" : false,
+    "endDate" : "2022-04-30T04:55:43Z",
+    "source" : "LocoKit",
+    "id" : "0367561B-A91D-4AF4-B186-61E6BF0F1C73",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-30T05:07:08Z",
+    "body" : "I totally forgot that subways was here. They did have everything that Katherine wanted!",
+    "deleted" : false,
+    "endDate" : "2022-04-30T05:07:08Z",
+    "source" : "LocoKit",
+    "id" : "C66F268A-6904-44F0-8BF3-C15580AC28FA",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-30T08:05:40Z",
+    "body" : "I wanted to go for a drive in the LEAF so we went to Cleveland. I took my favourite detour. It looks like they are preparing a housing development there. Sad.",
+    "deleted" : false,
+    "endDate" : "2022-04-30T08:05:40Z",
+    "source" : "LocoKit",
+    "id" : "D46D63FC-15ED-4796-96D8-CE9E097F68D7",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-30T08:27:52Z",
+    "body" : "The carpark was full at the heads, so we parked just down the road and walked up to the restaurant to order fish and potato scallop.",
+    "deleted" : false,
+    "endDate" : "2022-04-30T08:27:52Z",
+    "source" : "LocoKit",
+    "id" : "C0782B19-F436-45A1-8CE7-5E8522E32C18",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-04-30T09:08:16Z",
+    "body" : "Anita wanted an ice cream from MacDonalds. They have a new version with Cadbury’s flake chocolate topping.",
+    "deleted" : false,
+    "endDate" : "2022-04-30T09:08:16Z",
+    "source" : "LocoKit",
+    "id" : "660BA2ED-2357-4AFF-B453-36FEECE23456",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  }
+]

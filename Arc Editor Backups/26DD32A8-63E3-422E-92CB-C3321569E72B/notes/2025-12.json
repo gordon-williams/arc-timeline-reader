@@ -1,0 +1,483 @@
+[
+  {
+    "startDate" : "2025-12-01T21:54:02Z",
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "endDate" : "2025-12-01T21:54:02Z",
+    "id" : "B4EE8B5F-AC49-4F19-B04B-3E13F8F6F457",
+    "deleted" : false,
+    "body" : "Charged the Tesla at Tesla this morning. Before 8:00am the cost is almost as low as at home!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit"
+  },
+  {
+    "startDate" : "2025-12-02T23:00:42Z",
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "endDate" : "2025-12-02T23:00:42Z",
+    "id" : "D959054F-857D-41C2-944B-EE5174CB37A3",
+    "deleted" : false,
+    "body" : "Wednesday: The Internet is down. There seems to be a problem with the connection between Optus and NBN. The NBN router is working but still no internet.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit"
+  },
+  {
+    "startDate" : "2025-12-03T20:47:14Z",
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "endDate" : "2025-12-03T20:47:14Z",
+    "id" : "8E58001C-C961-4562-A18E-B6EA0D9B9BCC",
+    "deleted" : false,
+    "body" : "Dropped off Katherine at her work. Anita came along. I was driving the Tesla.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit"
+  },
+  {
+    "startDate" : "2025-12-03T21:05:53Z",
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "endDate" : "2025-12-03T21:05:53Z",
+    "id" : "D9882D65-434D-4755-94B4-C112FDE2F7F2",
+    "deleted" : false,
+    "body" : "We bought our coffee and breakfast. Anita wanted to go to the park with a large lake that’s actually not far away.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit"
+  },
+  {
+    "startDate" : "2025-12-03T21:57:36Z",
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "endDate" : "2025-12-03T21:57:36Z",
+    "id" : "29D643BF-55A9-46B2-A08C-35C34350EE5C",
+    "deleted" : false,
+    "body" : "After ‘breakfast’ we walked the 1.7 kms around the lake. It was a perfect morning. The water Lillies were in bloom but it was difficult to get close enough to photograph them.\n\nI got some video of black swans gliding over the water.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit"
+  },
+  {
+    "startDate" : "2025-12-03T23:25:43Z",
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "endDate" : "2025-12-03T23:25:43Z",
+    "id" : "AA28369E-1B45-469C-8A92-4502ACD88F82",
+    "deleted" : false,
+    "body" : "We weren’t back home very long before Katherine called to say she was finished for the day!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit"
+  },
+  {
+    "startDate" : "2025-12-05T23:15:27Z",
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "endDate" : "2025-12-05T23:15:27Z",
+    "id" : "ABA3D7DA-7581-462B-A9C5-C6469992ED64",
+    "deleted" : false,
+    "body" : "The was a Zeekr 7X parked there. It was the performance model but had the smaller 19” wheels rather than the default 21” versions. It would be a lot easier to get the tyres for the smaller wheels replaced.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit"
+  },
+  {
+    "startDate" : "2025-12-09T00:43:23Z",
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "endDate" : "2025-12-09T00:43:23Z",
+    "id" : "C1C8B954-54F7-40A7-8053-5017499364E5",
+    "deleted" : false,
+    "body" : "This ended up being Katherine’s last day at her job. She had a leg injury that was preventing her from meeting her targets, so she resigned. The physio says that it will take about six weeks to recover.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit"
+  },
+  {
+    "startDate" : "2025-12-11T04:15:49Z",
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "endDate" : "2025-12-11T04:15:49Z",
+    "id" : "D2004A73-0744-4B20-8B0F-CDBA6CF2B244",
+    "deleted" : false,
+    "body" : "We thought that 99 Bikes might have the Fox shirt. Nope.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit"
+  },
+  {
+    "startDate" : "2025-12-12T01:07:55Z",
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "endDate" : "2025-12-12T01:07:55Z",
+    "id" : "3A91D36E-3769-4640-B9E4-17AF9563913A",
+    "deleted" : false,
+    "body" : "A birthday present for one of Rogers sons. He wanted a Fox jersey because he’s big on mountain biking. It was around $70.00. While I was there waiting, I looked around in their show room. As I walked out of the room, the feature bike fell off its stand with a load crash! I immediately announced that it wasn’t me! The bike was worth $27,000!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit"
+  },
+  {
+    "startDate" : "2025-12-12T01:21:58Z",
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "endDate" : "2025-12-12T01:21:58Z",
+    "id" : "0386CBDA-D11D-48C6-8197-D6B6DCD2F2BE",
+    "deleted" : false,
+    "body" : "Anita noticed that there was a bush trail nearby, so we went to investigate.\n\nI was tired so didn’t enjoy the walk that much. It had previously been a military training area, so Anita read that we couldn’t walk off the path due to unexploded ordinance!\n\nTo make things worse, it started raining for the last 800 metres along the side of the railway line. I managed to get a photo of a passing train\n\nThe Wacol Prison was on the other side of the tracks.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit"
+  },
+  {
+    "startDate" : "2025-12-12T21:28:40Z",
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "endDate" : "2025-12-12T21:28:40Z",
+    "id" : "C3B96C01-7F7D-4C08-B34D-4D00A2FFFB40",
+    "deleted" : false,
+    "body" : "The fungus season has started!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit"
+  },
+  {
+    "startDate" : "2025-12-12T22:02:45Z",
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "endDate" : "2025-12-12T22:02:45Z",
+    "id" : "371749B0-A406-4BE6-92D3-97A41E40DFA3",
+    "deleted" : false,
+    "body" : "The Supernumerary Coffee Shop was really busy this morning. The queue stretched out the front door, so we ordered coffee from Maccas.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit"
+  },
+  {
+    "id" : "88E0B58C-7606-4C32-9B4C-4367F0193A1F",
+    "endDate" : "2025-12-12T23:52:11Z",
+    "body" : "Anita needed a new frying pan specifically designed for the electric stove. The induction pans are too heavy!",
+    "startDate" : "2025-12-12T23:52:11Z",
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit",
+    "deleted" : false,
+    "lastSaved" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "id" : "9EC647ED-A1E5-4294-ACFC-FFF6063B6BAC",
+    "endDate" : "2025-12-14T01:54:08Z",
+    "body" : "Gave the Shark a wash at the carwash. This time I put a towel below the dust vent. The water ingress from there wasn’t that bad this time. More water came through the tailgate this time.",
+    "startDate" : "2025-12-14T01:54:08Z",
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit",
+    "deleted" : false,
+    "lastSaved" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2025-12-15T02:55:26Z",
+    "source" : "LocoKit",
+    "body" : "Dropped in to QCH to see Andrew and Laura. I offered the bike chain to Laura for her bicycle as I don’t need it anymore.\n\nMy Mater Carpark pass has expired.\nMy Staff ID still works, probably until Wednesday.",
+    "startDate" : "2025-12-15T02:55:26Z",
+    "deleted" : false,
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "id" : "29809A56-A262-43C3-8269-D41CCFC44DFD"
+  },
+  {
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2025-12-15T03:41:50Z",
+    "source" : "LocoKit",
+    "body" : "I saw the carpark attendant. He gave me an email address to write to about the possibility of getting my unused parking balance returned.",
+    "startDate" : "2025-12-15T03:41:50Z",
+    "deleted" : false,
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "id" : "0B9931A3-0200-4728-9425-F5F916C93D83"
+  },
+  {
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2025-12-15T04:17:11Z",
+    "source" : "LocoKit",
+    "body" : "Went to see where Savage Tech was located. I’m hoping to order their front nudge bar. It’s made of coated aluminium so should be lighter than others. It comes with an LED light bar in the right place. I also like their overhead switch bank installation. They could also have a look at how to mount our Starlink dish on the Utemaster cantilever rack.",
+    "startDate" : "2025-12-15T04:17:11Z",
+    "deleted" : false,
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "id" : "051EB812-842F-4FEC-969E-F5F4E11B3562"
+  },
+  {
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2025-12-15T07:31:58Z",
+    "source" : "LocoKit",
+    "body" : "Just beat Anita home",
+    "startDate" : "2025-12-15T07:31:58Z",
+    "deleted" : false,
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "id" : "7DCAD5DC-132A-450C-9BFC-D6C6D6F3B8C3"
+  },
+  {
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2025-12-16T06:29:00Z",
+    "source" : "LocoKit",
+    "body" : "First time back on the bicycle for ages.",
+    "startDate" : "2025-12-16T06:29:00Z",
+    "deleted" : false,
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "id" : "3D1A6957-EF12-4D84-9731-CD8E580F5412"
+  },
+  {
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit",
+    "body" : "I discovered a huge golden orb spider resting on the WRX car cover. I was about to remove the cover when I was startled to see it there. Killed it with some bug spray.",
+    "startDate" : "2025-12-16T15:43:32Z",
+    "id" : "95AE410A-C316-4276-B8A1-068956F97203",
+    "endDate" : "2025-12-16T15:43:32Z"
+  },
+  {
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit",
+    "body" : "Drove Katherine to her fitness session.",
+    "startDate" : "2025-12-17T00:56:42Z",
+    "id" : "FA1DB384-7BC1-46D4-AA7E-9E61A3BA1C42",
+    "endDate" : "2025-12-17T00:56:42Z"
+  },
+  {
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit",
+    "body" : "Back at the shops to pick up Katherine. She bought a subway sandwich.",
+    "startDate" : "2025-12-17T01:51:57Z",
+    "id" : "7ABDA81E-B8E5-47B3-8134-AD15C9464FA2",
+    "endDate" : "2025-12-17T01:51:57Z"
+  },
+  {
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit",
+    "body" : "Anita and Katherine planned to go Christmas shopping. We started with a coffee at the Shingle Inn and then I went to various shops to kill time while the others went shopping.\n\nWe got back together at Coles looking for chocolates and Katherine’s favourite cookies. They didn’t have any left!",
+    "startDate" : "2025-12-17T23:53:42Z",
+    "id" : "9F69BE5E-F02C-4F3F-8220-477A6991E97B",
+    "endDate" : "2025-12-17T23:53:42Z"
+  },
+  {
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit",
+    "body" : "Anita picked out some Christmas hats. Hers had pop-up ears.",
+    "startDate" : "2025-12-18T01:07:06Z",
+    "id" : "0CDD42FA-5B95-46C5-8124-947747F76BC2",
+    "endDate" : "2025-12-18T01:07:06Z"
+  },
+  {
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit",
+    "body" : "I passed Anita and waited at the Scout Den. Anita starts the walk from home whereas I drive to the Scout Den in the Shark to start there. Anita gets to walk further, but also doesn’t have to walk all the home afterwards.",
+    "startDate" : "2025-12-18T21:06:00Z",
+    "id" : "8E8419C6-7568-44FD-BC54-CE5F68DC7673",
+    "endDate" : "2025-12-18T21:06:00Z"
+  },
+  {
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit",
+    "body" : "Coffee and breakfast on the verandah.",
+    "startDate" : "2025-12-18T22:19:37Z",
+    "id" : "04E8076A-493E-42CF-A380-C06F8860AF0F",
+    "endDate" : "2025-12-18T22:19:37Z"
+  },
+  {
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit",
+    "body" : "This Koala is close to the path and unlike the others is fairly low to the ground. He looks somewhat worse for wear.",
+    "startDate" : "2025-12-18T23:15:10Z",
+    "id" : "4EEA25EC-58E0-4696-A390-C79704497EEA",
+    "endDate" : "2025-12-18T23:15:10Z"
+  },
+  {
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit",
+    "body" : "Anita spotted a Koala high up in a tree in the grounds of the Scout Den! I should have looked for one while I was waiting for Anita!",
+    "startDate" : "2025-12-18T23:31:58Z",
+    "id" : "85D8F514-75E8-4101-B14C-807206867FC7",
+    "endDate" : "2025-12-18T23:31:58Z"
+  },
+  {
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit",
+    "body" : "We have to park away from the shopping centre building because the BYD Shark is too heavy for roof parking. The weight limit is 2.5 tonne!",
+    "startDate" : "2025-12-18T23:54:18Z",
+    "id" : "A83C3637-4382-43C1-B953-5D54B8CF90D2",
+    "endDate" : "2025-12-18T23:54:18Z"
+  },
+  {
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit",
+    "body" : "Trying to take macro photos of caterpillars under the leaves. Realised I need a dedicated macro camera app for things like this.",
+    "startDate" : "2025-12-19T21:30:38Z",
+    "id" : "E7850EF1-56D1-4484-A4C0-159485B11ACF",
+    "endDate" : "2025-12-19T21:30:38Z"
+  },
+  {
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit",
+    "body" : "There was only one stinkhorn in mushroom alley. It’s been dry for several days, so I wasn’t expecting to see any! As a result there were a lot of flies competing for space on this one fungus!",
+    "startDate" : "2025-12-19T21:37:49Z",
+    "id" : "DBAE94A4-6542-43F3-A2D0-03EB81189D93",
+    "endDate" : "2025-12-19T21:37:49Z"
+  },
+  {
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit",
+    "body" : "I just had a coffee this time. It wasn’t too busy yet, but we decided to go outside. Afterwards I went next door and purchased a new cap. It used a lot of mesh in its construction to help keep my head cool.",
+    "startDate" : "2025-12-19T21:57:59Z",
+    "id" : "75D37133-B5E3-4EE8-A549-00EF952A09B1",
+    "endDate" : "2025-12-19T21:57:59Z"
+  },
+  {
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit",
+    "body" : "There was a goanna walking through the long grass and fallen branches near the path. I tried to get a photo using the iPhone but it wasn’t great. We wouldn’t have known the goanna was even there if it wasn’t for some people who were ahead of us at the time that stopped and were looking into the bush.",
+    "startDate" : "2025-12-19T23:27:36Z",
+    "id" : "69642C6B-A2B4-4974-A146-36666DCC0096",
+    "endDate" : "2025-12-19T23:27:36Z"
+  },
+  {
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "deleted" : true,
+    "lastSaved" : "2025-12-21T03:22:46Z",
+    "source" : "LocoKit",
+    "body" : "",
+    "startDate" : "2025-12-20T03:51:46Z",
+    "id" : "2492742D-7DF0-4826-9886-DBFCCD149105",
+    "endDate" : "2025-12-20T03:51:46Z"
+  },
+  {
+    "creationDate" : "2025-12-21T03:18:52Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "source" : "LocoKit",
+    "body" : "Testing an iPhone app called “macro Lens” which only takes Macro shots. It works well enough, but the big downside is that it saves 16:9 format only.\n\nThe other app I have called Halide has a macro mode. It can also save RAW unprocessed images. Apple does AI processing even on RAW images apparently. I need to test this some more!",
+    "startDate" : "2025-12-20T03:51:46Z",
+    "id" : "E8ECBFD7-30F9-4207-B1CE-14A760AC6DE6",
+    "endDate" : "2025-12-20T03:51:46Z"
+  },
+  {
+    "timelineItemId" : "F0E6B7AA-3D52-4DE5-9039-8BE0E08B819B",
+    "creationDate" : "2025-12-22T04:05:38Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-22T04:06:37Z",
+    "source" : "LocoKit2",
+    "body" : "We spotted 7 koalas again today! This time there were two in the trees near the scout den.",
+    "startDate" : "2025-12-21T23:35:25Z",
+    "id" : "5A67DC8C-A776-4FC1-ADCF-8A8D90482030",
+    "endDate" : "2025-12-21T23:37:25Z"
+  },
+  {
+    "timelineItemId" : "EF24A69B-AD96-4C5B-9EE3-5EA32DFB8020",
+    "creationDate" : "2025-12-22T04:07:13Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-22T04:07:13Z",
+    "source" : "LocoKit2",
+    "body" : "Dropped Katherine and Anita off at health coach then drove to the nearby park to wait.",
+    "startDate" : "2025-12-22T00:58:00Z",
+    "id" : "4E90C186-9D7D-46EF-B1A7-BADC0A91652C",
+    "endDate" : "2025-12-22T00:58:08Z"
+  },
+  {
+    "timelineItemId" : "706EA2C3-7DAB-4241-BD74-8586125F5FED",
+    "creationDate" : "2025-12-22T04:08:15Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-22T04:08:15Z",
+    "source" : "LocoKit2",
+    "body" : "Used the toilet",
+    "startDate" : "2025-12-22T01:33:41Z",
+    "id" : "05303E09-0374-4D5C-B878-270D0649B8E5",
+    "endDate" : "2025-12-22T01:35:05Z"
+  },
+  {
+    "timelineItemId" : "DF00F86F-840C-494E-9370-7BEAAC4FA91F",
+    "creationDate" : "2025-12-22T04:08:38Z",
+    "deleted" : false,
+    "lastSaved" : "2025-12-22T04:08:38Z",
+    "source" : "LocoKit2",
+    "body" : "Filled my Script for the Christmas New Year break.",
+    "startDate" : "2025-12-22T01:45:33Z",
+    "id" : "BEF4853E-B6D2-4049-8D1F-D3B1DBD9E182",
+    "endDate" : "2025-12-22T01:46:25Z"
+  },
+  {
+    "lastSaved" : "2025-12-26T07:04:04Z",
+    "creationDate" : "2025-12-26T07:04:04Z",
+    "startDate" : "2025-12-25T20:59:28Z",
+    "deleted" : false,
+    "source" : "LocoKit2",
+    "id" : "88D9DE6C-1A00-4D53-B926-741928A7848D",
+    "timelineItemId" : "35C90F90-A810-4506-A2B2-7FBC3F3E81F0",
+    "endDate" : "2025-12-25T21:07:47Z",
+    "body" : "Anita went for a walk by herself along the creek. I drove to the coffee shop to buy coffee and toasted banana bread."
+  },
+  {
+    "lastSaved" : "2025-12-26T07:03:32Z",
+    "creationDate" : "2025-12-26T07:03:32Z",
+    "startDate" : "2025-12-25T21:26:28Z",
+    "deleted" : false,
+    "source" : "LocoKit2",
+    "id" : "4F3C273B-3ABC-4147-B937-385BB9146D1D",
+    "timelineItemId" : "6B2F9117-D5FC-4A90-8D0B-BC3E051F150A",
+    "endDate" : "2025-12-25T21:39:28Z",
+    "body" : "Anita was already walking past the dog park, so I went to the ‘big park’ to wait with the coffee. We walked over to a picnic table. It wasn’t worth setting up picnic chairs."
+  },
+  {
+    "lastSaved" : "2025-12-26T07:02:57Z",
+    "creationDate" : "2025-12-26T07:02:57Z",
+    "startDate" : "2025-12-26T06:16:58Z",
+    "deleted" : false,
+    "source" : "LocoKit2",
+    "id" : "BC9EC8D2-D5C3-4280-8D9D-E79270D98E0A",
+    "timelineItemId" : "E4795FEE-FF13-455D-996B-01823C24B9B0",
+    "endDate" : "2025-12-26T06:17:56Z",
+    "body" : "Anita had to make an emergency trip to buy more fruit."
+  },
+  {
+    "lastSaved" : "2025-12-26T07:02:07Z",
+    "creationDate" : "2025-12-26T07:02:07Z",
+    "startDate" : "2025-12-26T06:19:57Z",
+    "deleted" : false,
+    "source" : "LocoKit2",
+    "id" : "74301C19-7629-46FB-8773-B15CC6960F7C",
+    "timelineItemId" : "B7AF969F-6169-4DE9-BDBE-121315B9F68D",
+    "endDate" : "2025-12-26T06:33:37Z",
+    "body" : "Anita needed Strawberries for the cake that Katherine is making for Sunday when we go back to Mudite’s for another get-together.\n\nThe fruit shop didn’t have any! Coles was still open and they had some."
+  },
+  {
+    "lastSaved" : "2025-12-27T11:46:25Z",
+    "creationDate" : "2025-12-27T11:46:25Z",
+    "startDate" : "2025-12-27T02:02:12Z",
+    "deleted" : false,
+    "source" : "LocoKit2",
+    "id" : "6B9B5308-3FC3-4D20-9426-70024DCADDB2",
+    "timelineItemId" : "1DC2DF8F-D638-4298-80C0-0891F99D4C15",
+    "endDate" : "2025-12-27T02:48:19Z",
+    "body" : "Gave Katherine a lift to her friends house."
+  },
+  {
+    "lastSaved" : "2025-12-29T07:31:48Z",
+    "creationDate" : "2025-12-29T07:31:48Z",
+    "startDate" : "2025-12-28T08:35:23Z",
+    "deleted" : false,
+    "source" : "LocoKit2",
+    "id" : "ED4C021B-9B03-45C2-898D-C373015B6EFF",
+    "timelineItemId" : "ECCF39B0-7C20-455F-9FCD-144BB49C6BFC",
+    "endDate" : "2025-12-29T04:54:12Z",
+    "body" : "Katherine is sick today. I made her a sandwich for lunch and she also had a slice of the Apple Pie she made a few days ago."
+  },
+  {
+    "lastSaved" : "2025-12-29T07:29:25Z",
+    "creationDate" : "2025-12-29T07:29:25Z",
+    "startDate" : "2025-12-29T05:03:02Z",
+    "deleted" : false,
+    "source" : "LocoKit2",
+    "id" : "77A72F89-4B75-4C5C-B5D9-693A7C80AB40",
+    "timelineItemId" : "7A011D56-1B5A-4218-A099-D13BFD3A6213",
+    "endDate" : "2025-12-29T05:50:36Z",
+    "body" : "It’s not shown here, but we started off having coffee at the Shingle Inn and then went to the Newsagent; Anita cashed in some minor prizes for more scratch-it tickets. The it was over to Coles for some TV dinners and then to the fruit market outside for better fruit and vegetables than what was on offer in Coles."
+  }
+]

@@ -1,0 +1,732 @@
+[
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-01T15:02:32Z",
+    "body" : "Wrote a letter to the company that makes Cheezels to complain about faulty packaging.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-01T15:02:32Z",
+    "id" : "BBB34B64-A8F6-4F73-A8F5-411A4F483F33",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-02T03:27:54Z",
+    "body" : "Level 6E",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-02T03:27:54Z",
+    "id" : "0A1FC092-6DC3-460B-BE6B-982F827FC1E1",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-02T07:41:12Z",
+    "body" : "Ordered dinner at Hana Sushi. They were so quick it didn’t register in Arc!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-02T07:41:12Z",
+    "id" : "A5E4AFA8-136E-4FD4-8CA4-23D7DC9DEEC1",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-03T03:26:48Z",
+    "body" : "5 East",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-03T03:26:48Z",
+    "id" : "06687EDA-0644-4535-B801-CC2BD6590350",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-03T21:46:58Z",
+    "body" : "The police were outside the school today catching speeders.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-03T21:46:58Z",
+    "id" : "CECEEA2D-82E0-4640-AAFC-E788F1E05EE2",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-04T02:12:20Z",
+    "body" : "Had a relaxed lunch at Southbank. Played some Pokémon and won a gym.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-04T02:12:20Z",
+    "id" : "9AB39277-AFBD-46BE-9DC8-39BB28348F45",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-04T05:58:51Z",
+    "body" : "Came home early to join Anita and Katherine at Garden City.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-04T05:58:51Z",
+    "id" : "9C4D8448-A42D-4E10-8794-991F0A6880BE",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-04T06:09:43Z",
+    "body" : "Walked up to the bus stop to get the 180 to Garden City but Anita picked me up instead.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-04T06:09:43Z",
+    "id" : "17B73A1B-72DF-4D01-A298-1E088B8501BA",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-05T20:41:45Z",
+    "body" : "Katherine started her term break and I’m working on 3D printing replacement feet for the Radiometer TCM4.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-05T20:41:45Z",
+    "id" : "C6FFDE40-1E14-4535-B732-953804A9EA01",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-06T07:14:20Z",
+    "body" : "To the chemist for prescription. They ran out of 150mg so I had to get 2 * 75mg packets.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-06T07:14:20Z",
+    "id" : "7ABF75E3-6FBE-447B-8519-6B4631E2CA3B",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-06T09:00:09Z",
+    "body" : "Lions are playing Port Adelaide tonight.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-06T09:00:09Z",
+    "id" : "6CED82BB-34FB-451E-9AF8-CCFFACF5DF13",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-06T10:32:22Z",
+    "body" : "The Lions were victorious! That’s three games in a row now. It wasn’t looking like they would until the last 5 minutes of the game.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-06T10:32:22Z",
+    "id" : "C4753B1D-BAFF-4B75-9B88-7873B126E175",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-07T03:52:10Z",
+    "body" : "Bought another Tioga BMX tyre for the eBike. When I got home I discovered that I already had one hanging up in the garage.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-07T03:52:10Z",
+    "id" : "2634CE20-3F8A-49BE-A433-471A6FB0EE4B",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-07T04:11:25Z",
+    "body" : "Forester 37.98L of Vortex98 at $1.579\/L. I also wanted to check the tyre pressures because I noticed the ride was quite harsh yesterday. Unfortunately everyone else seemed to have the same idea.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-07T04:11:25Z",
+    "id" : "BCFC2DD0-8BD0-4032-8FDA-69F7098891E1",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-07T04:22:37Z",
+    "body" : "Three of the tyres were way overinflated at around 40psi.\n\nBecause it was such a nice afternoon I took the opportunity to remove the window tint film from both front windows of the Forester. They came off with the help of the hot air gun. The glue was relatively easy to remove using sugar soap solution and a rag.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-07T04:22:37Z",
+    "id" : "09EF34E8-1FC5-44A9-B162-EEBE09325473",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-07T04:30:29Z",
+    "body" : "Drove around the suburb with Katherine to test the car now that the tyre pressures are correct.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-07T04:30:29Z",
+    "id" : "36B85DE6-0C53-4E93-B781-2050BD2D2CA2",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-07T06:13:39Z",
+    "body" : "Bought two medium slushy drinks but Katherine didn’t want one so Anita to drink it instead.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-07T06:13:39Z",
+    "id" : "72581046-3097-42B2-B6F0-0C76BD621029",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-07T07:57:11Z",
+    "body" : "We parked around the corner. The rosellas and lorakeets were making a huge racket in the trees.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-07T07:57:11Z",
+    "id" : "BEE58A0B-FB7D-4D68-9F54-97103AF21CF6",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-07T08:27:57Z",
+    "body" : "We had dinner at Hog’s Breath. There was a lot of debate about where we were having dinner. We originally were going to Carina Leagues Club and then fish and chips somewhere in Cleveland.\n\nThe steak was excellent this evening. I enjoyed the evening out.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-07T08:27:57Z",
+    "id" : "1EA4912C-96C3-48C9-BCA8-82D3F0D600F0",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-07T09:15:06Z",
+    "body" : "Hog’s Breath doesn’t sell lactose free coffee so we went to Cleveland Point where they do sell it.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-07T09:15:06Z",
+    "id" : "9121BEEE-396B-42F1-BEC6-6B092808DA77",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-07T09:21:59Z",
+    "body" : "Anita wanted to win the Pokémon Gym over at the lighthouse before going home.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-07T09:21:59Z",
+    "id" : "F62D8BF7-724A-415B-BEAB-82E7D5BF0640",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-07T09:44:52Z",
+    "body" : "The Forester is definitely more enjoyable to drive with the right pressures and clean side windows.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-07T09:44:52Z",
+    "id" : "D88CE87E-1899-4988-9F95-730ED6D4784F",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-09T01:11:45Z",
+    "body" : "We took mum to the Japanese Laughter Group Meeting at the Indooroopilly Senior Citizens Club Rooms.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-09T01:11:45Z",
+    "id" : "ABDBA28B-F9A1-447B-899F-CA1B640BBF9C",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-10T00:14:07Z",
+    "body" : "Dropped Katherine and our scooter off at her friends house.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-10T00:14:07Z",
+    "id" : "8711BDAF-DCBE-4C2D-BD86-237D37A509ED",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-12T07:22:15Z",
+    "body" : "It stared raining heavily as I rode past Mt Gravatt. I was soaked. I later discovered that the iPhone was soaked as well!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-12T07:22:15Z",
+    "id" : "84F08930-8D16-4684-A341-9E394951D4CD",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-12T23:52:24Z",
+    "body" : "We are staying at Peppers Broadbeach for the weekend. Hopefully the iPhone has dried out by now.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-12T23:52:24Z",
+    "id" : "EF2A792E-7794-4BDE-BD8C-993775FA356F",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-13T00:42:59Z",
+    "body" : "Having brunch at the ‘base’ cafe.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-13T00:42:59Z",
+    "id" : "6F08413B-7F08-48B0-8843-3743998ED38F",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-13T02:25:16Z",
+    "body" : "Bought a pair of Savane trousers at Myers. Size 92S",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-13T02:25:16Z",
+    "id" : "9242CBE8-E5EC-4572-94A9-8FEEDD157448",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-13T03:41:43Z",
+    "body" : "Having coffee at Jupiters. They’ve changed the layout of the buffet restaurant. Entry is on the monorail side now.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-13T03:41:43Z",
+    "id" : "9D548660-5C40-492E-A996-F027D80A0E6E",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-13T05:35:17Z",
+    "body" : "Back at Peppers room to watch her the Lions play the Bombers. They lost to the better team. Essendon kicked too many goals in the first quarter making it almost impossible to catch up.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-13T05:35:17Z",
+    "id" : "0A4EC9E2-75FB-4143-9499-9CF6A16E4A9E",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-13T07:38:02Z",
+    "body" : "Katherine wanted to have dinner at a Korean BBQ Restaurant so Anita wanted to try the nearest one about 10 minutes walk back towards Surfers. It was an authentic experience and was OK.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-13T07:38:02Z",
+    "id" : "CF17DDFF-1E4E-45F6-9F19-281279E7B9C5",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-13T08:22:20Z",
+    "body" : "We fought the light rail to Surfers but got off one stop too soon.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-13T08:22:20Z",
+    "id" : "D79461FA-ED18-45F5-836D-7C9A961016B2",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-14T00:37:07Z",
+    "body" : "Breakfast. Too much to eat again",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-14T00:37:07Z",
+    "id" : "CDE12C9E-D758-4042-A114-91FD6989D42E",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-14T01:50:14Z",
+    "body" : "Packing up to leave.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-14T01:50:14Z",
+    "id" : "9124847B-19A9-4A2A-B856-FA30C0A3C7B4",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-14T02:18:52Z",
+    "body" : "Drove over to Pacific Fair Shopping Centre. The original bat mobile drove past us on the way. It was there for the Supanova parade. It’s not something you see on the streets everyday!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-14T02:18:52Z",
+    "id" : "7E55D799-4AFF-4FD8-952C-12B5B70B5767",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-14T02:35:39Z",
+    "body" : "Bought Katherine a ‘new’ phone from EB Games for $479.  They normally sell refurbished phones but this one had never been used. The iPhone SE has similar components to the iPhone 6s - same camera and processor. It has a one-year EBG warranty.\n\nAnita also purchased a box of macaroons.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-14T02:35:39Z",
+    "id" : "3E078F2B-6E15-4CBE-BD0E-E41FCB4C86AA",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-14T03:43:36Z",
+    "body" : "14500 points accumulated now",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-14T03:43:36Z",
+    "id" : "DCEFCBD5-03AE-4D53-887C-C9E7C6B1EFDE",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-14T04:31:28Z",
+    "body" : "This is the closest we’ve been to the beach all weekend. Just 3 minutes and didn’t even get to the sand.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-14T04:31:28Z",
+    "id" : "277D3BA5-2A8E-431A-A541-6CC826254502",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-14T04:50:59Z",
+    "body" : "Katherine bought a hoodie and pants. I waited outside with the homeless people.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-14T04:50:59Z",
+    "id" : "58A0F5FA-879C-4A56-ACC8-532968501F18",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-14T05:39:59Z",
+    "body" : "Walked back from the train station in front of the Convention Centre; past the cosplay people to Jupiters (now call the Star Resort). Anita has coffee - they have Lactose free milk. I had a cup of tea which came with a plunger.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-14T05:39:59Z",
+    "id" : "62B99188-E2A1-48FF-9AC1-232A892B19A4",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-14T06:11:21Z",
+    "body" : "Parking at Pacific Fair is free for the first 5 hours! That’s plenty of time to park there and then catch the tram to Surfers and back. The tram fare is about $5.00\nReturn.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-14T06:11:21Z",
+    "id" : "ED643A81-7C47-4EAE-9C68-DF772F9DE5CB",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-15T04:29:30Z",
+    "body" : "Something strange happened. The time at work should be around 10 hours.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-15T04:29:30Z",
+    "id" : "86782D53-7AF5-499A-A760-6985FF0174AC",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-15T09:57:26Z",
+    "body" : "The ride home really only took 44 minutes.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-15T09:57:26Z",
+    "id" : "BDBBE784-3325-4643-9EE2-250160164034",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-16T02:29:39Z",
+    "body" : "I walked down to Southbank but was called back to a meeting before I could even open my lunch. EFTPOS was down at Hudson’s so I missed out on coffee.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-16T02:29:39Z",
+    "id" : "59813FB0-0526-49D1-958A-D9E0F079E884",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-17T06:37:53Z",
+    "body" : "QHSDP Meeting. I had to get a taxi (cab-charge) as David was alteady there and Marie-Jo was on leave.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-17T06:37:53Z",
+    "id" : "8E59CAFB-FD15-462C-9D74-8A0950A9CF5A",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-18T02:51:40Z",
+    "body" : "Picked a different place to sit in the shade and have lunch.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-18T02:51:40Z",
+    "id" : "23169F0A-0262-4CA8-8718-3D45227FAD77",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-18T10:41:01Z",
+    "body" : "Lions vs Collingwood. Lions lost by a wide margin. There were 34,000 people at the Gabba for the game.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-18T10:41:01Z",
+    "id" : "0197781F-90E7-4FCA-995B-D43DA56DC532",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-18T13:16:05Z",
+    "body" : "Problem at work with fan and maybe hard drive in Room-03. Chloe swapped the computer and got into trouble with the IP addresses.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-18T13:16:05Z",
+    "id" : "39275C94-BDCD-4240-96D3-FE61365556BF",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-20T03:08:50Z",
+    "body" : "First we tried to find somewhere at Rocks Riverside Park, but there were too many people there despite the bad weather!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-20T03:08:50Z",
+    "id" : "B59304BA-8719-40DF-A043-A36DE6B31965",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-20T04:00:09Z",
+    "body" : "Amazingly there was no one at the Boat Ramp Park, so we unpacked and had the BBQ there with Leanne. It remained sunny until we left when a small thunderstorm passed through.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-20T04:00:09Z",
+    "id" : "B53E683C-B2C6-43B5-BDFD-11002E6A03A5",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-21T07:56:24Z",
+    "body" : "Arc wasn’t tracking properly.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-21T07:56:24Z",
+    "id" : "C266FDF0-A393-4C4A-A92B-D6222D46076A",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-21T09:14:26Z",
+    "body" : "Went to the club for dinner. I had fish, chips and salad. I came out ahead at the pokies for a change which made the dinner free this time.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-21T09:14:26Z",
+    "id" : "6DAD6CE3-0F19-4C82-BA95-AF4A05A1B9E1",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-22T00:24:45Z",
+    "body" : "Dropped Katherine off at her friends home. Joanna used to go to Redeemer but not any more. So this was a chance to catch up with everyone. Joanna has Taiwanese parents.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-22T00:24:45Z",
+    "id" : "03B65CBC-557C-46A3-9B88-D01A478EDE23",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-22T02:11:35Z",
+    "body" : "Cleaned up some of the wall paper at the front stairs.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-22T02:11:35Z",
+    "id" : "AFED6E20-BCA1-4595-AE28-34BB012A7E8A",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-22T04:00:34Z",
+    "body" : "I needed better plaster wall mounting screws. I ended up getting 75mm metal clamps that spring open inside the wall.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-22T04:00:34Z",
+    "id" : "3EA023DC-0C6D-44FB-B50A-C6DDB6FDBC60",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-22T04:47:24Z",
+    "body" : "Went with Anita to pick up Katherine in the Forester",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-22T04:47:24Z",
+    "id" : "9332D076-69C8-4F8E-BFFF-B9AF44B2F634",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-22T05:30:48Z",
+    "body" : "Bought two raspberry slushies",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-22T05:30:48Z",
+    "id" : "5BE436C3-1698-4836-B372-DE8F608266B7",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-22T08:49:05Z",
+    "body" : "Not so lucky today. Lost $90.00! At least the dinner was cheap.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-22T08:49:05Z",
+    "id" : "331F7094-CCB2-4C55-A787-754C38BD4E57",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-24T08:11:36Z",
+    "body" : "Beef Udon is my new favourite meal",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-24T08:11:36Z",
+    "id" : "EA148F76-63D6-4574-8666-C17EB4909D60",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-25T01:59:18Z",
+    "body" : "Dropped off Katherine at school to help with the Hello Dolly production.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-25T01:59:18Z",
+    "id" : "39F8B0A4-6612-4EBB-836B-1F729E2E2903",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-25T02:57:07Z",
+    "body" : "Went to see mum again and deliver the English version of her biography.\n\nHer wheelchair has a broken brake. There’s a missing screw. I emailed the Australian Ottobock company for info on a local service and repair centre.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-25T02:57:07Z",
+    "id" : "7B9D5F49-6295-4A84-B654-68437270B6B7",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-25T03:54:44Z",
+    "body" : "27.24L of Vortex98 at $1.669\/L for the WRX",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-25T03:54:44Z",
+    "id" : "3FC5F4EF-56D4-4809-BDFB-483C56664FF4",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-25T04:37:19Z",
+    "body" : "We checked out the Southern Cross AFL Club facilitates. It’s a much more modest place, but the meals are probably good. We will need to get their card. We had chips with gravy.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-25T04:37:19Z",
+    "id" : "151F5D79-5F24-4D7D-97E2-EFBC6DB736AA",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-25T06:17:49Z",
+    "body" : "We drove over to the other club to use their poker machines. I came out ahead eventually.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-25T06:17:49Z",
+    "id" : "8450EC30-D14B-41F0-A364-EC8B9E17AEC6",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-25T07:47:01Z",
+    "body" : "Picked up Katherine from the rehearsals. She wouldn’t tell us anything about her afternoon there.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-25T07:47:01Z",
+    "id" : "95D819A1-D777-42B0-A21D-143D349802B4",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-25T08:20:08Z",
+    "body" : "KFC for dinner",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-25T08:20:08Z",
+    "id" : "B983EE26-15BE-49B9-B57D-AEB2553F04F4",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-27T10:44:16Z",
+    "body" : "Human Nature - Little More Love Tour. Great concert but I must remember to bring ear plugs next time.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-27T10:44:16Z",
+    "id" : "566D1C4F-1332-4EF3-AA96-9CE5D6258C17",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-28T04:36:38Z",
+    "body" : "Replacement hose fitting for Anita. Gas stove to burn off the old gas cylinder, but it’s the wrong fitting.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-28T04:36:38Z",
+    "id" : "8BE301D6-2141-4980-9F02-3D3256C2B410",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-28T06:01:00Z",
+    "body" : "Repaired mum’s faulty wheelchair brake using a screw from her Ikea Bureau. It was seized up from rust as well.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-28T06:01:00Z",
+    "id" : "05201F17-68BE-498D-82A2-BF4683F7D5DC",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-28T07:57:27Z",
+    "body" : "Picked up Katherine from rehearsals.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-28T07:57:27Z",
+    "id" : "0A4B385F-C0D2-4B98-B3E6-A3CEF04D493C",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-28T08:32:09Z",
+    "body" : "Ordered Meisu Ramen for Katherine.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-28T08:32:09Z",
+    "id" : "2A9EFDA5-F28B-436D-8396-A90EF471AC42",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-28T23:56:45Z",
+    "body" : "Dropped off the Forester to get the gear linkage fixed as well as an issue with the brakes.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-28T23:56:45Z",
+    "id" : "A30ACE28-59DD-4B96-957C-EE9EBC147B48",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-04-30T09:27:13Z",
+    "body" : "40.08L of Vortex98 at $1.667\/L Forester",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-04-30T09:27:13Z",
+    "id" : "FD35E329-6C2F-43B0-994F-807E1912E274",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  }
+]

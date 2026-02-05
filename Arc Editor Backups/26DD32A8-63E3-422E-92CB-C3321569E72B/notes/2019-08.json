@@ -1,0 +1,842 @@
+[
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-01T00:05:43Z",
+    "body" : "Cycled to work while the weather was good.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-01T00:05:43Z",
+    "id" : "9E6D4073-4471-4D6C-A997-310F41C17B89",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-01T06:34:43Z",
+    "body" : "Had to take a bus home due to rain, so left the bike at work.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-01T06:34:43Z",
+    "id" : "DF42C4F3-FB33-455D-90A5-2E3FA10D5259",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-01T09:04:04Z",
+    "body" : "The nurse at Arcare called me at work to say that mum’s condition had worsened and that she would be treated palliatively there instead of being re-admitted to hospital. It sounded serious.\n\nBut when I got there she was watching TV without oxygen with the other residents and was looking much better.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-01T09:04:04Z",
+    "id" : "057509FA-BCBA-48A0-87B7-C966EE5C6C49",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-02T02:11:52Z",
+    "body" : "WRX - 37.57L of Vortex98 at $1.509\/L",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-02T02:11:52Z",
+    "id" : "ECE961AA-6964-48A6-9DD6-62BB1E576DEF",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-02T03:04:13Z",
+    "body" : "Had lunch at ikea first - the usual Swedish meatballs and potato. I also had a coffee and a danish.\n\nThen I went looking for a replacement bulb for Katherine’s bed lamp. I couldn’t find the exact one so I hope something works.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-02T03:04:13Z",
+    "id" : "15EE749C-04B2-488F-8457-8A30BBBB2BD6",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-02T03:48:17Z",
+    "body" : "Visited mum. She was asleep in her wheelchair while watching TV. I walked her around the outside of the home and that’s when I discovered all the dried poop on one of the wheels. Big clean up job followed.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-02T03:48:17Z",
+    "id" : "84900C39-D950-460F-9A3B-0A2A7C4769FF",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-03T11:11:30Z",
+    "body" : "We had coffee and a cake before we left.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-03T11:11:30Z",
+    "id" : "EAA254D5-A58B-4558-9EBE-24CDD33873C1",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-03T11:40:51Z",
+    "body" : "I came with $100 and I’m leaving with the same amount!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-03T11:40:51Z",
+    "id" : "B41AF5DD-3723-4861-A233-658EB60E3D75",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-04T01:52:21Z",
+    "body" : "Took hours to translate the 2015-2016 Nissan Leaf specification brochure from Japanese to English!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-04T01:52:21Z",
+    "id" : "D9D93A73-B9E9-4F3D-B047-98AC963F5DF6",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-04T05:08:50Z",
+    "body" : "Katherine wanted two kids drumstick meals for lunch.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-04T05:08:50Z",
+    "id" : "F825B16C-8AB8-4BEF-8C7C-82818DC3DA33",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-04T05:53:12Z",
+    "body" : "I had to turn around and come back home to go to the toilet. Remind me not to eat pestachios again. Or was it the expired ham?",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-04T05:53:12Z",
+    "id" : "8F785FFD-7BEB-4B5C-9488-08975DFAC848",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-04T07:08:56Z",
+    "body" : "The Lions are playing the Western Bulldogs this afternoon. We arrived after the siren four to my delays.\n\nThe Gabba is fairly full for this game.\n\nThe Lions eventually won the game, despite a surge by the bulldogs in the 3rd quarter.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-04T07:08:56Z",
+    "id" : "E9795661-B4CA-4C9C-B25E-E2E2E85EEE0F",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-05T03:06:43Z",
+    "body" : "Bought a $200 gift voucher as Chloe’s wedding gift from the K2 store. I parked on the street nearby. The first 15mins of parking is free.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-05T03:06:43Z",
+    "id" : "11E13D2F-C536-4D22-B1A8-DE4711B0DFBF",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-05T03:45:57Z",
+    "body" : "Having lunch at the Coffee Club. Ham, cheese and tomato omelette with coffee.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-05T03:45:57Z",
+    "id" : "FE851ED8-FF1A-4747-9CC6-CB1229588ABF",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-05T04:40:32Z",
+    "body" : "Visit to see how mum is going. She is not as good today. She has needed oxygen at times especially in the morning.\n\nZuraida has been very difficult to contact. The nurse gave me the name of their other doctor who will be there tomorrow morning.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-05T04:40:32Z",
+    "id" : "0D6A8B5A-28E0-45FA-8379-4DC461544875",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-05T04:56:30Z",
+    "body" : "Pushed mum around the home in her wheelchair.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-05T04:56:30Z",
+    "id" : "795AB035-EFC2-4017-9716-2F3368FBFA07",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-05T06:33:56Z",
+    "body" : "Anita went to Coles and then bought Fish and chips for dinner. I met up with them there.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-05T06:33:56Z",
+    "id" : "1B2142CD-E982-491B-A483-A968B36AC2CB",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-06T04:42:45Z",
+    "body" : "Bought some wrist weights for mum to exercise with.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-06T04:42:45Z",
+    "id" : "07A80F6E-9FE7-450D-8414-952B007EA855",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-06T05:31:09Z",
+    "body" : "Picked up an oximeter",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-06T05:31:09Z",
+    "id" : "784FB2CE-B0C2-4287-9124-18A3B2C645C6",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-06T09:31:23Z",
+    "body" : "Forester - 39.09L of Vortex98 at $1.497\/L",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-06T09:31:23Z",
+    "id" : "A6391EF7-0841-454E-B0C5-2DE2FE630CC0",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-06T22:19:28Z",
+    "body" : "Dropped in to retrieve the oximeter. I had a quick look at her trend on the display and there is a lot of periodic breathing. It looks like Cheyne-Stokes which is common in people with CCF (congestive cardiac failure). I’m not away of any past findings of this condition so maybe it pulmonary hypertension?",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-06T22:19:28Z",
+    "id" : "039E810A-35E0-49C9-8D03-98C6F89F2723",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-07T02:58:25Z",
+    "body" : "The plan is to catch the bus to work and then bring the bike home in the evening.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-07T02:58:25Z",
+    "id" : "58CE2FEC-333A-41EF-9A1D-C8CEE3A10A02",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-07T11:20:45Z",
+    "body" : "Caught the bus home because it’s raining! The bike will have to stay at work another night.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-07T11:20:45Z",
+    "id" : "27464E8F-5A28-4D1C-A22D-748254274CF0",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-07T11:36:11Z",
+    "body" : "It was still raining so Anita waited at the bus stop to drive me home.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-07T11:36:11Z",
+    "id" : "34D8443C-B110-4ABB-B457-D6DAB284DA27",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-08T00:12:31Z",
+    "body" : "WRX - 30.06L of Vortex98 at $1.489\/L",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-08T00:12:31Z",
+    "id" : "596C1ECE-8CCC-408D-8AF7-82E2BA99A717",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-08T01:12:24Z",
+    "body" : "Case conference with Dr Zuraida. She agreed to using oxygen nocte for mum to see if that helps Her Cheyne-Stokes breathing and improve her sleep architecture. It’s totally wrecked at the moment.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-08T01:12:24Z",
+    "id" : "EA21CD01-E922-445F-8100-DB18B09CB89B",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-08T03:46:49Z",
+    "body" : "Walked the long way to the bus stop to see how long it takes compared to the track through the school. It’s an extra 4-5mins.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-08T03:46:49Z",
+    "id" : "2453F3CD-91E7-4549-BB10-85C8500D482E",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-08T03:56:31Z",
+    "body" : "Waiting for the bus. I want to ride the bike home so it mustn’t rain tonight.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-08T03:56:31Z",
+    "id" : "E6CFB823-7ED1-4A19-A7F3-183601786230",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-08T23:48:47Z",
+    "body" : "There was a very strong headwind today! It’s amazing how August is alway windy.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-08T23:48:47Z",
+    "id" : "675D91FA-4AFC-4AFE-A0D4-0BE78E752D4F",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-09T00:39:58Z",
+    "body" : "Purchased some flowers for Chloe. Carmen was also there getting some snacks for the morning tea.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-09T00:39:58Z",
+    "id" : "6F3F790F-9818-4847-9679-170A38CB6F7D",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-09T07:42:35Z",
+    "body" : "I managed to squeeze the oximeter and cables into my backpack. The backpack was really heavy but it didn’t have any effect on my ride.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-09T07:42:35Z",
+    "id" : "00120CCC-6069-4F58-8730-0FEA8A628487",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-09T09:55:54Z",
+    "body" : "Put the oximeter on mum again to see if oxygen makes any difference to her sleep and breathing patterns. Katherine came with me.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-09T09:55:54Z",
+    "id" : "D55032EC-D2C7-497C-8F6F-FFE8CCD9467A",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-11T01:26:40Z",
+    "body" : "Went to see how mum is going and to pick up the oximeter. The oximetry trend is much better than before with the Cheyne-Stokes pattern absent now. I walked her around the outside of the home and had coffee at the coffee shop while she read the newspaper.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-11T01:26:40Z",
+    "id" : "A06FC69E-4328-47D2-99F5-BB0F35C6F4C8",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-11T02:20:55Z",
+    "body" : "Forester - 32.05L of Vortex98 at $1.489\/L",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-11T02:20:55Z",
+    "id" : "FD922636-A965-4C1B-BA05-2DB45FA20BF9",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-11T04:27:06Z",
+    "body" : "Anita wanted to have lunch here and do some time in the poker machines. I lost $100 today 😔",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-11T04:27:06Z",
+    "id" : "1057E96F-89E8-400F-A120-777E5EE7813E",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-11T05:55:34Z",
+    "body" : "Buying groceries.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-11T05:55:34Z",
+    "id" : "E78B787A-C890-4C0E-9675-A70304811131",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-12T00:07:22Z",
+    "body" : "Took picture of the tree trunk that looks like a monkey riding on someone’s back.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-12T00:07:22Z",
+    "id" : "CA118944-E0F5-4B83-989C-D4B1E39B50D1",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-12T03:52:01Z",
+    "body" : "It’s a beautiful day to have lunch at Southbank!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-12T03:52:01Z",
+    "id" : "48DCDAB3-3EDE-4C8E-AE8C-276C4286F7F0",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-13T07:11:08Z",
+    "body" : "Had a toasted roast beef sandwich.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-13T07:11:08Z",
+    "id" : "5850BF25-70EC-433D-881D-CC0AE7FA246F",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-14T05:17:15Z",
+    "body" : "Bought a shirt and another dark grey wool jumper.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-14T05:17:15Z",
+    "id" : "B81C4703-FC40-4E7D-ABDB-257553E3B934",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-14T05:31:58Z",
+    "body" : "I bought the denim shirt here.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-14T05:31:58Z",
+    "id" : "5BF52413-0EBE-4BCD-8605-9FB1041C7D50",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-14T05:56:54Z",
+    "body" : "I looked everywhere for a replacement bulb for the dining room and eventually ended up at Kmart where they had some reasonably priced wifi bulbs. $15 for dimmable plain bulbs and $32 for the colour change version.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-14T05:56:54Z",
+    "id" : "61EAFC19-A8EA-4EC6-9F17-776D94469291",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-14T08:06:42Z",
+    "body" : "We came here for dinner. I’m ordered Eye Fillet and Anita had Tasmanian Atlantic Salmon.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-14T08:06:42Z",
+    "id" : "19D2EECF-B9E1-49FD-AA73-295E88BF5AC2",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-14T10:48:33Z",
+    "body" : "Won about $80 tonight from an amazing run on the archery bonus game. $50 has been allocated to Katherine’s book, so it was a good night this time.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-14T10:48:33Z",
+    "id" : "9F3FA480-FA7C-4C92-8344-35EA50FECD76",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-15T01:03:07Z",
+    "body" : "Came to see mum and the GP. Mum is recovering well. She still has the chest infection, but is not coughing as much. She is more alert, talking and her memory is good. She knew it was Indian Independence Day today and that there were animals there yesterday for Ekka public holiday.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-15T01:03:07Z",
+    "id" : "BE8D157C-1E8B-47BF-80B3-22ADBCFB3E97",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-15T02:04:30Z",
+    "body" : "Swapped the wifi light bulb for a compatible screw tip version and bought another warm white wifi bulb. They would not connect to the network at all but at least they work like ordinary bulbs.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-15T02:04:30Z",
+    "id" : "96330AE1-BC0B-4620-8CD9-F55C66AB9BA8",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-15T06:04:44Z",
+    "body" : "Delivered an express post package to the mailbox at Southbank. I used two Lime scooters so it ended up costing me $8.00. It’s definitely cheaper to use one, but the restricted zone issue was causing to scooters not to work at all.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-15T06:04:44Z",
+    "id" : "06E28A14-95E1-4A5F-B057-56BEE918ADC2",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-16T03:53:08Z",
+    "body" : "I tried the pork miso ramen from the cafeteria downstairs. The Japanese lady was there serving. It tastes OK. The pork wasn’t as nice as from Motto Motto. It’s a big meal.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-16T03:53:08Z",
+    "id" : "BCE62AD2-8171-4BE7-B1D7-4E4ED305102F",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-17T04:01:25Z",
+    "body" : "The Brisbane Lions are playing Geelong Cats. This is a big game and the Gabba is booked out.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-17T04:01:25Z",
+    "id" : "F0EFBAB6-1BFC-47EC-98F8-F21F69ABA0BB",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-17T05:14:49Z",
+    "body" : "Wow the Lions managed to get up in the last few minutes to claim victory over the Cats by just a single point! It was almost like a finals match.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-17T05:14:49Z",
+    "id" : "59BFBACB-21F7-4751-B390-2E30590608D5",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-18T00:32:02Z",
+    "body" : "Forester -  36.71L of Vortex98 at $1.709\/L",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-18T00:32:02Z",
+    "id" : "FBC1368C-909E-4C58-9DA6-0CCDDF21F328",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-18T01:07:56Z",
+    "body" : "Leanne wanted to come along. Her Taiwanese border also came along. I initially had some problems with the middle seat belt. I completely forgot it was stowed away up in the ceiling. We very rarely use it. This may have been the first time?",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-18T01:07:56Z",
+    "id" : "39E70D13-AFF8-4CE6-8DB6-A9FB953804CA",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-18T01:41:54Z",
+    "body" : "I ended up parking near the Bus Depot on the other side of the highway. There usual parking spaces were full. There is a walk bridge over the highway, but there is no back entrance to the botanical gardens, so I had to walk all the way around to the front of the gardens to get in.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-18T01:41:54Z",
+    "id" : "922F918B-B2BE-4709-9219-887256AFE2AB",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-18T02:54:04Z",
+    "body" : "I eventually found Anita sitting out in the sun near the catering vans. She wanted me to buy something to eat, so I lined up for an hour. I ordered Karaage Chicken and rice and Teriyaki chicken and rice.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-18T02:54:04Z",
+    "id" : "CA6867F1-D126-4C64-9D96-CB628342AB68",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-18T03:48:53Z",
+    "body" : "Ayako was there so I told her about mum. She wants to visit soon and we also discussed having the birthday again for mum next month.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-18T03:48:53Z",
+    "id" : "9E693378-EDB5-4979-84C1-215C017EC089",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-18T05:10:36Z",
+    "body" : "Back to the car across the bridge. Katherine came with me this time.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-18T05:10:36Z",
+    "id" : "528676ED-818E-4105-B3D7-DE4C06FD5669",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-18T22:11:14Z",
+    "body" : "The traffic was really bad today; maybe due to the thick fog this morning?",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-18T22:11:14Z",
+    "id" : "0DEC1963-8C85-42CB-8729-03FA4DFA81B4",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-19T01:41:18Z",
+    "body" : "Having lunch outside the hospital today. I did too much walking yesterday.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-19T01:41:18Z",
+    "id" : "57954F0A-8B50-4570-90E0-B87297942F79",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-20T15:03:21Z",
+    "body" : "I called Simon at John French Motors and he said that it should be OK to drive with the fault since it’s just the cold start emission control. It will cost thousands to fix and it will even cost $600 to bypass the system. It can be disabled in the ECU program as it has already been unlocked with Ecutek.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-20T15:03:21Z",
+    "id" : "7906B401-4EB7-4892-A418-63DAD256181A",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-20T15:03:29Z",
+    "body" : "The Forester has thrown an engine fault (P2432) so Anita had to catch a cab to work. The fault is in the secondary air injection system that activates during cold starts. Replacing the pump is  very expensive.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-20T15:03:29Z",
+    "id" : "159F15E0-C53F-47D9-B07F-6F883285F154",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-21T07:13:03Z",
+    "body" : "I had to come home early to go with Anita to a simulated restaurant for Katherine’s hospitality subject.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-21T07:13:03Z",
+    "id" : "480BF7A5-4D44-4F4F-9B38-1998321D4D29",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-21T11:16:20Z",
+    "body" : "We have been at Katherine’s hospitality class assessment dinner for family and friends. It was a two course dinner with coffee.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-21T11:16:20Z",
+    "id" : "B972F92C-7102-4833-9078-D26FE488495B",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-22T00:31:22Z",
+    "body" : "I left my phone at home so the walk to the bus stop with Katherine and the quick ride home was not recorded.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-22T00:31:22Z",
+    "id" : "D0B2B676-33D3-46F1-A422-D5195AFCEDE0",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-22T02:01:54Z",
+    "body" : "Mum seems much better today.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-22T02:01:54Z",
+    "id" : "9D10DB35-AED6-4A0A-8ED8-9E71E832D1A7",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-22T21:06:02Z",
+    "body" : "We’re walking to the bus stop and then I rode back home. This saves a lot of petrol and time driving all the way to the school.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-22T21:06:02Z",
+    "id" : "42FA8D1E-B440-41B7-99BB-8D657832B21B",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-24T02:05:14Z",
+    "body" : "Tested the Forester to see if the engine fault code might turn off when the engine had warmed up? Nope.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-24T02:05:14Z",
+    "id" : "EE2A4627-CB19-4C24-AC0C-EC217DA54918",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-24T02:51:40Z",
+    "body" : "Buying modelling clay for one of Katherine’s sculpting projects. They also have epoxy and silicone products for making moulds.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-24T02:51:40Z",
+    "id" : "33CB6DD6-2BD3-461C-A8DC-8330EBC5D21F",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-24T03:18:01Z",
+    "body" : "We had coffee and lunch at a local Korean Cafe. It was more popular than I expected.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-24T03:18:01Z",
+    "id" : "A22F44AE-9220-4AFD-9F3E-56186AC217E1",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-24T04:02:18Z",
+    "body" : "Dropped in to see Mudite and Erika who are playing cards at the Latvian Hall.\n\nAfter telling us she didn’t want to go to see Granny because she had to study, Katherine is now playing cards with everyone.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-24T04:02:18Z",
+    "id" : "ECE019C9-B977-4B38-8141-AACEE57801EA",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-24T05:36:34Z",
+    "body" : "I was waiting to see if an EV would drive past but there were none. There was a red Ferrari making a lot of noise, so there was that.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-24T05:36:34Z",
+    "id" : "0DEB6F9D-691D-4A7A-9A0D-BA34C1DEFB27",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-24T10:08:14Z",
+    "body" : "Lost $50. Could have won $100 - silly me.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-24T10:08:14Z",
+    "id" : "663D2DCA-DE75-47A2-BFC6-B4654BDF6575",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-25T02:01:13Z",
+    "body" : "Ordered the fish and chips and a flat white. I remembered to ask for no dressing on the salad this time.\n\nWe then went to Coles to stock up with groceries.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-25T02:01:13Z",
+    "id" : "522763B4-D6FA-416C-8212-842C4BC07CE8",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-25T04:35:16Z",
+    "body" : "The engine fault light came straight on when I started the car, but after clearing it and staying under 2000 rpm it never came back on. Once the engine reaches operational temperature it’s not a problem.\n\nI think it will be OK to mothball the car until next year to fix the air pump.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-25T04:35:16Z",
+    "id" : "871FF606-4FD1-4541-A90E-AD4988C702BF",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-25T04:48:17Z",
+    "body" : "Mum was asleep in her room when I arrived. Her cough seems to be gone now. We started the walk around the home but she needed to go to the toilet.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-25T04:48:17Z",
+    "id" : "FAE6AD1D-0B00-4FBA-B5E2-97EC533D7EA6",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-27T03:28:59Z",
+    "body" : "Drive to work because the forecast is for rain tonight.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-27T03:28:59Z",
+    "id" : "DB9FCE0E-8E2E-46FF-B68A-32439C2012B7",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-27T12:18:15Z",
+    "body" : "No rain!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-27T12:18:15Z",
+    "id" : "CC398477-711D-4F54-9902-31C1DDEAD3E4",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-27T23:30:04Z",
+    "body" : "Catching the bus today because it’s supposed to be raining this afternoon. I hope this is a better weather forecast than yesterday!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-27T23:30:04Z",
+    "id" : "28F08835-4969-495B-BEB4-4E28CE61543A",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-28T07:34:33Z",
+    "body" : "Very little rain again.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-28T07:34:33Z",
+    "id" : "155070CF-ED1A-4A82-BE2A-F7B0E594E94B",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-28T23:45:33Z",
+    "body" : "Something went wrong with the trip data?",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-28T23:45:33Z",
+    "id" : "984FB950-F7A0-423D-8783-E2894C2DB090",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-29T07:46:19Z",
+    "body" : "Anita picked me up at the shops",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-29T07:46:19Z",
+    "id" : "4EDD7DF1-32BD-451D-91CA-13FE61A3C805",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-31T03:02:57Z",
+    "body" : "We dropped in to Mt Gravatt Nissan to have a closeup look at the new Nissan 40kWh LEAF. We spoke briefly to the dealer and for a time considered the possibility of buying one. I was surprised that availability was so good ie just a few weeks.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-31T03:02:57Z",
+    "id" : "7625D167-0265-48FF-90E1-EDC47ED79FE1",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-31T03:19:08Z",
+    "body" : "There were four Kona EVs next door! These things are nearly $70K on the road! They also had an Ioniq tucked over in the corner of the yard to. He said it starts at $47K but I think it’s also around $54K on the road for the model that matches the LEAF in specs.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-31T03:19:08Z",
+    "id" : "C5FA5188-75D5-4FB0-AA13-120A4C57E0BC",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-31T06:23:49Z",
+    "body" : "We had lunch here. I had the Chicken Snitchel. I finished ahead at the pokies by $50.00.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-31T06:23:49Z",
+    "id" : "F6E23AC4-9BE3-454C-A766-96A29F16AE25",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2019-08-31T08:14:11Z",
+    "body" : "Katherine wanted to have fish and chips for dinner. I also ordered a hamburger. I haven’t had one for a few years actually.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2019-08-31T08:14:11Z",
+    "id" : "72C892CB-4D98-483E-BC09-5518C5E0F14E",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  }
+]

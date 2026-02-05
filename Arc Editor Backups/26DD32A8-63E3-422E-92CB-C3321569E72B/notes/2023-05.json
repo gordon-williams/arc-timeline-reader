@@ -1,0 +1,822 @@
+[
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-03T03:49:32Z",
+    "body" : "Toilet stop. That was a close one!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-03T03:49:32Z",
+    "id" : "3CC33066-7699-494D-AAAB-B440CF5A07F5",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-04T03:56:48Z",
+    "body" : "The last treatment session! Yay!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-04T03:56:48Z",
+    "id" : "9CDFE9B8-484F-4E87-8A62-EE4AF6D4A12B",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-04T04:44:24Z",
+    "body" : "Bought some more Gastrostop",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-04T04:44:24Z",
+    "id" : "2A4F7FFD-FD6A-45DD-B3CF-78B200D7C8D8",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-04T07:47:38Z",
+    "body" : "Waiting to pick up Katherine",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-04T07:47:38Z",
+    "id" : "F8DF22E0-AA37-480E-9A06-DF29A0C36956",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-04T22:34:59Z",
+    "body" : "Our usual Breakfast",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-04T22:34:59Z",
+    "id" : "8007E554-3B03-486B-A716-B4A4BFEBD30C",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-05T00:41:37Z",
+    "body" : "Dropped Anita and Katherine off for Katherine’s Orthodontist appointment.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-05T00:41:37Z",
+    "id" : "AE098B47-F8DC-4BBF-9D2F-C58F36B9CF5F",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-05T08:00:44Z",
+    "body" : "Dropped off Katherine at QYO rehearsals.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-05T08:00:44Z",
+    "id" : "D62330BF-5823-41CC-BE80-17C15363B709",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-06T02:47:17Z",
+    "body" : "Power pruning clippers and wood blades for the electric saw.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-06T02:47:17Z",
+    "id" : "5C147CC4-BECD-4411-9EF9-6FD4F916304A",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-06T07:57:15Z",
+    "body" : "Dropped off Katherine and Anita. They are going to the Redeemer Musical “Chitty Chitty Bang Bang at QUT.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-06T07:57:15Z",
+    "id" : "CCCD6FB4-3079-4498-B937-D708CF5C2F8C",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-06T11:50:38Z",
+    "body" : "Back to the parking area outside the Ship Inn to wait for Katherine and Anita",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-06T11:50:38Z",
+    "id" : "94BF96E4-C83A-4CAB-9DB0-F22EEDE334D4",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-06T12:17:33Z",
+    "body" : "I walked over the bridge to where the musical was performed to wait",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-06T12:17:33Z",
+    "id" : "F6EFB070-6528-4899-9BAC-A0221E480C56",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-10T06:21:17Z",
+    "body" : "Picked up the 3-month Eligard injection.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-10T06:21:17Z",
+    "id" : "669A2C2A-C33F-4763-9357-69012B901E59",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-12T04:33:20Z",
+    "body" : "We went to see the latest “Guardians of the Galaxy” movie in the Gold Class Cinema.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-12T04:33:20Z",
+    "id" : "BBEDCEFF-ECB7-4425-B8BE-6F790031466E",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-12T21:41:56Z",
+    "body" : "It started to rain so we waited under a tree to stay dry. I had a tiny umbrella that we both shared. Anita didn’t bring her own umbrella despite warning me about the coming rain.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-12T21:41:56Z",
+    "id" : "436FA28F-F04C-4B8A-AC90-C53AF5007199",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-12T21:58:00Z",
+    "body" : "There was a rainbow in the sky as we walked through the park.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-12T21:58:00Z",
+    "id" : "C3D01A28-ADF5-4D98-883B-02A76EA5D818",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-12T22:32:07Z",
+    "body" : "Bought some bacon and bread",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-12T22:32:07Z",
+    "id" : "0C0DDE87-CB49-4984-B74A-002B0E729478",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-13T03:01:39Z",
+    "body" : "Went to Stafford to see Erika. #granny",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-13T03:01:39Z",
+    "id" : "6A696B55-0508-4729-A046-3039A4F84C06",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-13T04:30:17Z",
+    "body" : "Anita wanted to investigate a bush land area in Mt Gravatt East. There appears to be a trail through the bush lane but it’s not marked on this map.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-13T04:30:17Z",
+    "id" : "E2B039B8-7827-4DC6-AFB8-52F51873DB04",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-13T22:29:25Z",
+    "body" : "We are all watching the Eurovision finals. Katherine got up early for her",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-13T22:29:25Z",
+    "id" : "D344F517-4445-4CB0-A05D-A1C99AB6AFF7",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-13T23:55:32Z",
+    "body" : "Spent some time in the toilet. Getting there in time was a challenge this morning. I was jogging the last 50m",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-13T23:55:32Z",
+    "id" : "B38B0C09-11A1-4F4D-A24C-830BD560FD60",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-14T00:46:35Z",
+    "body" : "I just had a normal small Coke with ice this morning since we already had breakfast at home.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-14T00:46:35Z",
+    "id" : "3D468360-FA34-490B-840A-73BBF75C17A3",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-14T07:11:50Z",
+    "body" : "Grocery shopping. It was raining tonight.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-14T07:11:50Z",
+    "id" : "2DAFC877-4735-44DC-B4DC-D329423C4948",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-15T08:31:36Z",
+    "body" : "We took a short walk around the neighbourhood. A storm was coming and we were worried that a longer walk would get us really wet.\n\nThere was lightning as we walked back home and it rained heavy not long afterwards.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-15T08:31:36Z",
+    "id" : "9E3791C0-4A35-4D6A-BE89-53AC6D849627",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-16T23:23:35Z",
+    "body" : "Dropped off the Tesla for a service.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-16T23:23:35Z",
+    "id" : "E69A1DDE-3B0A-43C3-B20C-D61EED24BD21",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-17T05:11:20Z",
+    "body" : "Went for a scooter ride down to Bulimba Creek. It’s been a few months since my last ride, so I was a little rusty.\n\nMy legs were tired when I got home so it was more strenuous than it looked.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-17T05:11:20Z",
+    "id" : "036D82A5-8675-45EA-A4E4-21B6D67EAF89",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-17T06:04:12Z",
+    "body" : "The Uber vehicle was a Toyota Camry and the driver was Korean.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-17T06:04:12Z",
+    "id" : "C1145FFD-36E8-4985-ACDF-1670C601C52B",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-17T06:13:17Z",
+    "body" : "The right-rear tail light was replaced; the front motor’s oil pump and it’s oil were replaced; and the tyres rotated and balanced.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-17T06:13:17Z",
+    "id" : "7922429B-7174-441A-A542-5FD4B2412551",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-18T01:18:00Z",
+    "body" : "I decided to go for a test drive in the Tesla to see if rotating the tyres feels any different and to burn off the extra charge they added at the Tesla service centre.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-18T01:18:00Z",
+    "id" : "DA88164C-657C-4646-B143-C5EFE70DAD7D",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-18T01:29:10Z",
+    "body" : "Had to make an emergency stop to use the toilet! I didn’t take a Gastrostop this morning to see if I would need one? Yep I think I will have to take one as soon as I get back home?",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-18T01:29:10Z",
+    "id" : "E2BB6681-FC83-4282-B15E-25CA12F90BFB",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-18T03:08:17Z",
+    "body" : "Received Flu Vaccine - the over 65y version.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-18T03:08:17Z",
+    "id" : "529167BA-3FEE-4892-A7A8-32CC294453E0",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-18T03:41:29Z",
+    "body" : "I went back to the GP because I couldn’t find my blood test request. It was in my back pocket the whole time.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-18T03:41:29Z",
+    "id" : "F7563C7B-7AE4-43CA-BE93-5D2083C6654A",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-18T04:03:25Z",
+    "body" : "I drove home via Toohey Park. There’s a toilet there just in case. I didn’t get out of the car though.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-18T04:03:25Z",
+    "id" : "34D3E20C-2FF4-4987-A051-19FC53598E5F",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-18T09:22:01Z",
+    "body" : "Anita wanted a McFlurry from MacDonalds",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-18T09:22:01Z",
+    "id" : "B743D2E8-7EAF-48AD-9CFC-DF515FC8490A",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-18T10:59:41Z",
+    "body" : "I went for a night time drive in the Tesla.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-18T10:59:41Z",
+    "id" : "F771330D-0A04-4415-A77F-2BC01BBF41A4",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-18T23:40:28Z",
+    "body" : "I bought some more Gastrostop while I was waiting for the GP yesterday and took one this morning as a precaution due to my emergency yesterday. Let’s see how today goes?",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-18T23:40:28Z",
+    "id" : "454F40F2-4DF3-4EFA-9BCB-5DD5E8F6B476",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-19T22:53:10Z",
+    "body" : "I orders a coffee for the first time in months! Maccas coffee is not that great.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-19T22:53:10Z",
+    "id" : "17F58526-ECE2-46BD-9EC7-44A5E2782FD3",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-21T02:10:03Z",
+    "body" : "Anita wanted a new plant to replace the one we were digging out.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-21T02:10:03Z",
+    "id" : "6B73D1F0-ABF5-4AAA-8EC5-64BFF846FD57",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-21T03:37:29Z",
+    "body" : "After a lot of effort we finally managed to removed the tree stump. I used the trolley jack to speed up the process of ripping it out of the ground.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-21T03:37:29Z",
+    "id" : "CA71E3A7-6731-4370-A2F3-552DA88C71D7",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-21T06:48:05Z",
+    "body" : "Filled up the WRX.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-21T06:48:05Z",
+    "id" : "8D47B406-8B53-4056-B254-50C4680EAEBA",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-21T07:02:55Z",
+    "body" : "We were going to take the LEAF to pick up the groceries but it’s 12V battery was low! I put the battery on the charger overnight.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-21T07:02:55Z",
+    "id" : "51D1F564-7DB0-4D34-BC12-43B29237D6F1",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-21T17:21:23Z",
+    "body" : "Checked the LEAF in the morning and it was OK. I cleared the error messages in the log to make sure there were no problems elsewhere in the system.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-21T17:21:23Z",
+    "id" : "D6FBF7BC-2055-4094-B697-79B2ABD39A29",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-22T03:26:45Z",
+    "body" : "Bought a new battery for the LEAF and a fancy new charger that can be monitored with an iPhone app.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-22T03:26:45Z",
+    "id" : "1A74FAE4-F1D3-42E8-AE9D-68465A3A2001",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-22T03:43:22Z",
+    "body" : "Stopped at Garden City to buy some Sushi for lunch and maybe dinner.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-22T03:43:22Z",
+    "id" : "1BE3A08B-7CAD-4DFC-9217-DC49EDE813C9",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-22T05:41:36Z",
+    "body" : "With the 12V battery replaced I drove it to my physiotherapist appointment.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-22T05:41:36Z",
+    "id" : "0C65BBE2-3B47-4BF8-81AC-D31DB06F6AB8",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-22T06:34:39Z",
+    "body" : "I was introduced to a treatment plan and the physio assessed my baseline strength in their gymnasium.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-22T06:34:39Z",
+    "id" : "6008F0FC-50D6-457B-A798-DD0690E5133E",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-22T07:44:06Z",
+    "body" : "At Coles to buy some ham slices.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-22T07:44:06Z",
+    "id" : "938DCB0F-4637-4938-A5BB-D367A497CFB8",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-22T17:45:32Z",
+    "body" : "I sat out on the verandah to warm up in the sun. While I was there I saw a BYD Atto 3 park across the street. It was probably the real estate agent for the renovated house.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-22T17:45:32Z",
+    "id" : "8A22E9E2-15B9-46D0-867F-7FD47813C908",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-23T03:59:40Z",
+    "body" : "Bought some more clay bars and the car bar lubricant that the Chemical Guys promote. Some more rags and degreaser from Supercheap Auto",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-23T03:59:40Z",
+    "id" : "2E4489B5-01B3-4C16-B185-444090591168",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-23T06:18:24Z",
+    "body" : "Drove down to the creek in the LEAF and we walked the best part of our normal longer walk.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-23T06:18:24Z",
+    "id" : "759F436D-6A48-4C8A-B2E0-4AB5E459DB96",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-24T00:30:52Z",
+    "body" : "Morning tea meeting with Ed my financial advisor. He suggested that I move to a superannuated income stream so that I can work a 9-day fortnight (or more) until I retire. The minimum I can withdraw is 5% of my balance per year,  which works out to about $2000 per fortnight.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-24T00:30:52Z",
+    "id" : "F4118412-5618-4213-9A5A-4C8D34F14CF3",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-24T01:29:10Z",
+    "body" : "Bought some cucumbers and tomatoes at Coles. I also went into JB HiFi to look at small cameras especially a Sony mirrorless model.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-24T01:29:10Z",
+    "id" : "A78C4CFE-DB63-49CA-9523-EFF41A6685DC",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-24T03:28:18Z",
+    "body" : "I decided I would go for a drive since it was a beautiful day and I had no other commitments today.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-24T03:28:18Z",
+    "id" : "0480E4B3-0EDD-4717-91C2-1D3FE8D32312",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-25T03:40:34Z",
+    "body" : "Dropped Katherine off at Griffith Uni",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-25T03:40:34Z",
+    "id" : "CFCEDE32-6318-40C2-8716-AC44D8F86578",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-25T04:05:29Z",
+    "body" : "I was going to charge the Tesla but I needed the J-1772 adaptor that I keep in the LEAF.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-25T04:05:29Z",
+    "id" : "2677D15B-7203-4A62-9D9E-234F3FCC3547",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-25T04:35:05Z",
+    "body" : "I ended up buying a new Gen 8 Apple Watch and the new AirPod Pros.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-25T04:35:05Z",
+    "id" : "12E3B599-AC5A-4C63-8ED3-885491A5A3FC",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-25T05:10:39Z",
+    "body" : "I picked up the 24” Dell Ultrasharp 2K monitor that was on sale for just $300! This will be a great replacement for the second computer monitor.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-25T05:10:39Z",
+    "id" : "576052F6-92EB-4C29-8100-989FFAF9D292",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-25T06:21:55Z",
+    "body" : "Ordered coffee and toasted Banana Bread from Maccas and went over to the park to sit in the sun and unwind from the day - more for Anita.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-25T06:21:55Z",
+    "id" : "7E00196D-CA6D-4A22-B19A-6FF2C91C88ED",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-25T09:15:23Z",
+    "body" : "Had to buy a mini-DisplayPort to DisplayPort cable so that the new Dell 2K monitor could operate at full 2K resolution. They didn’t have any adaptors.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-25T09:15:23Z",
+    "id" : "59A735D5-D128-4C1E-B905-298A573294C1",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-25T09:27:28Z",
+    "body" : "Had a look at the cameras but they were busy so I grabbed one of their catalogs and left.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-25T09:27:28Z",
+    "id" : "F422E00B-0A7D-4A6E-8E94-BBAE24A65B72",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-25T09:40:34Z",
+    "body" : "Anita wanted some tarts so I had to go all the way to the other end of the shopping centre to buy them.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-25T09:40:34Z",
+    "id" : "5B262C43-1234-45CF-979D-A63B919B862F",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-25T09:53:44Z",
+    "body" : "I also had a look in Harvey Norman’s for an DisplayPort adaptor but they don’t stock them either.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-25T09:53:44Z",
+    "id" : "69CC146A-95A4-4154-B2C6-CD9140970C60",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-25T23:45:29Z",
+    "body" : "Thursday: Back home the new DisplayPort cable worked, so I now have native 2K resolution on the second monitor. It’s the ideal resolution too because even though the iMac screen is 5K it’s actually downsized to 2K for Retina. When I drag a window between monitors; there is no change in size!\n\nThe iMac screen is still the better display of course, so it looks like I will have to get Apples really expensive monitor when I upgrade.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-25T23:45:29Z",
+    "id" : "29ED00D2-2243-4D07-862B-20866C97A2E2",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-26T00:17:46Z",
+    "body" : "Dropped Anita at her hairdresser appointment.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-26T00:17:46Z",
+    "id" : "11A02AAB-CD40-4F23-8370-D3533CE9796F",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-26T03:12:53Z",
+    "body" : "Dropped off Katherine and Anita for Katherine X-Ray appointment. I’m waiting in the car; watching a Disney Movie.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-26T03:12:53Z",
+    "id" : "882095C0-8010-45E1-80B7-15A87583294D",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-26T04:04:52Z",
+    "body" : "I purchased a secondhand Canon M50 for $500. It’s a better camera with a viewfinder and I can still use my range of M-Series lenses with it. Unfortunately it uses a slightly different battery, so I might have to purchase a spare. It may not last as long.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-26T04:04:52Z",
+    "id" : "E1E036BA-4459-4642-8BAD-B33C511AE6C8",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-26T07:09:59Z",
+    "body" : "Katherine wanted Nuggets and chips",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-26T07:09:59Z",
+    "id" : "7EB9603D-A523-4AD5-B0F4-A862933874F2",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-26T08:44:17Z",
+    "body" : "Coffee for Anita. They didn’t have raisin toast",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-26T08:44:17Z",
+    "id" : "78EBA9B7-C5A1-49D9-AA46-4121D9F2AB7A",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-26T10:59:01Z",
+    "body" : "Back to pick up Katherine from QYO rehearsals",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-26T10:59:01Z",
+    "id" : "CBBB4A5B-DC4A-4C15-B3FB-7D3884EFF99C",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-27T23:10:30Z",
+    "body" : "I had a raisin toast with coffee this morning, but it turned out to be a bad idea as I ended up in the toilet later!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-27T23:10:30Z",
+    "id" : "8B9B7E19-68DB-4E38-A390-63B4FA2788B7",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-28T05:01:05Z",
+    "body" : "Dropped Katherine off at the hospital. She is working on a collaborative assignment for Uni. Anita was still doing some washing so stayed home. We were originally going to both go and walk around Southbank while we waited for Katherine, but things changed when we were too tired to do all that.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-28T05:01:05Z",
+    "id" : "98711A33-41C2-495B-94B3-A10DB77673CB",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-28T06:14:10Z",
+    "body" : "Back at home, I worked on the WRX, polishing the rear spoiler and bumper using the electric polisher. It does an amazing job, although it’s hard to see on a white car.\n\nIt will take a few weeks to do the whole car!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-28T06:14:10Z",
+    "id" : "A99E2D08-601B-4CE8-9649-DED0766A5B18",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-28T07:24:48Z",
+    "body" : "Picked up Katherine. This time Anita came along, but Katherine wanted to go straight home.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-28T07:24:48Z",
+    "id" : "C3950AAF-DC64-4116-A4BF-A17CD42494B5",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-28T13:09:57Z",
+    "body" : "Sunday: Ordered UBER Eats for Katherine.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-28T13:09:57Z",
+    "id" : "7E12AE06-B7A9-4409-AC90-706BFE0E4223",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-29T03:27:23Z",
+    "body" : "I’ve never been to a 3D printer retailer, so I drove all the way over to Strathpine to have a look and buy some Isopropyl Alcohol (5 litres) as well as some Monocure Resinaway cleaning solution. They only had a 500ml bottle so I bought that as a test sample.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-29T03:27:23Z",
+    "id" : "4F60FEDB-210D-4FAD-A1D0-3FF99BAB7B1C",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-29T03:47:47Z",
+    "body" : "I was also after a mini-displayport adaptor. They had one! I also discovered a lot of 3D printing products and so purchased a filament dryer and reusable vacuum filament bags.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-29T03:47:47Z",
+    "id" : "D9552818-DAE1-476A-8F42-A4941A80B245",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-29T04:24:10Z",
+    "body" : "I parked on the roof of the Strathpine Shopping Centre in search of some lunch. I had a toasted ham cheese and tomato sandwich with coffee. While I was sitting there I noticed that the adjacent Robins Kitchen was having a 70% off sale. There was a ceramic frying pan for just $15.00 but the owner was out to lunch.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-29T04:24:10Z",
+    "id" : "5642F31B-4B02-4097-B3C3-51087211C793",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-29T04:51:40Z",
+    "body" : "I walked around the shopping centre while I waited for Robins Kitchen to reopen. I found a bedding shop and they had doonas available on sale for just $45.00 so I bought a bamboo queen size.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-29T04:51:40Z",
+    "id" : "5E4EB59C-DCA0-451C-B56D-9910A81DB2A6",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-29T05:03:07Z",
+    "body" : "I bought the $15.00 frying pan and headed home. I should have got one with a lid!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-29T05:03:07Z",
+    "id" : "B59EAFE1-D256-4BF3-A31B-20FA0A21C693",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-29T06:08:04Z",
+    "body" : "Bought some milk and a Courier Mail Newspaper - for the budgee cage",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-29T06:08:04Z",
+    "id" : "47D6A5A9-887E-4365-AC3E-E4F7D5BD92CB",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-30T17:16:29Z",
+    "body" : "The zip in my cargo pants is broken.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-30T17:16:29Z",
+    "id" : "E964D97B-7A07-4F2A-8847-406F052A916D",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-31T03:05:02Z",
+    "body" : "Went to the carwash to remove the bugs on the front of the Tesla. I still had to wipe off the worst ones afterwards but it wasn’t too hard.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-31T03:05:02Z",
+    "id" : "B5B553B4-9B59-49AF-9F26-24BD41E87BDC",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2023-05-31T04:38:33Z",
+    "body" : "Had hot tea and a sandwich.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2023-05-31T04:38:33Z",
+    "id" : "353B20DA-BC16-4F70-83AC-BF48B81395DD",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  }
+]

@@ -32,7 +32,7 @@ SOFTWARE.
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"  crossorigin="anonymous" />
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = 830;
+  window.__ARC_BUILD__ = 836;
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -298,9 +298,6 @@ SOFTWARE.
                     <button class="map-filter-btn" id="mapSaveBtn" onclick="saveMapAsImage()" style="display: none;">
                         Save
                     </button>
-                    <button class="map-filter-btn" id="devToolsBtn" onclick="openDeveloperModal()" title="Developer Tools">
-                        Dev
-                    </button>
                 </div>
                 
                 <!-- Zoom controls -->
@@ -447,7 +444,7 @@ SOFTWARE.
                         <div class="diary-title-row">
                             <div class="diary-title-group">
                                 <span class="diary-title" id="diaryTitle">Diary Timeline</span>
-                                <span class="diary-build" id="diaryBuild">Build 829</span>
+                                <span class="diary-build" id="diaryBuild">Build 836</span>
                             </div>
                             <div class="diary-nav-group" id="diaryNavGroup">
                                 <button class="btn-diary-nav btn-nav-circular" id="prevDayBtn" onclick="NavigationController.navigateBy(-1, 'day')" title="Previous day">‹</button>
@@ -640,37 +637,6 @@ SOFTWARE.
         </div>
     </div>
 
-    <!-- Developer Tools Modal -->
-    <div class="dev-modal-backdrop" id="devModalBackdrop" onclick="closeDeveloperModal()"></div>
-        <div class="dev-modal" id="devModal">
-            <div class="dev-modal-header modal-drag-header" onmousedown="startDragModal(event, 'devModal')">
-                <span class="modal-title">Developer Tools</span>
-                <button class="modal-close" onclick="closeDeveloperModal()">&times;</button>
-            </div>
-            <div class="dev-modal-body">
-                <div class="dev-row">
-                    <label for="devMonthKey">Month (YYYY-MM)</label>
-                    <input type="text" id="devMonthKey" placeholder="2026-02">
-                </div>
-                <div class="dev-row">
-                    <label for="devDayKey">Day (YYYY-MM-DD)</label>
-                    <input type="text" id="devDayKey" placeholder="2026-02-02">
-                </div>
-                <div class="dev-section-title">Rebuild</div>
-                <div class="dev-actions">
-                    <button class="dev-btn" onclick="runDevAction('rebuildMonthStored')">Month (Stored)</button>
-                    <button class="dev-btn" onclick="runDevAction('rebuildDayStored')">Day (Stored)</button>
-                    <button class="dev-btn" onclick="runDevAction('rebuildMonthRaw')">Month (Raw)</button>
-                    <button class="dev-btn" onclick="runDevAction('rebuildDayRaw')">Day (Raw)</button>
-                </div>
-                <div class="dev-section-title">Utilities</div>
-                <div class="dev-actions">
-                    <button class="dev-btn" onclick="runDevAction('listMonths')">List Months</button>
-                    <button class="dev-btn" onclick="runDevAction('clearLog')">Clear Log</button>
-                </div>
-                <div class="dev-log" id="devLog"></div>
-            </div>
-        </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js"></script>

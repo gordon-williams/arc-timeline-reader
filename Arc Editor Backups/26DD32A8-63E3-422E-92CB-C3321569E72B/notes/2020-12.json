@@ -1,0 +1,692 @@
+[
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-01T00:24:48Z",
+    "body" : "Got to try out the new M1 MacBook Air",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-01T00:24:48Z",
+    "id" : "A1BF25C8-3166-4C8F-87B0-96C74B5E6C04",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-01T01:10:31Z",
+    "body" : "Rubber silicone adhesive",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-01T01:10:31Z",
+    "id" : "B18C4997-A57D-4342-A561-36E1D32A22CC",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-01T03:42:10Z",
+    "body" : "Spray painted the windscreen wipers in the Forester Matt black; they were starting to show surface rust.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-01T03:42:10Z",
+    "id" : "C59F868F-8826-4230-BACF-7B0ADAC7FBCF",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-01T06:19:09Z",
+    "body" : "Arc crashed while I was I waiting for Anita. So it didn’t record the trip to Coles to buy milk, TV dinners and Meluca honey eye drops.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-01T06:19:09Z",
+    "id" : "5D7EBFFE-E718-4BE9-A0EA-A116657654B6",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-01T06:19:09Z",
+    "body" : "We parked on the second level at Coles to see if the travelator was working. It was.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-01T06:19:09Z",
+    "id" : "A81D65F4-B372-49E6-BE44-6B3691687091",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-01T12:32:29Z",
+    "body" : "Forester: 236766kms, 34.41L of Vortex 98 at $1.569\/L",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-01T12:32:29Z",
+    "id" : "FB81955D-D73E-4912-900D-7A7AA51E0B6F",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-01T12:36:26Z",
+    "body" : "They were doing roadworks on Mt Gravatt - Capalaba Road, so I drove the other way to get back home.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-01T12:36:26Z",
+    "id" : "433FA593-9162-4C35-A3BC-EB3A435F3CB8",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-01T19:40:50Z",
+    "body" : "Wednesday: I took the cover off the pedal on the Nope. It’s been rattling for a while.\n\nI also removed the rare earth magnets to prevent them from accumulating iron particles.\n\nI took some measurements in a case I get time to 3D print a replacement cover. There are screen holes that I could use to keep one on.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-01T19:40:50Z",
+    "id" : "50154CF3-0F9B-4AEB-B813-45A99A36E8EE",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-02T02:50:46Z",
+    "body" : "It was 33°C in the way in to work! I fortunately found a parking spot on level 7.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-02T02:50:46Z",
+    "id" : "B6414946-7A77-4FDB-B04A-9AC50F3F2C20",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-04T23:00:28Z",
+    "body" : "Saturday: I checked the ebike for the rattles I heard coming home last week. I used the rubber Mallet to expose the rattles.\n\nThere were two sources of the rattles (1) the battery controller panel screws were loose, so the panel was rattling (2) the chain guard was hitting the mounting point since it had to be cable-tied. I fixed this by adding some stick-on padding where the mount was hitting the guard.\n\nHopefully that’s all the causes of the rattles? I look forward to riding it - maybe this afternoon when it’s cooler.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-04T23:00:28Z",
+    "id" : "B9CD4270-530D-4CED-B5A8-B2F5BD5244B0",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-05T08:14:23Z",
+    "body" : "Ordered three Kara-age Bento sets",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-05T08:14:23Z",
+    "id" : "6A51F43B-01B8-4819-A9D4-5D9B05CD5590",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-06T00:17:00Z",
+    "body" : "Breakfast and coffee. I asked for two sugars and didn’t get any. I ended up with eggs and toast instead of bacon, eggs and toast. There was no salt and pepper on the table. 😞",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-06T00:17:00Z",
+    "id" : "41B4FAD5-C116-48E3-B1C9-62307209CC0B",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-06T00:18:16Z",
+    "body" : "While having breakfast, Arcare called to tell me that mum had broken her glasses. I will have to go there after shopping to see If I can fix them. That will be a trip in the WRX as it’s too hot for the LEAF, and it’s charge level is too low. Recharging would also increase the battery temperature.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-06T00:18:16Z",
+    "id" : "C71322FF-557B-439B-B94C-B22A5D3E617F",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-06T00:56:22Z",
+    "body" : "While Katherine and Anita were shopping for clothes, I had a look at portable air conditioners, and TVs. I ended up buying a new iron, as the old one is not working as well as it used to.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-06T00:56:22Z",
+    "id" : "5F617153-FCC6-48DA-B9EA-D87DEA4909AC",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-06T01:28:59Z",
+    "body" : "Katherine wanted McDonalds for lunch.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-06T01:28:59Z",
+    "id" : "D6A204FB-0839-41EA-980B-9AE028243C16",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-06T02:53:14Z",
+    "body" : "Picked up mums broken glasses to take home and try to fix.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-06T02:53:14Z",
+    "id" : "54BE09C1-7323-48A4-9421-809AAC97DD2A",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-06T05:47:56Z",
+    "body" : "Returned with the repaired glasses to find that she has newer glasses anyway. She was asleep when I got there and she thought I was her brother.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-06T05:47:56Z",
+    "id" : "39292901-827A-492C-891C-DC102DA1CF0C",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-06T06:42:10Z",
+    "body" : "They wanted me to get some groceries at Coles on the way home.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-06T06:42:10Z",
+    "id" : "DCEB27F7-ECFB-4BB8-8F19-19F478702637",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-06T07:32:39Z",
+    "body" : "Went for a ride to check if the rattles were gone. Nope! There was another rattle that I tracked down to the handle on the battery. I added little plastic tags under the handle to keep it from rattling.\n\nI will find out if it works on Tuesday. There’s a storm forecast for tomorrow afternoon so I’ll be driving the WRX to work.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-06T07:32:39Z",
+    "id" : "9739F6E4-74D0-43B0-A90B-93E76507743A",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-07T06:52:43Z",
+    "body" : "Dropped off the express post parcel",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-07T06:52:43Z",
+    "id" : "D2EAA908-C6A0-4E05-B7CF-75FFC4DDD779",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-08T00:17:32Z",
+    "body" : "All the rattles are gone! It’s amazing to ride a silent bike. I can’t remember if it was this quite when I first bought it?",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-08T00:17:32Z",
+    "id" : "09DFCD10-C599-4A92-9442-44D7C3FDF18B",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-10T23:22:14Z",
+    "body" : "It’s forecast to rain today so I drove the WRX to work. The WRX is my rain car now.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-10T23:22:14Z",
+    "id" : "7E56F367-2A41-4692-9495-C586949ACB5C",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-12T16:11:15Z",
+    "body" : "I spent a few hours yesterday and this morning removing, cleaning and reinstalling the centre console in the Forester. It was filthy from Katherine’s whole life sitting in the back.\n\nThe wet weather wasn’t helping. The first time I installed everything, I found four screws left over, so I had to pull it back out again. The missing screws were all from the arm rest section.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-12T16:11:15Z",
+    "id" : "EEEA4EA6-B957-4701-879F-4019672A0F96",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-13T05:11:10Z",
+    "body" : "I forgot to check that Arc was running before leaving home! So the whole trip to drop Katherine at Shanice’s house for her brother’s birthday was not recorded, as well as the shopping at Coles, Rochedale. We bought some takeaway coffee at McDonalds before coming home.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-13T05:11:10Z",
+    "id" : "E8FD42EA-72A4-445E-8B3C-7A3005BD4AF7",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-13T08:10:02Z",
+    "body" : "We set out to get Katherine when she texted and said she would be another hour! So we drove up to Mt Gravatt Lookout to wait. \n\nAnita played Pokémon and I update the Arc diary. It’s very comfortable sitting in the parked leaf no matter what the weather.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-13T08:10:02Z",
+    "id" : "024E608F-6E69-4E1D-AFC9-359FBC773CCE",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-13T08:12:37Z",
+    "body" : "It’s been very wet for the last few days with more bad weather forecast for the next week. I will have to drive the WRX to work everyday (except Wednesday and Thursday evening when I am covering for Chloe)",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-13T08:12:37Z",
+    "id" : "9FACB89A-5E31-4497-AA89-8B2AB4024A6C",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-13T08:37:26Z",
+    "body" : "10% SOC consumed from Mt Gravatt to Shanice in Rochedale. Gained 2% driving down the mountain.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-13T08:37:26Z",
+    "id" : "53B9EBB0-5FCE-4C86-934A-5CB33B4FB81A",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-13T10:48:19Z",
+    "body" : "Forester- 237038 kms, 36.63L of Vortex 98 at $1.307\/L",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-13T10:48:19Z",
+    "id" : "AB2745C6-30D7-45C6-A529-13FE711905D6",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-14T08:55:46Z",
+    "body" : "A postcard from John Daub “Only in Japan”",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-14T08:55:46Z",
+    "id" : "3CA4358B-A0A4-4DB2-97A7-5003245269E7",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-14T09:04:02Z",
+    "body" : "Anita wanted some photocopy paper for the Epson Printer and I purchased some more TV dinners",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-14T09:04:02Z",
+    "id" : "09136D69-1B6C-42CA-AC19-8500FD927905",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-14T09:13:17Z",
+    "body" : "Most of the stores had closed so there were very few people walking through the mall area. Coles, Aldi and some other stores were still open.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-14T09:13:17Z",
+    "id" : "66055A72-557E-4CDE-98AB-14B4B46B55CA",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-14T09:13:17Z",
+    "body" : "I parked around the side carpark up in the roof across from the Mall entrance to Harvey Norman. I got there using a road I’ve never used before and I came back down where I’ve seen cars pop out where we usually leave.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-14T09:13:17Z",
+    "id" : "1EB09E64-C906-4625-8122-E42EE901460B",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-14T22:45:43Z",
+    "body" : "Upgraded the iPhone, iPad Pro, Apple Watch, and iMac 27” to iOS 14.3 and MacOS 11.2 this morning.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-14T22:45:43Z",
+    "id" : "EB83187F-036D-4303-802D-9D34C95D87DD",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-15T00:01:24Z",
+    "body" : "Drove to work in the WRX because it’s supposed to be another rainy day - it wasn’t that bad really",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-15T00:01:24Z",
+    "id" : "B2E45049-2616-42E2-A4D7-B30D3052995E",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-15T16:34:44Z",
+    "body" : "Arcare called last night. Mum had fallen transferring from the bed to the wheelchair. They have a policy to send residents to hospital if they are on blood thinners and fall. Mum complained she fell over on her face but there were no obvious signs of injury",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-15T16:34:44Z",
+    "id" : "C89C9A5C-73A8-4940-AE49-FB4D6725A84D",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-16T00:57:49Z",
+    "body" : "Paid the $105 for the Christmas party at Arcare next Friday. The place was very busy and this is the first time I’ve ever had to park up the street; the Arcare carpark was full!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-16T00:57:49Z",
+    "id" : "A4B98866-8B3C-4703-A435-392DCBC686B2",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-16T12:15:53Z",
+    "body" : "I went to the rapid charger after dropping Andrew off. Charged the car up to 96% and got with 83%. The SOH started to rise.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-16T12:15:53Z",
+    "id" : "EB682E3C-93AE-48C7-AF22-88035DF7BEDF",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-17T01:41:05Z",
+    "body" : "Visit with Katherine to see if mum is OK. She might have some slight bruising on her cheek? Told her we will be back next Friday for Christmas lunch. She seems better today.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-17T01:41:05Z",
+    "id" : "B28FD9EF-CC63-468D-BA82-22461EFBDA09",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-17T13:18:27Z",
+    "body" : "The SOH is continuing to rise. It’s now 73.6% which is up from 72.4% before the rapid charge.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-17T13:18:27Z",
+    "id" : "DB38ED4B-8CB8-40B3-B76B-EC5C831E8BE4",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-20T04:04:51Z",
+    "body" : "Weekly shopping at Coles. The place was usually empty of customers. We assume they are all away on holiday or at Garden City.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-20T04:04:51Z",
+    "id" : "CA2FDA44-A615-4A06-8220-7CEAB57D5875",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-20T06:05:38Z",
+    "body" : "Anita wanted some shade cloth for the top of the budgie cage. I bought a Stanley screwdriver set for work and a small fold-up table for working on the bicycle or maybe even for putting things on when washing and polishing the cars?",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-20T06:05:38Z",
+    "id" : "D46AF87C-A609-4B06-B74B-44ECBAAC99A3",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-20T06:29:04Z",
+    "body" : "We’re stopping at the chemist. I’m waiting in the nice air conditioning of the LEAF.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-20T06:29:04Z",
+    "id" : "29FB17BF-ABEB-4FE0-9EF8-4A9E956A7A4E",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-20T08:24:46Z",
+    "body" : "Fish for dinner. $50!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-20T08:24:46Z",
+    "id" : "560C0799-B753-4146-82F0-3971E3229117",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-23T03:44:48Z",
+    "body" : "The usual Hudson’s was having equipment problems so I walked down to the larger one at Mater.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-23T03:44:48Z",
+    "id" : "63BF8A33-42E8-4058-B4C4-EF59ABDB5F6E",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-23T09:01:06Z",
+    "body" : "Closed until after the new year, so it was off the Red Rooster instead.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-23T09:01:06Z",
+    "id" : "0438F45E-10F0-4FB1-A2B7-6D58FEADDB27",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-23T11:54:46Z",
+    "body" : "Forester 237274kms, 31.07L of Vortex 98 at $1.679\/L",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-23T11:54:46Z",
+    "id" : "A9DD4AD9-E2F9-4207-BE5C-31D09BB5D8B0",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-23T23:16:22Z",
+    "body" : "Filled repeat prescription. They ran out of Lukair, so I have to take two 5mg tablets of a different brand.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-23T23:16:22Z",
+    "id" : "F4816C1A-95D0-4F85-B5ED-0C3F19A654C1",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-23T23:48:50Z",
+    "body" : "Went to pick up the parcel containing the GravGrip camera stabiliser. Unfortunately the package was damaged and it looks like the aluminium extension pole has gone missing.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-23T23:48:50Z",
+    "id" : "A3ED9BB1-5257-4900-8F3D-A47D78949DF8",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-24T07:44:37Z",
+    "body" : "Christmas party at Mudite’s.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-24T07:44:37Z",
+    "id" : "DBCBF062-96E4-4FD5-B0BC-CFE6CB87514D",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-24T12:00:27Z",
+    "body" : "Katherine wanted some shaker fries.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-24T12:00:27Z",
+    "id" : "A3805824-658E-4667-9269-0BEABE0B3929",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-25T02:33:31Z",
+    "body" : "We all went to Arcare to have a prearranged Christmas lunch with mum. She was mentally very alert today and had no trouble recognising us.\n\nWe had what tasted like a hospital meal. I will have to ask about mums special meals. There was no protein in her meal today?",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-25T02:33:31Z",
+    "id" : "06300D2E-D8B5-440A-A506-40879500E4DB",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-25T05:45:49Z",
+    "body" : "While parking the LEAF back in the garage, I noticed that birds had pooped on the back of the car. Cleaned it off with the wash mitten and then fried it off with the yellow towel.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-25T05:45:49Z",
+    "id" : "3AF43F97-3A01-4D25-A462-DB8BCB8FB52F",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-26T07:49:47Z",
+    "body" : "KFC for dinner.\n\nI forgot to charge the LEAF last night, so it was 43% when we set off for KFC. Got back with around 24%. Katherine came along for the ride.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-26T07:49:47Z",
+    "id" : "0829DE36-F5A0-41AB-8A5B-0D3BF66B33E6",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-27T03:16:00Z",
+    "body" : "Anita had a sore throat so went to QEII to get tested for COVID-19. They said she should get a result by this evening.\n\nThat means the planned trip to Garden City to do some shopping had to be cancelled.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-27T03:16:00Z",
+    "id" : "BB8A7B25-917A-4141-9BB5-88B717760E12",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-27T04:26:04Z",
+    "body" : "I had a grilled chicken Caesar salad this time. It’s a better choice than most of their burgers, so it will be my choice going forwards.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-27T04:26:04Z",
+    "id" : "17C7DCBB-A2E6-47F0-9022-5313C3D815A5",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-27T08:09:00Z",
+    "body" : "We needed some more Zymil milk, so I drove down to the local store in the LEAF.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-27T08:09:00Z",
+    "id" : "9FD43FDB-E401-48D1-AB39-2CD19FFAEE48",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-27T08:26:12Z",
+    "body" : "After polishing the windows in the LEAF this afternoon, I went for a ride down to the creek. It was almost sunset, so I hope I took some interesting sunset photos.\n\nEverything is very green after all the rain in the last few weeks.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-27T08:26:12Z",
+    "id" : "9089EA1B-5595-4923-8F4F-CA488AFA68CF",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-27T08:37:31Z",
+    "body" : "I stopped at a park bench to send Anita a message and a photo.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-27T08:37:31Z",
+    "id" : "1934866A-E93F-43FE-8CBD-6E1805A71FC3",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-27T09:50:24Z",
+    "body" : "I was checking my bank accounts and noticed an uncategorised monthly payment going to OpenplayZ. I originally signed up to a 5-day free subscription, but must have forgotten to cancel! I was trying to get the AFL Final video stream. I cancelled my ‘Premium’ subscription, but that still ended up costing me over $200.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-27T09:50:24Z",
+    "id" : "B789D165-AEE5-4D43-87AE-CF90E93CEB62",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-27T09:56:54Z",
+    "body" : "Trying to upgrade the iMac to MacOS 11.1 Update 11.1, but it’s failed multiple times. Apparently I’m not the only one. I just tried rebooting to see if that helps? Nope; it fails when preparing the download for installation.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-27T09:56:54Z",
+    "id" : "C62CACF5-AFF0-47AF-BAA3-4E4A5A74EF22",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-27T10:22:55Z",
+    "body" : "Snoppa moved to Kickstarter and cancelled the Indiegogo campaign. They are supposed to refund my Indiegogo order, but it hasn’t happened yet. Anyway I purchased it again on Kickstarter since it’s daily cheap. It’s only $104 with shipping.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-27T10:22:55Z",
+    "id" : "5FB52CA0-2DA6-4327-9F8D-1663C62F1A6E",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-28T00:45:53Z",
+    "body" : "Bought some underwear and tops for mum.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-28T00:45:53Z",
+    "id" : "9B792DEB-892C-4264-993D-6C0D30107457",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-28T01:12:35Z",
+    "body" : "Looking for a picture frame for Anita’s mother. I bought some more Belkin charging cables.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-28T01:12:35Z",
+    "id" : "965A7AB0-9EF9-464E-8451-D5AAD2A234DD",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-28T03:40:07Z",
+    "body" : "Shopping at Coles. We used the upper floor carpark again which has easy access to the shopping cart elevator.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-28T03:40:07Z",
+    "id" : "9FFC4C08-FFE5-4F23-A16A-E327B8353DC2",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-28T03:40:07Z",
+    "body" : "Bought a supply of 24 AA batteries at $20.00. For some strange reason it was $10.00 cheaper than a pack of 20 batteries?",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-28T03:40:07Z",
+    "id" : "2023775F-D6AA-4AB1-BFE3-D738CBC5033B",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-28T04:35:37Z",
+    "body" : "Went to spotlight to buy some material to make the new cable bag for trips. Anita wanted some black paper for the photo holder.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-28T04:35:37Z",
+    "id" : "E698B708-8D8C-45B4-91C5-581D02A6A8EF",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-28T05:40:56Z",
+    "body" : "Back at Spotlight again to buy the clothing dummy for Katherine. Consider this a Christmas present to Katherine at $99.00.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-28T05:40:56Z",
+    "id" : "4CCCE440-0A8A-45FC-9651-1D0A2DA29AFF",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-28T05:40:56Z",
+    "body" : "On this visit I found a roll of the actual material that HP used to make the original cable bag. That was unexpected.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-28T05:40:56Z",
+    "id" : "C6690695-CCD8-4618-A5CF-EDCDABBA00E2",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2020-12-28T08:45:19Z",
+    "body" : "Baking the chicken casserole in the oven",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2020-12-28T08:45:19Z",
+    "id" : "7949B446-340B-493E-9BEE-CDCF76435F80",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  }
+]

@@ -1,0 +1,862 @@
+[
+  {
+    "deleted" : false,
+    "startDate" : "2021-08-31T22:05:48Z",
+    "body" : "They make a good ham, cheese and tomato toastie, but they don’t have lactose-free milk, so no coffee from there!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-08-31T22:05:48Z",
+    "id" : "15748ADA-7DB7-4248-B1EF-9AEE3509EB6D",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-08-31T22:17:22Z",
+    "body" : "I bought some more salads and TV dinners.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-08-31T22:17:22Z",
+    "id" : "0FE38AF0-7BD0-4AA9-9F50-8F97B4A55E45",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-01T02:51:29Z",
+    "body" : "I fell asleep and left the shopping in the back of the LEAF for about 4 hours!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-01T02:51:29Z",
+    "id" : "C60E837E-AFCA-48C7-BA99-86C6A40D44BF",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-01T04:00:00Z",
+    "body" : "The drive up to the Mt Gravatt lookout consumed 4% of the battery capacity.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-01T04:00:00Z",
+    "id" : "7B621F60-69E1-421E-AE47-2A8554DA4708",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-01T04:55:10Z",
+    "body" : "Booked the car in for a service. They can’t do it until October 13?",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-01T04:55:10Z",
+    "id" : "B90C8908-2E40-4CC4-B102-3D6081EFA1F9",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-02T01:42:13Z",
+    "body" : "I spent most of the day cleaning the LEAF. I gave it the full wash and treated all the internal plastics. There’s just the leather to do now.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-02T01:42:13Z",
+    "id" : "6E7B48EC-95FA-453C-B100-C2378165DD5A",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-02T05:31:10Z",
+    "body" : "My new glasses are ready.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-02T05:31:10Z",
+    "id" : "AF2C29F2-AC5C-4382-BBA0-03E1022B8C45",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-02T05:38:23Z",
+    "body" : "I had a look for the twist device for strengthening my arm to treat the tennis elbow.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-02T05:38:23Z",
+    "id" : "369A2B90-30B6-468B-81DC-7B98E6EF1ECD",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-02T08:46:23Z",
+    "body" : "Saw Dr Peter Swindle at his rooms. He referred me for a PET CT scan",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-02T08:46:23Z",
+    "id" : "0F837DB4-4071-45BB-B511-F5A11EA47180",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-02T10:24:42Z",
+    "body" : "After an overcast day it rained just as I coming through Tarragindi and Mt Gravatt. It stopped under the freeway to check how much rain was coming, but it wasn’t too bad so I kept going anyway.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-02T10:24:42Z",
+    "id" : "4558D98F-9A8E-4249-929A-21370258029D",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-06T01:55:10Z",
+    "body" : "Bought two monitor stands and some folders to organise my paperwork.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-06T01:55:10Z",
+    "id" : "26B14A99-AEDD-4D3B-A1F2-5262697CAD93",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-06T02:23:05Z",
+    "body" : "Got some more salads for lunch and later.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-06T02:23:05Z",
+    "id" : "3F3A9146-5279-4EDA-8FCF-44AA3150B10E",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-06T04:38:25Z",
+    "body" : "X-ray and echo of my right elbow.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-06T04:38:25Z",
+    "id" : "72F3F472-107D-43B6-9A28-42640C5E5C1D",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-06T06:30:05Z",
+    "body" : "Back to Coles with Anita for the weeks shopping",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-06T06:30:05Z",
+    "id" : "80CF2CA5-1232-46D6-B8A7-8DB8892975A5",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-06T07:40:20Z",
+    "body" : "It still gets cold after the sun sets. There are lots more bugs too!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-06T07:40:20Z",
+    "id" : "EED630D6-FAE1-498F-BFD0-55D9809479DB",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-07T02:06:16Z",
+    "body" : "Took my new glasses back to complain about the lenses. I also asked them to swap the frames over. The larger one is more comfortable and will be better for the trifocal.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-07T02:06:16Z",
+    "id" : "B614439B-7C92-4C5B-BF26-7AC0CE7793F6",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-07T02:41:59Z",
+    "body" : "Picked up Katherine early",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-07T02:41:59Z",
+    "id" : "CCBE79FA-2DFB-412C-8486-10BB92DA4362",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-07T06:07:17Z",
+    "body" : "Back for tonight’s concert.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-07T06:07:17Z",
+    "id" : "0567C04A-14EB-43E2-833D-456E679DC25F",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-08T03:05:58Z",
+    "body" : "I rode to QScan to see if there was anywhere to park the scooter or bicycle, but there isn’t anything there that would suit.\n\nI rode back and took a detour on the tracks through Toohey Forest. We should go for a walk there someday.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-08T03:05:58Z",
+    "id" : "963FEFD0-D850-4D8B-806C-B1BF5D23DF2C",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-08T05:00:14Z",
+    "body" : "Drove Katherine to band practice at school. We stopped at Shanice’s place to give her a lift too.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-08T05:00:14Z",
+    "id" : "28BC5847-E595-42BF-9442-D6DF44AEBF91",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-08T05:52:57Z",
+    "body" : "I got a message to make an urgent booking to see the GP, so here I am. Dr Colbrook apologised that it wasn’t urgent; he must have pressed the wrong button on the computer!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-08T05:52:57Z",
+    "id" : "C900E9D0-7088-41BA-95A8-303AFD1E53DC",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-08T06:35:50Z",
+    "body" : "I was looking for an ink pad for the date stamp. They had a multicoloured one and Anita found a little emoji stamp stick.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-08T06:35:50Z",
+    "id" : "A9E4DBC7-3884-4145-9AAC-A9E525C311E2",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-09T02:08:14Z",
+    "body" : "At QScan for the PET scan. I drove here in the WRX because I’m less worried about leaving it out in the sun for the next 3 hours.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-09T02:08:14Z",
+    "id" : "E475E0C4-2CE4-42C8-816A-1E38CE0ED425",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-09T02:09:40Z",
+    "body" : "I’m now in a small room waiting for the radioisotopes to find their target. The radiographer said this takes 90 minutes. I’m sitting in a recliner chair and there’s a TV in the room to help pass the time.\n\nI have my backpack with three batteries to make sure my phone doesn’t go flat. I even have my iPad with me.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-09T02:09:40Z",
+    "id" : "6B88CFED-02B6-4296-B981-3CDB934DD7BC",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-09T22:13:29Z",
+    "body" : "I bought some more Caesar salads and found some butter chicken dinners with rice; I bought two for Katherine.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-09T22:13:29Z",
+    "id" : "631CA87C-79A7-4D23-BF4A-5C4BBB042DF8",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-09T22:13:29Z",
+    "body" : "Ham, cheese and tomato toastie from hungry jacks",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-09T22:13:29Z",
+    "id" : "2AE7902B-D284-4CA3-BFD0-06FC29769EEB",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-11T21:41:34Z",
+    "body" : "Ordered coffee. Anita didn’t have her mask so she stood away while I ordered.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-11T21:41:34Z",
+    "id" : "808008AE-5DF7-464C-A682-D9A362473C3E",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-11T21:58:43Z",
+    "body" : "Sat in the park and drank our coffee. Sitting in front of the play gym brought back memories of the times Katherine would play there. 🥰",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-11T21:58:43Z",
+    "id" : "3BB32AF2-7D2F-4121-A144-399ACC78C9F0",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-12T03:36:57Z",
+    "body" : "Dropped Katherine off at the Concert and then looked for somewhere to spend the next hour to return for the start of the QYO Twilight concert. Katherine missed the last one as she was still waiting for her COVID test results.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-12T03:36:57Z",
+    "id" : "6DBFBF1D-222D-4F85-8828-0502A1FC6243",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-12T04:00:02Z",
+    "body" : "We found a perfect parking spot at Roma street parklands. The parking meter was $4.10 for 1.5hrs.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-12T04:00:02Z",
+    "id" : "4AC80215-AD3B-431C-B36F-03706E833875",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-12T04:02:09Z",
+    "body" : "",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-12T04:02:09Z",
+    "id" : "BD90F5BD-CD1D-4F36-8D7B-900845C59F4B",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-12T04:16:18Z",
+    "body" : "Takeaway coffees and cake. The coffee was good!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-12T04:16:18Z",
+    "id" : "57C6A3D2-FBEE-43B0-A8B3-E4F47F745A2C",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-12T06:22:56Z",
+    "body" : "QYO Twilight Concert featuring the Wind Ensemble and the wind orchestra. This was the first concert in nearly two years because of the COVID 19 pandemic.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-12T06:22:56Z",
+    "id" : "C493D9D4-EC5C-4C0D-9B30-65D855F72F36",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-12T07:57:07Z",
+    "body" : "The LEAF was down to 33% so I visited the rapid charger at QUT to recharge to 61% (4.7 kW) 0.168 kW = 1% charge.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-12T07:57:07Z",
+    "id" : "70D6C8AA-C5BC-487D-A710-A798D39B493D",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-12T08:14:33Z",
+    "body" : "Home via Red Rooster",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-12T08:14:33Z",
+    "id" : "7352E02E-8675-49CE-AE5F-B78988C91040",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-12T22:05:25Z",
+    "body" : "Bought some more salads",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-12T22:05:25Z",
+    "id" : "3BF2764A-B539-48E7-A2FB-EBE4F82736B1",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-12T22:05:25Z",
+    "body" : "There was a Tesla Mode X using the level 2 charger.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-12T22:05:25Z",
+    "id" : "E606228B-076B-436B-B1F3-57A1EEC86F6A",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-13T04:34:54Z",
+    "body" : "The appointment with the Physiotherapist",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-13T04:34:54Z",
+    "id" : "3CE35AC4-D82E-4A5A-AFEF-EB7DB2661D7F",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-13T05:45:39Z",
+    "body" : "Arc wasn’t running for most of the trip home, so this is closer to the usual time.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-13T05:45:39Z",
+    "id" : "F884F047-39FC-4BBD-884D-6A5AEF602CFD",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-13T09:45:26Z",
+    "body" : "Went for another walk with Anita.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-13T09:45:26Z",
+    "id" : "AB3412C4-1FB3-4F9C-AA33-18804315C316",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-14T00:04:07Z",
+    "body" : "Oops can’t park here!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-14T00:04:07Z",
+    "id" : "9EF2CB51-BEC5-4C12-B1A5-1C62BB40FEE7",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-14T00:14:37Z",
+    "body" : "Ended up parking at the shopping centre, but then I couldn’t find a convenient way out to the street, so I had the walk the entire length of the complex and then walk all the back again.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-14T00:14:37Z",
+    "id" : "0CEFB34B-59D6-4CDE-96FC-6FEB15CF38AD",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-14T02:07:23Z",
+    "body" : "Just before I was due to talk about my mother, an elderly women fell over. They called an ambulance.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-14T02:07:23Z",
+    "id" : "FDEE25AA-8F8B-429A-9EAC-8987856F8D27",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-14T04:04:22Z",
+    "body" : "Before I left the shopping centre, I bought some sushi as lunch. I stopped over the other side of the river next to the bridge to eat it. Oops I didn’t have any soy sauce!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-14T04:04:22Z",
+    "id" : "5F72A4B1-A343-4DC4-9C24-40A6E6ED03EB",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-14T05:06:03Z",
+    "body" : "Katherine couldn’t find where I was parked.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-14T05:06:03Z",
+    "id" : "17CEB0A3-C31B-4DD4-BF53-56A5959692E7",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-14T07:15:36Z",
+    "body" : "Anita wanted to do the shopping for the week.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-14T07:15:36Z",
+    "id" : "AB0D16A4-58DC-478D-B0E2-3DFAECFF6BAF",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-15T04:07:56Z",
+    "body" : "picking up glasses again. They made some adjustments but it’s still worse than my original glasses. It’s left me wondering why I got new ones?\n\nThe optometrist said to give them a try for a week and see if it’s OK. There is an adjustment time needed.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-15T04:07:56Z",
+    "id" : "8B45580F-C689-40BF-B4B2-298085ABEDE6",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-15T06:34:50Z",
+    "body" : "We are waiting for Katherine to finish band practice. On the way we bought some takeaway.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-15T06:34:50Z",
+    "id" : "45610499-0B99-4871-8D89-4290A644D70C",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-15T07:06:48Z",
+    "body" : "Instead of going home again to wait for the recitals to begin we decided to go to the nearby Underwood Park to pass the time. \n\nWe walked around the lake. There seems to be a lot more water-fowl here this time.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-15T07:06:48Z",
+    "id" : "61529371-32C0-46A0-BEB6-4E87770B3B61",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-15T07:19:26Z",
+    "body" : "at Underwood Park",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-15T07:19:26Z",
+    "id" : "8B8A13C4-D333-479F-8B14-AA81A0B46BFD",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-15T08:53:01Z",
+    "body" : "This evening a number of students played solo or as ensembles. This was Katherine’s first time solo on the French Horn.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-15T08:53:01Z",
+    "id" : "0706619A-1539-4DBF-A412-2185462AE3BF",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-16T07:13:50Z",
+    "body" : "I had to ask Jake to let me in to the bike cage. I forgot my hospital pass!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-16T07:13:50Z",
+    "id" : "535ED449-3412-4802-BD00-C70971425018",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-16T07:29:15Z",
+    "body" : "Appointment to see Dr Peter Swindle to get the results of the PET scan and discuss treatment options.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-16T07:29:15Z",
+    "id" : "42FD0494-5B89-454C-A8F9-4D73B77F59BC",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-16T22:11:15Z",
+    "body" : "Ordered coffee at their busiest time! We had to wait 14 minutes for the coffee!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-16T22:11:15Z",
+    "id" : "C212740B-AD4E-42E9-BB8F-78FBBBA8A3A8",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-16T22:33:49Z",
+    "body" : "Sat in the park to finish the coffee",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-16T22:33:49Z",
+    "id" : "FF8BA91F-A03E-4C36-B3C5-1EC7A3AD75D3",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-17T05:47:29Z",
+    "body" : "Dropped Katherine off at her friends place where she changed into the ball gown she designed and made.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-17T05:47:29Z",
+    "id" : "52BB94ED-DF42-4047-844D-3518417E6C30",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-17T07:22:05Z",
+    "body" : "We drove ahead to the venue for the Redeemer Senior Formal and waited for the senior students to arrive.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-17T07:22:05Z",
+    "id" : "1D9E712D-D3A4-4152-96F5-F0DBB3B541B2",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-17T10:19:59Z",
+    "body" : "Parents could not stay for the party so we went home to wait and return to pick up Katherine",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-17T10:19:59Z",
+    "id" : "EEB67C31-0816-49CD-8327-0994D4129DC2",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-17T12:43:59Z",
+    "body" : "We arrived about 30 minutes before the end of the formal to wait for Katherine.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-17T12:43:59Z",
+    "id" : "5D8DDBF6-23BF-4887-9343-374C6AB172C4",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-18T02:49:45Z",
+    "body" : "Dropped Katherine and Anita off near the Shabu Shabu Restaurant and went to the QUT charger to wait. There was someone there already in a Hyundai Kona charging. They said they would be another 30 minutes! It didn’t really matter as I would be leaving as soon as Anita gets back.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-18T02:49:45Z",
+    "id" : "75910D4B-8A2F-4635-9BB6-2DDBBD9DC242",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-18T03:22:16Z",
+    "body" : "Bought some cheese and cracker snacks for tomorrow’s bike ride with Jake and Kiara.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-18T03:22:16Z",
+    "id" : "5BAD0AED-805B-4260-A3A1-2862B15CA3F3",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-18T05:40:12Z",
+    "body" : "Katherine is at a karaoke restaurant not far from King George Square, so we park there for around $5.00",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-18T05:40:12Z",
+    "id" : "8D0E0542-79F6-4191-98D6-0DCE93FAABEC",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-18T05:47:25Z",
+    "body" : "We had 30 minutes to wait, so walked up to ANZAC square to wait.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-18T05:47:25Z",
+    "id" : "09899B93-3B19-41A1-BAA4-3866A46593BD",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-18T09:08:28Z",
+    "body" : "Arc crashed not long after starting out on the walk, so it missed about 1 km.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-18T09:08:28Z",
+    "id" : "B8BA89DF-409C-438B-A72B-503A53971515",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-19T02:45:25Z",
+    "body" : "Arc crashed. We were only at the park for 30 minutes.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-19T02:45:25Z",
+    "id" : "A7CBAF7B-D09F-4866-B10B-D84A75843F79",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-23T06:37:14Z",
+    "body" : "Still having trouble with the new glasses. He fitted softer nose pads. Made an appointment to be rechecked next Tuesday.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-23T06:37:14Z",
+    "id" : "EC0D3786-7808-49B8-8B29-506367545B09",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-24T02:58:43Z",
+    "body" : "The BMX competition tyres are great on the dirt trails.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-24T02:58:43Z",
+    "id" : "3F971F7F-FB47-4B22-BB9E-B955786F131D",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-24T03:26:46Z",
+    "body" : "Having lunch! I brought a lunch box with a cool pack to keep things cold.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-24T03:26:46Z",
+    "id" : "F62E419F-B957-4F92-85AE-9D3A53B09EA4",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-25T04:53:17Z",
+    "body" : "Wanted the leaf to be ready for the big event tomorrow.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-25T04:53:17Z",
+    "id" : "CEA777F0-9B41-4366-BC84-6DFC619C5C68",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-25T06:42:12Z",
+    "body" : "We all went for a walk. I was tired today from the walking and riding yesterday!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-25T06:42:12Z",
+    "id" : "DA1D5890-1DE8-47D3-B34B-D84A82CCC2D4",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-25T23:06:57Z",
+    "body" : "Arrived at the Cleveland Showgrounds for the EV experience day organised by AEVA and TOCA.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-25T23:06:57Z",
+    "id" : "1D1777D2-4E36-49EE-BC42-5E1D507B34C2",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-25T23:28:38Z",
+    "body" : "The organisers took the test ride drivers around the test course.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-25T23:28:38Z",
+    "id" : "6BF59728-5C17-4C67-8065-73FD00BA8D44",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-26T00:13:27Z",
+    "body" : "I checked out the other displays at the event and spoke at length to the general manager of the Redlands bus company about their new electric bus.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-26T00:13:27Z",
+    "id" : "FE12E700-EC85-4876-B351-F1CDD4B93005",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-26T00:50:57Z",
+    "body" : "I went for a quick test ride of the Wyld cycles. I don’t like the fat tyres.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-26T00:50:57Z",
+    "id" : "87B732AC-06C2-49D2-9F5F-B3CA395C5238",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-27T01:53:43Z",
+    "body" : "Dropped Katherine off at her friends place. They are studying biology together for the day.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-27T01:53:43Z",
+    "id" : "57A8CF13-BCFD-4FB7-BD79-193323454302",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-27T02:07:53Z",
+    "body" : "I bought some more salads, orange juice, bacon, tea cakes etc",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-27T02:07:53Z",
+    "id" : "D55BE7A0-EAC0-4D27-8304-96A9A9749A72",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-27T03:35:52Z",
+    "body" : "I was going to use the scooter to work, but it looked like rain so I drove the leaf instead. I only just made it anyway.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-27T03:35:52Z",
+    "id" : "498BAFCB-8A85-4C40-918B-D638B73EBB32",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-27T04:18:32Z",
+    "body" : "My second appointment with the physiotherapist. He gave me more exercises to do",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-27T04:18:32Z",
+    "id" : "569D7E2B-D34C-4E60-8281-35E3112D0172",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-27T05:49:42Z",
+    "body" : "Anita wanted coffee at McDonald’s",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-27T05:49:42Z",
+    "id" : "F501B705-701B-4D5A-8CB4-4AD0D56EEEA3",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-27T05:54:45Z",
+    "body" : "We stopped at the park to drink the coffee. The car park is too far from the picnic area Note that it’s fenced off.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-27T05:54:45Z",
+    "id" : "A253B13E-490A-4152-A564-1B2DF71FF04B",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-27T06:37:57Z",
+    "body" : "Katherine wanted special chips from DAISO",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-27T06:37:57Z",
+    "id" : "D41FD726-D89E-4793-B847-C2F33A432B34",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-29T01:04:38Z",
+    "body" : "Anita was curious to see what the walking tracks were like at Whites Hill Reserve. We parked the LEAF out on the main road.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-29T01:04:38Z",
+    "id" : "FC4E5010-B219-444E-B568-C62144C2E0AB",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-29T01:43:04Z",
+    "body" : "We ended up doing the longest of walks in the reserve going to all three peaks ie Pine Mountain, Sankey’s Lookout and Whites Hill. The path up to Sankey’s Lookout and White’s Hill was bitumen and was really steep!",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-29T01:43:04Z",
+    "id" : "E2D45A6F-CCDE-45F2-9039-03C90493F995",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-29T02:15:11Z",
+    "body" : "There used to be a building here a long time ago. Back then it was a tourist spot overlooking the town of Brisbane. We had",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-29T02:15:11Z",
+    "id" : "97E971C3-4A5B-433A-BBA3-FFEB7439729E",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-30T00:03:31Z",
+    "body" : "Anita had an appointment at the sleep centre with her CPAP machine, so I gave her a lift there and waited in the car (LEAF).",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-30T00:03:31Z",
+    "id" : "EC223C4B-F41E-4941-8761-4E533CB96B1C",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "deleted" : false,
+    "startDate" : "2021-09-30T04:10:51Z",
+    "body" : "Katherine had a voucher for Art supplies so I drove them there. I was in a metered parking area, but the first 15 minutes were free.",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "endDate" : "2021-09-30T04:10:51Z",
+    "id" : "DF2237EE-A13A-496B-B24F-E7F9E444F6B7",
+    "source" : "LocoKit",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  }
+]

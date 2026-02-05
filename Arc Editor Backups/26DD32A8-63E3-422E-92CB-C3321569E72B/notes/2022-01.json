@@ -1,0 +1,592 @@
+[
+  {
+    "startDate" : "2022-01-02T03:48:14Z",
+    "body" : "Took Anita to the Pet store to get supplies for the budgie.",
+    "deleted" : false,
+    "endDate" : "2022-01-02T03:48:14Z",
+    "source" : "LocoKit",
+    "id" : "D5218FED-F614-4BD5-B171-8D356E864CE1",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-02T05:05:53Z",
+    "body" : "It started to sprinkle as we arrived at Pegg’s Lookout. Anita found a rocky outcrop where someone had built a shelter and we stayed there to east some snacks. I had my camping chair with me.",
+    "deleted" : false,
+    "endDate" : "2022-01-02T05:05:53Z",
+    "source" : "LocoKit",
+    "id" : "8687AC4A-D307-493D-A300-6F4BFB37AAA5",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-02T05:52:16Z",
+    "body" : "Heading back one of the marked tracks I wanted to use was permanently closed, so we backtracked past the reservoirs to take any track back to the picnic area and car.",
+    "deleted" : false,
+    "endDate" : "2022-01-02T05:52:16Z",
+    "source" : "LocoKit",
+    "id" : "8D4D5B3A-CD48-4C5C-B192-626ED8752A04",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-02T06:30:49Z",
+    "body" : "Bought some more milk and tomatoe sauce. They only had Rosella brand and not Heinz.",
+    "deleted" : false,
+    "endDate" : "2022-01-02T06:30:49Z",
+    "source" : "LocoKit",
+    "id" : "F356B66C-4EDA-4C67-A42B-5778AD0967E6",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-02T08:45:30Z",
+    "body" : "The Dr Who New Year Special is on tonight",
+    "deleted" : false,
+    "endDate" : "2022-01-02T08:45:30Z",
+    "source" : "LocoKit",
+    "id" : "FA19DBB3-14F6-44FE-8282-573C4F47E392",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-02T08:46:44Z",
+    "body" : "We ordered Uber Eats tonight.",
+    "deleted" : false,
+    "endDate" : "2022-01-02T08:46:44Z",
+    "source" : "LocoKit",
+    "id" : "6CDCBF6B-00FB-41EC-AD49-A77CCE30CB59",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-03T05:23:04Z",
+    "body" : "I stopped in the park and set up one of the chairs to sit on",
+    "deleted" : false,
+    "endDate" : "2022-01-03T05:23:04Z",
+    "source" : "LocoKit",
+    "id" : "B5F48CD0-6F12-4CBF-888B-EDE4A0DAF5C2",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-04T02:39:15Z",
+    "body" : "Picked up the two boxes of PPETECH P2 masks I ordered.",
+    "deleted" : false,
+    "endDate" : "2022-01-04T02:39:15Z",
+    "source" : "LocoKit",
+    "id" : "CF57F701-401A-429E-B5B1-FAD18B61D333",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-04T07:04:24Z",
+    "body" : "Anita got her COVID-19 booster dose of Moderna RNA Vaccine.",
+    "deleted" : false,
+    "endDate" : "2022-01-04T07:04:24Z",
+    "source" : "LocoKit",
+    "id" : "20E9440E-07CD-4F0E-B90A-95FAB5B43477",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-06T06:37:16Z",
+    "body" : "I rode really slowly to just enjoy the journey through the parkland.",
+    "deleted" : false,
+    "endDate" : "2022-01-06T06:37:16Z",
+    "source" : "LocoKit",
+    "id" : "E9D43399-CA42-4582-8ADF-88D68F81BC28",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-06T06:56:36Z",
+    "body" : "It started to rain so I stopped and. Put up the umbrella. Fortunately it didn’t last very long.",
+    "deleted" : false,
+    "endDate" : "2022-01-06T06:56:36Z",
+    "source" : "LocoKit",
+    "id" : "C53A6B91-FAFE-4AD8-AD93-320A25AB9D69",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-06T23:25:26Z",
+    "body" : "Picked up the collapsible cup that was delivered to the chemist pickup point.",
+    "deleted" : false,
+    "endDate" : "2022-01-06T23:25:26Z",
+    "source" : "LocoKit",
+    "id" : "5E6BB0CD-B830-4EDD-A426-D93EFBCAE1F0",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-08T07:00:34Z",
+    "body" : "Went for a drive in the WRX. It wasn’t ideal though. It was raining and I got stuck behind a caravan and then a diesel truck rolling coal!",
+    "deleted" : false,
+    "endDate" : "2022-01-08T07:00:34Z",
+    "source" : "LocoKit",
+    "id" : "730301D1-5A0E-4E9C-A88E-9E0DCF42963D",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-08T07:33:07Z",
+    "body" : "Filled up the WRX after the drive",
+    "deleted" : false,
+    "endDate" : "2022-01-08T07:33:07Z",
+    "source" : "LocoKit",
+    "id" : "C0C83612-C041-487A-990E-AF603D894849",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-10T04:23:11Z",
+    "body" : "Found a secluded spot at the back of the park. There weren’t many people around anywhere.",
+    "deleted" : false,
+    "endDate" : "2022-01-10T04:23:11Z",
+    "source" : "LocoKit",
+    "id" : "0B2AC4C2-100A-48AA-9833-B61C618B18EE",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-10T06:37:11Z",
+    "body" : "There was a green tree frog in the letterbox.",
+    "deleted" : false,
+    "endDate" : "2022-01-10T06:37:11Z",
+    "source" : "LocoKit",
+    "id" : "CE0579E1-03F8-4AC9-AF09-3C20E17250B1",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-13T06:58:26Z",
+    "body" : "Find another great spot away from the other people in the park. It’s in a bend in the creek under some very large camphor laurel trees.",
+    "deleted" : false,
+    "endDate" : "2022-01-13T06:58:26Z",
+    "source" : "LocoKit",
+    "id" : "6AB2F213-7453-49CB-8245-5E26754034EF",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-14T02:35:40Z",
+    "body" : "Went to the shopping centre to buy some toilet paper but there was none at Coles or Woolworths!",
+    "deleted" : false,
+    "endDate" : "2022-01-14T02:35:40Z",
+    "source" : "LocoKit",
+    "id" : "626838EB-3771-46A2-A90F-7068AEF75B61",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-14T02:35:40Z",
+    "body" : "I bought some sushi for lunch on the way out.",
+    "deleted" : false,
+    "endDate" : "2022-01-14T02:35:40Z",
+    "source" : "LocoKit",
+    "id" : "F22D8587-399C-43FA-BCCA-4D86224D03A5",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-14T04:25:14Z",
+    "body" : "Parked the scooter at work and then walked to the Mater Private for my physiotherapist appointment.",
+    "deleted" : false,
+    "endDate" : "2022-01-14T04:25:14Z",
+    "source" : "LocoKit",
+    "id" : "D6B3ABD1-D6A6-4EF2-884F-1162C41E8BA3",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-14T04:51:11Z",
+    "body" : "Physiotherapist appointment.",
+    "deleted" : false,
+    "endDate" : "2022-01-14T04:51:11Z",
+    "source" : "LocoKit",
+    "id" : "E39986F8-B087-4D40-823A-B8EA3F7E97AE",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-14T05:42:09Z",
+    "body" : "Rode around to the park at Kangaroo Point before heading back home. I had a poppa in my bag.",
+    "deleted" : false,
+    "endDate" : "2022-01-14T05:42:09Z",
+    "source" : "LocoKit",
+    "id" : "B1A05561-CB3F-49BB-B30E-240D17511FBB",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-14T06:13:22Z",
+    "body" : "Took a detour through Griffith University on the way home.",
+    "deleted" : false,
+    "endDate" : "2022-01-14T06:13:22Z",
+    "source" : "LocoKit",
+    "id" : "4F5886CE-F2EF-4079-A14A-D54E1973BB8D",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-15T07:11:44Z",
+    "body" : "I went back to Toohey Forest Park with the trailer. I made a cup of tea and chilled for a while. There were no birds today.",
+    "deleted" : false,
+    "endDate" : "2022-01-15T07:11:44Z",
+    "source" : "LocoKit",
+    "id" : "1F95ADE0-BFC6-40F5-AF14-8835D6369C56",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-15T10:00:06Z",
+    "body" : "Fish for dinner",
+    "deleted" : false,
+    "endDate" : "2022-01-15T10:00:06Z",
+    "source" : "LocoKit",
+    "id" : "DEE1AA28-B1E3-4981-B349-559EB61D6E36",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-18T06:29:27Z",
+    "body" : "Still no toilet paper, but there was some mince meat!",
+    "deleted" : false,
+    "endDate" : "2022-01-18T06:29:27Z",
+    "source" : "LocoKit",
+    "id" : "F3BA857C-76CE-4AB3-BD67-50FE188928BC",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-18T07:32:41Z",
+    "body" : "I didn’t bring the trailer with me this time, but I did bring the Helinox camp chair in the back pack.",
+    "deleted" : false,
+    "endDate" : "2022-01-18T07:32:41Z",
+    "source" : "LocoKit",
+    "id" : "2958A270-E133-4C23-87A6-2F14A63A1878",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-18T07:40:37Z",
+    "body" : "Someone on a VSETT 10+ zoomed past me on the wrong side on the dirt track! Yikes!",
+    "deleted" : false,
+    "endDate" : "2022-01-18T07:40:37Z",
+    "source" : "LocoKit",
+    "id" : "D48F7950-9DDD-4259-BC77-C6074919F2F9",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-19T04:02:03Z",
+    "body" : "Checking a small side track to a rock formation. Not enough shade or it would be a good lunch spot.",
+    "deleted" : false,
+    "endDate" : "2022-01-19T04:02:03Z",
+    "source" : "LocoKit",
+    "id" : "D599FBD1-0A71-4E5F-9896-5B3D13031307",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-20T05:30:13Z",
+    "body" : "I got there an hour after they closed at 2:30pm",
+    "deleted" : false,
+    "endDate" : "2022-01-20T05:30:13Z",
+    "source" : "LocoKit",
+    "id" : "4133966C-9959-4923-A76D-A67765737E6F",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-20T15:40:42Z",
+    "body" : "Called BatteryWorld to replace the battery in the Forester. They came to the house. The young Chinese technician was very interested in our WRX and even took a photo for his friends.",
+    "deleted" : false,
+    "endDate" : "2022-01-20T15:40:42Z",
+    "source" : "LocoKit",
+    "id" : "8A705BC4-47C7-41AD-838C-20534670A50E",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-21T02:05:51Z",
+    "body" : "Checked the tyre pressures (34psi) and filled the petrol tank (199.9c\/litre)",
+    "deleted" : false,
+    "endDate" : "2022-01-21T02:05:51Z",
+    "source" : "LocoKit",
+    "id" : "B7D518F9-E49D-4ADC-AFC7-4B45A909E1AF",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-21T02:27:37Z",
+    "body" : "Blood taken for a PSA test prior to followup appointment with Dr Swindle",
+    "deleted" : false,
+    "endDate" : "2022-01-21T02:27:37Z",
+    "source" : "LocoKit",
+    "id" : "1F880109-88EF-4864-80C0-125AAF58803E",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-21T03:28:36Z",
+    "body" : "I fitted the roof racks to the Forester.",
+    "deleted" : false,
+    "endDate" : "2022-01-21T03:28:36Z",
+    "source" : "LocoKit",
+    "id" : "1C0D098D-F420-47E8-94E4-A0CA44E7C299",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-21T04:42:39Z",
+    "body" : "Picked up the furniture Katherine wanted for her room. The staff were able to make it fit into the back of the Forester so I didn’t need the roof racks",
+    "deleted" : false,
+    "endDate" : "2022-01-21T04:42:39Z",
+    "source" : "LocoKit",
+    "id" : "65A40BD3-5A7C-4EC3-8BBE-990FA8EBF639",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-23T02:15:41Z",
+    "body" : "Bought 4 litres of lactose-free milk. There was someone in the store not wearing a mask and didn’t check in.",
+    "deleted" : false,
+    "endDate" : "2022-01-23T02:15:41Z",
+    "source" : "LocoKit",
+    "id" : "58DA2526-82A0-4A0F-8020-3092390BD64E",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-23T03:24:19Z",
+    "body" : "I’ve been looking for a lightweight tarp that I could maybe carry in the trailer and discovered a new store called WildEarth that sells camping equipment.\n\nI ended up spending nearly $700 there! I got a very light tarp made in Germany.\n\nI also bought a gas burner for the Trangia stove; a small piezoelectric starter; some adjustable tent poles; aluminium tent pegs; a collapsible cup; guy rope; and a waterproof jacket for rainy days in summer!",
+    "deleted" : false,
+    "endDate" : "2022-01-23T03:24:19Z",
+    "source" : "LocoKit",
+    "id" : "BED1A252-E9AC-4E96-A10E-C938264192F6",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-23T05:18:24Z",
+    "body" : "Katherine wanted a new bed linen set. Some had to be ordered and will be delivered in the next few weeks.\n\nI gave Anita $300 towards the purchase.",
+    "deleted" : false,
+    "endDate" : "2022-01-23T05:18:24Z",
+    "source" : "LocoKit",
+    "id" : "3AE505E9-A133-4646-8FD0-A7ED81EAB3A5",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-23T12:45:07Z",
+    "body" : "I set up the tarp in the back yard between the two trees near the fence. I’ve left it up overnight to see how it goes.\n\nI used Antony’s attachment method from his AB Camping videos.",
+    "deleted" : false,
+    "endDate" : "2022-01-23T12:45:07Z",
+    "source" : "LocoKit",
+    "id" : "EAEC8C91-BE45-44F3-B377-C4951E1725E9",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-23T18:49:44Z",
+    "body" : "Took the tarp down and wrapped it up. The tarp + pegs + cord + two poles = 1.7kg.",
+    "deleted" : false,
+    "endDate" : "2022-01-23T18:49:44Z",
+    "source" : "LocoKit",
+    "id" : "5E770FAD-ED1F-48B9-8C54-B915AEB8D98D",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-24T07:43:34Z",
+    "body" : "",
+    "deleted" : false,
+    "endDate" : "2022-01-24T07:43:34Z",
+    "source" : "LocoKit",
+    "id" : "B146A032-1500-4BD9-B6FC-02756C50292F",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-25T04:39:34Z",
+    "body" : "I ordered a Hyperdrive Pro USB-C Multifunction Hub from Umart at Mansfield. It’s in Space Grey to match the MacBook Pro.\n\nReflector 4 finally started working from the iPhone 11 Pro! I can now finally use the iMac Keyboard to enter notes in the Arc App.",
+    "deleted" : false,
+    "endDate" : "2022-01-25T04:39:34Z",
+    "source" : "LocoKit",
+    "id" : "89849340-6550-4711-8776-8A986B8F064D",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-25T05:43:29Z",
+    "body" : "Picked up the USB-C multifunction hub from Umart. I parked the scooter outside the store.",
+    "deleted" : false,
+    "endDate" : "2022-01-25T05:43:29Z",
+    "source" : "LocoKit",
+    "id" : "1AA6B594-A9AF-412D-A1E1-D503159F26AB",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-27T00:44:16Z",
+    "body" : "I had to replace the nose pads on my glasses when one broke. Fortunately I had something similar on a pair of cheap ones in the drawer.",
+    "deleted" : false,
+    "endDate" : "2022-01-27T00:44:16Z",
+    "source" : "LocoKit",
+    "id" : "A954928C-FCB4-4C57-8931-946299CAD83D",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-27T01:51:24Z",
+    "body" : "More pills",
+    "deleted" : false,
+    "endDate" : "2022-01-27T01:51:24Z",
+    "source" : "LocoKit",
+    "id" : "0156CC0E-0534-4D31-BDAC-05AEEBE90D23",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-27T02:12:12Z",
+    "body" : "Went to the new KFC. Katherine wanted chicken nuggets for lunch",
+    "deleted" : false,
+    "endDate" : "2022-01-27T02:12:12Z",
+    "source" : "LocoKit",
+    "id" : "4661C910-5E35-4AF5-A95C-88366DA44FF2",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-27T03:10:56Z",
+    "body" : "Went to see Dr Swindle for the followup surgical appointment",
+    "deleted" : false,
+    "endDate" : "2022-01-27T03:10:56Z",
+    "source" : "LocoKit",
+    "id" : "9B313ABE-2616-4CE3-9411-46120D9CF5BD",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-28T04:28:41Z",
+    "body" : "Went to the pharmacy to get the missing statin and the new script for Viagra!",
+    "deleted" : false,
+    "endDate" : "2022-01-28T04:28:41Z",
+    "source" : "LocoKit",
+    "id" : "E335C207-E10D-4FE2-A435-63F542C37791",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-28T05:04:22Z",
+    "body" : "Ended up taking the long way home.",
+    "deleted" : false,
+    "endDate" : "2022-01-28T05:04:22Z",
+    "source" : "LocoKit",
+    "id" : "316A74CB-7CDF-423E-92FE-7D211D3CFB3C",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-28T16:18:10Z",
+    "body" : "I used the EVEE service to book a Tesla Model 3P for the weekend we are driving up to Mt Glorious. $1,380.00 for the 3 days from Thursday to Monday morning.",
+    "deleted" : false,
+    "endDate" : "2022-01-28T16:18:10Z",
+    "source" : "LocoKit",
+    "id" : "BA56A9F4-8D21-4B56-B153-52BEF0558BBF",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-29T03:17:48Z",
+    "body" : "The phone was installing iOS 15.3 during the trip so didn’t record anything.",
+    "deleted" : false,
+    "endDate" : "2022-01-29T03:17:48Z",
+    "source" : "LocoKit",
+    "id" : "8E6C5F7F-C829-4F94-AF0C-BC8BFFAC539C",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-29T03:34:54Z",
+    "body" : "I waited in the LEAF while Katherine and Anita went shopping at Spotlight.",
+    "deleted" : false,
+    "endDate" : "2022-01-29T03:34:54Z",
+    "source" : "LocoKit",
+    "id" : "524E3065-438B-47BA-BBBA-D61150EE2551",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-30T04:45:54Z",
+    "body" : "I connected the trailer to the bicycle and the plan was to ride the Gateway Bridge Route; approximately 50kms long.\n\nWill the extra load consume the bicycles batteries at a faster rate and leave me stranded?",
+    "deleted" : false,
+    "endDate" : "2022-01-30T04:45:54Z",
+    "source" : "LocoKit",
+    "id" : "4B9F7ED5-8603-415B-A772-04D2AA8454A5",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-30T05:12:38Z",
+    "body" : "My first stop is at Minnippi parklands. This is where I discovered that I didn’t have any SD cards for the Canon camera!",
+    "deleted" : false,
+    "endDate" : "2022-01-30T05:12:38Z",
+    "source" : "LocoKit",
+    "id" : "0BE98EA8-459C-4D4C-A340-2212AF374806",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-30T06:31:43Z",
+    "body" : "This ended up being my main stop. I made tea using the Trangia cooker and ate the ham sandwich.",
+    "deleted" : false,
+    "endDate" : "2022-01-30T06:31:43Z",
+    "source" : "LocoKit",
+    "id" : "1003C225-08E0-44A4-B68C-BCE08D021ACF",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-30T07:20:33Z",
+    "body" : "I had to find a public toilet. There was one back at the playground off Hercules Street. I was able to park the bike and trailer next to the toilets.",
+    "deleted" : false,
+    "endDate" : "2022-01-30T07:20:33Z",
+    "source" : "LocoKit",
+    "id" : "7FD84E09-EE4D-477B-9AD1-73376019B404",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-30T07:41:36Z",
+    "body" : "It was a relief that the first battery expired at almost the same place as a previous ride without the trailer. Andrew lives near here?",
+    "deleted" : false,
+    "endDate" : "2022-01-30T07:41:36Z",
+    "source" : "LocoKit",
+    "id" : "860B0E37-1B21-475D-AEA3-72E91D481175",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-30T08:15:04Z",
+    "body" : "The next stop in my ride was at New Farm Park. I was originally planning for this to be the main stop. It’s very crowded so I’m happy with the alternative.\n\nA fellow stopped to ask about the trailer. He had actually walked past me earlier. He said he was interested in the single wheel version.",
+    "deleted" : false,
+    "endDate" : "2022-01-30T08:15:04Z",
+    "source" : "LocoKit",
+    "id" : "51FA60DE-F29D-48A4-9DC1-10A8A9ACA9A4",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  },
+  {
+    "startDate" : "2022-01-31T07:20:24Z",
+    "body" : "Got out my chair and had my orange burst poppa drink in the shade of the trees. It was a bit noisy with the main road nearby, so not the best spot on a weekday afternoon.",
+    "deleted" : false,
+    "endDate" : "2022-01-31T07:20:24Z",
+    "source" : "LocoKit",
+    "id" : "10D00EF8-E405-4433-83B0-504479D1DEFD",
+    "lastSaved" : "2025-12-21T03:18:52Z",
+    "creationDate" : "2025-12-21T03:18:52Z"
+  }
+]
