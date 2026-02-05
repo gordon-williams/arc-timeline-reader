@@ -805,6 +805,17 @@ function moveMapSmart(latlng, zoom) {
             date.setDate(date.getDate() - 1);
             return date.toISOString().substring(0, 10);
         }
+
+        // Helper: Get previous month key (YYYY-MM)
+        function getPreviousMonthKey(monthKey) {
+            if (!monthKey || !/^\d{4}-\d{2}$/.test(monthKey)) return null;
+            const [y, m] = monthKey.split('-').map(Number);
+            const date = new Date(y, m - 1, 15);
+            date.setMonth(date.getMonth() - 1);
+            const yy = date.getFullYear();
+            const mm = String(date.getMonth() + 1).padStart(2, '0');
+            return `${yy}-${mm}`;
+        }
         
         // Helper: Convert UTC date string to local day key (YYYY-MM-DD)
         // CRITICAL: Arc stores dates in UTC, but diary is organized by local date
@@ -2117,6 +2128,240 @@ function moveMapSmart(latlng, zoom) {
                 console.error('Error inspecting backup:', err);
                 return null;
             }
+        };
+
+        // Rebuild diary notes for a month from stored raw data (no re-import needed)
+        window.rebuildDiaryNotesFromRawData = async function(monthKey = currentMonth) {
+            if (!db) { console.log('DB not initialized'); return; }
+            if (!monthKey) { console.log('No month selected'); return; }
+
+            let dayRecords = await getMonthDaysFromDB(monthKey);
+            if (!dayRecords || dayRecords.length === 0) {
+                // Fallback: month index missing; derive days by key prefix
+                const allDayKeys = await getAllDayKeysFromDB();
+                const monthDayKeys = allDayKeys.filter(dk => dk.startsWith(monthKey + '-'));
+                dayRecords = [];
+                for (const dk of monthDayKeys) {
+                    const rec = await getDayFromDB(dk);
+                    if (rec) dayRecords.push(rec);
+                }
+            }
+            if (!dayRecords || dayRecords.length === 0) {
+                console.log('No day records for', monthKey);
+                return;
+            }
+
+            let updated = 0;
+            for (const rec of dayRecords) {
+                const data = rec.data;
+                if (!data || !data._rawData) continue;
+                const sourceFile = rec.sourceFile || 'json-import';
+                const notes = extractNotesFromData(data._rawData, rec.dayKey, sourceFile);
+                data.notes = notes;
+
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction(['days'], 'readwrite');
+                    tx.objectStore('days').put({
+                        dayKey: rec.dayKey,
+                        monthKey: rec.monthKey,
+                        lastUpdated: rec.lastUpdated,
+                        sourceFile: rec.sourceFile,
+                        contentHash: rec.contentHash,
+                        data: data
+                    });
+                    tx.oncomplete = resolve;
+                    tx.onerror = () => reject(tx.error);
+                });
+                updated++;
+                if (updated % 50 === 0) {
+                    console.log(`Rebuilt notes: ${updated}/${dayRecords.length}`);
+                }
+            }
+
+            // Refresh in-memory diary if loaded
+            if (generatedDiaries[monthKey]?.monthData?.days) {
+                for (const rec of dayRecords) {
+                    const dayData = generatedDiaries[monthKey].monthData.days[rec.dayKey];
+                    if (dayData) {
+                        dayData.notes = rec.data?.notes || dayData.notes;
+                    }
+                }
+                displayDiary(monthKey, true);
+                setTimeout(() => updateStatsForCurrentView(), 10);
+            }
+
+            console.log(`Rebuilt diary notes for ${updated} days in ${monthKey}`);
+        };
+
+        // Helper: list months present in the days store (derived from day keys)
+        window.listMonthsFromDays = async function() {
+            if (!db) { console.log('DB not initialized'); return; }
+            const allDayKeys = await getAllDayKeysFromDB();
+            const months = Array.from(new Set(allDayKeys.map(dk => dk.substring(0, 7)))).sort();
+            console.log('Months from day keys:', months);
+            return months;
+        };
+
+        // Helper: rebuild notes for a single day (for targeted fixes)
+        window.rebuildDiaryNotesForDay = async function(dayKey) {
+            if (!db) { console.log('DB not initialized'); return; }
+            if (!dayKey) { console.log('No dayKey provided'); return; }
+            const rec = await getDayFromDB(dayKey);
+            if (!rec || !rec.data || !rec.data._rawData) {
+                console.log('No raw data for day', dayKey);
+                return;
+            }
+            const sourceFile = rec.sourceFile || 'json-import';
+            const notes = extractNotesFromData(rec.data._rawData, dayKey, sourceFile);
+            rec.data.notes = notes;
+
+            await new Promise((resolve, reject) => {
+                const tx = db.transaction(['days'], 'readwrite');
+                tx.objectStore('days').put(rec);
+                tx.oncomplete = resolve;
+                tx.onerror = () => reject(tx.error);
+            });
+
+            if (generatedDiaries[rec.monthKey]?.monthData?.days?.[dayKey]) {
+                generatedDiaries[rec.monthKey].monthData.days[dayKey].notes = notes;
+                displayDiary(rec.monthKey, true);
+                setTimeout(() => updateStatsForCurrentView(), 10);
+            }
+
+            console.log('Rebuilt notes for day', dayKey);
+        };
+
+        // Rebuild notes for a day using stored timelineItems (backup imports don't keep _rawData)
+        window.rebuildDiaryNotesForDayFromStoredTimeline = async function(dayKey) {
+            if (!db) { console.log('DB not initialized'); return; }
+            if (!dayKey) { console.log('No dayKey provided'); return; }
+            const rec = await getDayFromDB(dayKey);
+            if (!rec || !rec.data || !rec.data.timelineItems) {
+                console.log('No timelineItems for day', dayKey);
+                return;
+            }
+            const sourceFile = rec.sourceFile || 'backup-import';
+            const notes = extractNotesFromData({ timelineItems: rec.data.timelineItems }, dayKey, sourceFile);
+            rec.data.notes = notes;
+
+            await new Promise((resolve, reject) => {
+                const tx = db.transaction(['days'], 'readwrite');
+                tx.objectStore('days').put(rec);
+                tx.oncomplete = resolve;
+                tx.onerror = () => reject(tx.error);
+            });
+
+            if (generatedDiaries[rec.monthKey]?.monthData?.days?.[dayKey]) {
+                generatedDiaries[rec.monthKey].monthData.days[dayKey].notes = notes;
+                displayDiary(rec.monthKey, true);
+                setTimeout(() => updateStatsForCurrentView(), 10);
+            }
+
+            console.log('Rebuilt notes from stored timeline for day', dayKey);
+        };
+
+        // Rebuild notes for a month using stored timelineItems
+        window.rebuildDiaryNotesFromStoredTimeline = async function(monthKey = currentMonth) {
+            if (!db) { console.log('DB not initialized'); return; }
+            if (!monthKey) { console.log('No month selected'); return; }
+
+            let dayRecords = await getMonthDaysFromDB(monthKey);
+            if (!dayRecords || dayRecords.length === 0) {
+                const allDayKeys = await getAllDayKeysFromDB();
+                const monthDayKeys = allDayKeys.filter(dk => dk.startsWith(monthKey + '-'));
+                dayRecords = [];
+                for (const dk of monthDayKeys) {
+                    const rec = await getDayFromDB(dk);
+                    if (rec) dayRecords.push(rec);
+                }
+            }
+            if (!dayRecords || dayRecords.length === 0) {
+                console.log('No day records for', monthKey);
+                return;
+            }
+
+            // Build spanning visit index (to restore visits that span into a day)
+            const prevMonthKey = getPreviousMonthKey(monthKey);
+            let prevMonthRecords = [];
+            if (prevMonthKey) {
+                prevMonthRecords = await getMonthDaysFromDB(prevMonthKey);
+            }
+
+            const spanningVisitsIndex = new Map();
+            const addSpanningVisit = (visit) => {
+                const startDay = getLocalDayKey(visit.startDate);
+                const endDay = getLocalDayKey(visit.endDate);
+                if (!startDay || !endDay || endDay <= startDay) return;
+                let currentDay = startDay;
+                while (true) {
+                    const nextDate = new Date(currentDay + 'T12:00:00');
+                    nextDate.setDate(nextDate.getDate() + 1);
+                    currentDay = nextDate.toISOString().substring(0, 10);
+                    if (currentDay > endDay) break;
+                    if (!spanningVisitsIndex.has(currentDay)) spanningVisitsIndex.set(currentDay, []);
+                    spanningVisitsIndex.get(currentDay).push(visit);
+                }
+            };
+
+            const collectSpanning = (records) => {
+                for (const rec of records) {
+                    const items = rec?.data?.timelineItems || [];
+                    for (const item of items) {
+                        if (!item.isVisit || !item.startDate || !item.endDate) continue;
+                        const startDay = getLocalDayKey(item.startDate);
+                        const endDay = getLocalDayKey(item.endDate);
+                        if (startDay && endDay && endDay > startDay) {
+                            addSpanningVisit(item);
+                        }
+                    }
+                }
+            };
+
+            collectSpanning(dayRecords);
+            collectSpanning(prevMonthRecords);
+
+            let updated = 0;
+            for (const rec of dayRecords) {
+                if (!rec.data || !rec.data.timelineItems) continue;
+                const sourceFile = rec.sourceFile || 'backup-import';
+                const mergedItems = [...rec.data.timelineItems];
+                const spanVisits = spanningVisitsIndex.get(rec.dayKey) || [];
+                if (spanVisits.length > 0) {
+                    const existingIds = new Set(mergedItems.map(i => i.itemId));
+                    for (const v of spanVisits) {
+                        if (!existingIds.has(v.itemId)) {
+                            mergedItems.push(v);
+                        }
+                    }
+                }
+
+                const notes = extractNotesFromData({ timelineItems: mergedItems }, rec.dayKey, sourceFile);
+                rec.data.notes = notes;
+
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction(['days'], 'readwrite');
+                    tx.objectStore('days').put(rec);
+                    tx.oncomplete = resolve;
+                    tx.onerror = () => reject(tx.error);
+                });
+                updated++;
+                if (updated % 50 === 0) {
+                    console.log(`Rebuilt notes: ${updated}/${dayRecords.length}`);
+                }
+            }
+
+            if (generatedDiaries[monthKey]?.monthData?.days) {
+                for (const rec of dayRecords) {
+                    const dayData = generatedDiaries[monthKey].monthData.days[rec.dayKey];
+                    if (dayData) {
+                        dayData.notes = rec.data?.notes || dayData.notes;
+                    }
+                }
+                displayDiary(monthKey, true);
+                setTimeout(() => updateStatsForCurrentView(), 10);
+            }
+
+            console.log(`Rebuilt notes from stored timeline for ${updated} days in ${monthKey}`);
         };
         
         // Export database to JSON (for backup/portability)
@@ -3604,7 +3849,7 @@ function moveMapSmart(latlng, zoom) {
             };
         }
 
-        function normalizeBackupSample(rawSample) {
+        function normalizeBackupSample(rawSample, requireTimelineItemId = true) {
             if (!rawSample || typeof rawSample !== 'object') return null;
             const location = rawSample.location || (
                 rawSample.latitude != null && rawSample.longitude != null
@@ -3615,9 +3860,12 @@ function moveMapSmart(latlng, zoom) {
                     }
                     : null
             );
-            if (!rawSample.timelineItemId || !location) return null;
+            // Location is always required; timelineItemId is required for Chrome path but
+            // optional for Safari path (which matches samples to items by date/time range)
+            if (!location) return null;
+            if (requireTimelineItemId && !rawSample.timelineItemId) return null;
             return {
-                timelineItemId: rawSample.timelineItemId,
+                timelineItemId: rawSample.timelineItemId || null,
                 location,
                 date: rawSample.date,
                 movingState: rawSample.movingState,
@@ -4380,7 +4628,20 @@ function moveMapSmart(latlng, zoom) {
             addLog('📂 Indexing files...');
 
             // Yield to let UI render before heavy file indexing
-            await new Promise(r => setTimeout(r, 50));
+            // Safari can delay paint until after synchronous loops, so force a frame.
+            if (progressFill) {
+                progressFill.style.width = '0%';
+                progressFill.textContent = '0%';
+            }
+            if (progressText) {
+                progressText.textContent = 'Indexing files...';
+            }
+            if (logDiv) {
+                logDiv.scrollTop = logDiv.scrollHeight;
+                logDiv.getBoundingClientRect(); // force layout before yielding
+            }
+            await new Promise(r => requestAnimationFrame(r));
+            await new Promise(r => setTimeout(r, 0));
 
             const forceRescan = document.getElementById('backupForceRescan')?.checked || false;
             const missingOnly = document.getElementById('backupMissingOnly')?.checked || false;
@@ -4716,7 +4977,8 @@ function moveMapSmart(latlng, zoom) {
                         const normalizedSamples = [];
                         for (const rawSample of toRecordArray(samples)) {
                             importDiag.samples.seen++;
-                            const sample = normalizeBackupSample(rawSample);
+                            // Safari path matches samples by date/time, not timelineItemId
+                            const sample = normalizeBackupSample(rawSample, false);
                             if (sample) {
                                 normalizedSamples.push(sample);
                                 importDiag.samples.accepted++;
@@ -7392,6 +7654,87 @@ function moveMapSmart(latlng, zoom) {
                 requestAnimationFrame(() => onComplete());
             }
         }
+
+        // ============================
+        // Developer Tools Modal
+        // ============================
+        function openDeveloperModal() {
+            const modal = document.getElementById('devModal');
+            const backdrop = document.getElementById('devModalBackdrop');
+            if (!modal || !backdrop) return;
+
+            const monthInput = document.getElementById('devMonthKey');
+            const dayInput = document.getElementById('devDayKey');
+            if (monthInput) monthInput.value = currentMonth || '';
+            if (dayInput) dayInput.value = currentDayKey || '';
+
+            backdrop.style.display = 'block';
+            modal.style.display = 'block';
+        }
+
+        function closeDeveloperModal() {
+            const modal = document.getElementById('devModal');
+            const backdrop = document.getElementById('devModalBackdrop');
+            if (modal) modal.style.display = 'none';
+            if (backdrop) backdrop.style.display = 'none';
+        }
+
+        function devLog(message) {
+            const el = document.getElementById('devLog');
+            if (!el) return;
+            const ts = new Date().toLocaleTimeString();
+            el.textContent = `[${ts}] ${message}\n` + el.textContent;
+        }
+
+        async function runDevAction(action) {
+            try {
+                const monthKey = document.getElementById('devMonthKey')?.value?.trim();
+                const dayKey = document.getElementById('devDayKey')?.value?.trim();
+
+                if (action === 'listMonths') {
+                    const months = await window.listMonthsFromDays();
+                    devLog(`Months: ${months?.length || 0}`);
+                    return;
+                }
+                if (action === 'clearLog') {
+                    const el = document.getElementById('devLog');
+                    if (el) el.textContent = '';
+                    return;
+                }
+                if (action === 'rebuildMonthStored') {
+                    if (!monthKey) { devLog('Month key required'); return; }
+                    await window.rebuildDiaryNotesFromStoredTimeline(monthKey);
+                    devLog(`Rebuilt month (stored): ${monthKey}`);
+                    return;
+                }
+                if (action === 'rebuildDayStored') {
+                    if (!dayKey) { devLog('Day key required'); return; }
+                    await window.rebuildDiaryNotesForDayFromStoredTimeline(dayKey);
+                    devLog(`Rebuilt day (stored): ${dayKey}`);
+                    return;
+                }
+                if (action === 'rebuildMonthRaw') {
+                    if (!monthKey) { devLog('Month key required'); return; }
+                    await window.rebuildDiaryNotesFromRawData(monthKey);
+                    devLog(`Rebuilt month (raw): ${monthKey}`);
+                    return;
+                }
+                if (action === 'rebuildDayRaw') {
+                    if (!dayKey) { devLog('Day key required'); return; }
+                    await window.rebuildDiaryNotesForDay(dayKey);
+                    devLog(`Rebuilt day (raw): ${dayKey}`);
+                    return;
+                }
+                devLog(`Unknown action: ${action}`);
+            } catch (err) {
+                devLog(`Error: ${err.message}`);
+            }
+        }
+
+        // Expose dev modal functions globally for inline HTML handlers
+        window.openDeveloperModal = openDeveloperModal;
+        window.closeDeveloperModal = closeDeveloperModal;
+        window.runDevAction = runDevAction;
         
         // Update favourite tags on diary entries based on current favourites
         function updateFavouriteTags() {
@@ -15264,12 +15607,12 @@ scrollToDiaryDay(currentDayKey);
             // First, extract all valid GPS points (skip nulls)
             const validPoints = [];
             for (const sample of samples) {
-                if (sample.location && 
-                    sample.location.latitude != null && 
-                    sample.location.longitude != null) {
+                const lat = sample.location?.latitude ?? sample.latitude;
+                const lng = sample.location?.longitude ?? sample.longitude;
+                if (lat != null && lng != null) {
                     validPoints.push({
-                        lat: sample.location.latitude,
-                        lng: sample.location.longitude
+                        lat,
+                        lng
                     });
                 }
             }
@@ -15551,6 +15894,15 @@ scrollToDiaryDay(currentDayKey);
             const displayItems = shouldCoalesce 
                 ? coalesceTimelineForDisplay(data.timelineItems)
                 : data.timelineItems;
+
+            // Precompute visit windows for containment checks (start/end in ms)
+            const visitWindows = displayItems
+                .filter(i => i.isVisit && i.startDate && (i._displayEndDate || i.endDate))
+                .map(i => ({
+                    start: new Date(i.startDate).getTime(),
+                    end: new Date(i._displayEndDate || i.endDate).getTime()
+                }))
+                .filter(v => !isNaN(v.start) && !isNaN(v.end) && v.end >= v.start);
             
             // 🎯 Option B: Group nearby unnamed locations intelligently
             // First pass: Build location clusters (use original items for accurate clustering)
@@ -15671,12 +16023,13 @@ scrollToDiaryDay(currentDayKey);
                     if ((lat == null || lng == null) && item.samples && item.samples.length > 0) {
                         // Find first sample with valid location data (don't assume samples[0] is valid)
                         const validSample = item.samples.find(s =>
-                            s.location && s.location.latitude != null && s.location.longitude != null
+                            (s.location && s.location.latitude != null && s.location.longitude != null) ||
+                            (s.latitude != null && s.longitude != null)
                         );
                         if (validSample) {
-                            lat = validSample.location.latitude;
-                            lng = validSample.location.longitude;
-                            altitude = validSample.location.altitude;
+                            lat = validSample.location?.latitude ?? validSample.latitude;
+                            lng = validSample.location?.longitude ?? validSample.longitude;
+                            altitude = validSample.location?.altitude ?? validSample.altitude;
                         }
                     }
 
@@ -15695,6 +16048,25 @@ scrollToDiaryDay(currentDayKey);
                     let displayDate = note.date;
                     if (spansFromPreviousDay && item.isVisit && note.body === '') {
                         displayDate = dayKey + 'T00:00:00';
+                    }
+
+                    // Suppress low-signal activities fully contained within a visit window
+                    if (!item.isVisit && item.startDate && item.endDate) {
+                        const isUnknown = (item.activityType || '').toLowerCase() === 'unknown';
+                        const isNoGps = !item.samples || item.samples.length === 0;
+                        const isTiny = (duration || 0) > 0 && (duration || 0) <= 60;
+                        const hasNoNote = !note.body || note.body.trim() === '';
+                        const hasNoDistance = !distance || distance <= 0;
+
+                        const isLowSignal = isUnknown || isNoGps || isTiny || hasNoDistance;
+
+                        if (isLowSignal && hasNoNote) {
+                            const activityStart = new Date(item.startDate).getTime();
+                            const activityEnd = new Date(item.endDate).getTime();
+                            if (visitWindows.some(v => activityStart >= v.start && activityEnd <= v.end)) {
+                                continue;
+                            }
+                        }
                     }
                     
                     // Use effective end date for merged items
@@ -16157,9 +16529,9 @@ scrollToDiaryDay(currentDayKey);
 
                 const pts = [];
                 for (const s of item.samples) {
-                    const lat = s?.location?.latitude;
-                    const lng = s?.location?.longitude;
-                    const alt = s?.location?.altitude;
+                    const lat = s?.location?.latitude ?? s?.latitude;
+                    const lng = s?.location?.longitude ?? s?.longitude;
+                    const alt = s?.location?.altitude ?? s?.altitude;
                     const ts = s?.location?.timestamp || s?.timestamp || s?.date;
                     if (!lat || !lng) continue;
                     pts.push({ lat, lng, alt: alt ?? null, t: ts ?? null });

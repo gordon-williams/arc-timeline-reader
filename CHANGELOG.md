@@ -1,5 +1,129 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 830 (2026-02-05)
+
+### Fix - Safari/Chrome Arc Timeline Backup GPS Samples Regression
+- **Root cause**: Arc Editor changes introduced `normalizeBackupSample()` which requires `timelineItemId`
+- **Safari path regression**: Safari import matches samples to items by date/time range, not by `timelineItemId`
+- **Fix**: Made `timelineItemId` optional in `normalizeBackupSample()` for Safari path
+- **Result**: GPS samples now load correctly for Arc Timeline backups again
+
+---
+
+## Build 829 (2026-02-05)
+
+### UI - Developer Modal Button Labels
+- Ensured dev modal buttons render labels (explicit text color + min width)
+
+---
+
+## Build 828 (2026-02-05)
+
+### UI - Developer Modal Cleanup
+- Simplified layout and grouped actions (Rebuild vs Utilities)
+- Added Clear Log action and monospace log styling
+
+---
+
+## Build 827 (2026-02-05)
+
+### Fix - Developer Modal Hookup
+- Exposed `openDeveloperModal`, `closeDeveloperModal`, and `runDevAction` to the global scope for inline handlers
+
+---
+
+## Build 826 (2026-02-05)
+
+### UI - Developer Tools Modal
+- Added a developer modal to run common maintenance commands without the console
+- Includes month/day inputs and actions for rebuilds and month listing
+
+---
+
+## Build 825 (2026-02-05)
+
+### Fix - Notes Rebuild Spanning Visits
+- Added `getPreviousMonthKey()` helper used by notes rebuild
+- Notes rebuild now merges spanning visits from the previous month to avoid missing midnight visits
+
+---
+
+## Build 824 (2026-02-05)
+
+### Tools - Rebuild Notes From Stored Timeline
+- Added `rebuildDiaryNotesForDayFromStoredTimeline(dayKey)` for backup imports that don't store `_rawData`
+- Added `rebuildDiaryNotesFromStoredTimeline(monthKey)` to rebuild a month using stored `timelineItems`
+- Use these to refresh NO GPS tags without full re-import
+
+---
+
+## Build 823 (2026-02-05)
+
+### Tools - Targeted Notes Rebuild
+- Added `listMonthsFromDays()` console helper to list available months derived from day keys
+- Added `rebuildDiaryNotesForDay(dayKey)` for targeted re-extraction when month rebuild fails
+
+---
+
+## Build 822 (2026-02-05)
+
+### Fix - Notes Rebuild Fallback
+- `rebuildDiaryNotesFromRawData(monthKey)` now falls back to day-key scanning if month index returns no records
+- Allows rebuilds even when the month index isn't populated in IndexedDB
+
+---
+
+## Build 821 (2026-02-05)
+
+### Fix - NO GPS Tags From Flat Samples
+- `calculatePathDistance` now supports samples with flat `latitude/longitude` (no `location` object)
+- Added `rebuildDiaryNotesFromRawData(monthKey)` console helper to rebuild notes without full reimport
+- Use this to refresh NO GPS tags after loading older data
+
+---
+
+## Build 820 (2026-02-05)
+
+### UI - Safari Import Paint Fix
+- Forces an immediate UI paint before Safari starts indexing the FileList
+- Progress notes now appear right away instead of after several seconds of blocking work
+
+---
+
+## Build 819 (2026-02-05)
+
+### Fix - NO GPS Tags On Tracked Activities
+- Added fallback to `sample.latitude/longitude` when `sample.location` is missing
+- Applies to diary activity location extraction and route point building
+- Prevents NO GPS tags on activities that actually have GPS samples
+
+---
+
+## Build 818 (2026-02-05)
+
+### Fix - Contained Low-Signal Activities
+- Suppresses low-signal activities fully contained within visit windows
+- Only applies to activities with no notes and low signal (unknown/no GPS/zero distance/very short)
+- Keeps real trips visible while eliminating tiny unknown noise inside visits
+
+---
+
+## Build 817 (2026-02-05)
+
+### Fix - Suppress Tiny Unknown No-GPS Activities
+- Filters out brief `unknown` activities with no GPS, no distance, and no notes (typical backup noise)
+- Removes spurious 5–60s "Unknown • NO GPS" entries without affecting real trips
+
+---
+
+## Build 816 (2026-02-04)
+
+### UI - Faster Safari Import Feedback
+- Forced early UI paint before Safari file indexing to show progress notes immediately
+- Helps avoid perceived freeze on large FileList scans
+
+---
+
 ## Build 815 (2026-02-04)
 
 ### Fix - Replay Visit Markers Fallback
