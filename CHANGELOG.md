@@ -1,5 +1,60 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 864 (2026-02-05)
+
+### Export - GPX Format
+- GPX now matches Arc App format (wpt + trk/type + local timestamps)
+
+---
+
+## Build 863 (2026-02-05)
+
+### Export - GPX Track Grouping
+- GPX groups tracks by activity type with separate segments
+
+---
+
+## Build 862 (2026-02-05)
+
+### Export - Date Range (JSON + GPX)
+- Export modal with date range and ALL option
+- One file per day for JSON and GPX
+- Uses File System Access API when available, browser download otherwise
+
+---
+
+## Build 861 (2026-02-05)
+
+### Export - Single Day
+- Added Export JSON and Export GPX for current day
+- Uses browser download in Safari and File System Access API when available
+
+---
+
+## Build 860 (2026-02-05)
+
+### Fix - Backup Import
+- Removed leftover missing-days references after cleanup
+
+---
+
+## Build 859 (2026-02-05)
+
+### Cleanup - Unused Features
+- Removed Raw timeline toggle wiring
+- Removed Missing-days import logic
+
+---
+
+## Build 858 (2026-02-05)
+
+### Import UI Simplification
+- Default import option is now Backup
+- Removed Missing days option
+- Removed Raw toggle from diary header
+
+---
+
 ## Build 857 (2026-02-05)
 
 ### Route Search - Mapbox Bias

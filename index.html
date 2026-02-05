@@ -32,7 +32,7 @@ SOFTWARE.
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"  crossorigin="anonymous" />
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = 857;
+  window.__ARC_BUILD__ = 864;
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -123,7 +123,7 @@ SOFTWARE.
 						<button onclick="confirmClearDatabase()" style="flex: 1; background: #ff3b30; color: white; border: none; padding: 14px; border-radius: 12px; cursor: pointer; font-size: 17px; font-weight: 600; transition: opacity 0.2s; min-height: 50px;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
 							Clear
 						</button>
-						<button onclick="exportDatabaseBackup()" style="flex: 1; background: #f5f5f7; color: #1d1d1f; border: none; padding: 14px; border-radius: 12px; cursor: pointer; font-size: 17px; font-weight: 600; transition: background 0.2s; min-height: 50px;" onmouseover="this.style.background='#e8e8ed'" onmouseout="this.style.background='#f5f5f7'">
+						<button onclick="openExportModal()" style="flex: 1; background: #f5f5f7; color: #1d1d1f; border: none; padding: 14px; border-radius: 12px; cursor: pointer; font-size: 17px; font-weight: 600; transition: background 0.2s; min-height: 50px;" onmouseover="this.style.background='#e8e8ed'" onmouseout="this.style.background='#f5f5f7'">
 							Export JSON
 						</button>
 						<button onclick="importMoreFiles()" style="flex: 1; background: #f5f5f7; color: #1d1d1f; border: none; padding: 14px; border-radius: 12px; cursor: pointer; font-size: 17px; font-weight: 600; transition: background 0.2s; min-height: 50px;" onmouseover="this.style.background='#e8e8ed'" onmouseout="this.style.background='#f5f5f7'">
@@ -155,16 +155,16 @@ SOFTWARE.
             <div class="form-group" id="fileInputSection">
                 <!-- Import Type Selector -->
                 <div style="display: flex; gap: 12px; margin-bottom: 16px;">
-                    <button id="jsonImportTab" onclick="selectImportType('json')" style="flex: 1; padding: 12px 20px; border: 2px solid #007AFF; background: #007AFF; color: white; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                    <button id="jsonImportTab" onclick="selectImportType('json')" style="flex: 1; padding: 12px 20px; border: 2px solid #d1d1d6; background: white; color: #1d1d1f; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
                         📄 Import JSON
                     </button>
-                    <button id="backupImportTab" onclick="selectImportType('backup')" style="flex: 1; padding: 12px 20px; border: 2px solid #d1d1d6; background: white; color: #1d1d1f; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                    <button id="backupImportTab" onclick="selectImportType('backup')" style="flex: 1; padding: 12px 20px; border: 2px solid #34C759; background: #34C759; color: white; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
                         💾 Import Backup
                     </button>
                 </div>
                 
                 <!-- JSON Import Panel -->
-                <div id="jsonImportPanel" style="background: #ffffff; border: 1px solid #d1d1d6; border-radius: 18px; padding: 48px; text-align: center; cursor: pointer; transition: border-color 0.2s;" onclick="document.getElementById('fileInput').click()" onmouseover="this.style.borderColor='#007AFF'" onmouseout="this.style.borderColor='#d1d1d6'">
+                <div id="jsonImportPanel" style="display: none; background: #ffffff; border: 1px solid #d1d1d6; border-radius: 18px; padding: 48px; text-align: center; cursor: pointer; transition: border-color 0.2s;" onclick="document.getElementById('fileInput').click()" onmouseover="this.style.borderColor='#007AFF'" onmouseout="this.style.borderColor='#d1d1d6'">
                     <div style="font-size: 72px; margin-bottom: 20px; opacity: 0.7;">📂</div>
                     <div style="font-size: 21px; font-weight: 600; color: #1d1d1f; margin-bottom: 8px;">Import JSON Files</div>
                     <div style="font-size: 15px; color: #86868b; line-height: 1.47;">
@@ -181,7 +181,7 @@ SOFTWARE.
                 </div>
                 
                 <!-- Backup Import Panel -->
-                <div id="backupImportPanel" style="display: none; background: #ffffff; border: 1px solid #d1d1d6; border-radius: 18px; padding: 48px; text-align: center; cursor: pointer; transition: border-color 0.2s;" onclick="selectBackupFolder()" onmouseover="this.style.borderColor='#34C759'" onmouseout="this.style.borderColor='#d1d1d6'">
+                <div id="backupImportPanel" style="background: #ffffff; border: 1px solid #d1d1d6; border-radius: 18px; padding: 48px; text-align: center; cursor: pointer; transition: border-color 0.2s;" onclick="selectBackupFolder()" onmouseover="this.style.borderColor='#34C759'" onmouseout="this.style.borderColor='#d1d1d6'">
                     <div style="font-size: 72px; margin-bottom: 20px; opacity: 0.7;">💾</div>
                     <div style="font-size: 21px; font-weight: 600; color: #1d1d1f; margin-bottom: 8px;">Import from Backup</div>
                     <div style="font-size: 15px; color: #86868b; line-height: 1.47;">
@@ -190,10 +190,6 @@ SOFTWARE.
                     </div>
                     <div class="file-count" id="backupFileCount"></div>
                     <div style="margin-top: 16px;" onclick="event.stopPropagation();">
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: #666; margin-bottom: 8px;">
-                            <input type="checkbox" id="backupMissingOnly" style="width: 18px; height: 18px;">
-                            <span><strong>Missing days only</strong> (won't add to existing days)</span>
-                        </label>
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: #666;">
                             <input type="checkbox" id="backupForceRescan" style="width: 18px; height: 18px;">
                             Force full rescan (reimport all data)
@@ -228,6 +224,45 @@ SOFTWARE.
                 Arc Timeline Diary Reader v<span id="appVersion"></span> © 2025 <a href="https://github.com/YOUR_USERNAME/arc-timeline-diary-generator" target="_blank">Gordon Williams</a> | 
                 <a href="https://opensource.org/licenses/MIT" target="_blank">MIT License</a> |
                 <a href="#" onclick="showCredits(); return false;">Credits</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div class="export-modal-overlay" id="exportModalOverlay" style="display: none;">
+        <div class="export-modal">
+            <div class="export-modal-header">
+                <span>Export</span>
+                <button class="export-modal-close" onclick="closeExportModal()">×</button>
+            </div>
+            <div class="export-modal-body">
+                <div class="export-row">
+                    <label><input type="checkbox" id="exportJson" checked> JSON</label>
+                    <label><input type="checkbox" id="exportGpx" checked> GPX</label>
+                </div>
+                <div class="export-row">
+                    <label><input type="checkbox" id="exportAllDays"> ALL days</label>
+                </div>
+                <div class="export-row export-range">
+                    <div>
+                        <label for="exportStart">Start</label>
+                        <input type="date" id="exportStart">
+                    </div>
+                    <div>
+                        <label for="exportEnd">End</label>
+                        <input type="date" id="exportEnd">
+                    </div>
+                </div>
+                <div class="export-progress" id="exportProgress" style="display: none;">
+                    <div class="export-progress-bar">
+                        <div class="export-progress-fill" id="exportProgressFill">0%</div>
+                    </div>
+                    <div class="export-progress-text" id="exportProgressText"></div>
+                </div>
+            </div>
+            <div class="export-modal-footer">
+                <button class="btn-export-cancel" onclick="closeExportModal()">Cancel</button>
+                <button class="btn-export-start" onclick="startExport()">Export</button>
             </div>
         </div>
     </div>
@@ -444,7 +479,7 @@ SOFTWARE.
                         <div class="diary-title-row">
                             <div class="diary-title-group">
                                 <span class="diary-title" id="diaryTitle">Diary Timeline</span>
-                                <span class="diary-build" id="diaryBuild">Build 857</span>
+                                <span class="diary-build" id="diaryBuild">Build 864</span>
                             </div>
                             <div class="diary-nav-group" id="diaryNavGroup">
                                 <button class="btn-diary-nav btn-nav-circular" id="prevDayBtn" onclick="NavigationController.navigateBy(-1, 'day')" title="Previous day">‹</button>
@@ -457,15 +492,13 @@ SOFTWARE.
                                     <input type="checkbox" id="notesOnly">
                                     <span>Notes only</span>
                                 </label>
-                                <label class="diary-checkbox-label" title="Show uncoalesced timeline (iCloud backup imports only)">
-                                    <input type="checkbox" id="rawTimeline">
-                                    <span>Raw</span>
-                                </label>
                             </div>
                             
                             <div class="diary-actions">
                                 <button class="btn-diary-action" onclick="printDiary()" title="Print">Print</button>
                                 <button class="btn-diary-action" onclick="downloadCurrentMonth()" title="Download">Download</button>
+                                <button class="btn-diary-action" onclick="exportCurrentDayJson()" title="Export JSON">Export JSON</button>
+                                <button class="btn-diary-action" onclick="exportCurrentDayGpx()" title="Export GPX">Export GPX</button>
                             </div>
                             <button class="btn-toggle-diary" id="toggleDiaryBtn" onclick="toggleDiary()" title="Hide diary">&times;</button>
                         </div>

@@ -4108,6 +4108,129 @@
     background: #f0f7ff;
 }
 
+/* Export modal */
+.export-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+}
+
+.export-modal {
+    width: 420px;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    overflow: hidden;
+}
+
+.export-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid #e5e5ea;
+    font-weight: 600;
+}
+
+.export-modal-close {
+    background: rgba(0,0,0,0.06);
+    border: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.export-modal-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.export-row {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+}
+
+.export-range {
+    gap: 12px;
+}
+
+.export-range label {
+    display: block;
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 4px;
+}
+
+.export-range input[type="date"] {
+    padding: 8px 10px;
+    border: 1px solid #d1d1d6;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.export-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.export-progress-bar {
+    height: 6px;
+    background: #e5e5ea;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.export-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: #007aff;
+    color: #fff;
+    font-size: 10px;
+    text-align: center;
+    line-height: 6px;
+}
+
+.export-progress-text {
+    font-size: 12px;
+    color: #666;
+}
+
+.export-modal-footer {
+    padding: 12px 16px;
+    border-top: 1px solid #e5e5ea;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.btn-export-cancel {
+    background: #f0f0f0;
+    border: 1px solid #ddd;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.btn-export-start {
+    background: #007aff;
+    color: #fff;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
 /* Map click waypoint popup */
 .route-waypoint-popup {
     display: flex;

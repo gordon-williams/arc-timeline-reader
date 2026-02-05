@@ -895,12 +895,8 @@
         deps.addLog('🔄 Starting backup import (File System Access API)...');
 
         const forceRescan = document.getElementById('backupForceRescan')?.checked || false;
-        const missingOnly = document.getElementById('backupMissingOnly')?.checked || false;
         const lastBackupSync = forceRescan ? null : await deps.getMetadata('lastBackupSync');
 
-        if (missingOnly) {
-            deps.addLog('🛡️ Missing days only - existing data will not be modified');
-        }
         if (forceRescan) {
             deps.addLog('⚠️ Force rescan enabled - reimporting all data');
         } else if (lastBackupSync) {
@@ -916,11 +912,6 @@
 
             // For "missing only" mode
             let existingDays = new Set();
-            if (missingOnly) {
-                const allDayKeys = await getAllDayKeysFromDB();
-                existingDays = new Set(allDayKeys);
-                deps.addLog(`  Database has ${existingDays.size.toLocaleString()} existing days`);
-            }
 
             // Step 1: Load Places (0-5%)
             deps.addLog('\n📍 Loading Places...');
@@ -1002,9 +993,6 @@
                 if (!startDate) continue;
 
                 const dayKey = startDate.substring(0, 10);
-
-                // Skip if missingOnly and day exists
-                if (missingOnly && existingDays.has(dayKey)) continue;
 
                 if (!itemsByDay.has(dayKey)) {
                     itemsByDay.set(dayKey, []);
@@ -1180,8 +1168,7 @@
             // Reset checkboxes
             const forceCheckbox = document.getElementById('backupForceRescan');
             if (forceCheckbox) forceCheckbox.checked = false;
-            const missingCheckbox = document.getElementById('backupMissingOnly');
-            if (missingCheckbox) missingCheckbox.checked = false;
+            // Missing days option removed
 
             // Update UI
             await deps.updateDBStatusDisplay();
@@ -1226,11 +1213,8 @@
         await new Promise(r => setTimeout(r, 50));
 
         const forceRescan = document.getElementById('backupForceRescan')?.checked || false;
-        const missingOnly = document.getElementById('backupMissingOnly')?.checked || false;
+        // Missing days option removed
 
-        if (missingOnly) {
-            deps.addLog('🛡️ Missing days only - existing data will not be modified');
-        }
         if (forceRescan) {
             deps.addLog('⚠️ Force rescan enabled - reimporting all data');
         }
@@ -1275,11 +1259,6 @@
 
             // For "missing only" mode
             let existingDays = new Set();
-            if (missingOnly) {
-                const allDayKeys = await getAllDayKeysFromDB();
-                existingDays = new Set(allDayKeys);
-                deps.addLog(`  Database has ${existingDays.size.toLocaleString()} existing days`);
-            }
 
             const SAFARI_BATCH_SIZE = 10;
             const SAFARI_PAUSE_MS = 5;
@@ -1391,7 +1370,6 @@
                     if (!item || item.deleted || !item.startDate) continue;
 
                     const dayKey = item.startDate.substring(0, 10);
-                    if (missingOnly && existingDays.has(dayKey)) continue;
 
                     if (!itemsByDay.has(dayKey)) {
                         itemsByDay.set(dayKey, []);
@@ -1553,8 +1531,7 @@
             // Reset checkboxes
             const forceCheckbox = document.getElementById('backupForceRescan');
             if (forceCheckbox) forceCheckbox.checked = false;
-            const missingCheckbox = document.getElementById('backupMissingOnly');
-            if (missingCheckbox) missingCheckbox.checked = false;
+            // Missing days option removed
 
             // Update UI
             await deps.updateDBStatusDisplay();

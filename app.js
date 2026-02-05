@@ -3542,7 +3542,7 @@ function moveMapSmart(latlng, zoom) {
         
         let selectedFiles = [];
         let selectedBackupFiles = []; // For backup import
-        let currentImportType = 'json'; // 'json' or 'backup'
+        let currentImportType = 'backup'; // 'json' or 'backup'
         let generatedDiaries = {};
         let currentMonth = null;
         let monthKeys = [];
@@ -3575,6 +3575,7 @@ function moveMapSmart(latlng, zoom) {
                 backupPanel.style.display = 'block';
             }
         };
+        window.selectImportType('backup');
         
         // Backup folder input handler - setup after DOM ready
         function setupBackupImportHandler() {
@@ -3993,12 +3994,8 @@ function moveMapSmart(latlng, zoom) {
             addLog('🔄 Starting backup import (File System Access API)...');
 
             const forceRescan = document.getElementById('backupForceRescan')?.checked || false;
-            const missingOnly = document.getElementById('backupMissingOnly')?.checked || false;
             const lastBackupSync = forceRescan ? null : await getMetadata('lastBackupSync');
 
-            if (missingOnly) {
-                addLog('🛡️ Missing days only - existing data will not be modified');
-            }
             if (forceRescan) {
                 addLog('⚠️ Force rescan enabled - reimporting all data');
             } else if (lastBackupSync) {
@@ -4030,11 +4027,6 @@ function moveMapSmart(latlng, zoom) {
 
                 // For "missing only" mode: get existing days first
                 let existingDays = new Set();
-                if (missingOnly) {
-                    const allDayKeys = await getAllDayKeysFromDB();
-                    existingDays = new Set(allDayKeys);
-                    addLog(`  Database has ${existingDays.size.toLocaleString()} existing days`);
-                }
 
                 // Step 1: Load Places (0-5%)
                 addLog('\n📍 Loading Places...');
@@ -4169,28 +4161,8 @@ function moveMapSmart(latlng, zoom) {
                                 const startDayKey = getLocalDayKey(item.startDate);
                                 const endDayKey = item.endDate ? getLocalDayKey(item.endDate) : startDayKey;
                             
-                                // In missingOnly mode, check if this item spans into any missing days
-                                let spansIntoMissingDay = false;
-                                if (missingOnly && item.isVisit && endDayKey > startDayKey) {
-                                    let checkDay = startDayKey;
-                                    while (checkDay <= endDayKey) {
-                                        if (!existingDays.has(checkDay)) {
-                                            spansIntoMissingDay = true;
-                                            break;
-                                        }
-                                        const nextDate = new Date(checkDay + 'T12:00:00');
-                                        nextDate.setDate(nextDate.getDate() + 1);
-                                        checkDay = nextDate.toISOString().substring(0, 10);
-                                    }
-                                }
-                            
-                                if (missingOnly && existingDays.has(startDayKey) && !spansIntoMissingDay) {
-                                    skippedExisting++;
-                                    continue;
-                                }
-                            
-                                // Skip unchanged items UNLESS they span into missing days
-                                if (lastBackupSync && item.lastSaved && item.lastSaved <= lastBackupSync && !spansIntoMissingDay) {
+                                // Skip unchanged items
+                                if (lastBackupSync && item.lastSaved && item.lastSaved <= lastBackupSync) {
                                     skippedUnchanged++;
                                     continue;
                                 }
@@ -4214,10 +4186,7 @@ function moveMapSmart(latlng, zoom) {
                                 changedWeeks.add(getISOWeek(item.startDate));
                                 importDiag.timeline.accepted++;
 
-                                // Track if this was included because it spans into missing days
-                                if (spansIntoMissingDay) {
-                                    includedForSpanning++;
-                                }
+                                // Missing days mode removed
                             }
                         }
                         
@@ -4257,41 +4226,12 @@ function moveMapSmart(latlng, zoom) {
                             const startDayKey = getLocalDayKey(item.startDate);
                             const endDayKey = item.endDate ? getLocalDayKey(item.endDate) : startDayKey;
                         
-                            // In missingOnly mode, check if this item spans into any missing days
-                            let spansIntoMissingDay = false;
-                            if (missingOnly && item.isVisit && endDayKey > startDayKey) {
-                                let checkDay = startDayKey;
-                                while (checkDay <= endDayKey) {
-                                    if (!existingDays.has(checkDay)) {
-                                        spansIntoMissingDay = true;
-                                        break;
-                                    }
-                                    const nextDate = new Date(checkDay + 'T12:00:00');
-                                    nextDate.setDate(nextDate.getDate() + 1);
-                                    checkDay = nextDate.toISOString().substring(0, 10);
-                                }
-                            }
-                        
-                            if (missingOnly && existingDays.has(startDayKey) && !spansIntoMissingDay) continue;
-                            // Skip unchanged items UNLESS they span into missing days
-                            if (lastBackupSync && item.lastSaved && item.lastSaved <= lastBackupSync && !spansIntoMissingDay) continue;
-                        
-                            if (item.placeId && placeLookup.has(item.placeId)) {
-                                const place = placeLookup.get(item.placeId);
-                                item.place = { 
-                                    name: place.name, 
-                                    center: place.center,
-                                    radiusMeters: place.radiusMeters || place.radius || 50
-                                };
-                                if ((!item.center || item.center.latitude == null || item.center.longitude == null) && place.center) item.center = place.center;
-                            }
-                        
                             changedItems.push(item);
                             changedItemIds.add(item.itemId);
                             changedDays.add(startDayKey);
                             changedWeeks.add(getISOWeek(item.startDate));
                             importDiag.timeline.accepted++;
-                            if (spansIntoMissingDay) includedForSpanning++;
+                            // Missing days mode removed
                         }
                     }
                 }
@@ -4644,12 +4584,8 @@ function moveMapSmart(latlng, zoom) {
             await new Promise(r => setTimeout(r, 0));
 
             const forceRescan = document.getElementById('backupForceRescan')?.checked || false;
-            const missingOnly = document.getElementById('backupMissingOnly')?.checked || false;
             const lastBackupSync = forceRescan ? null : await getMetadata('lastBackupSync');
 
-            if (missingOnly) {
-                addLog('🛡️ Missing days only - existing data will not be modified');
-            }
             if (forceRescan) {
                 addLog('⚠️ Force rescan enabled - reimporting all data');
             }
@@ -4706,11 +4642,6 @@ function moveMapSmart(latlng, zoom) {
 
                 // For "missing only" mode: get existing days first
                 let existingDays = new Set();
-                if (missingOnly) {
-                    const allDayKeys = await getAllDayKeysFromDB();
-                    existingDays = new Set(allDayKeys);
-                    addLog(`  Database has ${existingDays.size.toLocaleString()} existing days`);
-                }
 
                 // Safari-specific: smaller batch size and explicit pauses
                 const SAFARI_BATCH_SIZE = 10;
@@ -4867,27 +4798,7 @@ function moveMapSmart(latlng, zoom) {
                             const startDayKey = getLocalDayKey(item.startDate);
                             const endDayKey = item.endDate ? getLocalDayKey(item.endDate) : startDayKey;
 
-                            // In missingOnly mode, check if this item spans into any missing days
-                            let spansIntoMissingDay = false;
-                            if (missingOnly && item.isVisit && endDayKey > startDayKey) {
-                                let checkDay = startDayKey;
-                                while (checkDay <= endDayKey) {
-                                    if (!existingDays.has(checkDay)) {
-                                        spansIntoMissingDay = true;
-                                        break;
-                                    }
-                                    const nextDate = new Date(checkDay + 'T12:00:00');
-                                    nextDate.setDate(nextDate.getDate() + 1);
-                                    checkDay = nextDate.toISOString().substring(0, 10);
-                                }
-                            }
-
-                            if (missingOnly && existingDays.has(startDayKey) && !spansIntoMissingDay) {
-                                skippedExisting++;
-                                continue;
-                            }
-
-                            if (lastBackupSync && item.lastSaved && item.lastSaved <= lastBackupSync && !spansIntoMissingDay) {
+                            if (lastBackupSync && item.lastSaved && item.lastSaved <= lastBackupSync) {
                                 skippedUnchanged++;
                                 continue;
                             }
@@ -5022,19 +4933,6 @@ function moveMapSmart(latlng, zoom) {
 
                 // Get existing metadata for comparison (must be a Map for importDayToDB)
                 const existingMetadata = new Map();
-                if (missingOnly) {
-                    for (const dayKey of sortedDays) {
-                        if (existingDays.has(dayKey)) {
-                            const existing = await getDayFromDB(dayKey);
-                            if (existing) {
-                                existingMetadata.set(dayKey, {
-                                    itemCount: existing.data?.timelineItems?.length || 0,
-                                    lastUpdated: existing.lastUpdated || 0
-                                });
-                            }
-                        }
-                    }
-                }
 
                 const addedDays = [];
                 const updatedDays = [];
@@ -5860,17 +5758,7 @@ function moveMapSmart(latlng, zoom) {
             });
         }
         
-        // Raw timeline toggle - shows uncoalesced view
-        const rawTimelineEl = document.getElementById('rawTimeline');
-        if (rawTimelineEl) {
-            rawTimelineEl.addEventListener('change', () => {
-                COALESCE_SETTINGS.showRawTimeline = rawTimelineEl.checked;
-                if (currentMonth) {
-                    // Must regenerate from source data, not just re-render
-                    regenerateCurrentMonthDiary();
-                }
-            });
-        }
+        // Raw timeline toggle removed
         
         fileInput.addEventListener('change', async (e) => {
             const allFiles = Array.from(e.target.files);
@@ -12941,6 +12829,294 @@ scrollToDiaryDay(currentDayKey);
             a.click();
             URL.revokeObjectURL(url);
         }
+
+        function openExportModal() {
+            const overlay = document.getElementById('exportModalOverlay');
+            if (!overlay) return;
+            const allCheckbox = document.getElementById('exportAllDays');
+            const startInput = document.getElementById('exportStart');
+            const endInput = document.getElementById('exportEnd');
+            const jsonCheckbox = document.getElementById('exportJson');
+            const gpxCheckbox = document.getElementById('exportGpx');
+            const progress = document.getElementById('exportProgress');
+            const progressFill = document.getElementById('exportProgressFill');
+            const progressText = document.getElementById('exportProgressText');
+
+            if (jsonCheckbox) jsonCheckbox.checked = true;
+            if (gpxCheckbox) gpxCheckbox.checked = true;
+            if (allCheckbox) allCheckbox.checked = false;
+
+            const dayKey = (window.NavigationController && window.NavigationController.dayKey) || currentDayKey;
+            if (startInput) startInput.value = dayKey || '';
+            if (endInput) endInput.value = dayKey || '';
+
+            if (progress) progress.style.display = 'none';
+            if (progressFill) progressFill.style.width = '0%';
+            if (progressFill) progressFill.textContent = '0%';
+            if (progressText) progressText.textContent = '';
+
+            overlay.style.display = 'flex';
+        }
+        window.openExportModal = openExportModal;
+
+        function closeExportModal() {
+            const overlay = document.getElementById('exportModalOverlay');
+            if (overlay) overlay.style.display = 'none';
+        }
+        window.closeExportModal = closeExportModal;
+
+        function getDateRangeDayKeys(allDays, start, end) {
+            if (!start && !end) return [];
+            const startKey = start || end;
+            const endKey = end || start;
+            return allDays.filter(dk => dk >= startKey && dk <= endKey);
+        }
+
+        function updateExportProgress(current, total, dayKey) {
+            const progress = document.getElementById('exportProgress');
+            const progressFill = document.getElementById('exportProgressFill');
+            const progressText = document.getElementById('exportProgressText');
+            if (!progress || !progressFill || !progressText) return;
+            progress.style.display = 'block';
+            const pct = total === 0 ? 0 : Math.round((current / total) * 100);
+            progressFill.style.width = `${pct}%`;
+            progressFill.textContent = `${pct}%`;
+            progressText.textContent = dayKey ? `Exporting ${dayKey} (${current}/${total})` : `${current}/${total}`;
+        }
+
+        async function exportDayJson(dayKey) {
+            const record = await getDayFromDB(dayKey);
+            if (!record || !record.data) return null;
+            const json = JSON.stringify(record.data, null, 2);
+            return { name: `arc-timeline-${dayKey}.json`, blob: new Blob([json], { type: 'application/json' }) };
+        }
+
+        function formatGpxTime(value) {
+            if (!value) return null;
+            if (typeof value === 'string') {
+                if (/[+-]\d{2}:\d{2}$/.test(value) || /Z$/.test(value)) return value;
+                const parsed = Date.parse(value);
+                if (!isNaN(parsed)) return new Date(parsed).toISOString();
+                return null;
+            }
+            if (typeof value === 'number') return new Date(value).toISOString();
+            return null;
+        }
+
+        function buildGpxFromDayData(dayKey, dayData) {
+            const gpxHeader = `<?xml version="1.0" encoding="utf-8" standalone="no"?>\n` +
+                `<gpx creator="Arc App" version="1.1" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\n`;
+            const gpxFooter = `</gpx>\n`;
+
+            const wptXml = [];
+            const tracks = extractTracksFromData(dayData);
+
+            const timelineItems = dayData?.timelineItems || [];
+            for (const item of timelineItems) {
+                if (!item || !item.isVisit) continue;
+                const center = item.center || item.place?.center;
+                const lat = center?.latitude ?? center?.lat;
+                const lng = center?.longitude ?? center?.lng;
+                if (lat == null || lng == null) continue;
+                const name = item.place?.name || item.locationName || item.placeName || 'Unknown';
+                const time = formatGpxTime(item.startDate);
+                const ele = center?.altitude ?? center?.alt;
+                wptXml.push(`  <wpt lat="${lat}" lon="${lng}">` +
+                    `${time ? `<time>${time}</time>` : ''}` +
+                    `${ele != null ? `<ele>${ele}</ele>` : ''}` +
+                    `<name>${name}</name>` +
+                    `</wpt>`);
+            }
+
+            if (!tracks || tracks.length === 0) return gpxHeader + wptXml.join('\n') + '\n' + gpxFooter;
+
+            const grouped = new Map();
+            for (const track of tracks) {
+                const name = track.activityType || 'activity';
+                if (!grouped.has(name)) grouped.set(name, []);
+                grouped.get(name).push(track);
+            }
+
+            const trackXml = [];
+            for (const [name, group] of grouped.entries()) {
+                trackXml.push(`  <trk>`);
+                trackXml.push(`    <type>${name}</type>`);
+                for (const track of group) {
+                    trackXml.push('    <trkseg>');
+                    for (const p of track.points || []) {
+                        if (p.lat == null || p.lng == null) continue;
+                        const ele = p.alt ?? p.altitude ?? p.elevation;
+                        const t = formatGpxTime(p.t ?? p.timestamp ?? p.date);
+                        trackXml.push(`      <trkpt lat="${p.lat}" lon="${p.lng}">` +
+                            `${ele != null ? `<ele>${ele}</ele>` : ''}` +
+                            `${t ? `<time>${t}</time>` : ''}` +
+                            `</trkpt>`);
+                    }
+                    trackXml.push('    </trkseg>');
+                }
+                trackXml.push('  </trk>');
+            }
+
+            return gpxHeader + wptXml.join('\n') + '\n' + trackXml.join('\n') + '\n' + gpxFooter;
+        }
+
+        async function exportDayGpx(dayKey) {
+            const record = await getDayFromDB(dayKey);
+            if (!record || !record.data) return null;
+            const gpx = buildGpxFromDayData(dayKey, record.data);
+            return { name: `arc-timeline-${dayKey}.gpx`, blob: new Blob([gpx], { type: 'application/gpx+xml' }) };
+        }
+
+        async function saveBlobs(blobs) {
+            if (blobs.length === 0) return;
+            if (window.showDirectoryPicker && blobs.length > 1) {
+                const dirHandle = await window.showDirectoryPicker();
+                for (const file of blobs) {
+                    const handle = await dirHandle.getFileHandle(file.name, { create: true });
+                    const writable = await handle.createWritable();
+                    await writable.write(file.blob);
+                    await writable.close();
+                }
+                return;
+            }
+            for (const file of blobs) {
+                await saveBlobToFile(file.blob, file.name, [
+                    { description: 'File', accept: { '*/*': [`.${file.name.split('.').pop()}`] } }
+                ]);
+            }
+        }
+
+        async function startExport() {
+            const jsonCheckbox = document.getElementById('exportJson');
+            const gpxCheckbox = document.getElementById('exportGpx');
+            const allCheckbox = document.getElementById('exportAllDays');
+            const startInput = document.getElementById('exportStart');
+            const endInput = document.getElementById('exportEnd');
+
+            const doJson = jsonCheckbox?.checked;
+            const doGpx = gpxCheckbox?.checked;
+            if (!doJson && !doGpx) {
+                alert('Select JSON and/or GPX');
+                return;
+            }
+
+            const allDays = await getAllDayKeysFromDB();
+            let dayKeys = [];
+
+            if (allCheckbox?.checked) {
+                dayKeys = allDays.sort();
+            } else {
+                const start = startInput?.value || '';
+                const end = endInput?.value || '';
+                if (!start && !end) {
+                    const dayKey = (window.NavigationController && window.NavigationController.dayKey) || currentDayKey;
+                    if (!dayKey) {
+                        alert('Select a day or range');
+                        return;
+                    }
+                    dayKeys = [dayKey];
+                } else {
+                    dayKeys = getDateRangeDayKeys(allDays, start, end);
+                }
+            }
+
+            if (dayKeys.length === 0) {
+                alert('No days found for export');
+                return;
+            }
+
+            const blobs = [];
+            let processed = 0;
+            for (const dayKey of dayKeys) {
+                if (doJson) {
+                    const jsonFile = await exportDayJson(dayKey);
+                    if (jsonFile) blobs.push(jsonFile);
+                }
+                if (doGpx) {
+                    const gpxFile = await exportDayGpx(dayKey);
+                    if (gpxFile) blobs.push(gpxFile);
+                }
+                processed += 1;
+                updateExportProgress(processed, dayKeys.length, dayKey);
+            }
+
+            await saveBlobs(blobs);
+            closeExportModal();
+        }
+        window.startExport = startExport;
+        async function saveBlobToFile(blob, suggestedName, types) {
+            if (window.showSaveFilePicker) {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName,
+                    types
+                });
+                const writable = await handle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+                return;
+            }
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = suggestedName;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function buildGpxForDayRoutes(dayKey, dayRoutes) {
+            const gpxHeader = `<?xml version="1.0" encoding="UTF-8"?>\n` +
+                `<gpx version="1.1" creator="Arc Timeline Diary Reader" xmlns="http://www.topografix.com/GPX/1/1">\n` +
+                `  <metadata><name>${dayKey}</name></metadata>\n`;
+            const gpxFooter = `</gpx>\n`;
+
+            if (!dayRoutes || dayRoutes.length === 0) return gpxHeader + gpxFooter;
+
+            const tracksByType = new Map();
+            for (const pt of dayRoutes) {
+                const type = pt.activityType || 'Unknown';
+                if (!tracksByType.has(type)) tracksByType.set(type, []);
+                tracksByType.get(type).push(pt);
+            }
+
+            const segmentsByType = new Map();
+            for (const [type, points] of tracksByType) {
+                const segments = [];
+                let current = [];
+                let lastType = null;
+                for (const pt of points) {
+                    if (lastType !== null && pt.activityType !== lastType) {
+                        if (current.length) segments.push(current);
+                        current = [];
+                    }
+                    current.push(pt);
+                    lastType = pt.activityType;
+                }
+                if (current.length) segments.push(current);
+                segmentsByType.set(type, segments);
+            }
+
+            const trackXml = [];
+            for (const [type, segments] of segmentsByType) {
+                trackXml.push(`  <trk><name>${type}</name>`);
+                for (const seg of segments) {
+                    trackXml.push('    <trkseg>');
+                    for (const p of seg) {
+                        if (p.lat == null || p.lng == null) continue;
+                        const ele = p.alt ?? p.altitude ?? p.elevation;
+                        const t = getPointTime(p);
+                        trackXml.push(`      <trkpt lat="${p.lat}" lon="${p.lng}">` +
+                            `${ele != null ? `<ele>${ele}</ele>` : ''}` +
+                            `${t ? `<time>${new Date(t).toISOString()}</time>` : ''}` +
+                            `</trkpt>`);
+                    }
+                    trackXml.push('    </trkseg>');
+                }
+                trackXml.push('  </trk>');
+            }
+
+            return gpxHeader + trackXml.join('\n') + '\n' + gpxFooter;
+        }
+
         
         // Search functions
         function handleSearchKeyup(event) {
@@ -15722,12 +15898,12 @@ scrollToDiaryDay(currentDayKey);
         const COALESCE_SETTINGS = {
             enabled: true,                    // Master toggle
             maxMergeGapMs: 15 * 60 * 1000,   // 15 minutes max gap for merging visits
-            showRawTimeline: false            // User toggle to see uncoalesced view
+            // showRawTimeline removed
         };
         
         function coalesceTimelineForDisplay(items) {
             if (!items || items.length === 0) return items;
-            if (!COALESCE_SETTINGS.enabled || COALESCE_SETTINGS.showRawTimeline) {
+            if (!COALESCE_SETTINGS.enabled) {
                 return items; // Return unmodified
             }
             
