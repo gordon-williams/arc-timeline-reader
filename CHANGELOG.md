@@ -1,5 +1,20 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 857 (2026-02-05)
+
+### Route Search - Mapbox Bias
+- Removed Mapbox bbox restriction; use proximity bias instead
+
+---
+
+## Build 856 (2026-02-05)
+
+### Route Search - Geocoding Fallback
+- If Mapbox returns no results, retry without country restriction
+- Fallback to Nominatim (with and without country restriction)
+
+---
+
 ## Build 855 (2026-02-05)
 
 ### Route Search - GoTo Menu Width

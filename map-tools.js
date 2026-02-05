@@ -825,42 +825,78 @@ async function geocodeSearch(query, { provider, countryCode }) {
     if (provider === 'mapbox') {
         const mapboxToken = localStorage.getItem('arc_mapbox_token');
         if (!mapboxToken) return [];
-        let url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?limit=5&access_token=${mapboxToken}`;
-        if (countryCode) {
-            url += `&country=${countryCode.toUpperCase()}`;
+        const buildMapboxUrl = (code) => {
+            let url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?limit=5&access_token=${mapboxToken}`;
+            if (code) url += `&country=${code.toUpperCase()}`;
+            if (window.map) {
+                const center = window.map.getCenter();
+                url += `&proximity=${center.lng},${center.lat}`;
+            }
+            return url;
+        };
+
+        const mapboxFetch = async (code) => {
+            const response = await fetch(buildMapboxUrl(code));
+            const data = await response.json();
+            const features = Array.isArray(data.features) ? data.features : [];
+            return features.map(f => {
+                const name = f.place_name.split(',').slice(0, 2).join(',');
+                return { name, lat: f.center[1], lng: f.center[0] };
+            });
+        };
+
+        let results = [];
+        try {
+            results = await mapboxFetch(countryCode);
+        } catch (_) {
+            results = [];
         }
+        if (results.length === 0 && countryCode) {
+            try {
+                results = await mapboxFetch(null);
+            } catch (_) {
+                results = [];
+            }
+        }
+        if (results.length > 0) return results;
+    }
+
+    // Nominatim fallback
+    const buildNominatimUrl = (code) => {
+        let url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`;
+        if (code) url += `&countrycodes=${code.toLowerCase()}`;
         if (window.map) {
             const bounds = window.map.getBounds();
             const sw = bounds.getSouthWest();
             const ne = bounds.getNorthEast();
-            url += `&bbox=${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
+            url += `&viewbox=${sw.lng},${ne.lat},${ne.lng},${sw.lat}&bounded=0`;
         }
-        const response = await fetch(url);
-        const data = await response.json();
-        const features = data.features || [];
-        return features.map(f => {
-            const name = f.place_name.split(',').slice(0, 2).join(',');
-            return { name, lat: f.center[1], lng: f.center[0] };
-        });
-    }
+        return url;
+    };
 
-    // Nominatim fallback
-    let url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`;
-    if (countryCode) {
-        url += `&countrycodes=${countryCode.toLowerCase()}`;
+    const nominatimFetch = async (code) => {
+        const response = await fetch(buildNominatimUrl(code), { headers: { 'User-Agent': 'ArcTimelineReader/1.0' } });
+        const results = await response.json();
+        return results.map(r => {
+            const name = r.display_name.split(',').slice(0, 2).join(',');
+            return { name, lat: parseFloat(r.lat), lng: parseFloat(r.lon) };
+        });
+    };
+
+    let fallbackResults = [];
+    try {
+        fallbackResults = await nominatimFetch(countryCode);
+    } catch (_) {
+        fallbackResults = [];
     }
-    if (window.map) {
-        const bounds = window.map.getBounds();
-        const sw = bounds.getSouthWest();
-        const ne = bounds.getNorthEast();
-        url += `&viewbox=${sw.lng},${ne.lat},${ne.lng},${sw.lat}&bounded=0`;
+    if (fallbackResults.length === 0 && countryCode) {
+        try {
+            fallbackResults = await nominatimFetch(null);
+        } catch (_) {
+            fallbackResults = [];
+        }
     }
-    const response = await fetch(url, { headers: { 'User-Agent': 'ArcTimelineReader/1.0' } });
-    const results = await response.json();
-    return results.map(r => {
-        const name = r.display_name.split(',').slice(0, 2).join(',');
-        return { name, lat: parseFloat(r.lat), lng: parseFloat(r.lon) };
-    });
+    return fallbackResults;
 }
 
 function selectRouteLocation(field, lat, lng, name) {
