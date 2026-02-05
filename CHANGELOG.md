@@ -1,5 +1,27 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 867 (2026-02-05)
+
+### UI - Header Copy
+- Updated subtitle copy
+
+---
+
+## Build 866 (2026-02-05)
+
+### UI - Header Copy
+- Renamed app to “Arc Diary Reader”
+- Updated header subtitle copy
+
+---
+
+## Build 865 (2026-02-05)
+
+### UI - Clear Button Tooltip
+- Clarified that Clear only wipes local app database (IndexedDB)
+
+---
+
 ## Build 864 (2026-02-05)
 
 ### Export - GPX Format

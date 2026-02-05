@@ -25,14 +25,14 @@ SOFTWARE.
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arc Timeline Diary Reader v3.0</title>
+    <title>Arc Diary Reader v3.0</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"  crossorigin="anonymous" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"  crossorigin="anonymous" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"  crossorigin="anonymous" />
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = 864;
+  window.__ARC_BUILD__ = 867;
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -99,8 +99,8 @@ SOFTWARE.
 <body>
     <div class="container">
         <div class="header">
-            <h1>📖 Arc Timeline Diary Reader</h1>
-            <p>Browse and explore your Arc Timeline location history as beautiful monthly diaries</p>
+            <h1>📖 Arc Diary Reader</h1>
+            <p>Import Arc Timeline or Arc Editor backups to explore your location history as a searchable diary with maps, routes, analysis and many other functions.</p>
         </div>
         
         <div class="content">
@@ -120,7 +120,7 @@ SOFTWARE.
 					</div>
 					
 					<div style="display: flex; gap: 12px; margin-bottom: 24px;">
-						<button onclick="confirmClearDatabase()" style="flex: 1; background: #ff3b30; color: white; border: none; padding: 14px; border-radius: 12px; cursor: pointer; font-size: 17px; font-weight: 600; transition: opacity 0.2s; min-height: 50px;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+						<button onclick="confirmClearDatabase()" title="Clears local app database (IndexedDB) only. Does not delete files." style="flex: 1; background: #ff3b30; color: white; border: none; padding: 14px; border-radius: 12px; cursor: pointer; font-size: 17px; font-weight: 600; transition: opacity 0.2s; min-height: 50px;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
 							Clear
 						</button>
 						<button onclick="openExportModal()" style="flex: 1; background: #f5f5f7; color: #1d1d1f; border: none; padding: 14px; border-radius: 12px; cursor: pointer; font-size: 17px; font-weight: 600; transition: background 0.2s; min-height: 50px;" onmouseover="this.style.background='#e8e8ed'" onmouseout="this.style.background='#f5f5f7'">
@@ -221,7 +221,7 @@ SOFTWARE.
             </div>
             
             <div class="footer">
-                Arc Timeline Diary Reader v<span id="appVersion"></span> © 2025 <a href="https://github.com/YOUR_USERNAME/arc-timeline-diary-generator" target="_blank">Gordon Williams</a> | 
+                Arc Diary Reader v<span id="appVersion"></span> © 2025 <a href="https://github.com/YOUR_USERNAME/arc-timeline-diary-generator" target="_blank">Gordon Williams</a> | 
                 <a href="https://opensource.org/licenses/MIT" target="_blank">MIT License</a> |
                 <a href="#" onclick="showCredits(); return false;">Credits</a>
             </div>
@@ -479,7 +479,7 @@ SOFTWARE.
                         <div class="diary-title-row">
                             <div class="diary-title-group">
                                 <span class="diary-title" id="diaryTitle">Diary Timeline</span>
-                                <span class="diary-build" id="diaryBuild">Build 864</span>
+                                <span class="diary-build" id="diaryBuild">Build 867</span>
                             </div>
                             <div class="diary-nav-group" id="diaryNavGroup">
                                 <button class="btn-diary-nav btn-nav-circular" id="prevDayBtn" onclick="NavigationController.navigateBy(-1, 'day')" title="Previous day">‹</button>
