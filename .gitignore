@@ -12,8 +12,10 @@ Thumbs.db
 
 # Test data and backups (large files)
 Backups/
+Arc Editor Backups/
 Screenshots/
 arc-timeline-daily.*.json
+arc-timeline-daily.*.gpx
 *.json.gz
 
 # Debug and development files
@@ -21,6 +23,8 @@ Console*.txt
 CONSOLE_FUNCTIONS.md
 *backup*.js
 Import report.txt
+REFACTORING_PLAN.md
+STATE_MODEL.md
 
 # Local development
 PhotoMapper.html
