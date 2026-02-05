@@ -6444,7 +6444,7 @@ function moveMapSmart(latlng, zoom) {
              * @param {string} monthKey - YYYY-MM format
              * @returns {Promise<boolean>} - true if successful
              */
-            async selectMonth(monthKey) {
+            async selectMonth(monthKey, options = {}) {
                 if (!this.#internalCall) {
                     this.#renderVersion++;
                 }
@@ -6453,7 +6453,7 @@ function moveMapSmart(latlng, zoom) {
                 logDebug(`🎯 NavigationController.selectMonth(${monthKey})`);
                 
                 // Clear route search if active (user is returning to diary mode)
-                if (window.routeSearchLayer) {
+                if (window.routeSearchLayer && !options.preserveRouteSearch && !window.routeSearchState?.active) {
                     clearRouteSearch();
                     if (typeof showDiaryRoutes === 'function') {
                         showDiaryRoutes();
@@ -6483,7 +6483,7 @@ function moveMapSmart(latlng, zoom) {
                 logDebug(`🎯 NavigationController.selectDay(${dayKey})`);
                 
                 // Clear route search if active (user is returning to diary mode)
-                if (window.routeSearchLayer) {
+                if (window.routeSearchLayer && !options.preserveRouteSearch && !window.routeSearchState?.active) {
                     clearRouteSearch();
                     if (typeof showDiaryRoutes === 'function') {
                         showDiaryRoutes();
@@ -6572,7 +6572,7 @@ function moveMapSmart(latlng, zoom) {
                 }
 
                 // Clear route search if active (user is returning to diary mode)
-                if (window.routeSearchLayer) {
+                if (window.routeSearchLayer && !options.preserveRouteSearch && !window.routeSearchState?.active) {
                     clearRouteSearch();
                     if (typeof showDiaryRoutes === 'function') {
                         showDiaryRoutes();
@@ -9904,6 +9904,10 @@ scrollToDiaryDay(currentDayKey);
         }
         
         function showDiaryRoutes() {
+            const searchPopup = document.getElementById('searchPopup');
+            if (searchPopup && searchPopup.style.display === 'block') {
+                return; // Keep routes hidden while route search is open
+            }
             if (dayRoutePolyline && !map.hasLayer(dayRoutePolyline)) {
                 map.addLayer(dayRoutePolyline);
             }
@@ -11408,8 +11412,19 @@ scrollToDiaryDay(currentDayKey);
 
         function updateElevationTabs() {
             const tabs = document.querySelectorAll('.elevation-tab');
+            const speedTab = document.querySelector('.elevation-tab[data-profile="speed"]');
+            const routeSearchActive = !!window.routeSearchLayer;
+            if (routeSearchActive && elevationProfileMode === 'speed') {
+                elevationProfileMode = 'elevation';
+            }
             tabs.forEach(tab => {
                 const profile = tab.dataset.profile;
+                if (profile === 'speed') {
+                    if (speedTab) {
+                        speedTab.disabled = routeSearchActive;
+                        speedTab.classList.toggle('disabled', routeSearchActive);
+                    }
+                }
                 if (profile === elevationProfileMode) {
                     tab.classList.add('active');
                 } else {
@@ -11470,7 +11485,7 @@ scrollToDiaryDay(currentDayKey);
                 const days = getDaysInCurrentMonth();
                 if (days.length > 0) {
                     if (window.NavigationController && typeof NavigationController.selectDay === 'function') {
-                        NavigationController.selectDay(days[0]);
+                        NavigationController.selectDay(days[0], { preserveRouteSearch: true });
                     } else {
                         showDayMap(days[0]);
                     }
@@ -11486,7 +11501,19 @@ scrollToDiaryDay(currentDayKey);
             updateElevationChart();
 
             // Refit map bounds to respect the new panel margins
-            setTimeout(() => refitMapBounds(true), 120);
+            if (window.routeSearchLayer && map && window.routeSearchLayer.getBounds) {
+                const padding = (window.NavigationController && window.NavigationController.mapPadding)
+                    ? window.NavigationController.mapPadding
+                    : { paddingTopLeft: [50, 50], paddingBottomRight: [50, 50] };
+                setTimeout(() => {
+                    map.fitBounds(window.routeSearchLayer.getBounds(), {
+                        paddingTopLeft: padding.paddingTopLeft,
+                        paddingBottomRight: padding.paddingBottomRight
+                    });
+                }, 120);
+            } else {
+                setTimeout(() => refitMapBounds(true), 120);
+            }
 
             // Listen for map move events to update chart
             if (map) {
@@ -11583,6 +11610,16 @@ scrollToDiaryDay(currentDayKey);
             panel.addEventListener('mouseleave', enableMapDrag);
             panel.addEventListener('touchstart', disableMapDrag, { passive: true });
             panel.addEventListener('touchend', enableMapDrag, { passive: true });
+            panel.addEventListener('mousedown', (e) => {
+                if (e.button === 0) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            }, true);
+            panel.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            }, true);
 
             _elevationPanelDragGuardAttached = true;
         }

@@ -492,9 +492,17 @@ const routeSearchState = {
     to: null,    // { lat, lng, name }
     activeField: null,  // 'from' or 'to'
     searchTimeout: null,
+    waypointSearchTimeouts: {},
     routeBounds: null,  // Store route bounds for reset view
     elevationData: null,  // Array of {lat, lng, elevation} from API
-    elevationStats: null  // {gain, loss, min, max}
+    elevationStats: null,  // {gain, loss, min, max}
+    extraWaypoints: [],    // { lat, lng, name, marker }
+    mapClickHandler: null,
+    waypointIdCounter: 0,
+    countryCode: null,
+    countryCodeDayKey: null,
+    countryCodePromise: null,
+    active: false
 };
 window.routeSearchState = routeSearchState;  // Expose for app.js elevation panel
 
@@ -516,6 +524,11 @@ function activateLocationSearch() {
 
     // Show the popup (CSS will center it)
     popup.style.display = 'block';
+    routeSearchState.active = true;
+
+    if (typeof hideDiaryRoutes === 'function') {
+        hideDiaryRoutes();
+    }
 
     // Clear map layers for clean search view (like replay does)
     if (window.clearMapLayers) {
@@ -524,6 +537,34 @@ function activateLocationSearch() {
 
     // Enable diary location click mode
     enableDiaryLocationClickMode();
+    setWaypointEnabled(!!routeSearchState.to);
+    resolveRouteSearchCountryCode().catch(() => {});
+
+    // Map click adds waypoint while search is open
+    if (window.map) {
+        if (routeSearchState.mapClickHandler) {
+            window.map.off('click', routeSearchState.mapClickHandler);
+        }
+        routeSearchState.mapClickHandler = (e) => {
+            if (!routeSearchState.to) return;
+            const lat = e.latlng.lat;
+            const lng = e.latlng.lng;
+            const popupHtml = `
+                <div class="route-waypoint-popup">
+                    <div class="route-waypoint-title">Waypoint</div>
+                    <div class="route-waypoint-coords">${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
+                    <button class="route-waypoint-action" type="button"
+                        onclick="addWaypointFromMap(${lat}, ${lng})">
+                        Add waypoint
+                    </button>
+                </div>`;
+            L.popup({ offset: [0, -8] })
+                .setLatLng([lat, lng])
+                .setContent(popupHtml)
+                .openOn(window.map);
+        };
+        window.map.on('click', routeSearchState.mapClickHandler);
+    }
 
     if (inputFrom) {
         inputFrom.focus();
@@ -603,6 +644,7 @@ function disableDiaryLocationClickMode() {
 function closeSearchPopup() {
     const popup = document.getElementById('searchPopup');
     if (popup) popup.style.display = 'none';
+    routeSearchState.active = false;
 
     // Clear results but keep selections
     document.getElementById('searchResultsFrom')?.replaceChildren();
@@ -624,10 +666,24 @@ function closeSearchPopup() {
         window.map.removeLayer(window.routeSearchMarkerTo);
         window.routeSearchMarkerTo = null;
     }
+    if (routeSearchState.extraWaypoints && window.map) {
+        routeSearchState.extraWaypoints.forEach(wp => {
+            if (wp.marker) window.map.removeLayer(wp.marker);
+        });
+    }
 
     // Restore map to current day view
     if (window.showDayMap && window.NavigationController?.dayKey) {
         window.showDayMap(window.NavigationController.dayKey);
+    }
+
+    if (typeof showDiaryRoutes === 'function') {
+        showDiaryRoutes();
+    }
+
+    if (window.map && routeSearchState.mapClickHandler) {
+        window.map.off('click', routeSearchState.mapClickHandler);
+        routeSearchState.mapClickHandler = null;
     }
 }
 window.closeSearchPopup = closeSearchPopup;  // Expose for app.js to close when returning to import screen
@@ -656,12 +712,15 @@ function clearRouteSearch() {
 
     // Hide navigation controls
     const btnReset = document.getElementById('btnResetView');
-    const waypointSelect = document.getElementById('waypointSelect');
+    const waypointDropdown = document.getElementById('waypointDropdown');
     if (btnReset) btnReset.style.display = 'none';
-    if (waypointSelect) waypointSelect.style.display = 'none';
-
-    // Clear waypoints
-    routeSearchState.waypoints = [];
+    if (waypointDropdown) waypointDropdown.style.display = 'none';
+    setWaypointEnabled(false);
+    clearWaypointFields();
+    setRouteSearchInfo(null);
+    routeSearchState.countryCode = null;
+    routeSearchState.countryCodeDayKey = null;
+    routeSearchState.countryCodePromise = null;
 
     // Clear route bounds and elevation data
     routeSearchState.routeBounds = null;
@@ -669,6 +728,11 @@ function clearRouteSearch() {
     routeSearchState.elevationStats = null;
 
     // Clear any existing route on map (map is global from app.js)
+    if (window.map) {
+        removeRouteSearchPolylines();
+        removeRouteSearchMarkers();
+        window.map.closePopup();
+    }
     if (window.routeSearchLayer && window.map) {
         window.map.removeLayer(window.routeSearchLayer);
         window.routeSearchLayer = null;
@@ -681,13 +745,29 @@ function clearRouteSearch() {
         window.map.removeLayer(window.routeSearchMarkerTo);
         window.routeSearchMarkerTo = null;
     }
+    if (routeSearchState.extraWaypoints && window.map) {
+        routeSearchState.extraWaypoints.forEach(wp => {
+            if (wp.marker) window.map.removeLayer(wp.marker);
+        });
+    }
+
+    // Clear waypoints after markers removed
+    routeSearchState.waypoints = [];
+    routeSearchState.extraWaypoints = [];
 }
+function addWaypointFieldFromButton() {
+    if (!routeSearchState.to) return;
+    addWaypointField();
+}
+window.addWaypointFieldFromButton = addWaypointFieldFromButton;
 
 function onSearchFocus(field) {
     routeSearchState.activeField = field;
     // Hide the other results
-    const otherResults = document.getElementById(field === 'from' ? 'searchResultsTo' : 'searchResultsFrom');
-    if (otherResults) otherResults.replaceChildren();
+    const results = ['from', 'to'].filter(f => f !== field)
+        .map(f => document.getElementById(f === 'from' ? 'searchResultsFrom' : 'searchResultsTo'));
+    results.forEach(r => r && r.replaceChildren());
+    document.querySelectorAll('[id^="searchResultsWaypoint-"]').forEach(el => el.replaceChildren());
 }
 
 function onSearchInput(field) {
@@ -720,20 +800,9 @@ async function performRouteSearch(query, field) {
     if (!resultsDiv) return;
 
     try {
-        // Build URL with optional viewbox bias based on current map view
-        let url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`;
-
-        // Add viewbox parameter to bias results towards current map region
-        if (window.map) {
-            const bounds = window.map.getBounds();
-            const sw = bounds.getSouthWest();
-            const ne = bounds.getNorthEast();
-            // viewbox format: <left>,<top>,<right>,<bottom> (lon1,lat1,lon2,lat2)
-            url += `&viewbox=${sw.lng},${ne.lat},${ne.lng},${sw.lat}&bounded=0`;
-        }
-
-        const response = await fetch(url, { headers: { 'User-Agent': 'ArcTimelineReader/1.0' } });
-        const results = await response.json();
+        const mapboxToken = localStorage.getItem('arc_mapbox_token');
+        const countryCode = await resolveRouteSearchCountryCode();
+        const results = await geocodeSearch(query, { provider: mapboxToken ? 'mapbox' : 'nominatim', countryCode });
 
         if (results.length === 0) {
             resultsDiv.innerHTML = '<div class="search-no-results">No results found</div>';
@@ -741,8 +810,8 @@ async function performRouteSearch(query, field) {
         }
 
         resultsDiv.innerHTML = results.map(r => {
-            const name = r.display_name.split(',').slice(0, 2).join(',');
-            return `<div class="search-result-item" onclick="selectRouteLocation('${field}', ${r.lat}, ${r.lon}, '${name.replace(/'/g, "\\'")}')">
+            const name = r.name;
+            return `<div class="search-result-item" onclick="selectRouteLocation('${field}', ${r.lat}, ${r.lng}, '${name.replace(/'/g, "\\'")}')">
                 <div class="search-result-name">${name}</div>
             </div>`;
         }).join('');
@@ -750,6 +819,48 @@ async function performRouteSearch(query, field) {
         console.error('Search error:', err);
         resultsDiv.innerHTML = '<div class="search-no-results">Search failed</div>';
     }
+}
+
+async function geocodeSearch(query, { provider, countryCode }) {
+    if (provider === 'mapbox') {
+        const mapboxToken = localStorage.getItem('arc_mapbox_token');
+        if (!mapboxToken) return [];
+        let url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?limit=5&access_token=${mapboxToken}`;
+        if (countryCode) {
+            url += `&country=${countryCode.toUpperCase()}`;
+        }
+        if (window.map) {
+            const bounds = window.map.getBounds();
+            const sw = bounds.getSouthWest();
+            const ne = bounds.getNorthEast();
+            url += `&bbox=${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
+        }
+        const response = await fetch(url);
+        const data = await response.json();
+        const features = data.features || [];
+        return features.map(f => {
+            const name = f.place_name.split(',').slice(0, 2).join(',');
+            return { name, lat: f.center[1], lng: f.center[0] };
+        });
+    }
+
+    // Nominatim fallback
+    let url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`;
+    if (countryCode) {
+        url += `&countrycodes=${countryCode.toLowerCase()}`;
+    }
+    if (window.map) {
+        const bounds = window.map.getBounds();
+        const sw = bounds.getSouthWest();
+        const ne = bounds.getNorthEast();
+        url += `&viewbox=${sw.lng},${ne.lat},${ne.lng},${sw.lat}&bounded=0`;
+    }
+    const response = await fetch(url, { headers: { 'User-Agent': 'ArcTimelineReader/1.0' } });
+    const results = await response.json();
+    return results.map(r => {
+        const name = r.display_name.split(',').slice(0, 2).join(',');
+        return { name, lat: parseFloat(r.lat), lng: parseFloat(r.lon) };
+    });
 }
 
 function selectRouteLocation(field, lat, lng, name) {
@@ -770,9 +881,375 @@ function selectRouteLocation(field, lat, lng, name) {
         btnRoute.disabled = !routeSearchState.from;
     }
 
+    if (field === 'to') {
+        setWaypointEnabled(true);
+    }
+
     // Auto-focus the other field if empty
     if (field === 'from' && !routeSearchState.to) {
         document.getElementById('searchToInput')?.focus();
+    }
+}
+
+function addWaypoint(lat, lng, name, waypointId) {
+    if (!window.map) return;
+    const draggable = !!routeSearchState.to;
+    const marker = L.marker([lat, lng], {
+        icon: L.divIcon({
+            className: 'route-marker-waypoint',
+            html: `<div class="route-marker-pin waypoint"><div class="pin-icon"><span>W</span></div></div>`,
+            iconSize: [32, 40],
+            iconAnchor: [16, 40]
+        }),
+        draggable
+    }).addTo(window.map).bindPopup(`<b>Waypoint:</b> ${name}`, { offset: [0, -35] });
+    marker._routeSearchMarker = true;
+
+    const wpId = waypointId || `wp-${++routeSearchState.waypointIdCounter}`;
+    const waypoint = { id: wpId, lat, lng, name, marker, label: 'W' };
+    routeSearchState.extraWaypoints.push(waypoint);
+    marker.on('dragend', () => {
+        const pos = marker.getLatLng();
+        waypoint.lat = pos.lat;
+        waypoint.lng = pos.lng;
+        if (waypoint.name && waypoint.name.startsWith('Waypoint (')) {
+            waypoint.name = `Waypoint (${pos.lat.toFixed(5)}, ${pos.lng.toFixed(5)})`;
+            const input = document.getElementById(`searchWaypointInput-${wpId}`);
+            if (input) input.value = waypoint.name;
+        }
+        if (waypoint.marker) {
+            waypoint.marker.setPopupContent(`<b>Waypoint:</b> ${waypoint.name}`);
+        }
+        populateWaypointSelect();
+        maybeRerouteAfterWaypoint();
+    });
+    populateWaypointSelect();
+    maybeRerouteAfterWaypoint();
+}
+
+function addWaypointFromMap(lat, lng) {
+    if (window.map) {
+        window.map.closePopup();
+    }
+    const name = `Waypoint (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+    const wpId = addWaypointField(name);
+    addWaypoint(lat, lng, name, wpId);
+}
+window.addWaypointFromMap = addWaypointFromMap;
+
+function addWaypointField(initialValue) {
+    const container = document.getElementById('searchWaypointsContainer');
+    const group = document.getElementById('searchWaypointsGroup');
+    if (!container || !group) return null;
+    group.style.display = 'block';
+
+    const id = `wp-${++routeSearchState.waypointIdCounter}`;
+    const item = document.createElement('div');
+    item.className = 'waypoint-item';
+    item.dataset.id = id;
+
+    const handle = document.createElement('span');
+    handle.className = 'waypoint-handle';
+    handle.setAttribute('draggable', 'true');
+
+    const fieldWrap = document.createElement('div');
+    fieldWrap.className = 'search-field waypoint-field';
+    fieldWrap.innerHTML = `
+        <label for="searchWaypointInput-${id}">Waypoint:</label>
+        <input type="text" id="searchWaypointInput-${id}" placeholder="Search waypoint..." oninput="onWaypointInput('${id}')" onfocus="onWaypointFocus('${id}')">
+        <div class="search-results" id="searchResultsWaypoint-${id}"></div>
+    `;
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'waypoint-delete';
+    deleteBtn.type = 'button';
+    deleteBtn.textContent = '×';
+    deleteBtn.title = 'Remove waypoint';
+    deleteBtn.addEventListener('click', () => removeWaypoint(id));
+
+    item.appendChild(handle);
+    item.appendChild(fieldWrap);
+    item.appendChild(deleteBtn);
+    container.appendChild(item);
+
+    initWaypointDrag(container, item, handle);
+    const input = document.getElementById(`searchWaypointInput-${id}`);
+    if (input) {
+        if (initialValue) {
+            input.value = initialValue;
+            input.dataset.locked = 'true';
+        }
+        input.focus();
+    }
+    return id;
+}
+
+function clearWaypointFields() {
+    const container = document.getElementById('searchWaypointsContainer');
+    const group = document.getElementById('searchWaypointsGroup');
+    if (container) container.replaceChildren();
+    if (group) group.style.display = 'none';
+    routeSearchState.waypointSearchTimeouts = {};
+}
+
+function removeWaypoint(id) {
+    const container = document.getElementById('searchWaypointsContainer');
+    if (container) {
+        const item = container.querySelector(`.waypoint-item[data-id="${id}"]`);
+        if (item) item.remove();
+    }
+    const idx = routeSearchState.extraWaypoints.findIndex(wp => wp.id === id);
+    if (idx !== -1) {
+        const wp = routeSearchState.extraWaypoints[idx];
+        if (wp.marker && window.map) {
+            window.map.removeLayer(wp.marker);
+        }
+        routeSearchState.extraWaypoints.splice(idx, 1);
+    }
+    const remaining = document.querySelectorAll('.waypoint-item').length;
+    if (remaining === 0) {
+        const group = document.getElementById('searchWaypointsGroup');
+        if (group) group.style.display = 'none';
+    }
+    populateWaypointSelect();
+    maybeRerouteAfterWaypoint();
+}
+
+function removeRouteSearchPolylines() {
+    if (!window.map) return;
+    window.map.eachLayer(layer => {
+        if (layer && layer._routeSearchPolyline) {
+            window.map.removeLayer(layer);
+        }
+    });
+}
+
+function removeRouteSearchMarkers() {
+    if (!window.map) return;
+    window.map.eachLayer(layer => {
+        if (layer && layer._routeSearchMarker) {
+            window.map.removeLayer(layer);
+        }
+    });
+}
+
+function onWaypointFocus(id) {
+    routeSearchState.activeField = `waypoint-${id}`;
+    document.querySelectorAll('.search-results').forEach(el => {
+        if (el.id !== `searchResultsWaypoint-${id}`) el.replaceChildren();
+    });
+}
+window.onWaypointFocus = onWaypointFocus;
+
+function onWaypointInput(id) {
+    routeSearchState.activeField = `waypoint-${id}`;
+    const input = document.getElementById(`searchWaypointInput-${id}`);
+    const resultsDiv = document.getElementById(`searchResultsWaypoint-${id}`);
+    if (!input || !resultsDiv) return;
+
+    if (input.dataset.locked === 'true') {
+        const nickname = input.value.trim() || 'Waypoint';
+        const existing = routeSearchState.extraWaypoints.find(wp => wp.id === id);
+        if (existing) {
+            existing.name = nickname;
+            if (existing.marker) {
+                existing.marker.setPopupContent(`<b>Waypoint:</b> ${existing.name}`);
+            }
+            populateWaypointSelect();
+        }
+        resultsDiv.replaceChildren();
+        return;
+    }
+
+    const query = input.value.trim();
+    if (routeSearchState.waypointSearchTimeouts[id]) {
+        clearTimeout(routeSearchState.waypointSearchTimeouts[id]);
+    }
+    if (query.length < 2) {
+        resultsDiv.replaceChildren();
+        return;
+    }
+    routeSearchState.waypointSearchTimeouts[id] = setTimeout(() => {
+        performWaypointSearch(query, id);
+    }, 300);
+}
+window.onWaypointInput = onWaypointInput;
+
+async function performWaypointSearch(query, id) {
+    const resultsDiv = document.getElementById(`searchResultsWaypoint-${id}`);
+    if (!resultsDiv) return;
+    try {
+        const mapboxToken = localStorage.getItem('arc_mapbox_token');
+        const countryCode = await resolveRouteSearchCountryCode();
+        const results = await geocodeSearch(query, { provider: mapboxToken ? 'mapbox' : 'nominatim', countryCode });
+        if (results.length === 0) {
+            resultsDiv.innerHTML = '<div class="search-no-results">No results found</div>';
+            return;
+        }
+        resultsDiv.innerHTML = results.map(r => {
+            const name = r.name;
+            return `<div class="search-result-item" onclick="selectWaypointLocation('${id}', ${r.lat}, ${r.lng}, '${name.replace(/'/g, "\\'")}')">
+                <div class="search-result-name">${name}</div>
+            </div>`;
+        }).join('');
+    } catch (err) {
+        console.error('Search error:', err);
+        resultsDiv.innerHTML = '<div class="search-no-results">Search failed</div>';
+    }
+}
+
+function selectWaypointLocation(id, lat, lng, name) {
+    const input = document.getElementById(`searchWaypointInput-${id}`);
+    const resultsDiv = document.getElementById(`searchResultsWaypoint-${id}`);
+    if (input) {
+        input.value = name;
+        input.classList.add('has-selection');
+        input.dataset.locked = 'true';
+    }
+    if (resultsDiv) resultsDiv.replaceChildren();
+
+    const existing = routeSearchState.extraWaypoints.find(wp => wp.id === id);
+    if (existing) {
+        existing.lat = lat;
+        existing.lng = lng;
+        existing.name = name;
+        if (existing.marker && window.map) {
+            existing.marker.setLatLng([lat, lng]);
+            existing.marker.setPopupContent(`<b>Waypoint:</b> ${name}`);
+        }
+    } else {
+        addWaypoint(lat, lng, name, id);
+    }
+    populateWaypointSelect();
+    maybeRerouteAfterWaypoint();
+}
+window.selectWaypointLocation = selectWaypointLocation;
+
+function initWaypointDrag(container, item, handle) {
+    if (!container || !item || !handle) return;
+    handle.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', item.dataset.id);
+        item.classList.add('dragging');
+    });
+    handle.addEventListener('dragend', () => {
+        item.classList.remove('dragging');
+        syncWaypointOrderFromDOM();
+    });
+    if (!container._waypointDragInit) {
+        container._waypointDragInit = true;
+        container.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const dragging = container.querySelector('.waypoint-item.dragging');
+            if (!dragging) return;
+            const target = e.target.closest('.waypoint-item');
+            if (!target || target === dragging) return;
+            const rect = target.getBoundingClientRect();
+            const before = (e.clientY - rect.top) < rect.height / 2;
+            container.insertBefore(dragging, before ? target : target.nextSibling);
+        }, { passive: false });
+    }
+}
+
+function syncWaypointOrderFromDOM() {
+    const container = document.getElementById('searchWaypointsContainer');
+    if (!container) return;
+    const ids = Array.from(container.querySelectorAll('.waypoint-item')).map(el => el.dataset.id);
+    routeSearchState.extraWaypoints.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+    populateWaypointSelect();
+    maybeRerouteAfterWaypoint();
+}
+
+function setWaypointEnabled(enabled) {
+    const btn = document.getElementById('btnWaypointToggle');
+    if (!btn) return;
+    btn.disabled = !enabled;
+    btn.classList.toggle('active', false);
+}
+
+function setRouteSearchInfo(info) {
+    const wrap = document.getElementById('routeSearchInfo');
+    const distEl = document.getElementById('routeSearchDistance');
+    const durEl = document.getElementById('routeSearchDuration');
+    if (!wrap || !distEl || !durEl) return;
+
+    if (!info) {
+        wrap.style.display = 'none';
+        return;
+    }
+
+    distEl.textContent = `${info.distanceKm.toFixed(1)} km`;
+    durEl.textContent = info.durationStr;
+    wrap.style.display = '';
+}
+
+function getRouteSearchDayKey() {
+    if (window.NavigationController && window.NavigationController.dayKey) {
+        return window.NavigationController.dayKey;
+    }
+    if (window.currentDayKey) return window.currentDayKey;
+    return null;
+}
+
+function getFirstDayLocationLatLng() {
+    const dayKey = getRouteSearchDayKey();
+    if (dayKey) {
+        const el = document.querySelector(`.location-data[data-daykey="${dayKey}"][data-lat][data-lng]`);
+        if (el) {
+            const lat = parseFloat(el.dataset.lat);
+            const lng = parseFloat(el.dataset.lng);
+            if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+        }
+    }
+    const fallback = document.querySelector('.location-data[data-lat][data-lng]');
+    if (fallback) {
+        const lat = parseFloat(fallback.dataset.lat);
+        const lng = parseFloat(fallback.dataset.lng);
+        if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+    }
+    return null;
+}
+
+async function resolveRouteSearchCountryCode() {
+    const dayKey = getRouteSearchDayKey();
+    if (routeSearchState.countryCode && routeSearchState.countryCodeDayKey === dayKey) {
+        return routeSearchState.countryCode;
+    }
+    if (routeSearchState.countryCodePromise) return routeSearchState.countryCodePromise;
+
+    const coords = getFirstDayLocationLatLng();
+    if (!coords) return null;
+
+    const mapboxToken = localStorage.getItem('arc_mapbox_token');
+    routeSearchState.countryCodePromise = (async () => {
+        let code = null;
+        if (mapboxToken) {
+            const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${coords.lng},${coords.lat}.json?types=country&limit=1&access_token=${mapboxToken}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            const feature = data.features && data.features[0];
+            if (feature && feature.properties && feature.properties.short_code) {
+                code = feature.properties.short_code.toLowerCase();
+            }
+        } else {
+            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lng}`;
+            const response = await fetch(url, { headers: { 'User-Agent': 'ArcTimelineReader/1.0' } });
+            const data = await response.json();
+            if (data && data.address && data.address.country_code) {
+                code = data.address.country_code.toLowerCase();
+            }
+        }
+        routeSearchState.countryCode = code;
+        routeSearchState.countryCodeDayKey = dayKey || null;
+        routeSearchState.countryCodePromise = null;
+        return code;
+    })();
+
+    return routeSearchState.countryCodePromise;
+}
+
+function maybeRerouteAfterWaypoint() {
+    if (routeSearchState.from && routeSearchState.to) {
+        getRouteFromSearch();
     }
 }
 
@@ -786,6 +1263,10 @@ async function getRouteFromSearch() {
     const btnReset = document.getElementById('btnResetView');
     const btnGo = document.getElementById('btnGo');
 
+    if (typeof hideDiaryRoutes === 'function') {
+        hideDiaryRoutes();
+    }
+
     // Show loading state
     if (btnGo) {
         btnGo.classList.add('loading');
@@ -798,6 +1279,7 @@ async function getRouteFromSearch() {
         map.removeLayer(window.routeSearchLayer);
         window.routeSearchLayer = null;
     }
+    removeRouteSearchPolylines();
     if (window.routeSearchMarkerFrom) {
         map.removeLayer(window.routeSearchMarkerFrom);
         window.routeSearchMarkerFrom = null;
@@ -820,6 +1302,7 @@ async function getRouteFromSearch() {
                 iconAnchor: [16, 40]
             })
         }).addTo(map).bindPopup(`<b>${from.name}</b>`, { offset: [0, -35] }).openPopup();
+        window.routeSearchMarkerFrom._routeSearchMarker = true;
 
         // Fly to the location
         map.flyTo([from.lat, from.lng], 16, { duration: 1 });
@@ -831,6 +1314,7 @@ async function getRouteFromSearch() {
         // Show controls and populate waypoint dropdown
         if (btnReset) btnReset.style.display = '';
         populateWaypointSelect();
+        setRouteSearchInfo(null);
         if (btnGo) {
             btnGo.classList.remove('loading');
             btnGo.disabled = false;
@@ -844,9 +1328,15 @@ async function getRouteFromSearch() {
         const mapboxToken = localStorage.getItem('arc_mapbox_token');
         let coords, distanceKm, durationMin;
 
+        const extraWaypoints = Array.isArray(routeSearchState.extraWaypoints)
+            ? routeSearchState.extraWaypoints.filter(wp => typeof wp.lat === 'number' && typeof wp.lng === 'number')
+            : [];
+        const routeStops = [from, ...extraWaypoints.map(wp => ({ lat: wp.lat, lng: wp.lng })), to];
+        const coordString = routeStops.map(p => `${p.lng},${p.lat}`).join(';');
+
         if (mapboxToken) {
             // Use Mapbox Directions API (better routing, more options)
-            const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson&access_token=${mapboxToken}`;
+            const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordString}?overview=full&geometries=geojson&access_token=${mapboxToken}`;
             const response = await fetch(url);
             const data = await response.json();
 
@@ -860,7 +1350,7 @@ async function getRouteFromSearch() {
             durationMin = Math.round(route.duration / 60);
         } else {
             // Fallback to OSRM (free, no API key)
-            const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+            const url = `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson`;
             const response = await fetch(url);
             const data = await response.json();
 
@@ -881,6 +1371,7 @@ async function getRouteFromSearch() {
             weight: 5,
             opacity: 0.8
         }).addTo(map);
+        window.routeSearchLayer._routeSearchPolyline = true;
 
         // Add markers with improved pin design and offset popups
         window.routeSearchMarkerFrom = L.marker([from.lat, from.lng], {
@@ -893,6 +1384,7 @@ async function getRouteFromSearch() {
                 iconAnchor: [16, 40]
             })
         }).addTo(map).bindPopup(`<b>Start:</b> ${from.name}`, { offset: [0, -35] });
+        window.routeSearchMarkerFrom._routeSearchMarker = true;
 
         window.routeSearchMarkerTo = L.marker([to.lat, to.lng], {
             icon: L.divIcon({
@@ -904,11 +1396,13 @@ async function getRouteFromSearch() {
                 iconAnchor: [16, 40]
             })
         }).addTo(map).bindPopup(`<b>End:</b> ${to.name}`, { offset: [0, -35] });
+        window.routeSearchMarkerTo._routeSearchMarker = true;
 
         // Store bounds and waypoints
         routeSearchState.routeBounds = window.routeSearchLayer.getBounds();
         routeSearchState.waypoints = [
             { lat: from.lat, lng: from.lng, name: from.name, marker: window.routeSearchMarkerFrom, label: 'A' },
+            ...extraWaypoints.map(wp => ({ ...wp, label: wp.label || 'W' })),
             { lat: to.lat, lng: to.lng, name: to.name, marker: window.routeSearchMarkerTo, label: 'B' }
         ];
 
@@ -921,20 +1415,11 @@ async function getRouteFromSearch() {
             paddingBottomRight: padding.paddingBottomRight
         });
 
-        // Show route info popup (basic info first, elevation added async)
+        // Show route info in modal (basic info first, elevation added async)
         const durationStr = durationMin >= 60
             ? `${Math.floor(durationMin/60)}h ${durationMin%60}m`
             : `${durationMin} min`;
-
-        const routePopup = L.popup()
-            .setLatLng(coords[Math.floor(coords.length / 2)])
-            .setContent(`
-                <div style="text-align:center;">
-                    <div style="font-weight:600;margin-bottom:4px;">${distanceKm.toFixed(1)} km</div>
-                    <div style="color:#666;font-size:12px;">🚗 ${durationStr}</div>
-                </div>
-            `)
-            .openOn(map);
+        setRouteSearchInfo({ distanceKm, durationStr });
 
         // Show controls and populate waypoint dropdown
         if (btnReset) btnReset.style.display = '';
@@ -954,19 +1439,12 @@ async function getRouteFromSearch() {
                     routeSearchState.elevationData = elevationData;
                     routeSearchState.elevationStats = stats;
 
-                    // Update popup with elevation info
+                    // Update modal with elevation info
                     let elevationHtml = '';
                     if (stats.gain > 0 || stats.loss > 0) {
                         elevationHtml = `<div style="color:#666;font-size:11px;margin-top:4px;">↑${stats.gain}m ↓${stats.loss}m</div>`;
                     }
-
-                    routePopup.setContent(`
-                        <div style="text-align:center;">
-                            <div style="font-weight:600;margin-bottom:4px;">${distanceKm.toFixed(1)} km</div>
-                            <div style="color:#666;font-size:12px;">🚗 ${durationStr}</div>
-                            ${elevationHtml}
-                        </div>
-                    `);
+                    setRouteSearchInfo({ distanceKm, durationStr });
 
                     // Trigger elevation panel update if it's open
                     if (typeof window.updateElevationChart === 'function') {
@@ -1014,27 +1492,54 @@ function resetRouteView() {
 
 // Populate waypoint dropdown
 function populateWaypointSelect() {
-    const select = document.getElementById('waypointSelect');
-    if (!select) return;
+    const dropdown = document.getElementById('waypointDropdown');
+    const menu = document.getElementById('waypointMenuList');
+    const button = document.getElementById('waypointMenuButton');
+    if (!dropdown || !menu || !button) return;
 
-    // Clear existing options
-    select.innerHTML = '<option value="">Go to...</option>';
+    // Clear existing items
+    menu.replaceChildren();
+    button.textContent = 'Go to...';
+
+    // Rebuild waypoint list (from/to + extras)
+    const combined = [];
+    if (routeSearchState.from) combined.push({ ...routeSearchState.from, label: 'A' });
+    if (routeSearchState.extraWaypoints && routeSearchState.extraWaypoints.length > 0) {
+        const ordered = getWaypointOrderFromDOM();
+        const map = new Map(routeSearchState.extraWaypoints.map(wp => [wp.id, wp]));
+        const inOrder = ordered.map(id => map.get(id)).filter(Boolean);
+        const remaining = routeSearchState.extraWaypoints.filter(wp => !ordered.includes(wp.id));
+        const extras = [...inOrder, ...remaining].filter(wp => typeof wp.lat === 'number' && typeof wp.lng === 'number');
+        combined.push(...extras);
+    }
+    if (routeSearchState.to) combined.push({ ...routeSearchState.to, label: 'B' });
+    routeSearchState.waypoints = combined;
 
     // Add waypoints
-    if (routeSearchState.waypoints && routeSearchState.waypoints.length > 0) {
-        routeSearchState.waypoints.forEach((wp, idx) => {
-            const option = document.createElement('option');
-            option.value = idx;
+    if (combined.length > 0) {
+        combined.forEach((wp, idx) => {
             const label = wp.label ? `${wp.label}: ` : '';
             // Truncate long names
             const name = wp.name.length > 25 ? wp.name.substring(0, 22) + '...' : wp.name;
-            option.textContent = `${label}${name}`;
-            select.appendChild(option);
+            const item = document.createElement('div');
+            item.className = 'route-search-menu-item';
+            item.textContent = `${label}${name}`;
+            item.addEventListener('click', () => {
+                closeWaypointMenu();
+                gotoWaypoint(idx);
+            });
+            menu.appendChild(item);
         });
-        select.style.display = '';
+        dropdown.style.display = '';
     } else {
-        select.style.display = 'none';
+        dropdown.style.display = 'none';
     }
+}
+
+function getWaypointOrderFromDOM() {
+    const container = document.getElementById('searchWaypointsContainer');
+    if (!container) return [];
+    return Array.from(container.querySelectorAll('.waypoint-item')).map(el => el.dataset.id);
 }
 
 // Go to selected waypoint
@@ -1048,38 +1553,20 @@ function gotoWaypoint(index) {
     const map = window.map;
     const targetZoom = 17;
 
-    // Get the map container size and padding
-    const mapSize = map.getSize();
-    const padding = (window.NavigationController && window.NavigationController.mapPadding)
-        ? window.NavigationController.mapPadding
-        : { paddingTopLeft: [0, 0], paddingBottomRight: [0, 0] };
+    if (map && typeof map.invalidateSize === 'function') {
+        map.invalidateSize({ animate: false });
+    }
 
-    // Calculate the center of the safe (unobstructed) area
-    // Safe area: from paddingTopLeft to (mapSize - paddingBottomRight)
-    const safeLeft = padding.paddingTopLeft[0];
-    const safeTop = padding.paddingTopLeft[1];
-    const safeRight = mapSize.x - padding.paddingBottomRight[0];
-    const safeBottom = mapSize.y - padding.paddingBottomRight[1];
-
-    // Center of safe area in pixels
-    const safeCenterX = (safeLeft + safeRight) / 2;
-    const safeCenterY = (safeTop + safeBottom) / 2;
-
-    // Map center in pixels
-    const mapCenterX = mapSize.x / 2;
-    const mapCenterY = mapSize.y / 2;
-
-    // Offset needed: how much the safe center differs from map center
-    const offsetX = safeCenterX - mapCenterX;
-    const offsetY = safeCenterY - mapCenterY;
-
-    // Convert waypoint to pixel at target zoom, apply offset, convert back to latlng
-    const targetPoint = map.project([waypoint.lat, waypoint.lng], targetZoom);
-    const offsetPoint = L.point(targetPoint.x - offsetX, targetPoint.y - offsetY);
-    const offsetLatLng = map.unproject(offsetPoint, targetZoom);
-
-    // Use setView (no animation) to avoid blurry tiles, then let tiles load
-    map.setView(offsetLatLng, targetZoom, { animate: false });
+    if (window.NavigationController && typeof window.NavigationController.panToLocation === 'function') {
+        // Initial pan (may be too early if layout/margins just changed)
+        window.NavigationController.panToLocation(waypoint.lat, waypoint.lng, targetZoom, false);
+        // Re-apply after layout settles (fixes first-click landing under diary)
+        setTimeout(() => {
+            window.NavigationController.panToLocation(waypoint.lat, waypoint.lng, targetZoom, false);
+        }, 120);
+    } else {
+        map.setView([waypoint.lat, waypoint.lng], targetZoom, { animate: false });
+    }
 
     // Wait for tiles to load, then open popup
     setTimeout(() => {
@@ -1088,10 +1575,37 @@ function gotoWaypoint(index) {
         }
     }, 400);
 
-    // Reset dropdown to placeholder
-    const select = document.getElementById('waypointSelect');
-    if (select) select.value = '';
+    // Reset button label
+    const button = document.getElementById('waypointMenuButton');
+    if (button) button.textContent = 'Go to...';
 }
+
+function toggleWaypointMenu() {
+    const menu = document.getElementById('waypointMenuList');
+    if (!menu) return;
+    const visible = menu.style.display !== 'none';
+    menu.style.display = visible ? 'none' : 'block';
+}
+window.toggleWaypointMenu = toggleWaypointMenu;
+
+function closeWaypointMenu() {
+    const menu = document.getElementById('waypointMenuList');
+    if (menu) menu.style.display = 'none';
+}
+window.closeWaypointMenu = closeWaypointMenu;
+
+function initWaypointMenuCloseHandler() {
+    if (document._routeSearchMenuInit) return;
+    document._routeSearchMenuInit = true;
+    document.addEventListener('click', (e) => {
+        const dropdown = document.getElementById('waypointDropdown');
+        if (!dropdown) return;
+        if (!dropdown.contains(e.target)) {
+            closeWaypointMenu();
+        }
+    });
+}
+initWaypointMenuCloseHandler();
 
 // Set location from diary click
 function setRouteLocationFromDiary(lat, lng, name) {
@@ -1109,4 +1623,3 @@ function setRouteLocationFromDiary(lat, lng, name) {
 function hasActiveRouteSearch() {
     return window.routeSearchLayer !== null && window.routeSearchLayer !== undefined;
 }
-

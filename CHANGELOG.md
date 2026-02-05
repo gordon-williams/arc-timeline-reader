@@ -1,5 +1,161 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 855 (2026-02-05)
+
+### Route Search - GoTo Menu Width
+- Dropdown menu can be wider than the button for long locations
+
+---
+
+## Build 854 (2026-02-05)
+
+### Route Search - Button Sizing
+- Reduced Go To button width to avoid right edge overflow
+
+---
+
+## Build 853 (2026-02-05)
+
+### Route Search - Button Layout
+- Split actions into left/right groups for consistent alignment
+
+---
+
+## Build 852 (2026-02-05)
+
+### Route Search - Button Polish
+- Restored Clear button border to match gray buttons
+- Right-align Fit/Go while keeping Clear/Waypoint/GoTo left aligned
+
+---
+
+## Build 851 (2026-02-05)
+
+### Route Search - Button Alignment
+- Actions aligned to input left edge
+- GoTo button height matches other buttons
+
+---
+
+## Build 850 (2026-02-05)
+
+### Route Search - Custom GoTo Menu
+- Replaced native select with a custom dropdown menu
+
+---
+
+## Build 849 (2026-02-05)
+
+### Route Search - UI
+- Increased right margin on GoTo list
+
+---
+
+## Build 848 (2026-02-05)
+
+### Route Search - Reliability
+- Hide diary routes when clicking Go (catch any stragglers)
+- Added right margin to GoTo list
+
+---
+
+## Build 847 (2026-02-05)
+
+### Route Search - Cleanup + Ordering
+- GoTo list follows From → Waypoints (in field order) → To
+- Clear removes any route markers and stale polylines
+- Diary routes stay hidden while route search modal is open
+
+---
+
+## Build 846 (2026-02-05)
+
+### Route Search - Country-Scoped Search
+- Mapbox geocoding used when token exists; Nominatim fallback
+- Country inferred from first day location and applied to search results
+- Waypoint nickname edits no longer trigger geocode searches
+
+---
+
+## Build 845 (2026-02-05)
+
+### Route Search - Waypoint Polish
+- Clear now removes any stale route polylines
+- Waypoint marker drag replaces route instead of stacking routes
+- Waypoint markers more visible
+- Route stats restyled to look like info (not a button)
+- Waypoint names editable without triggering new search; GoTo uses nickname order
+
+---
+
+## Build 844 (2026-02-05)
+
+### Route Search + Elevation Panel
+- Route search info shows distance and duration only (no elevation stats)
+- Elevation panel refit respects active route search without restoring diary routes
+
+---
+
+## Build 843 (2026-02-05)
+
+### Elevation Panel - Block Map Clicks
+- Map left-clicks are blocked while the cursor is over the elevation panel
+
+---
+
+## Build 842 (2026-02-05)
+
+### Route Search - Waypoints + Modal Info
+- Waypoint delete buttons
+- Route info moved from map popup into route search modal
+- Preserve route search when opening elevation panel; speed profile disabled for route search
+
+---
+
+## Build 841 (2026-02-05)
+
+### Route Search - Multi-Waypoint + Drag
+- Waypoints disabled until a destination is selected
+- Map click adds waypoint only after To is set
+- Multiple waypoint fields between From/To with drag handles
+- Re-route after waypoint reorder or marker drag
+
+---
+
+## Build 840 (2026-02-05)
+
+### Route Search - Waypoints Replot + Map Popup
+- Map click popup shows waypoint label + coordinates and a single Add waypoint action
+- Added waypoints now re-plot the route when both From/To are set
+- Routing requests include extra waypoints for Mapbox/OSRM
+
+---
+
+## Build 839 (2026-02-05)
+
+### UX - Add Waypoint From Map + Search
+- Map click (with route search open) shows “Add waypoint”
+- Waypoint search field added via new “Waypoint” toggle button in the route search modal
+- Waypoints are added to the Go To list with W markers
+
+---
+
+## Build 838 (2026-02-05)
+
+### Fix - Route Search Go To First Click Offset
+- Forces map layout invalidation before panning
+- Re-applies `panToLocation` after a short delay so the first Go To lands in the safe center
+
+---
+
+## Build 837 (2026-02-05)
+
+### Fix - Route Search Go To + Route Hiding
+- Go To now uses NavigationController pan offset so waypoint centers in safe area
+- Diary routes remain hidden while route search modal is open
+
+---
+
 ## Build 836 (2026-02-05)
 
 ### Cleanup - Remove Dev Modal + Debug Logs
