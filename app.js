@@ -11500,14 +11500,12 @@ scrollToDiaryDay(currentDayKey);
             panel.addEventListener('touchend', enableMapDrag, { passive: true });
             panel.addEventListener('mousedown', (e) => {
                 if (e.button === 0) {
-                    e.preventDefault();
                     e.stopPropagation();
                 }
-            }, true);
+            });
             panel.addEventListener('click', (e) => {
-                e.preventDefault();
                 e.stopPropagation();
-            }, true);
+            });
 
             _elevationPanelDragGuardAttached = true;
         }
