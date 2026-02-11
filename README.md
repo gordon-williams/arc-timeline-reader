@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader
 
-**Current Build: 868**
+**Current Build: 869**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracking data that generates interactive diaries with maps.
 
@@ -16,6 +16,7 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracki
 - **Automatic Detection** - Validates backup folder structure before import
 - **Smart Coalescing** - iCloud imports automatically clean up GPS noise and data gaps
 - **Sanitized Day Export** - JSON and GPX exports remove known duplicate backup artifacts from export output
+- **Data Gap + Unknown Recovery** - Unknown/no-GPS spans are stored as `Data Gap`, and unresolved activities are reprocessed to recover likely walking/cycling/car types from samples
 
 ### Diary Viewer
 - **Interactive Maps** - Leaflet.js maps with Mapbox or CARTO tiles

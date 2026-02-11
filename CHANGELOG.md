@@ -1,5 +1,22 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 869 (2026-02-11)
+
+### Import - Incremental Refresh Reliability
+- Incremental backup import now always refreshes visits with naming metadata (`customTitle`, `placeId`, `streetAddress`) so stale unnamed entries are corrected.
+- Incremental backup import now also refreshes unresolved activities (`unknown`/missing type) so they can be reclassified when samples are available.
+- Aligned remaining-batch scan logic with main-batch logic (same unchanged-skip, place attachment, and lastSaved tracking).
+
+### Activity Classification - Unknown Recovery
+- Added storage-time activity resolution for unresolved non-visit items: infer from samples when Arc backup omits confirmed/classified type.
+- Improves cases where Arc Timeline shows Walking but backup trip type fields are missing/unknown.
+
+### Data Gap Labeling - Stored + Search Consistency
+- Unknown non-visit spans without GPS samples are now stored with `displayName: "Data Gap"` in day records.
+- Diary naming and Find search now prefer stored `displayName`, so `Data Gap` appears consistently and searches for `Unknown` no longer match those entries.
+
+---
+
 ## Build 868 (2026-02-11)
 
 ### Export - JSON + GPX Sanitization

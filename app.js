@@ -620,6 +620,32 @@ function moveMapSmart(latlng, zoom) {
             }
         };
         
+        function getStoredDisplayNameForTimelineItem(item) {
+            if (!item || item.isVisit) return null;
+            const act = (item.activityType || '').toLowerCase();
+            const hasNoGpsSamples = !Array.isArray(item.samples) || item.samples.length === 0;
+            if ((act === 'unknown' || act === '') && hasNoGpsSamples) {
+                return 'Data Gap';
+            }
+            return null;
+        }
+
+        function getStoredActivityTypeForTimelineItem(item) {
+            if (!item) return 'unknown';
+            if (item.isVisit) return 'stationary';
+
+            let act = (item.activityType || '').toLowerCase().trim();
+            if (act === 'automotive') act = 'car';
+
+            // When Arc backup omits confirmed/classified type, infer from samples
+            // so stored output matches Arc Timeline display more closely.
+            if (!act || act === 'unknown') {
+                const inferred = inferActivityTypeFromSamples(item.samples || [], 'unknown');
+                return (inferred || 'unknown').toLowerCase();
+            }
+            return act;
+        }
+
         /**
          * Generate a simple content hash for a day's timeline items
          * Captures user-editable properties: item count, activity types, place IDs, notes
@@ -639,7 +665,8 @@ function moveMapSmart(latlng, zoom) {
                 const placeId = item.placeId ?? item.place?.placeId ?? item.place?.id;
                 const place = placeId ? String(placeId).slice(0, 8) : '';
                 const hasNote = item.noteId ? 'N' : '';
-                return `${type}:${place}:${hasNote}`;
+                const label = item.displayName || '';
+                return `${type}:${place}:${hasNote}:${label}`;
             });
 
             return parts.join('|');
@@ -4242,8 +4269,17 @@ function moveMapSmart(latlng, zoom) {
                                 const startDayKey = getLocalDayKey(item.startDate);
                                 const endDayKey = item.endDate ? getLocalDayKey(item.endDate) : startDayKey;
                             
-                                // Skip unchanged items
-                                if (lastBackupSync && item.lastSaved && item.lastSaved <= lastBackupSync) {
+                                // Skip unchanged items, EXCEPT visits that carry naming metadata.
+                                // Arc can preserve lastSaved while visit naming fields/place linkage change.
+                                const preserveVisitNaming = !!(
+                                    item.isVisit &&
+                                    (item.customTitle || item.placeId || item.streetAddress)
+                                );
+                                const preserveUnresolvedActivity = !!(
+                                    !item.isVisit &&
+                                    (!item.activityType || String(item.activityType).toLowerCase() === 'unknown')
+                                );
+                                if (!(preserveVisitNaming || preserveUnresolvedActivity) && lastBackupSync && item.lastSaved && item.lastSaved <= lastBackupSync) {
                                     skippedUnchanged++;
                                     continue;
                                 }
@@ -4289,28 +4325,59 @@ function moveMapSmart(latlng, zoom) {
                 if (batch.length > 0) {
                     const results = await Promise.all(batch.map(fh => readFileAsJson(fh)));
                     importDiag.timeline.files += results.length;
-                    for (const jsonValue of results) {
-                        for (const rawItem of toRecordArray(jsonValue)) {
-                            importDiag.timeline.seen++;
-                            scannedCount++;
-                            const item = normalizeBackupItem(rawItem);
+                        for (const jsonValue of results) {
+                            for (const rawItem of toRecordArray(jsonValue)) {
+                                importDiag.timeline.seen++;
+                                scannedCount++;
+                                const item = normalizeBackupItem(rawItem);
                             if (!item) {
                                 importDiag.timeline.rejected++;
                                 continue;
                             }
-                            if (item.deleted) {
-                                importDiag.timeline.deleted++;
-                                continue;
-                            }
-                            if (!item.startDate) continue;
+                                if (item.deleted) {
+                                    importDiag.timeline.deleted++;
+                                    continue;
+                                }
+                                if (item.lastSaved && item.lastSaved > maxLastSaved) {
+                                    maxLastSaved = item.lastSaved;
+                                }
+                                if (!item.startDate) continue;
                         
-                            const startDayKey = getLocalDayKey(item.startDate);
-                            const endDayKey = item.endDate ? getLocalDayKey(item.endDate) : startDayKey;
+                                const startDayKey = getLocalDayKey(item.startDate);
+                                const endDayKey = item.endDate ? getLocalDayKey(item.endDate) : startDayKey;
+
+                                // Keep parity with the main batch path:
+                                // skip unchanged items, except visits with naming metadata.
+                                const preserveVisitNaming = !!(
+                                    item.isVisit &&
+                                    (item.customTitle || item.placeId || item.streetAddress)
+                                );
+                                const preserveUnresolvedActivity = !!(
+                                    !item.isVisit &&
+                                    (!item.activityType || String(item.activityType).toLowerCase() === 'unknown')
+                                );
+                                if (!(preserveVisitNaming || preserveUnresolvedActivity) && lastBackupSync && item.lastSaved && item.lastSaved <= lastBackupSync) {
+                                    skippedUnchanged++;
+                                    continue;
+                                }
+
+                                // Attach place info (name/center/radius)
+                                if (item.placeId && placeLookup.has(item.placeId)) {
+                                    const place = placeLookup.get(item.placeId);
+                                    item.place = {
+                                        name: place.name,
+                                        center: place.center,
+                                        radiusMeters: place.radiusMeters || place.radius || 50
+                                    };
+                                    if ((!item.center || item.center.latitude == null || item.center.longitude == null) && place.center) {
+                                        item.center = place.center;
+                                    }
+                                }
                         
-                            changedItems.push(item);
-                            changedItemIds.add(item.itemId);
-                            changedDays.add(startDayKey);
-                            changedWeeks.add(getISOWeek(item.startDate));
+                                changedItems.push(item);
+                                changedItemIds.add(item.itemId);
+                                changedDays.add(startDayKey);
+                                changedWeeks.add(getISOWeek(item.startDate));
                             importDiag.timeline.accepted++;
                             // Missing days mode removed
                         }
@@ -4523,7 +4590,8 @@ function moveMapSmart(latlng, zoom) {
                         timelineItems: items.map(item => ({
                             itemId: item.itemId,
                             isVisit: item.isVisit,
-                            activityType: item.activityType || (item.isVisit ? 'stationary' : 'unknown'),
+                            activityType: getStoredActivityTypeForTimelineItem(item),
+                            displayName: getStoredDisplayNameForTimelineItem(item),
                             manualActivityType: item.manualActivityType || false,
                             startDate: item.startDate,
                             endDate: item.endDate,
@@ -5088,7 +5156,8 @@ function moveMapSmart(latlng, zoom) {
                         timelineItems: orderedItems.map(item => ({
                             itemId: item.itemId,
                             isVisit: item.isVisit,
-                            activityType: item.activityType || (item.isVisit ? 'stationary' : 'unknown'),
+                            activityType: getStoredActivityTypeForTimelineItem(item),
+                            displayName: getStoredDisplayNameForTimelineItem(item),
                             manualActivityType: item.manualActivityType || false,
                             startDate: item.startDate,
                             endDate: item.endDate,
@@ -13433,7 +13502,7 @@ scrollToDiaryDay(currentDayKey);
                             if (matches.length >= MAX_RESULTS) break;
                             
                             // Build location name
-                            let locationName = item.customTitle || '';
+                            let locationName = item.displayName || item.customTitle || '';
                             
                             const placeId = item?.place?.placeId || item?.place?.id || item?.placeId || item?.placeUUID;
                             if (!locationName && placeId && placesById && placesById[String(placeId)]) {
@@ -13446,8 +13515,18 @@ scrollToDiaryDay(currentDayKey);
                                               item.streetAddress ||
                                               (item.isVisit ? 'Visit' : (item.activityType || 'Activity'));
                             }
-                            
-                            const activityType = item.activityType || '';
+
+                            // Keep search labels consistent with diary rendering:
+                            // unknown/no-GPS activity spans are "Data Gap", not "Unknown".
+                            let activityType = item.activityType || '';
+                            if (!item.isVisit) {
+                                const act = activityType.toLowerCase();
+                                const hasNoGpsSamples = !Array.isArray(item.samples) || item.samples.length === 0;
+                                if ((act === 'unknown' || act === '') && hasNoGpsSamples) {
+                                    locationName = 'Data Gap';
+                                    activityType = '';
+                                }
+                            }
                             const searchText = `${locationName} ${activityType}`.toLowerCase();
                             
                             // Use indexOf for faster matching
@@ -16383,6 +16462,14 @@ scrollToDiaryDay(currentDayKey);
                     
                     // 🎯 Intelligent location naming
                     let locationName = getSmartLocationName(item, locationClusters);
+                    // Align with Arc Editor labeling for unknown no-GPS activity spans.
+                    if (!item.isVisit) {
+                        const act = (item.activityType || '').toLowerCase();
+                        const hasNoGpsSamples = !Array.isArray(item.samples) || item.samples.length === 0;
+                        if ((act === 'unknown' || act === '') && hasNoGpsSamples) {
+                            locationName = 'Data Gap';
+                        }
+                    }
                     
                     // Get latitude/longitude/altitude for clicking
                     let lat = item.center?.latitude;
@@ -16778,10 +16865,19 @@ scrollToDiaryDay(currentDayKey);
         
         // 🎯 Get smart location name using clusters
         function getSmartLocationName(item, locationClusters) {
+            if (item?.displayName) {
+                return String(item.displayName).trim();
+            }
+
             // Priority 1: PlaceId mapping from places folder (most authoritative, refreshed on each import)
             const mappedPid = item?.place?.placeId || item?.place?.id || item?.placeId || item?.placeUUID;
-            if (mappedPid && placesById && placesById[String(mappedPid)]) {
-                return placesById[String(mappedPid)].trim();
+            if (mappedPid && placesById) {
+                const pid = String(mappedPid);
+                const mappedName =
+                    placesById[pid] ||
+                    placesById[pid.toUpperCase()] ||
+                    placesById[pid.toLowerCase()];
+                if (mappedName) return mappedName.trim();
             }
 
             // Priority 2: Place name from embedded place object
@@ -16808,27 +16904,30 @@ scrollToDiaryDay(currentDayKey);
                 logDebug(`📍 getSmartLocationName: Visit missing name sources`, {
                     hasPlace: !!item.place,
                     placeKeys: item.place ? Object.keys(item.place) : [],
+                    placeId: item.placeId || item.place?.placeId || item.place?.id || null,
                     streetAddress: item.streetAddress,
                     center: item.center
                 });
             }
-            
-            // Priority 4: Activity type (for non-visits)
-            if (item.activityType) {
-                return item.activityType.charAt(0).toUpperCase() + item.activityType.slice(1);
-            }
-            
-            // Priority 4: Find cluster for this visit
+
+            // Priority 5: Find cluster for visits without explicit names
             if (item.isVisit && item.center?.latitude && item.center?.longitude) {
-                const lat = item.center.latitude;
-                const lng = item.center.longitude;
-                
                 for (const cluster of locationClusters) {
                     // Check if this visit is in this cluster
                     if (cluster.visits.includes(item)) {
                         return cluster.name;
                     }
                 }
+            }
+
+            // Priority 6: Activity type (for non-visits)
+            if (!item.isVisit && item.activityType) {
+                return item.activityType.charAt(0).toUpperCase() + item.activityType.slice(1);
+            }
+
+            // Priority 7: Last-resort label for unnamed visits
+            if (item.isVisit) {
+                return 'Unnamed Location';
             }
             
             // Fallback
