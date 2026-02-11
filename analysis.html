@@ -1760,8 +1760,8 @@
         <div class="analysis-header">
             <span class="analysis-title">Arc Timeline Analysis</span>
             <span class="header-stats" id="headerStats">Loading...</span>
-            <button class="btn btn-secondary btn-export" id="themeToggle" onclick="toggleTheme()">Light</button>
-            <button class="btn btn-secondary btn-export" id="rebuildBtn" onclick="startRebuild()">Rebuild</button>
+            <button class="btn btn-secondary btn-export" id="themeToggle">Light</button>
+            <button class="btn btn-secondary btn-export" id="rebuildBtn">Rebuild</button>
         </div>
         
         <div class="analysis-tabs">
@@ -1864,8 +1864,8 @@
                                 <button class="preset-btn" data-preset="all">All</button>
                             </div>
                             <div class="spacer"></div>
-                            <button class="btn btn-secondary btn-export" id="printReportBtn" style="display:none;" onclick="saveReportAsPDF()">Save PDF</button>
-                            <button class="btn btn-secondary btn-export" id="saveReportBtn" style="display:none;" onclick="saveReportAsPNG()">Save PNG</button>
+                            <button class="btn btn-secondary btn-export" id="printReportBtn" style="display:none;">Save PDF</button>
+                            <button class="btn btn-secondary btn-export" id="saveReportBtn" style="display:none;">Save PNG</button>
                         </div>
                         <div class="control-row">
                             <div class="search-wrapper">
@@ -2093,15 +2093,27 @@
             const sorted = filtered.sort((a, b) => (totals[b] || 0) - (totals[a] || 0));
             
             const container = document.getElementById('activityCheckboxes');
-            container.innerHTML = sorted.map((a, i) => {
+            container.replaceChildren();
+            sorted.forEach((a) => {
                 const color = activityColors[a] || defaultColor;
                 // Default to walking checked so users see data immediately
                 const isWalking = a.toLowerCase() === 'walking';
-                return `<label class="activity-checkbox" style="--activity-color: ${color}">
-                    <input type="checkbox" value="${a}"${isWalking ? ' checked' : ''}>
-                    <span>${capitalize(a)}</span>
-                </label>`;
-            }).join('');
+                const label = document.createElement('label');
+                label.className = 'activity-checkbox';
+                label.style.setProperty('--activity-color', color);
+
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.value = a;
+                input.checked = isWalking;
+
+                const textSpan = document.createElement('span');
+                textSpan.textContent = capitalize(a);
+
+                label.appendChild(input);
+                label.appendChild(textSpan);
+                container.appendChild(label);
+            });
 
             // Trigger chart update to show walking data
             updateChart();
@@ -2203,6 +2215,10 @@
             
             // Export
             document.getElementById('exportBtn')?.addEventListener('click', exportChart);
+            document.getElementById('themeToggle')?.addEventListener('click', toggleTheme);
+            document.getElementById('rebuildBtn')?.addEventListener('click', startRebuild);
+            document.getElementById('printReportBtn')?.addEventListener('click', () => window.saveReportAsPDF?.());
+            document.getElementById('saveReportBtn')?.addEventListener('click', () => window.saveReportAsPNG?.());
             
             // Location search
             const searchInput = document.getElementById('locationSearch');
@@ -2323,7 +2339,13 @@
             }
             
             if (filtered.length === 0) {
-                resultsContainer.innerHTML = '<div class="placeholder"><p>No data for selected range.</p></div>';
+                resultsContainer.replaceChildren();
+                const placeholderWrap = document.createElement('div');
+                placeholderWrap.className = 'placeholder';
+                const p = document.createElement('p');
+                p.textContent = 'No data for selected range.';
+                placeholderWrap.appendChild(p);
+                resultsContainer.appendChild(placeholderWrap);
                 return;
             }
             
@@ -2333,23 +2355,82 @@
             const totalDays = Math.ceil((endD - startD) / (1000 * 60 * 60 * 24)) + 1;
             const missingDays = totalDays - filtered.length;
             
-            // Build results HTML
-            resultsContainer.innerHTML = `
-                <div class="summary" id="summary"></div>
-                <div class="chart-wrapper" id="chartWrapper">
-                    <div class="chart-toolbar">
-                        <button class="chart-tool-btn" onclick="zoomChart(1.2)" title="Zoom In">+</button>
-                        <button class="chart-tool-btn" onclick="zoomChart(0.8)" title="Zoom Out">−</button>
-                        <button class="chart-tool-btn" onclick="resetZoom()" title="Reset Zoom">⊙</button>
-                        <div class="chart-tool-sep"></div>
-                        <button class="chart-tool-btn" onclick="exportChart()" title="Export PNG">⤓</button>
-                        <span class="chart-hint">Scroll to zoom • Drag to pan • Double-click to navigate</span>
-                    </div>
-                    <div class="chart-container" id="chartContainer"><canvas id="chart"></canvas></div>
-                    <div class="chart-resize-handle" id="chartResizeHandle" title="Drag to resize"></div>
-                </div>
-                <div class="table-container"><div id="dataTable"></div></div>
-            `;
+            // Build results DOM
+            resultsContainer.replaceChildren();
+
+            const summary = document.createElement('div');
+            summary.className = 'summary';
+            summary.id = 'summary';
+            resultsContainer.appendChild(summary);
+
+            const chartWrapper = document.createElement('div');
+            chartWrapper.className = 'chart-wrapper';
+            chartWrapper.id = 'chartWrapper';
+
+            const toolbar = document.createElement('div');
+            toolbar.className = 'chart-toolbar';
+
+            const zoomInBtn = document.createElement('button');
+            zoomInBtn.className = 'chart-tool-btn';
+            zoomInBtn.title = 'Zoom In';
+            zoomInBtn.textContent = '+';
+            zoomInBtn.addEventListener('click', () => zoomChart(1.2));
+
+            const zoomOutBtn = document.createElement('button');
+            zoomOutBtn.className = 'chart-tool-btn';
+            zoomOutBtn.title = 'Zoom Out';
+            zoomOutBtn.textContent = '−';
+            zoomOutBtn.addEventListener('click', () => zoomChart(0.8));
+
+            const resetBtn = document.createElement('button');
+            resetBtn.className = 'chart-tool-btn';
+            resetBtn.title = 'Reset Zoom';
+            resetBtn.textContent = '⊙';
+            resetBtn.addEventListener('click', resetZoom);
+
+            const sep = document.createElement('div');
+            sep.className = 'chart-tool-sep';
+
+            const exportBtn = document.createElement('button');
+            exportBtn.className = 'chart-tool-btn';
+            exportBtn.title = 'Export PNG';
+            exportBtn.textContent = '⤓';
+            exportBtn.addEventListener('click', exportChart);
+
+            const hint = document.createElement('span');
+            hint.className = 'chart-hint';
+            hint.textContent = 'Scroll to zoom • Drag to pan • Double-click to navigate';
+
+            toolbar.appendChild(zoomInBtn);
+            toolbar.appendChild(zoomOutBtn);
+            toolbar.appendChild(resetBtn);
+            toolbar.appendChild(sep);
+            toolbar.appendChild(exportBtn);
+            toolbar.appendChild(hint);
+            chartWrapper.appendChild(toolbar);
+
+            const chartContainer = document.createElement('div');
+            chartContainer.className = 'chart-container';
+            chartContainer.id = 'chartContainer';
+            const canvas = document.createElement('canvas');
+            canvas.id = 'chart';
+            chartContainer.appendChild(canvas);
+            chartWrapper.appendChild(chartContainer);
+
+            const resizeHandle = document.createElement('div');
+            resizeHandle.className = 'chart-resize-handle';
+            resizeHandle.id = 'chartResizeHandle';
+            resizeHandle.title = 'Drag to resize';
+            chartWrapper.appendChild(resizeHandle);
+
+            resultsContainer.appendChild(chartWrapper);
+
+            const tableContainer = document.createElement('div');
+            tableContainer.className = 'table-container';
+            const dataTable = document.createElement('div');
+            dataTable.id = 'dataTable';
+            tableContainer.appendChild(dataTable);
+            resultsContainer.appendChild(tableContainer);
             
             setupChartResize();
             renderSummary(filtered, missingDays);
@@ -2415,21 +2496,46 @@
                 .filter(([a, s]) => s.distance > 0)
                 .sort((a, b) => b[1].distance - a[1].distance);
             
-            const missingPill = missingDays > 0 
-                ? `<span class="summary-pill summary-missing">⚠️ ${missingDays} days missing</span>` 
-                : '';
-            
-            document.getElementById('summary').innerHTML = `
-                <div class="summary-stats">
-                    <div class="summary-stat"><span class="stat-value">${filtered.length}</span><span class="stat-label">Days</span></div>
-                    <div class="summary-stat"><span class="stat-value">${(totalDist / 1000).toFixed(1)}</span><span class="stat-label">Total km</span></div>
-                    <div class="summary-stat"><span class="stat-value">${(totalDur / 3600).toFixed(1)}</span><span class="stat-label">Total hours</span></div>
-                </div>
-                <div class="summary-activities">
-                    ${sorted.slice(0, 5).map(([a, s]) => `<span class="summary-pill">${capitalize(a)}: ${(s.distance / 1000).toFixed(1)} km</span>`).join('')}
-                    ${missingPill}
-                </div>
-            `;
+            const summaryEl = document.getElementById('summary');
+            summaryEl.replaceChildren();
+
+            const statsWrap = document.createElement('div');
+            statsWrap.className = 'summary-stats';
+
+            const makeStat = (value, label) => {
+                const stat = document.createElement('div');
+                stat.className = 'summary-stat';
+                const valueEl = document.createElement('span');
+                valueEl.className = 'stat-value';
+                valueEl.textContent = value;
+                const labelEl = document.createElement('span');
+                labelEl.className = 'stat-label';
+                labelEl.textContent = label;
+                stat.appendChild(valueEl);
+                stat.appendChild(labelEl);
+                return stat;
+            };
+
+            statsWrap.appendChild(makeStat(String(filtered.length), 'Days'));
+            statsWrap.appendChild(makeStat((totalDist / 1000).toFixed(1), 'Total km'));
+            statsWrap.appendChild(makeStat((totalDur / 3600).toFixed(1), 'Total hours'));
+            summaryEl.appendChild(statsWrap);
+
+            const activitiesWrap = document.createElement('div');
+            activitiesWrap.className = 'summary-activities';
+            sorted.slice(0, 5).forEach(([a, s]) => {
+                const pill = document.createElement('span');
+                pill.className = 'summary-pill';
+                pill.textContent = `${capitalize(a)}: ${(s.distance / 1000).toFixed(1)} km`;
+                activitiesWrap.appendChild(pill);
+            });
+            if (missingDays > 0) {
+                const missing = document.createElement('span');
+                missing.className = 'summary-pill summary-missing';
+                missing.textContent = `⚠️ ${missingDays} days missing`;
+                activitiesWrap.appendChild(missing);
+            }
+            summaryEl.appendChild(activitiesWrap);
         }
         
         function updateChart() {
@@ -2773,7 +2879,7 @@
             
             // Add columns for each top activity
             topActivities.forEach((activity, i) => {
-                html += `<th data-col="${3 + i}">${capitalize(activity)}<span class="resize-handle" data-col="${3 + i}"></span></th>`;
+                html += `<th data-col="${3 + i}">${escapeHtml(capitalize(activity))}<span class="resize-handle" data-col="${3 + i}"></span></th>`;
             });
             
             html += `</tr></thead><tbody>`;
@@ -2785,7 +2891,7 @@
                 else label = formatDay(row.label);
                 
                 html += `<tr data-row-idx="${idx}" class="selectable-row">
-                    <td>${label}</td>
+                    <td>${escapeHtml(label)}</td>
                     <td>${(row.totalDistance / 1000).toFixed(1)} km</td>
                     <td>${(row.totalDuration / 3600).toFixed(1)} hrs</td>`;
                 
@@ -2924,12 +3030,28 @@
             
             const notification = document.createElement('div');
             notification.className = 'data-stale-notification';
-            notification.innerHTML = `
-                <span class="notification-icon">🔄</span>
-                <span class="notification-text">Data updated: ${added} added, ${updated} updated days</span>
-                <button class="notification-refresh" onclick="refreshAnalysisData()">Refresh</button>
-                <button class="notification-dismiss" onclick="dismissStaleNotification()">×</button>
-            `;
+            const icon = document.createElement('span');
+            icon.className = 'notification-icon';
+            icon.textContent = '🔄';
+
+            const text = document.createElement('span');
+            text.className = 'notification-text';
+            text.textContent = `Data updated: ${added} added, ${updated} updated days`;
+
+            const refreshBtn = document.createElement('button');
+            refreshBtn.className = 'notification-refresh';
+            refreshBtn.textContent = 'Refresh';
+            refreshBtn.addEventListener('click', refreshAnalysisData);
+
+            const dismissBtn = document.createElement('button');
+            dismissBtn.className = 'notification-dismiss';
+            dismissBtn.textContent = '×';
+            dismissBtn.addEventListener('click', dismissStaleNotification);
+
+            notification.appendChild(icon);
+            notification.appendChild(text);
+            notification.appendChild(refreshBtn);
+            notification.appendChild(dismissBtn);
             
             document.body.appendChild(notification);
             dataStaleNotification = notification;
@@ -3355,7 +3477,11 @@
             
             if (physicalLocations.length === 0) {
                 const dropdown = document.getElementById('locationDropdown');
-                dropdown.innerHTML = '<div class="dropdown-item">No locations found</div>';
+                dropdown.replaceChildren();
+                const msg = document.createElement('div');
+                msg.className = 'dropdown-item';
+                msg.textContent = 'No locations found';
+                dropdown.appendChild(msg);
                 dropdown.classList.add('show');
                 return;
             }
@@ -3370,20 +3496,37 @@
             const dropdown = document.getElementById('locationDropdown');
             
             if (available.length === 0) {
-                dropdown.innerHTML = '<div class="dropdown-item">All matching locations selected</div>';
+                dropdown.replaceChildren();
+                const msg = document.createElement('div');
+                msg.className = 'dropdown-item';
+                msg.textContent = 'All matching locations selected';
+                dropdown.appendChild(msg);
             } else {
-                dropdown.innerHTML = available.map(l => `
-                    <div class="dropdown-item" data-id="${l.id}" data-name="${l.name}" data-lat="${l.lat || ''}" data-lng="${l.lng || ''}" data-visits="${l.totalVisits}">
-                        <span class="location-name">${l.displayName}</span>
-                        <span class="location-visits">${l.totalVisits} visits</span>
-                    </div>
-                `).join('');
-                
-                dropdown.querySelectorAll('.dropdown-item').forEach(item => {
+                dropdown.replaceChildren();
+                available.forEach((l) => {
+                    const item = document.createElement('div');
+                    item.className = 'dropdown-item';
+                    item.dataset.id = String(l.id ?? '');
+                    item.dataset.name = String(l.name ?? '');
+                    item.dataset.lat = l.lat ?? '';
+                    item.dataset.lng = l.lng ?? '';
+                    item.dataset.visits = String(l.totalVisits ?? 0);
+
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'location-name';
+                    nameSpan.textContent = l.displayName || l.name || 'Unknown';
+
+                    const visitsSpan = document.createElement('span');
+                    visitsSpan.className = 'location-visits';
+                    visitsSpan.textContent = `${l.totalVisits || 0} visits`;
+
+                    item.appendChild(nameSpan);
+                    item.appendChild(visitsSpan);
                     item.addEventListener('click', () => {
-                        const visits = parseInt(item.dataset.visits) || 0;
-                        selectPhysicalLocation(item.dataset.id, item.querySelector('.location-name').textContent, visits);
+                        const visits = parseInt(item.dataset.visits, 10) || 0;
+                        selectPhysicalLocation(item.dataset.id, nameSpan.textContent, visits);
                     });
+                    dropdown.appendChild(item);
                 });
                 
                 // Lazy load suburbs for items without them
@@ -3542,7 +3685,11 @@
             // Update progress display
             const updateProgress = () => {
                 if (completed < total) {
-                    progressEl.innerHTML = `<span class="geocode-spinner"></span> Loading suburbs: ${completed}/${total}`;
+                    progressEl.replaceChildren();
+                    const spinner = document.createElement('span');
+                    spinner.className = 'geocode-spinner';
+                    progressEl.appendChild(spinner);
+                    progressEl.appendChild(document.createTextNode(` Loading suburbs: ${completed}/${total}`));
                     progressEl.style.display = 'flex';
                 } else {
                     progressEl.style.display = 'none';
@@ -3663,21 +3810,32 @@
             
             if (selectedLocations.size === 0) {
                 row.style.display = 'none';
+                container.replaceChildren();
                 return;
             }
             
             row.style.display = 'flex';
-            container.innerHTML = Array.from(selectedLocations).map(id => {
+            container.replaceChildren();
+            Array.from(selectedLocations).forEach((id) => {
                 const displayName = selectedLocationDisplayNames.get(id) || id.split('|')[0];
                 const visits = selectedLocationVisits.get(id) || 0;
                 const visitStr = visits > 0 ? ` (${visits})` : '';
-                return `
-                    <span class="location-pill" title="${id}">
-                        ${displayName}${visitStr}
-                        <span class="location-pill-remove" onclick="removeLocation('${id.replace(/'/g, "\\'")}')">×</span>
-                    </span>
-                `;
-            }).join('');
+                const pill = document.createElement('span');
+                pill.className = 'location-pill';
+                pill.title = id;
+                pill.appendChild(document.createTextNode(`${displayName}${visitStr}`));
+
+                const removeBtn = document.createElement('span');
+                removeBtn.className = 'location-pill-remove';
+                removeBtn.textContent = '×';
+                removeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    window.removeLocation(id);
+                });
+
+                pill.appendChild(removeBtn);
+                container.appendChild(pill);
+            });
         }
         
         async function runLocationAnalysis() {
@@ -3754,9 +3912,14 @@
             if (filtered.length === 0) {
                 const resultsArea = document.getElementById('locationResults');
                 const controlsTile = resultsArea.querySelector('.controls-tile');
-                resultsArea.innerHTML = '';
+                resultsArea.replaceChildren();
                 if (controlsTile) resultsArea.appendChild(controlsTile);
-                resultsArea.insertAdjacentHTML('beforeend', '<div class="placeholder"><p>No visits found for selected locations and date range.</p></div>');
+                const placeholder = document.createElement('div');
+                placeholder.className = 'placeholder';
+                const msg = document.createElement('p');
+                msg.textContent = 'No visits found for selected locations and date range.';
+                placeholder.appendChild(msg);
+                resultsArea.appendChild(placeholder);
                 return;
             }
             
@@ -4026,6 +4189,8 @@
             
             // Combined subtitle: suburb + date range
             const subtitleStr = suburbStr ? `${suburbStr} • ${dateRangeStr}` : dateRangeStr;
+            const safeLocationNamesOnly = escapeHtml(locationNamesOnly);
+            const safeSubtitleStr = escapeHtml(subtitleStr);
             
             // Format duration for hero stat
             const formatCompactDuration = secs => {
@@ -4061,6 +4226,8 @@
                 }
                 return `Your visits are mostly ${isWeekday ? 'mid-week' : 'on weekends'}, arriving ${timeDesc}.`;
             };
+            const safePeakDay = escapeHtml(peakDay);
+            const safeInsight = escapeHtml(generateInsight());
             
             // Lucide-style SVG icons
             const icons = {
@@ -4096,12 +4263,12 @@
                 <div class="location-report">
                     <!-- Hero Header -->
                     <div class="report-hero">
-                        <div class="hero-icon">${icons.location}</div>
-                        <div class="hero-content">
-                            <div class="hero-title">${locationNamesOnly}</div>
-                            <div class="hero-subtitle">${subtitleStr}</div>
+                            <div class="hero-icon">${icons.location}</div>
+                            <div class="hero-content">
+                                <div class="hero-title">${safeLocationNamesOnly}</div>
+                                <div class="hero-subtitle">${safeSubtitleStr}</div>
+                            </div>
                         </div>
-                    </div>
                     
                     <!-- Headline Stat -->
                     <div class="headline-stat">
@@ -4123,7 +4290,7 @@
                             <span class="kpi-pill-icon">${icons.calendarDots}</span>
                             <div class="kpi-pill-content">
                                 <span class="kpi-pill-label">Most common day</span>
-                                <span class="kpi-pill-value accent">${peakDay}</span>
+                                <span class="kpi-pill-value accent">${safePeakDay}</span>
                             </div>
                         </div>
                     </div>
@@ -4156,7 +4323,7 @@
                     
                     <!-- Summary Section -->
                     <div class="report-card summary-card">
-                        <div class="summary-insight">${generateInsight()}</div>
+                        <div class="summary-insight">${safeInsight}</div>
                         
                         <div class="summary-facts">
                             <div class="summary-fact">
@@ -4193,7 +4360,7 @@
                 </div>
             </div>`;
             
-            resultsArea.innerHTML = '';
+            resultsArea.replaceChildren();
             if (controlsTile) resultsArea.appendChild(controlsTile);
             resultsArea.insertAdjacentHTML('beforeend', html);
             
@@ -4523,11 +4690,25 @@
             const linksPlaceholder = document.getElementById('mapLinksPlaceholder');
             if (linksPlaceholder && window._pendingMapLinks) {
                 const { googleUrl, osmUrl, linkName, isMultiple } = window._pendingMapLinks;
-                const linkTitle = isMultiple ? ` title="Opens ${linkName}"` : '';
-                linksPlaceholder.innerHTML = `
-                    <a href="${googleUrl}" target="_blank" class="map-link"${linkTitle}>Google ↗</a>
-                    <a href="${osmUrl}" target="_blank" class="map-link"${linkTitle}>OSM ↗</a>
-                `;
+                linksPlaceholder.replaceChildren();
+                const title = isMultiple ? `Opens ${linkName}` : '';
+
+                const googleLink = document.createElement('a');
+                googleLink.href = googleUrl;
+                googleLink.target = '_blank';
+                googleLink.className = 'map-link';
+                googleLink.textContent = 'Google ↗';
+                if (title) googleLink.title = title;
+
+                const osmLink = document.createElement('a');
+                osmLink.href = osmUrl;
+                osmLink.target = '_blank';
+                osmLink.className = 'map-link';
+                osmLink.textContent = 'OSM ↗';
+                if (title) osmLink.title = title;
+
+                linksPlaceholder.appendChild(googleLink);
+                linksPlaceholder.appendChild(osmLink);
             }
             
             // Clean up any existing map
@@ -4941,7 +5122,15 @@
         async function startRebuild() {
             const btn = document.getElementById('rebuildBtn');
             btn.disabled = true;
-            btn.innerHTML = '<span class="loading-spinner" style="width:16px;height:16px;border-width:2px;margin:0;"></span> Rebuilding...';
+            btn.replaceChildren();
+            const spinner = document.createElement('span');
+            spinner.className = 'loading-spinner';
+            spinner.style.width = '16px';
+            spinner.style.height = '16px';
+            spinner.style.borderWidth = '2px';
+            spinner.style.margin = '0';
+            btn.appendChild(spinner);
+            btn.appendChild(document.createTextNode(' Rebuilding...'));
             
             // Preserve current date ranges before rebuild
             const activityStart = document.getElementById('startDate')?.value;
@@ -5234,6 +5423,16 @@
             return s.charAt(0).toUpperCase() + s.slice(1);
         }
 
+        function escapeHtml(value) {
+            if (value == null) return '';
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         // Event management functions
         const EVENTS_STORAGE_KEY = 'arcDiaryEvents';
 
@@ -5257,10 +5456,18 @@
             events.sort((a, b) => b.startDate.localeCompare(a.startDate));
 
             // Clear existing options except the placeholder
-            selector.innerHTML = '<option value="">— Events —</option>';
+            selector.replaceChildren();
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = '— Events —';
+            selector.appendChild(placeholder);
 
             if (events.length === 0) {
-                selector.innerHTML = '<option value="">No events defined</option>';
+                selector.replaceChildren();
+                const empty = document.createElement('option');
+                empty.value = '';
+                empty.textContent = 'No events defined';
+                selector.appendChild(empty);
                 selector.disabled = true;
                 return;
             }
@@ -5284,13 +5491,23 @@
         }
         
         function showError(title, message) {
-            document.querySelector('.analysis-body').innerHTML = `
-                <div class="error-message">
-                    <h3>${title}</h3>
-                    <p>${message}</p>
-                    <p>Make sure you have imported Arc Timeline data in the main Diary Reader first.</p>
-                </div>
-            `;
+            const body = document.querySelector('.analysis-body');
+            body.replaceChildren();
+
+            const errorMessage = document.createElement('div');
+            errorMessage.className = 'error-message';
+
+            const heading = document.createElement('h3');
+            heading.textContent = title;
+            const detail = document.createElement('p');
+            detail.textContent = message;
+            const hint = document.createElement('p');
+            hint.textContent = 'Make sure you have imported Arc Timeline data in the main Diary Reader first.';
+
+            errorMessage.appendChild(heading);
+            errorMessage.appendChild(detail);
+            errorMessage.appendChild(hint);
+            body.appendChild(errorMessage);
         }
         
         // Print report

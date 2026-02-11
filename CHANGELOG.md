@@ -1,5 +1,20 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 868 (2026-02-11)
+
+### Export - JSON + GPX Sanitization
+- JSON and GPX day exports now apply the same timeline dedupe/sanitization used for known Arc backup duplicate artifacts.
+- Export output removes overlapping duplicate activity items and duplicate timeline IDs, while leaving stored DB records untouched.
+
+### Diary - Containment and Adjacent Location Cleanup
+- Added conservative suppression for low-signal activity fragments only when sandwiched between visits to the same effective place.
+- Added final diary pass to collapse consecutive identical visit location lines into one entry.
+
+### UI - Action Labels
+- Updated main toolbar labels from `Export JSON` to `Export`, and from `Import Data` to `Import`.
+
+---
+
 ## Build 867 (2026-02-05)
 
 ### UI - Header Copy

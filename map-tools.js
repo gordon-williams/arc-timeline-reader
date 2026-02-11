@@ -805,19 +805,16 @@ async function performRouteSearch(query, field) {
         const results = await geocodeSearch(query, { provider: mapboxToken ? 'mapbox' : 'nominatim', countryCode });
 
         if (results.length === 0) {
-            resultsDiv.innerHTML = '<div class="search-no-results">No results found</div>';
+            renderSearchStatus(resultsDiv, 'No results found');
             return;
         }
 
-        resultsDiv.innerHTML = results.map(r => {
-            const name = r.name;
-            return `<div class="search-result-item" onclick="selectRouteLocation('${field}', ${r.lat}, ${r.lng}, '${name.replace(/'/g, "\\'")}')">
-                <div class="search-result-name">${name}</div>
-            </div>`;
-        }).join('');
+        renderLocationSearchResults(resultsDiv, results, (result) => {
+            selectRouteLocation(field, result.lat, result.lng, result.name || 'Unknown');
+        });
     } catch (err) {
         console.error('Search error:', err);
-        resultsDiv.innerHTML = '<div class="search-no-results">Search failed</div>';
+        renderSearchStatus(resultsDiv, 'Search failed');
     }
 }
 
@@ -1119,19 +1116,53 @@ async function performWaypointSearch(query, id) {
         const countryCode = await resolveRouteSearchCountryCode();
         const results = await geocodeSearch(query, { provider: mapboxToken ? 'mapbox' : 'nominatim', countryCode });
         if (results.length === 0) {
-            resultsDiv.innerHTML = '<div class="search-no-results">No results found</div>';
+            renderSearchStatus(resultsDiv, 'No results found');
             return;
         }
-        resultsDiv.innerHTML = results.map(r => {
-            const name = r.name;
-            return `<div class="search-result-item" onclick="selectWaypointLocation('${id}', ${r.lat}, ${r.lng}, '${name.replace(/'/g, "\\'")}')">
-                <div class="search-result-name">${name}</div>
-            </div>`;
-        }).join('');
+        renderLocationSearchResults(resultsDiv, results, (result) => {
+            selectWaypointLocation(id, result.lat, result.lng, result.name || 'Unknown');
+        });
     } catch (err) {
         console.error('Search error:', err);
-        resultsDiv.innerHTML = '<div class="search-no-results">Search failed</div>';
+        renderSearchStatus(resultsDiv, 'Search failed');
     }
+}
+
+function renderSearchStatus(resultsDiv, message) {
+    resultsDiv.replaceChildren();
+    const empty = document.createElement('div');
+    empty.className = 'search-no-results';
+    empty.textContent = message;
+    resultsDiv.appendChild(empty);
+}
+
+function renderLocationSearchResults(resultsDiv, results, onSelect) {
+    resultsDiv.replaceChildren();
+    const fragment = document.createDocumentFragment();
+
+    for (const result of results) {
+        const lat = Number(result.lat);
+        const lng = Number(result.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+
+        const item = document.createElement('div');
+        item.className = 'search-result-item';
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'search-result-name';
+        nameEl.textContent = result.name || 'Unknown';
+        item.appendChild(nameEl);
+
+        item.addEventListener('click', () => onSelect({ ...result, lat, lng }));
+        fragment.appendChild(item);
+    }
+
+    if (!fragment.childNodes.length) {
+        renderSearchStatus(resultsDiv, 'No results found');
+        return;
+    }
+
+    resultsDiv.appendChild(fragment);
 }
 
 function selectWaypointLocation(id, lat, lng, name) {

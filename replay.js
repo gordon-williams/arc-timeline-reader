@@ -50,7 +50,8 @@ class ReplayController {
             eventsSetup: false,
             nextStopLocation: null,
             orderedStops: [],      // Pre-computed array of locations in route order with distances
-            nextStopIndex: 0       // Index into orderedStops for next location to visit
+            nextStopIndex: 0,      // Index into orderedStops for next location to visit
+            locationRouteMatchCache: [] // Precomputed nearest route point per location
         };
 
         // Activity icons for replay (pictogram style)
@@ -304,21 +305,11 @@ class ReplayController {
         let nearest = null;
         let nearestDistDiff = Infinity;
 
-        for (const loc of this.state.dayLocations) {
-            if (!loc.lat || !loc.lng) continue;
-
-            // Find closest route point to this location
-            let closestIdx = -1;
-            let closestDist = Infinity;
-            for (let i = 0; i < this.state.routeData.length; i++) {
-                const point = this.state.routeData[i];
-                const dist = this.calculateDistanceMeters(point.lat, point.lng, loc.lat, loc.lng);
-                if (dist < closestDist) {
-                    closestDist = dist;
-                    closestIdx = i;
-                }
-            }
-
+        for (let locIndex = 0; locIndex < this.state.dayLocations.length; locIndex++) {
+            const loc = this.state.dayLocations[locIndex];
+            const cachedNearest = this.state.locationRouteMatchCache?.[locIndex];
+            if (!cachedNearest) continue;
+            const { closestIdx, closestDist } = cachedNearest;
             if (closestIdx < 0 || closestDist > 200) continue;
 
             const locationDistance = this.state.cumulativeDistances[closestIdx];
@@ -425,7 +416,11 @@ class ReplayController {
         }
 
         this.state.routeData = routeData
-            .filter(p => p.lat && p.lng && this.getPointTime(p))
+            .filter((p) =>
+                Number.isFinite(Number(p?.lat)) &&
+                Number.isFinite(Number(p?.lng)) &&
+                this.getPointTime(p)
+            )
             .sort((a, b) => this.getPointTime(a) - this.getPointTime(b));
 
         if (this.state.routeData.length < 2) {
@@ -473,6 +468,7 @@ class ReplayController {
         this.state.currentDistance = 0;
         this.state.pauseUntil = 0;
         this.state.approachingStop = false;
+        this.buildLocationRouteMatchCache();
 
         this.createTimelineMarkers();
         this.clearMapLayers();
@@ -526,7 +522,8 @@ class ReplayController {
         // Process locations in their original chronological order
         for (let locIndex = 0; locIndex < this.state.dayLocations.length; locIndex++) {
             const loc = this.state.dayLocations[locIndex];
-            if (!loc.lat || !loc.lng) continue;
+            const coords = this.getLocationCoords(loc);
+            if (!coords) continue;
 
             const locationName = loc.name || loc.location || 'Unknown';
             const visitStart = loc.startDate ? new Date(loc.startDate).getTime() : null;
@@ -550,14 +547,14 @@ class ReplayController {
                         closestTimeDiff = timeDiff;
                         closestIdx = i;
                         // Also track distance for logging
-                        closestDist = this.calculateDistanceMeters(point.lat, point.lng, loc.lat, loc.lng);
+                        closestDist = this.calculateDistanceMeters(point.lat, point.lng, coords.lat, coords.lng);
                     }
                 }
             } else {
                 // Fallback: no time info, use spatial distance
                 for (let i = 0; i < this.state.routeData.length; i++) {
                     const point = this.state.routeData[i];
-                    const dist = this.calculateDistanceMeters(point.lat, point.lng, loc.lat, loc.lng);
+                    const dist = this.calculateDistanceMeters(point.lat, point.lng, coords.lat, coords.lng);
                     if (dist < closestDist) {
                         closestDist = dist;
                         closestIdx = i;
@@ -577,8 +574,8 @@ class ReplayController {
                 visitKey: visitKey,
                 distance: distanceOnRoute,
                 routeIndex: closestIdx,
-                lat: loc.lat,
-                lng: loc.lng,
+                lat: coords.lat,
+                lng: coords.lng,
                 time: pointTime || Date.now(),
                 loc: loc
             });
@@ -598,20 +595,11 @@ class ReplayController {
         if (!this.state.cumulativeDistances || this.state.totalDistance <= 0) return;
 
         // Timeline markers are DISTANCE-based - position by where location is on route
-        for (const loc of this.state.dayLocations) {
-            if (!loc.lat || !loc.lng) continue;
-
-            // Find closest route point to this location (for accurate positioning)
-            let closestIdx = -1;
-            let closestDist = Infinity;
-            for (let i = 0; i < this.state.routeData.length; i++) {
-                const point = this.state.routeData[i];
-                const dist = this.calculateDistanceMeters(point.lat, point.lng, loc.lat, loc.lng);
-                if (dist < closestDist) {
-                    closestDist = dist;
-                    closestIdx = i;
-                }
-            }
+        for (let locIndex = 0; locIndex < this.state.dayLocations.length; locIndex++) {
+            const loc = this.state.dayLocations[locIndex];
+            const nearest = this.state.locationRouteMatchCache?.[locIndex];
+            if (!nearest) continue;
+            const { closestIdx, closestDist } = nearest;
 
             // Skip if location isn't near the route
             if (closestIdx < 0 || closestDist > 200) continue;
@@ -627,6 +615,41 @@ class ReplayController {
             marker.style.left = `${position}%`;
             marker.setAttribute('data-name', loc.name || loc.location || 'Unknown');
             container.appendChild(marker);
+        }
+    }
+
+    getLocationCoords(loc) {
+        const lat = Number(loc?.lat);
+        const lng = Number(loc?.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+        return { lat, lng };
+    }
+
+    buildLocationRouteMatchCache() {
+        this.state.locationRouteMatchCache = [];
+        if (!this.state.routeData || !this.state.routeData.length || !this.state.dayLocations?.length) {
+            return;
+        }
+
+        for (let locIndex = 0; locIndex < this.state.dayLocations.length; locIndex++) {
+            const coords = this.getLocationCoords(this.state.dayLocations[locIndex]);
+            if (!coords) {
+                this.state.locationRouteMatchCache[locIndex] = null;
+                continue;
+            }
+
+            let closestIdx = -1;
+            let closestDist = Infinity;
+            for (let i = 0; i < this.state.routeData.length; i++) {
+                const point = this.state.routeData[i];
+                const dist = this.calculateDistanceMeters(point.lat, point.lng, coords.lat, coords.lng);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closestIdx = i;
+                }
+            }
+
+            this.state.locationRouteMatchCache[locIndex] = { closestIdx, closestDist };
         }
     }
 
@@ -1501,7 +1524,7 @@ class ReplayController {
         let currentLocation = null;
 
         for (const loc of this.state.dayLocations) {
-            if (!loc.lat || !loc.lng) continue;
+            if (!this.getLocationCoords(loc)) continue;
             const visitStart = loc.startDate ? new Date(loc.startDate).getTime() : null;
             const visitEnd = loc.endDate ? new Date(loc.endDate).getTime() : null;
 
@@ -1589,7 +1612,7 @@ class ReplayController {
         let currentLocation = null;
 
         for (const loc of this.state.dayLocations) {
-            if (!loc.lat || !loc.lng) continue;
+            if (!this.getLocationCoords(loc)) continue;
             const visitStart = loc.startDate ? new Date(loc.startDate).getTime() : null;
             const visitEnd = loc.endDate ? new Date(loc.endDate).getTime() : null;
 
@@ -1680,6 +1703,7 @@ class ReplayController {
         this.state.currentDistance = 0;
         this.state.currentIndex = 0;
         this.state.dayLocations = [];
+        this.state.locationRouteMatchCache = [];
         this.state.currentLocationName = null;
         this.state.pauseUntil = 0;
         this.state.selectedDayKey = null;

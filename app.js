@@ -885,48 +885,128 @@ function moveMapSmart(latlng, zoom) {
                 }
             }
 
-            // If no items without samples, return original
-            if (withoutSamples.length === 0) return items;
-
             // Check each 0-sample item for overlap with items that have samples
             const ghostIds = new Set();
+            if (withoutSamples.length > 0) {
+                for (const ghost of withoutSamples) {
+                    if (!ghost.startDate || !ghost.endDate) continue;
 
-            for (const ghost of withoutSamples) {
-                if (!ghost.startDate || !ghost.endDate) continue;
+                    const ghostStart = new Date(ghost.startDate).getTime();
+                    const ghostEnd = new Date(ghost.endDate).getTime();
+                    const ghostDuration = ghostEnd - ghostStart;
 
-                const ghostStart = new Date(ghost.startDate).getTime();
-                const ghostEnd = new Date(ghost.endDate).getTime();
-                const ghostDuration = ghostEnd - ghostStart;
+                    if (ghostDuration <= 0) continue;
 
-                if (ghostDuration <= 0) continue;
+                    // Check if any item with samples overlaps this ghost significantly
+                    for (const real of withSamples) {
+                        if (!real.startDate || !real.endDate) continue;
 
-                // Check if any item with samples overlaps this ghost significantly
-                for (const real of withSamples) {
-                    if (!real.startDate || !real.endDate) continue;
+                        const realStart = new Date(real.startDate).getTime();
+                        const realEnd = new Date(real.endDate).getTime();
 
-                    const realStart = new Date(real.startDate).getTime();
-                    const realEnd = new Date(real.endDate).getTime();
+                        // Calculate overlap
+                        const overlapStart = Math.max(ghostStart, realStart);
+                        const overlapEnd = Math.min(ghostEnd, realEnd);
+                        const overlap = Math.max(0, overlapEnd - overlapStart);
 
-                    // Calculate overlap
-                    const overlapStart = Math.max(ghostStart, realStart);
-                    const overlapEnd = Math.min(ghostEnd, realEnd);
-                    const overlap = Math.max(0, overlapEnd - overlapStart);
-
-                    // If overlap is >50% of ghost's duration, it's a duplicate
-                    if (overlap > ghostDuration * 0.5) {
-                        ghostIds.add(ghost.itemId || ghost.startDate);
-                        logDebug(`👻 Filtering ghost item: ${ghost.isVisit ? 'Visit' : 'Activity'} ${ghost.place?.name || ghost.activityType || 'unknown'} (${ghost.startDate}) - overlaps with item that has ${real.samples?.length || 0} samples`);
-                        break;
+                        // If overlap is >50% of ghost's duration, it's a duplicate
+                        if (overlap > ghostDuration * 0.5) {
+                            ghostIds.add(ghost.itemId || ghost.startDate);
+                            logDebug(`👻 Filtering ghost item: ${ghost.isVisit ? 'Visit' : 'Activity'} ${ghost.place?.name || ghost.activityType || 'unknown'} (${ghost.startDate}) - overlaps with item that has ${real.samples?.length || 0} samples`);
+                            break;
+                        }
                     }
                 }
             }
 
-            // Return items with ghosts filtered out
-            if (ghostIds.size === 0) return items;
-
-            return items.filter(item => {
+            // First pass result: remove classic 0-sample ghosts
+            const nonGhostItems = (ghostIds.size === 0) ? items : items.filter(item => {
                 const itemId = item.itemId || item.startDate;
                 return !ghostIds.has(itemId);
+            });
+
+            // Second pass: remove overlapping duplicate activity items that BOTH have samples.
+            // This occurs in some Arc Editor backups where an updated item and a stale item
+            // coexist after incremental merges (often unknown vs classified activity).
+            const duplicatesToRemove = new Set();
+            const activitiesWithSamples = nonGhostItems.filter(item =>
+                !item.isVisit &&
+                Array.isArray(item.samples) &&
+                item.samples.length > 0 &&
+                item.startDate &&
+                item.endDate
+            );
+
+            function overlapRatioMs(aStart, aEnd, bStart, bEnd) {
+                const overlapStart = Math.max(aStart, bStart);
+                const overlapEnd = Math.min(aEnd, bEnd);
+                const overlap = Math.max(0, overlapEnd - overlapStart);
+                const minDuration = Math.min(aEnd - aStart, bEnd - bStart);
+                if (minDuration <= 0) return 0;
+                return overlap / minDuration;
+            }
+
+            function scoreActivityItem(item) {
+                const sampleCount = Array.isArray(item.samples) ? item.samples.length : 0;
+                const activity = (item.activityType || 'unknown').toLowerCase();
+                let score = sampleCount;
+                if (activity !== 'unknown') score += 1000;
+                if (item.previousItemId) score += 50;
+                if (item.nextItemId) score += 50;
+                if (item.manualActivityType) score += 200;
+                return score;
+            }
+
+            for (let i = 0; i < activitiesWithSamples.length; i++) {
+                const a = activitiesWithSamples[i];
+                const aId = a.itemId || a.startDate;
+                if (duplicatesToRemove.has(aId)) continue;
+
+                const aStart = new Date(a.startDate).getTime();
+                const aEnd = new Date(a.endDate).getTime();
+                if (!(aEnd > aStart)) continue;
+
+                for (let j = i + 1; j < activitiesWithSamples.length; j++) {
+                    const b = activitiesWithSamples[j];
+                    const bId = b.itemId || b.startDate;
+                    if (duplicatesToRemove.has(bId)) continue;
+                    if (aId === bId) continue;
+
+                    const bStart = new Date(b.startDate).getTime();
+                    const bEnd = new Date(b.endDate).getTime();
+                    if (!(bEnd > bStart)) continue;
+
+                    const overlap = overlapRatioMs(aStart, aEnd, bStart, bEnd);
+                    if (overlap < 0.85) continue;
+
+                    const startDiff = Math.abs(aStart - bStart);
+                    const endDiff = Math.abs(aEnd - bEnd);
+                    const aType = (a.activityType || 'unknown').toLowerCase();
+                    const bType = (b.activityType || 'unknown').toLowerCase();
+
+                    const unknownVsKnown = (aType === 'unknown' && bType !== 'unknown') || (bType === 'unknown' && aType !== 'unknown');
+                    const nearSameWindow = startDiff <= 10 * 60 * 1000 && endDiff <= 10 * 60 * 1000;
+                    const sameType = aType === bType;
+
+                    if (!sameType && !unknownVsKnown) continue;
+                    if (!nearSameWindow && overlap < 0.95) continue;
+
+                    const scoreA = scoreActivityItem(a);
+                    const scoreB = scoreActivityItem(b);
+                    const dropA = scoreA < scoreB;
+                    const dropId = dropA ? aId : bId;
+                    const keep = dropA ? b : a;
+                    const drop = dropA ? a : b;
+                    duplicatesToRemove.add(dropId);
+
+                    logDebug(`👻 Filtering overlapping duplicate activity: drop ${drop.activityType || 'unknown'} (${drop.startDate}–${drop.endDate}) keep ${keep.activityType || 'unknown'} (${keep.startDate}–${keep.endDate}) overlap=${Math.round(overlap * 100)}%`);
+                }
+            }
+
+            if (duplicatesToRemove.size === 0) return nonGhostItems;
+            return nonGhostItems.filter(item => {
+                const itemId = item.itemId || item.startDate;
+                return !duplicatesToRemove.has(itemId);
             });
         }
 
@@ -3174,6 +3254,7 @@ function moveMapSmart(latlng, zoom) {
                                     lng: point.lng,
                                     altitude: point.alt ?? null,  // Include altitude
                                     activityType: track.activityType || 'unknown',
+                                    timelineItemId: point.timelineItemId || track.timelineItemId || null,
                                     timestamp: point.t,
                                     date: point.t,
                                     dayKey: dayKey,
@@ -9307,6 +9388,7 @@ function moveMapSmart(latlng, zoom) {
             let currentActivity = null;
             let currentSegment = [];
             let lastPointTime = null;
+            let lastTimelineItemId = null;
             const allDrawnBounds = [];
             
             // Get locations for checking if visits occurred during gaps
@@ -9321,9 +9403,13 @@ function moveMapSmart(latlng, zoom) {
                 
                 // Determine if we should start a new segment
                 let shouldStartNewSegment = false;
+                const pointTimelineItemId = point.timelineItemId || null;
                 
                 if (activity !== currentActivity) {
                     // Different activity type - always split
+                    shouldStartNewSegment = true;
+                } else if (lastTimelineItemId && pointTimelineItemId && pointTimelineItemId !== lastTimelineItemId) {
+                    // Prefer explicit timeline item boundaries when available.
                     shouldStartNewSegment = true;
                 } else if (lastPointTime !== null && pointTime !== null && currentSegment.length > 0) {
                     // Same activity type - check if there's a location visit in the gap
@@ -9365,6 +9451,7 @@ function moveMapSmart(latlng, zoom) {
                 if (pointTime !== null) {
                     lastPointTime = pointTime;
                 }
+                lastTimelineItemId = pointTimelineItemId;
             }
             
             if (currentSegment.length >= 2) {
@@ -12885,7 +12972,8 @@ scrollToDiaryDay(currentDayKey);
         async function exportDayJson(dayKey) {
             const record = await getDayFromDB(dayKey);
             if (!record || !record.data) return null;
-            const json = JSON.stringify(record.data, null, 2);
+            const exportData = getSanitizedDayDataForExport(record.data);
+            const json = JSON.stringify(exportData, null, 2);
             return { name: `arc-timeline-${dayKey}.json`, blob: new Blob([json], { type: 'application/json' }) };
         }
 
@@ -12901,15 +12989,38 @@ scrollToDiaryDay(currentDayKey);
             return null;
         }
 
+        function getTimelineItemsForGpx(dayData) {
+            const items = Array.isArray(dayData?.timelineItems) ? dayData.timelineItems : [];
+            if (items.length === 0) return [];
+
+            // Reuse import/display dedupe logic so GPX doesn't include known duplicate artifacts.
+            const deduped = filterGhostItems(items);
+
+            // Extra safety: drop exact duplicate item IDs in export output.
+            const seenIds = new Set();
+            return deduped.filter(item => {
+                const stableId = item.itemId || `${item.startDate || ''}|${item.endDate || ''}|${item.isVisit ? 'visit' : 'activity'}|${item.activityType || ''}`;
+                if (seenIds.has(stableId)) return false;
+                seenIds.add(stableId);
+                return true;
+            });
+        }
+
+        function getSanitizedDayDataForExport(dayData) {
+            if (!dayData || typeof dayData !== 'object') return dayData;
+            const timelineItems = getTimelineItemsForGpx(dayData);
+            return { ...dayData, timelineItems };
+        }
+
         function buildGpxFromDayData(dayKey, dayData) {
             const gpxHeader = `<?xml version="1.0" encoding="utf-8" standalone="no"?>\n` +
                 `<gpx creator="Arc App" version="1.1" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\n`;
             const gpxFooter = `</gpx>\n`;
 
             const wptXml = [];
-            const tracks = extractTracksFromData(dayData);
+            const timelineItems = getTimelineItemsForGpx(dayData);
+            const tracks = extractTracksFromData({ ...dayData, timelineItems });
 
-            const timelineItems = dayData?.timelineItems || [];
             for (const item of timelineItems) {
                 if (!item || !item.isVisit) continue;
                 const center = item.center || item.place?.center;
@@ -12961,7 +13072,8 @@ scrollToDiaryDay(currentDayKey);
         async function exportDayGpx(dayKey) {
             const record = await getDayFromDB(dayKey);
             if (!record || !record.data) return null;
-            const gpx = buildGpxFromDayData(dayKey, record.data);
+            const exportData = getSanitizedDayDataForExport(record.data);
+            const gpx = buildGpxFromDayData(dayKey, exportData);
             return { name: `arc-timeline-${dayKey}.gpx`, blob: new Blob([gpx], { type: 'application/gpx+xml' }) };
         }
 
@@ -13436,7 +13548,11 @@ scrollToDiaryDay(currentDayKey);
             if (matches.length === 0) {
                 searchCount.textContent = 'No matches found';
                 resultsTitle.textContent = 'No results';
-                resultsList.innerHTML = '<div class="search-results-empty">No matches found for "' + query + '"</div>';
+                resultsList.replaceChildren();
+                const empty = document.createElement('div');
+                empty.className = 'search-results-empty';
+                empty.textContent = `No matches found for "${query}"`;
+                resultsList.appendChild(empty);
                 return;
             }
             
@@ -13475,6 +13591,44 @@ scrollToDiaryDay(currentDayKey);
                 sliderEl.focus();
             }
         }
+
+        function buildHighlightedFragment(text, regex, highlightClass = '', tagName = 'mark') {
+            const fragment = document.createDocumentFragment();
+            const rawText = String(text ?? '');
+            if (!(regex instanceof RegExp) || !rawText) {
+                fragment.appendChild(document.createTextNode(rawText));
+                return fragment;
+            }
+
+            const flags = regex.flags.includes('g') ? regex.flags : `${regex.flags}g`;
+            const safeRegex = new RegExp(regex.source, flags);
+            let lastIndex = 0;
+            let match;
+
+            while ((match = safeRegex.exec(rawText)) !== null) {
+                const matchedText = match[0];
+                if (!matchedText) {
+                    safeRegex.lastIndex += 1;
+                    continue;
+                }
+
+                if (match.index > lastIndex) {
+                    fragment.appendChild(document.createTextNode(rawText.slice(lastIndex, match.index)));
+                }
+
+                const highlight = document.createElement(tagName);
+                if (highlightClass) highlight.className = highlightClass;
+                highlight.textContent = matchedText;
+                fragment.appendChild(highlight);
+                lastIndex = match.index + matchedText.length;
+            }
+
+            if (lastIndex < rawText.length) {
+                fragment.appendChild(document.createTextNode(rawText.slice(lastIndex)));
+            }
+
+            return fragment;
+        }
         
         // Append new search results to the list (for progressive rendering)
         function appendSearchResults(matches, startIndex, highlightRegex) {
@@ -13500,19 +13654,28 @@ scrollToDiaryDay(currentDayKey);
                         displayText = displayText.substring(0, 77) + '...';
                     }
                 }
-                displayText = displayText.replace(highlightRegex, '<mark>$1</mark>');
-                
                 const icon = match.type === 'note' ? '📝' : (match.type === 'visit' ? '📍' : '🚶');
                 
                 const div = document.createElement('div');
                 div.className = 'search-result-item';
                 div.dataset.index = i;
-                div.onclick = () => navigateToSearchResultByIndex(i);
-                div.innerHTML = `
-                    <div class="search-result-date">${dateStr}</div>
-                    <div class="search-result-time">${match.time} ${icon} ${match.name}</div>
-                    <div class="search-result-text">${displayText}</div>
-                `;
+                div.addEventListener('click', () => navigateToSearchResultByIndex(i));
+
+                const dateEl = document.createElement('div');
+                dateEl.className = 'search-result-date';
+                dateEl.textContent = dateStr;
+
+                const timeEl = document.createElement('div');
+                timeEl.className = 'search-result-time';
+                timeEl.textContent = `${match.time} ${icon} ${match.name}`;
+
+                const textEl = document.createElement('div');
+                textEl.className = 'search-result-text';
+                textEl.appendChild(buildHighlightedFragment(displayText, highlightRegex, '', 'mark'));
+
+                div.appendChild(dateEl);
+                div.appendChild(timeEl);
+                div.appendChild(textEl);
                 
                 resultsList.appendChild(div);
             }
@@ -13527,41 +13690,16 @@ scrollToDiaryDay(currentDayKey);
             resultsTitle.textContent = isTruncated ? `${MAX_RESULTS}+ results` : `${matches.length} results`;
             
             const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-            
-            let html = '';
-            
+
+            resultsList.replaceChildren();
             if (isTruncated) {
-                html += `<div class="search-results-warning">⚠️ Showing first ${MAX_RESULTS} results. Narrow your search.</div>`;
+                const warning = document.createElement('div');
+                warning.className = 'search-results-warning';
+                warning.textContent = `⚠️ Showing first ${MAX_RESULTS} results. Narrow your search.`;
+                resultsList.appendChild(warning);
             }
-            
-            html += matches.map((match, index) => {
-                const date = new Date(match.dayKey + 'T00:00:00');
-                const dateStr = date.toLocaleDateString('en-AU', { 
-                    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' 
-                });
-                
-                let displayText = match.text;
-                if (displayText.length > 80) {
-                    const matchPos = displayText.toLowerCase().indexOf(query.toLowerCase());
-                    if (matchPos > 30) {
-                        displayText = '...' + displayText.substring(matchPos - 20);
-                    }
-                    if (displayText.length > 80) {
-                        displayText = displayText.substring(0, 77) + '...';
-                    }
-                }
-                displayText = displayText.replace(regex, '<mark>$1</mark>');
-                
-                const icon = match.type === 'note' ? '📝' : (match.type === 'visit' ? '📍' : '🚶');
-                
-                return `<div class="search-result-item" data-index="${index}" onclick="navigateToSearchResultByIndex(${index})">
-                    <div class="search-result-date">${dateStr}</div>
-                    <div class="search-result-time">${match.time} ${icon} ${match.name}</div>
-                    <div class="search-result-text">${displayText}</div>
-                </div>`;
-            }).join('');
-            
-            resultsList.innerHTML = html;
+
+            appendSearchResults(matches, 0, regex);
             
             // Store for navigation
             window.currentSearchMatches = matches;
@@ -15371,9 +15509,8 @@ scrollToDiaryDay(currentDayKey);
             }
             
             for (const textNode of nodesToReplace) {
-                const span = document.createElement('span');
-                span.innerHTML = textNode.textContent.replace(regex, '<mark class="search-highlight">$1</mark>');
-                textNode.parentNode.replaceChild(span, textNode);
+                const fragment = buildHighlightedFragment(textNode.textContent, regex, 'search-highlight', 'mark');
+                textNode.parentNode.replaceChild(fragment, textNode);
             }
             
             attachDiaryClickHandlers();
@@ -15426,11 +15563,8 @@ scrollToDiaryDay(currentDayKey);
             }
             
             nodesToReplace.forEach(node => {
-                const span = document.createElement('span');
-                span.innerHTML = node.textContent.replace(regex, match => {
-                    return `<span class="search-highlight">${match}</span>`;
-                });
-                node.parentNode.replaceChild(span, node);
+                const fragment = buildHighlightedFragment(node.textContent, regex, 'search-highlight', 'span');
+                node.parentNode.replaceChild(fragment, node);
             });
             
             currentMonthMatches = Array.from(markdownContent.querySelectorAll('.search-highlight'));
@@ -15439,10 +15573,13 @@ scrollToDiaryDay(currentDayKey);
             attachDiaryClickHandlers();
 
             let globalMatchesBeforeThisMonth = 0;
+            const monthMatchCount = new Map();
+            for (const match of allSearchMatches) {
+                monthMatchCount.set(match.monthKey, (monthMatchCount.get(match.monthKey) || 0) + 1);
+            }
             for (let i = 0; i < monthKeys.length; i++) {
                 if (monthKeys[i] === currentMonth) break;
-                const monthMatches = allSearchMatches.filter(m => m.monthKey === monthKeys[i]);
-                globalMatchesBeforeThisMonth += monthMatches.length;
+                globalMatchesBeforeThisMonth += monthMatchCount.get(monthKeys[i]) || 0;
             }
             
             const localIndex = currentSearchIndex - globalMatchesBeforeThisMonth;
@@ -16006,6 +16143,46 @@ scrollToDiaryDay(currentDayKey);
                         }
                     }
                 }
+
+                // Rule: Suppress low-signal activity sandwiched between same-place visits.
+                // This specifically handles escaped drift fragments after Arc visit edits
+                // while preserving legitimate splits between different places.
+                if (!item.isVisit && result.length > 0) {
+                    const prev = result[result.length - 1];
+                    const next = sortedItems[i + 1] || null;
+
+                    if (prev?.isVisit && next?.isVisit) {
+                        const prevEffective = getEffectivePlaceId(prev);
+                        const nextEffective = getEffectivePlaceId(next);
+
+                        if (prevEffective && nextEffective && prevEffective === nextEffective) {
+                            const durationMs = getDurationMs(item);
+                            const durationSec = durationMs > 0 ? durationMs / 1000 : 0;
+                            const act = (item.activityType || 'unknown').toLowerCase();
+                            const distanceM = Array.isArray(item.samples) && item.samples.length > 1
+                                ? calculatePathDistance(item.samples)
+                                : 0;
+                            const speedKmh = durationSec > 0 ? (distanceM / durationSec) * 3.6 : 0;
+                            const hasUserNote = !!(
+                                (typeof item.notes === 'string' && item.notes.trim()) ||
+                                (Array.isArray(item.notes) && item.notes.some(n => (n?.body || '').trim()))
+                            );
+                            const isLowSignal =
+                                (act === 'stationary' || act === 'unknown') ||
+                                // Keep legitimate short out-and-back walks (e.g. to a bin);
+                                // only suppress tiny walking jitter.
+                                (act === 'walking' && durationSec <= 2 * 60 && distanceM <= 35 && speedKmh <= 4);
+                            const isShort = durationSec > 0 && durationSec <= 15 * 60;
+
+                            if (!hasUserNote && isShort && isLowSignal) {
+                                item._suppressed = true;
+                                if (!prev._collapsedUnknowns) prev._collapsedUnknowns = [];
+                                prev._collapsedUnknowns.push(item);
+                                continue;
+                            }
+                        }
+                    }
+                }
                 
                 // Rule: Merge adjacent visits within same effective place
                 const currentEffectivePlace = item.isVisit ? getEffectivePlaceId(item) : null;
@@ -16252,11 +16429,14 @@ scrollToDiaryDay(currentDayKey);
 
                     // Suppress low-signal activities fully contained within a visit window
                     if (!item.isVisit && item.startDate && item.endDate) {
-                        const isUnknown = (item.activityType || '').toLowerCase() === 'unknown';
+                        const activityType = (item.activityType || '').toLowerCase();
+                        const isUnknown = activityType === 'unknown';
                         const isNoGps = !item.samples || item.samples.length === 0;
-                        const isTiny = (duration || 0) > 0 && (duration || 0) <= 60;
+                        const durationSec = duration || 0;
+                        const distanceM = distance || 0;
+                        const isTiny = durationSec > 0 && durationSec <= 60;
                         const hasNoNote = !note.body || note.body.trim() === '';
-                        const hasNoDistance = !distance || distance <= 0;
+                        const hasNoDistance = distanceM <= 0;
 
                         const isLowSignal = isUnknown || isNoGps || isTiny || hasNoDistance;
 
@@ -16267,6 +16447,7 @@ scrollToDiaryDay(currentDayKey);
                                 continue;
                             }
                         }
+
                     }
                     
                     // Use effective end date for merged items
@@ -16734,7 +16915,13 @@ scrollToDiaryDay(currentDayKey);
                     const alt = s?.location?.altitude ?? s?.altitude;
                     const ts = s?.location?.timestamp || s?.timestamp || s?.date;
                     if (!lat || !lng) continue;
-                    pts.push({ lat, lng, alt: alt ?? null, t: ts ?? null });
+                    pts.push({
+                        lat,
+                        lng,
+                        alt: alt ?? null,
+                        t: ts ?? null,
+                        timelineItemId: item.itemId || null
+                    });
                 }
 
                 if (pts.length < 2) {
@@ -16747,6 +16934,7 @@ scrollToDiaryDay(currentDayKey);
                 logDebug(`🚶 Track extracted: ${item.activityType}, ${pts.length} points, startDate=${item.startDate}`);
                 
                 tracks.push({
+                    timelineItemId: item.itemId || null,
                     activityType: item.activityType || 'activity',
                     startDate: item.startDate || null,
                     endDate: item.endDate || null,
@@ -17269,6 +17457,52 @@ scrollToDiaryDay(currentDayKey);
                     });
                 }
 
+                // Final display pass: collapse consecutive visits to the same location label.
+                // This prevents duplicate adjacent location bullets after filtering/suppression.
+                if (visibleNotes.length > 1) {
+                    const collapsedNotes = [];
+                    for (const note of visibleNotes) {
+                        const prev = collapsedNotes.length > 0 ? collapsedNotes[collapsedNotes.length - 1] : null;
+                        const canMerge =
+                            prev &&
+                            prev.isVisit &&
+                            note.isVisit &&
+                            String(prev.location || '').trim().toLowerCase() === String(note.location || '').trim().toLowerCase();
+
+                        if (canMerge) {
+                            const prevStartMs = prev.startDate ? new Date(prev.startDate).getTime() : null;
+                            const prevEndMs = prev.endDate ? new Date(prev.endDate).getTime() : null;
+                            const noteStartMs = note.startDate ? new Date(note.startDate).getTime() : null;
+                            const noteEndMs = note.endDate ? new Date(note.endDate).getTime() : null;
+                            const mergedStartMs = [prevStartMs, noteStartMs].filter(v => Number.isFinite(v)).reduce((a, b) => Math.min(a, b), Number.POSITIVE_INFINITY);
+                            const mergedEndMs = [prevEndMs, noteEndMs].filter(v => Number.isFinite(v)).reduce((a, b) => Math.max(a, b), Number.NEGATIVE_INFINITY);
+
+                            if (Number.isFinite(mergedStartMs)) prev.startDate = new Date(mergedStartMs).toISOString();
+                            if (Number.isFinite(mergedEndMs)) prev.endDate = new Date(mergedEndMs).toISOString();
+                            if (Number.isFinite(mergedStartMs) && Number.isFinite(mergedEndMs) && mergedEndMs >= mergedStartMs) {
+                                prev.duration = (mergedEndMs - mergedStartMs) / 1000;
+                            } else if ((prev.duration || 0) > 0 || (note.duration || 0) > 0) {
+                                prev.duration = (prev.duration || 0) + (note.duration || 0);
+                            }
+
+                            const prevCount = (prev._mergedCount && prev._mergedCount > 1) ? prev._mergedCount : 1;
+                            const noteCount = (note._mergedCount && note._mergedCount > 1) ? note._mergedCount : 1;
+                            const totalCount = prevCount + noteCount;
+                            if (totalCount > 1) {
+                                prev._hasCollapsedSegments = true;
+                                prev._mergedCount = totalCount;
+                            }
+                            prev._suppressedCount = (prev._suppressedCount || 0) + (note._suppressedCount || 0);
+
+                            if (!prev.body && note.body) prev.body = note.body;
+                            continue;
+                        }
+
+                        collapsedNotes.push(note);
+                    }
+                    visibleNotes = collapsedNotes;
+                }
+
                 // 3. If no items remain after filtering, skip day or show as missing
                 if (visibleNotes.length === 0) {
                     // In "Notes Only" mode, just skip days without notes entirely
@@ -17654,7 +17888,14 @@ scrollToDiaryDay(currentDayKey);
                         const routePts = [];
                         for (const tr of dayTracks) {
                             for (const pt of (tr.points || [])) {
-                                routePts.push({ lat: pt.lat, lng: pt.lng, alt: pt.alt ?? null, t: pt.t, activityType: tr.activityType });
+                                routePts.push({
+                                    lat: pt.lat,
+                                    lng: pt.lng,
+                                    alt: pt.alt ?? null,
+                                    t: pt.t,
+                                    activityType: tr.activityType,
+                                    timelineItemId: pt.timelineItemId || tr.timelineItemId || null
+                                });
                             }
                         }
                         routePts.sort((a,b) => {
