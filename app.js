@@ -3861,25 +3861,45 @@ function moveMapSmart(latlng, zoom) {
         }
 
         function mapArcEditorActivityType(code) {
-            // Arc Editor/LocoKit numeric activity type mapping (common values).
+            // Arc Editor/LocoKit numeric activity type mapping
+            // Source: https://github.com/sobri909/LocoKit2/blob/main/Sources/LocoKit2/ActivityTypes/ActivityType.swift
             const map = {
-                0: 'unknown',
-                1: 'stationary',
-                2: 'walking',
-                3: 'running',
-                4: 'cycling',
-                5: 'car',
-                6: 'airplane',
-                20: 'boat',
-                21: 'train',
-                23: 'bus',
-                24: 'motorcycle',
-                28: 'car',
-                29: 'bus',
-                30: 'train',
-                34: 'airplane',
-                56: 'tuktuk',
-                61: 'tractor'
+                '-1': 'unknown',
+                '0': 'bogus',
+                '1': 'stationary',
+                '2': 'walking',
+                '3': 'running',
+                '4': 'cycling',
+                '5': 'car',
+                '6': 'airplane',
+                '20': 'train',
+                '21': 'bus',
+                '22': 'motorcycle',
+                '23': 'boat',
+                '24': 'tram',
+                '25': 'tractor',
+                '26': 'tuktuk',
+                '27': 'songthaew',
+                '28': 'scooter',
+                '29': 'metro',
+                '30': 'cableCar',
+                '31': 'funicular',
+                '32': 'chairlift',
+                '33': 'skiLift',
+                '34': 'taxi',
+                '35': 'hotAirBalloon',
+                '50': 'skateboarding',
+                '51': 'inlineSkating',
+                '52': 'snowboarding',
+                '53': 'skiing',
+                '54': 'horseback',
+                '55': 'swimming',
+                '56': 'golf',
+                '57': 'wheelchair',
+                '58': 'rowing',
+                '59': 'kayaking',
+                '60': 'surfing',
+                '61': 'hiking'
             };
             return map[code] || 'unknown';
         }
