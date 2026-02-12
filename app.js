@@ -353,6 +353,12 @@ function moveMapSmart(latlng, zoom) {
             let maxSpeed = 0;
 
             for (let i = 1; i < samples.length; i++) {
+                // Skip samples marked as bogus by user (confirmedType 0) or classifier (classifiedType 0)
+                const prevConfirmed = samples[i - 1].confirmedType ?? samples[i - 1].classifiedType;
+                const currConfirmed = samples[i].confirmedType ?? samples[i].classifiedType;
+                if (prevConfirmed === 0 || prevConfirmed === '0' || prevConfirmed === 'bogus') continue;
+                if (currConfirmed === 0 || currConfirmed === '0' || currConfirmed === 'bogus') continue;
+
                 const a = _getLatLngFromSample(samples[i - 1]);
                 const b = _getLatLngFromSample(samples[i]);
                 if (!a || !b) continue;
@@ -1556,12 +1562,17 @@ function moveMapSmart(latlng, zoom) {
             catch { return 0; }
         }
         
-        function calculateDistanceForAnalysis(samples) {
+        function calculateDistanceForAnalysis(samples, activityType = null) {
             if (!samples || samples.length < 2) return 0;
             
             // Extract valid GPS points (samples use sample.location.latitude/longitude)
             const validPoints = [];
             for (const sample of samples) {
+                // Skip samples marked as bogus: confirmed type takes precedence (user confirmation)
+                // Fall back to classifiedType if confirmedType not available
+                const confirmedOrClassified = sample.confirmedType ?? sample.classifiedType;
+                if (confirmedOrClassified === 0 || confirmedOrClassified === '0' || confirmedOrClassified === 'bogus') continue;
+
                 if (sample.location && 
                     sample.location.latitude != null && 
                     sample.location.longitude != null) {
@@ -3978,7 +3989,8 @@ function moveMapSmart(latlng, zoom) {
                 location,
                 date: rawSample.date,
                 movingState: rawSample.movingState,
-                classifiedType: rawSample.classifiedType ?? rawSample.classifiedActivityType
+                classifiedType: rawSample.classifiedActivityType ?? rawSample.classifiedType,
+                confirmedType: rawSample.confirmedActivityType ?? rawSample.confirmedType
             };
         }
 
@@ -4458,7 +4470,8 @@ function moveMapSmart(latlng, zoom) {
                                     location: normalizedSample.location,
                                     date: normalizedSample.date,
                                     movingState: normalizedSample.movingState,
-                                    classifiedType: normalizedSample.classifiedType
+                                    classifiedType: normalizedSample.classifiedType,
+                                    confirmedType: normalizedSample.confirmedType
                                 });
                                 sampleCount++;
                                 importDiag.samples.accepted++;
@@ -4579,7 +4592,8 @@ function moveMapSmart(latlng, zoom) {
                                 location: s.location || { latitude: s.latitude, longitude: s.longitude, altitude: s.altitude },
                                 date: s.date,
                                 movingState: s.movingState,
-                                classifiedType: s.classifiedType
+                                classifiedType: s.classifiedType,
+                                confirmedType: s.confirmedType ?? s.confirmedActivityType
                             }));
                             item.samples.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
                         }
@@ -16017,12 +16031,17 @@ scrollToDiaryDay(currentDayKey);
         window.calculatePathDistance = calculatePathDistance;
         window.calculateDistance = calculateDistance;
         
-        function calculatePathDistance(samples) {
+        function calculatePathDistance(samples, activityType = null) {
             if (!samples || samples.length < 2) return null;
             
-            // First, extract all valid GPS points (skip nulls)
+            // First, extract all valid GPS points (skip nulls and bogus samples)
             const validPoints = [];
             for (const sample of samples) {
+                // Skip samples marked as bogus: confirmed type takes precedence (user confirmation)
+                // Fall back to classifiedType if confirmedType not available
+                const confirmedOrClassified = sample.confirmedType ?? sample.classifiedType;
+                if (confirmedOrClassified === 0 || confirmedOrClassified === '0' || confirmedOrClassified === 'bogus') continue;
+
                 const lat = sample.location?.latitude ?? sample.latitude;
                 const lng = sample.location?.longitude ?? sample.longitude;
                 if (lat != null && lng != null) {
@@ -17009,6 +17028,10 @@ scrollToDiaryDay(currentDayKey);
 
                 const pts = [];
                 for (const s of item.samples) {
+                    // Skip bogus samples (marked by Arc as invalid GPS data)
+                    const confirmedOrClassified = s?.confirmedType ?? s?.classifiedType;
+                    if (confirmedOrClassified === 0 || confirmedOrClassified === '0' || confirmedOrClassified === 'bogus') continue;
+
                     const lat = s?.location?.latitude ?? s?.latitude;
                     const lng = s?.location?.longitude ?? s?.longitude;
                     const alt = s?.location?.altitude ?? s?.altitude;

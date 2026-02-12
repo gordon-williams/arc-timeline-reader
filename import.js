@@ -1116,6 +1116,13 @@
                     // GPS samples
                     if (samplesByItemId.has(item.itemId)) {
                         item.samples = samplesByItemId.get(item.itemId)
+                            .map(s => ({
+                                location: s.location || { latitude: s.latitude, longitude: s.longitude, altitude: s.altitude },
+                                date: s.date,
+                                movingState: s.movingState,
+                                classifiedType: s.classifiedActivityType ?? s.classifiedType,
+                                confirmedType: s.confirmedActivityType ?? s.confirmedType
+                            }))
                             .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
                     }
                 }
@@ -1479,6 +1486,13 @@
 
                     if (samplesByItemId.has(item.itemId)) {
                         item.samples = samplesByItemId.get(item.itemId)
+                            .map(s => ({
+                                location: s.location || { latitude: s.latitude, longitude: s.longitude, altitude: s.altitude },
+                                date: s.date,
+                                movingState: s.movingState,
+                                classifiedType: s.classifiedActivityType ?? s.classifiedType,
+                                confirmedType: s.confirmedActivityType ?? s.confirmedType
+                            }))
                             .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
                     }
                 }
