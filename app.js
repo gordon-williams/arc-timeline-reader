@@ -81,37 +81,20 @@ function moveMapSmart(latlng, zoom) {
             saveMetadata,
             getMetadata,
             getDayFromDB,
-            getDayMetadataFromDB,
             getAllDayKeysFromDB,
             getMonthDaysFromDB,
-            getAllMonthsFromDB,
-            saveMonthToDB,
-            importDayToDB,
-            generateDayHash,
             clearDatabase,
             exportDatabaseToJSON,
             filterGhostItems,
-            findContainedItems,
             applyImportFixes,
             getLocalDayKey,
             getPreviousDayKey,
-            getPreviousMonthKey,
             getStoredDisplayNameForTimelineItem,
             getStoredActivityTypeForTimelineItem,
             loadPlacesFromSelectedFiles,
-            applyPlaceNamesToDayData,
-            applyActivityTypeFixesToDayData,
-            inferActivityTypeFromSamples,
-            updateAnalysisDataForDay,
-            updateAnalysisDataForDaySafe,
-            rebuildAnalysisData,
-            rebuildAnalysisDataSafe,
             checkAndRebuildAnalysisData,
-            checkAnalysisDataIntegrity,
-            startAnalysisRebuild,
             updateAnalysisDataInBackground,
             rebuildLocationsAggregate,
-            updateAnalysisButtonIndicator,
         } = window.ArcDB;
 
         // ========================================
@@ -119,8 +102,7 @@ function moveMapSmart(latlng, zoom) {
         // ========================================
 
         const { addLog, formatTime, formatDate, formatDuration, formatDistance,
-                calculateDistance, calculatePathDistance, calculateElevationGain,
-                decompressFile } = window.ArcUtils;
+                calculateDistance, decompressFile } = window.ArcUtils;
 
         // ========================================
         // Data Extraction — Bridge to arc-data.js
@@ -128,20 +110,14 @@ function moveMapSmart(latlng, zoom) {
 
         const {
             getActivityFilterType,
-            coalesceTimelineForDisplay,
             extractNotesFromData,
             extractEntriesAndNotesFromData,
-            extractItemNotes,
             extractPinsFromData,
             extractTracksFromData,
             getDaysFromModel,
-            buildLocationClusters,
-            getSmartLocationName,
             getFilteredNotesForDay,
             calculateDailyActivityStats,
             calculateMonthlyActivityStats,
-            getItemDurationMs,
-            getGapMs,
         } = window.ArcData;
 
         // Alias — backward compat
@@ -188,418 +164,11 @@ function moveMapSmart(latlng, zoom) {
             }
         }
         
-        // Import files to IndexedDB with sync logic
+        // Import files to IndexedDB — delegates to import module
         async function importFilesToDatabase() {
-            // Delegate to import module if available
-            if (window.ArcImport?.importFilesToDatabase) {
-                return window.ArcImport.importFilesToDatabase();
-            }
-
-            // Fallback: original implementation (kept for compatibility)
-            if (!selectedFiles.length) {
-                alert('Please select a folder containing daily JSON files');
-                return;
-            }
-
-            cancelProcessing = false;
-
-            // Hide the import tile and show the log report
-            const fileInputSection = document.getElementById('fileInputSection');
-            if (fileInputSection) fileInputSection.style.display = 'none';
-
-            progress.style.display = 'block';
-            cancelBtn.style.display = 'block';
-            logDiv.style.display = 'block'; // Show the log!
-            logDiv.innerHTML = '';
-
-            // Clear previous import tags (will be replaced with new ones)
-            importAddedDays = [];
-            importUpdatedDays = [];
-            importChangedItemIds = new Set();
-
-            // Memory flush: encourage GC before import to help Safari keep file handles
-            // Safari may release blob URLs when under memory pressure
-            if (typeof window.gc === 'function') {
-                window.gc();  // Only works in debug builds
-            }
-            // Give browser time to release memory before starting import
-            await new Promise(r => setTimeout(r, 100));
-
-            addLog(`Starting import to database...`);
-            addLog(`Found ${selectedFiles.length} daily JSON files`);
-            
-            // Check if force full rescan is enabled
-            const forceFullRescan = document.getElementById('forceFullRescan')?.checked || false;
-            
-            // Get last successful scan time
-            const lastScanTime = forceFullRescan ? null : await getMetadata('lastSync');
-            if (forceFullRescan) {
-                addLog(`⚠️ Force full rescan enabled - ignoring last scan time`);
-            } else if (lastScanTime) {
-                const lastScanDate = new Date(lastScanTime).toLocaleString();
-                addLog(`Last scan: ${lastScanDate}`);
-            } else {
-                addLog(`First scan - importing all files`);
-            }
-            
-            // Filter files by valid date format
-            const validFiles = selectedFiles.filter(file => {
-                const match = file.name.match(/(\d{4}-\d{2}-\d{2})\.json\.gz/);
-                return !!match;
-            });
-            
-            addLog(`${validFiles.length} valid daily JSON files found`);
-            
-            // ⚡ OPTIMIZATION: Only process files modified since last scan
-            const filesToProcess = lastScanTime 
-                ? validFiles.filter(file => file.lastModified > lastScanTime)
-                : validFiles; // First scan - process all files
-            
-            const skippedByModDate = validFiles.length - filesToProcess.length;
-            
-            // 📋 Always report what was found during scan
-            addLog(`\n📋 Scan Results:`);
-            addLog(`  Total files scanned: ${validFiles.length}`);
-            addLog(`  Files to import: ${filesToProcess.length}`);
-            addLog(`  Files skipped (unchanged): ${skippedByModDate}`);
-            
-            if (filesToProcess.length === 0) {
-                // Nothing to import - show what was checked
-                addLog(`\n✅ All files up to date - nothing to import`);
-                
-                // Show date range of scanned files
-                if (validFiles.length > 0) {
-                    const dates = validFiles.map(f => f.name.match(/(\d{4}-\d{2}-\d{2})/)[1]).sort();
-                    const oldestDate = dates[0];
-                    const newestDate = dates[dates.length - 1];
-                    addLog(`  Date range: ${oldestDate} to ${newestDate}`);
-                }
-                
-                // Only update lastSync if we weren't forcing a rescan
-                // (If force was used and nothing found, don't update the timestamp)
-                if (!forceFullRescan) {
-                    await saveMetadata('lastSync', Date.now());
-                }
-                
-                // Reset force rescan checkbox
-                const forceCheckbox = document.getElementById('forceFullRescan');
-                if (forceCheckbox) forceCheckbox.checked = false;
-                
-                progress.style.display = 'none';
-                cancelBtn.style.display = 'none';
-                // Keep log visible so user can see the scan report!
-                return;
-            }
-            
-            // Show details of files that will be imported
-            addLog(`\n📂 Files to import (sorted by date):`);
-            
-            // Sort files by date for better readability
-            const sortedFiles = [...filesToProcess].sort((a, b) => {
-                const dateA = a.name.match(/(\d{4}-\d{2}-\d{2})/)[1];
-                const dateB = b.name.match(/(\d{4}-\d{2}-\d{2})/)[1];
-                return dateA.localeCompare(dateB);
-            });
-            
-            // Show all files if 20 or fewer, otherwise show first/last 10
-            if (sortedFiles.length <= 20) {
-                sortedFiles.forEach(file => {
-                    const modDate = new Date(file.lastModified).toLocaleString();
-                    addLog(`  • ${file.name} (modified: ${modDate})`);
-                });
-            } else {
-                // Show first 10
-                for (let i = 0; i < 10; i++) {
-                    const file = sortedFiles[i];
-                    const modDate = new Date(file.lastModified).toLocaleString();
-                    addLog(`  • ${file.name} (modified: ${modDate})`);
-                }
-                
-                // Show count of middle files
-                const middleCount = sortedFiles.length - 20;
-                addLog(`  ... ${middleCount} more file${middleCount === 1 ? '' : 's'} ...`);
-                
-                // Show last 10
-                for (let i = sortedFiles.length - 10; i < sortedFiles.length; i++) {
-                    const file = sortedFiles[i];
-                    const modDate = new Date(file.lastModified).toLocaleString();
-                    addLog(`  • ${file.name} (modified: ${modDate})`);
-                }
-            }
-            
-            addLog(`\n⏳ Starting import...`);
-
-            // ⚡ OPTIMIZATION: Load existing day metadata ONCE before the loop
-            // Uses cursor to extract only dayKey + lastUpdated + itemCount (not full data)
-            // This changes O(n) DB queries to O(1) query + O(n) Map lookups
-            addLog(`  Loading existing day metadata...`);
-            const existingMetadata = await getDayMetadataFromDB();
-            addLog(`  Found ${existingMetadata.size} existing days in database`);
-
-            let syncStats = { added: 0, updated: 0, skipped: 0 };
-            let addedDays = [];
-            let updatedDays = [];
-            let processedFiles = 0;
-            let failedFiles = [];  // Track files that failed to read (Safari blob expiry)
-
-            for (const file of filesToProcess) {
-                if (cancelProcessing) {
-                    addLog('Import cancelled', 'error');
-                    break;
-                }
-
-                try {
-                    const match = file.name.match(/(\d{4}-\d{2}-\d{2})\.json\.gz/);
-                    const fileDate = match[1];
-                    const [year, month, day] = fileDate.split('-');
-                    const monthKey = `${year}-${month}`;
-                    const dayKey = fileDate;
-
-                    // Decompress file
-                    const data = await decompressFile(file);
-                    // Apply place-name and activity-type fixes before saving
-                    applyImportFixes(data);
-
-                    // Debug: Check if data has timeline items (first file only)
-                    if (processedFiles === 0) {
-                        // Log all place names in the file
-                        const placeNames = data.timelineItems?.filter(i => i.place?.name).map(i => i.place.name) || [];
-                        logDebug(`📦 First file structure check:`, {
-                            hasTimelineItems: !!data.timelineItems,
-                            itemCount: data.timelineItems?.length || 0,
-                            placeNames: placeNames,
-                            firstItem: data.timelineItems?.[0] ? {
-                                isVisit: data.timelineItems[0].isVisit,
-                                activityType: data.timelineItems[0].activityType,
-                                hasSamples: !!data.timelineItems[0].samples,
-                                sampleCount: data.timelineItems[0].samples?.length || 0,
-                                hasPlace: !!data.timelineItems[0].place,
-                                placeName: data.timelineItems[0].place?.name || null
-                            } : 'none'
-                        });
-                    }
-
-                    // Use file modification time as lastUpdated
-                    // This ensures we track when the file was actually changed
-                    const lastUpdated = file.lastModified;
-
-                    // Import to database (pass pre-loaded metadata for O(1) lookup)
-                    const result = await importDayToDB(dayKey, monthKey, data, file.name, lastUpdated, existingMetadata);
-
-                    syncStats[result.action]++;
-                    if (result.action === 'added') {
-                        addedDays.push(dayKey);
-                    } else if (result.action === 'updated') {
-                        updatedDays.push(dayKey);
-                    }
-
-                    processedFiles++;
-                    const percent = Math.round((processedFiles / filesToProcess.length) * 100);
-                    progressFill.style.width = percent + '%';
-                    progressFill.textContent = percent + '%';
-                    progressText.textContent = `Processing: ${file.name} (${processedFiles}/${filesToProcess.length})`;
-
-                } catch (error) {
-                    // Track failed files (Safari blob URL expiry causes ProgressEvent errors)
-                    failedFiles.push(file.name);
-                    logError(`Error importing ${file.name}:`, error);
-                    // Continue processing other files
-                }
-            }
-
-            // Report failed files at end (Safari blob expiry issue)
-            if (failedFiles.length > 0) {
-                addLog(`\n⚠️ ${failedFiles.length} files failed to read (Safari may have released file handles):`, 'error');
-                if (failedFiles.length <= 10) {
-                    failedFiles.forEach(f => addLog(`  • ${f}`, 'error'));
-                } else {
-                    failedFiles.slice(0, 5).forEach(f => addLog(`  • ${f}`, 'error'));
-                    addLog(`  ... and ${failedFiles.length - 5} more`, 'error');
-                }
-                addLog(`\nTip: Re-select the folder and import again to retry failed files.`, 'info');
-            }
-            
-            // Save last sync time (now!)
-            await saveMetadata('lastSync', Date.now());
-            
-            // Reset force rescan checkbox
-            const forceCheckbox = document.getElementById('forceFullRescan');
-            if (forceCheckbox) forceCheckbox.checked = false;
-            
-            // Sort days chronologically
-            addedDays.sort();
-            updatedDays.sort();
-            
-            // Update global tracking for diary display
-            importAddedDays = addedDays.slice();
-            importUpdatedDays = updatedDays.slice();
-            
-            // CRITICAL: Invalidate in-memory cache for affected months
-            // Without this, stale data would be shown until page refresh
-            const affectedMonths = new Set();
-            [...addedDays, ...updatedDays].forEach(dayKey => {
-                affectedMonths.add(dayKey.substring(0, 7));
-            });
-            affectedMonths.forEach(monthKey => {
-                if (generatedDiaries[monthKey]) {
-                    logDebug(`🗑️ Invalidating cache for ${monthKey}`);
-                    delete generatedDiaries[monthKey];
-                }
-            });
-            
-            // Save to IndexedDB for persistence across sessions
-            await saveMetadata('importAddedDays', addedDays);
-            await saveMetadata('importUpdatedDays', updatedDays);
-            
-            // Update analysis data for imported days (in background)
-            if (addedDays.length > 0 || updatedDays.length > 0) {
-                const daysToUpdate = [...addedDays, ...updatedDays];
-                updateAnalysisDataInBackground(daysToUpdate);
-            }
-            
-            const totalSkipped = skippedByModDate + syncStats.skipped;
-            
-            // Format dates for display
-            const formatDateForReport = (dayKey) => {
-                const date = new Date(dayKey + 'T00:00:00');
-                return date.toLocaleDateString('en-AU', { 
-                    weekday: 'short', 
-                    day: 'numeric', 
-                    month: 'short', 
-                    year: 'numeric' 
-                });
-            };
-            
-            // Build markdown report for clipboard
-            let reportLines = [];
-            reportLines.push('# Arc Timeline Import Report');
-            reportLines.push(`**Date:** ${new Date().toLocaleString('en-AU')}`);
-            reportLines.push(`**Files scanned:** ${validFiles.length}`);
-            reportLines.push('');
-            
-            if (addedDays.length > 0) {
-                reportLines.push(`## 📥 Added (${addedDays.length} days)`);
-                addedDays.forEach(d => reportLines.push(`- ${formatDateForReport(d)}`));
-                reportLines.push('');
-            }
-            
-            if (updatedDays.length > 0) {
-                reportLines.push(`## 🔄 Updated (${updatedDays.length} days)`);
-                updatedDays.forEach(d => reportLines.push(`- ${formatDateForReport(d)}`));
-                reportLines.push('');
-            }
-            
-            if (totalSkipped > 0) {
-                reportLines.push(`## ⏭️ Skipped`);
-                reportLines.push(`${totalSkipped} unchanged files`);
-            }
-            
-            lastImportReport = reportLines.join('\n');
-            
-            // Build HTML report for display
-            let reportHtml = `
-                <div style="padding: 20px;">
-                    <h3 style="margin: 0 0 16px 0; color: #333; font-size: 18px;">✅ Import Complete</h3>
-                    <div style="font-size: 13px; color: #666; margin-bottom: 20px;">
-                        ${new Date().toLocaleString('en-AU')} • ${validFiles.length} files scanned
-                    </div>`;
-            
-            if (addedDays.length > 0) {
-                reportHtml += `
-                    <div style="margin-bottom: 20px;">
-                        <h4 style="margin: 0 0 10px 0; color: #2e7d32; font-size: 15px;">📥 Added (${addedDays.length} days)</h4>
-                        <ul style="margin: 0; padding-left: 20px; color: #333;">
-                            ${addedDays.map(d => `<li style="margin: 4px 0;">${formatDateForReport(d)}</li>`).join('')}
-                        </ul>
-                    </div>`;
-            }
-            
-            if (updatedDays.length > 0) {
-                reportHtml += `
-                    <div style="margin-bottom: 20px;">
-                        <h4 style="margin: 0 0 10px 0; color: #ef6c00; font-size: 15px;">🔄 Updated (${updatedDays.length} days)</h4>
-                        <ul style="margin: 0; padding-left: 20px; color: #333;">
-                            ${updatedDays.map(d => `<li style="margin: 4px 0;">${formatDateForReport(d)}</li>`).join('')}
-                        </ul>
-                    </div>`;
-            }
-            
-            if (totalSkipped > 0) {
-                reportHtml += `
-                    <div style="color: #666; font-size: 13px;">
-                        ⏭️ Skipped ${totalSkipped} unchanged files
-                    </div>`;
-            }
-            
-            if (addedDays.length === 0 && updatedDays.length === 0) {
-                reportHtml += `
-                    <div style="color: #666; font-size: 14px;">
-                        No changes detected. All files are up to date.
-                    </div>`;
-            }
-            
-            // Add copy button
-            if (addedDays.length > 0 || updatedDays.length > 0) {
-                reportHtml += `
-                    <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #e0e0e0;">
-                        <button id="copyReportBtn" style="background: #007AFF; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;">
-                            📋 Copy Report to Clipboard
-                        </button>
-                        <span id="copyReportStatus" style="margin-left: 12px; color: #388e3c; display: none;">✓ Copied!</span>
-                    </div>`;
-            }
-            
-            reportHtml += '</div>';
-            
-            // Replace log content with formatted report
-            logDiv.innerHTML = reportHtml;
-            logDiv.style.display = 'block';
-            
-            // Add copy button handler
-            const copyBtn = document.getElementById('copyReportBtn');
-            if (copyBtn) {
-                copyBtn.addEventListener('click', async () => {
-                    try {
-                        await navigator.clipboard.writeText(lastImportReport);
-                        const status = document.getElementById('copyReportStatus');
-                        status.style.display = 'inline';
-                        setTimeout(() => { status.style.display = 'none'; }, 2000);
-                    } catch (err) {
-                        logError('Failed to copy:', err);
-                        alert('Failed to copy to clipboard');
-                    }
-                });
-            }
-            
-            // Update UI
-            await updateDBStatusDisplay();
-
-            // Refresh monthKeys and selectors after import
-            await loadMostRecentMonth();
-
-            // Notify analysis page that data has changed
-            if (addedDays.length > 0 || updatedDays.length > 0) {
-                try {
-                    const dataChannel = new BroadcastChannel('arc-data-update');
-                    dataChannel.postMessage({
-                        type: 'dataImported',
-                        addedDays: addedDays.length,
-                        updatedDays: updatedDays.length,
-                        timestamp: Date.now()
-                    });
-                    dataChannel.close();
-                } catch (e) {
-                    // BroadcastChannel not supported or failed
-                }
-            }
-
-            progress.style.display = 'none';
-            cancelBtn.style.display = 'none';
-
-            // Reset file input so the same folder can be selected again
-            fileInput.value = '';
-            selectedFiles = [];
+            return window.ArcImport.importFilesToDatabase();
         }
+
         
         // Load most recent month from database (optimized for large datasets)
         async function loadMostRecentMonth() {
@@ -1773,8 +1342,6 @@ function moveMapSmart(latlng, zoom) {
                 // Database access
                 getDB: () => db,
                 getDayFromDB: getDayFromDB,
-                importDayToDB: importDayToDB,
-                getDayMetadataFromDB: getDayMetadataFromDB,
                 getLocalDayKey: getLocalDayKey,
                 getStoredDisplayNameForTimelineItem: getStoredDisplayNameForTimelineItem,
                 getStoredActivityTypeForTimelineItem: getStoredActivityTypeForTimelineItem,

@@ -566,98 +566,8 @@ function getStoredActivityTypeForTimelineItem(item) {
     return act;
 }
 
-/**
- * Generate a simple content hash for a day's timeline items
- * Captures user-editable properties: item count, activity types, place IDs, notes
- * This detects changes like car→walk, place reassignment, merging/deleting, adding notes
- */
-function generateDayHash(dayData) {
-    const items = dayData?.timelineItems || [];
-    if (items.length === 0) return 'empty';
-
-    // Build a string from properties that users can edit in Arc:
-    // - Activity type (car, walk, cycling, etc.)
-    // - Place assignment (placeId)
-    // - Notes (noteId presence indicates a note exists)
-    // - Item count (changes when merging/deleting)
-    const parts = items.map(item => {
-        const type = item.activityType || (item.isVisit ? 'visit' : 'trip');
-        const placeId = item.placeId ?? item.place?.placeId ?? item.place?.id;
-        const place = placeId ? String(placeId).slice(0, 8) : '';
-        const hasNote = item.noteId ? 'N' : '';
-        const label = item.displayName || '';
-        return `${type}:${place}:${hasNote}:${label}`;
-    });
-
-    return parts.join('|');
-}
-
-// Import day data to IndexedDB (with content hash comparison)
-// existingMetadata: optional Map<dayKey, {lastUpdated, contentHash}> for O(1) lookups
-// If not provided, falls back to individual DB query (slower)
-// Content comparison: uses hash to detect actual changes
-async function importDayToDB(dayKey, monthKey, dayData, sourceFile, lastUpdated, existingMetadata = null) {
-    if (!db) throw new Error('Database not initialized');
-
-    // Check if day exists and compare content hash
-    // Use pre-loaded Map if available (fast), otherwise query DB (slow)
-    let existingMeta = null;
-    let dayExists = false;
-
-    if (existingMetadata) {
-        // O(1) Map lookup - fast!
-        existingMeta = existingMetadata.get(dayKey);
-        dayExists = existingMeta !== undefined;
-    } else {
-        // Individual DB query - slow fallback
-        const existing = await getDayFromDB(dayKey);
-        if (existing) {
-            existingMeta = {
-                lastUpdated: existing.lastUpdated,
-                // Use stored hash if available, compute for old records without it
-                contentHash: existing.contentHash || generateDayHash(existing.data)
-            };
-            dayExists = true;
-        }
-    }
-
-    if (dayExists) {
-        const newHash = generateDayHash(dayData);
-
-        // Skip only if content hash matches - no meaningful changes
-        // Hash captures: item count, activity types, place IDs, notes
-        // This detects: car→walk, place reassignment, merging/deleting, adding notes
-        if (existingMeta.contentHash === newHash) {
-            return { action: 'skipped', dayKey, reason: 'content unchanged' };
-        }
-    }
-
-    // Compute hash for the new data to store with the record
-    const contentHash = generateDayHash(dayData);
-
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(['days'], 'readwrite');
-        const store = tx.objectStore('days');
-
-        const dayRecord = {
-            dayKey,
-            monthKey,
-            lastUpdated,
-            sourceFile,
-            contentHash,
-            data: dayData // Store entire day's notes/routes
-        };
-
-        store.put(dayRecord);
-
-        tx.oncomplete = () => {
-            const action = dayExists ? 'updated' : 'added';
-            resolve({ action, dayKey });
-        };
-
-        tx.onerror = () => reject(tx.error);
-    });
-}
+// generateDayHash, importDayToDB, getDayMetadataFromDB removed —
+// now only in import.js (Phase 2 cleanup)
 
 // Get day from IndexedDB
 async function getDayFromDB(dayKey) {
@@ -669,36 +579,6 @@ async function getDayFromDB(dayKey) {
         const req = store.get(dayKey);
         
         req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => reject(req.error);
-    });
-}
-
-// Get day metadata from IndexedDB for import comparison
-// Uses stored contentHash when available, falls back to computing for old records
-// Returns Map<dayKey, {lastUpdated, contentHash}> for O(1) lookups
-async function getDayMetadataFromDB() {
-    if (!db) return new Map();
-
-    return new Promise((resolve, reject) => {
-        const metadata = new Map();
-        const tx = db.transaction(['days'], 'readonly');
-        const store = tx.objectStore('days');
-        const req = store.openCursor();
-
-        req.onsuccess = (event) => {
-            const cursor = event.target.result;
-            if (cursor) {
-                const day = cursor.value;
-                metadata.set(day.dayKey, {
-                    lastUpdated: day.lastUpdated,
-                    // Use stored hash if available, compute for old records without it
-                    contentHash: day.contentHash || generateDayHash(day.data)
-                });
-                cursor.continue();
-            } else {
-                resolve(metadata);
-            }
-        };
         req.onerror = () => reject(req.error);
     });
 }
@@ -2489,15 +2369,12 @@ async function clearDatabase() {
 
         // Day CRUD
         getDayFromDB,
-        getDayMetadataFromDB,
         getAllDayKeysFromDB,
         getMonthDaysFromDB,
         getAllMonthsFromDB,
         saveMonthToDB,
-        importDayToDB,
 
         // Utility
-        generateDayHash,
         getLocalDayKey,
         getPreviousDayKey,
         getPreviousMonthKey,

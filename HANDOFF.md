@@ -11,10 +11,10 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and Arc Ed
 | File | Lines | Description |
 |------|-------|-------------|
 | `index.html` | ~830 | Main entry point, import UI, modal shells |
-| `app.js` | ~11,710 | Core application logic (UI, rendering, navigation) |
+| `app.js` | ~11,280 | Core application logic (UI, rendering, navigation) |
 | `arc-state.js` | ~90 | Shared state (`window.ArcState`) + logging setup |
 | `arc-utils.js` | ~207 | Pure utility functions (formatting, distance, decompression) |
-| `arc-db.js` | ~2,540 | IndexedDB storage layer (CRUD, analysis, place names) |
+| `arc-db.js` | ~2,420 | IndexedDB storage layer (CRUD, analysis, place names) |
 | `arc-data.js` | ~1,200 | Data extraction & transformation (notes, pins, tracks, stats) |
 | `events.js` | ~1,105 | Events system (CRUD, slider UI, categories) |
 | `import.js` | ~2,560 | All import: JSON export + Arc Editor/Legacy backup import |
@@ -121,7 +121,7 @@ Last-used mode is persisted in localStorage.
 | `orderItemsByLinkedList()` | ~1190 | Orders items using doubly-linked list pointers |
 | `getRecentMonthKeys(n)` | ~976 | Returns Set of last n month strings for filtering |
 | `getRecentWeekKeys(n)` | ~987 | Returns Set of last n ISO week strings for filtering |
-| `importDayToDB(dayKey, ...)` | arc-db.js ~679 | Stores day with content hash comparison |
+| `importDayToDB(dayKey, ...)` | ~234 | Stores day with content hash comparison |
 
 ### LocoKit2 Data Model (Arc Editor)
 Source: https://github.com/sobri909/LocoKit2
@@ -196,7 +196,7 @@ Functions defined in a module but not listed in its `window.ArcXxx` export objec
 When extracting a section that contains utility functions (like `escapeHtml`), other parts of app.js may still call those functions. **Search the entire app.js for every function name being extracted** before removing the code. (e.g., `escapeHtml` was in the events section and got extracted to events.js, but `generateMarkdown` in app.js still called it.)
 
 ### 3. Temporal Dead Zone (TDZ)
-Bridge destructures using `const { fn } = window.ArcXxx` at the bottom of app.js cause TDZ errors — the `const` binding exists throughout the scope but can't be accessed before its declaration line. **All bridge destructures must be at the top of the IIFE scope** (currently lines 77-145). This applies even though the functions are only called at runtime, because JavaScript's TDZ check is lexical.
+Bridge destructures using `const { fn } = window.ArcXxx` at the bottom of app.js cause TDZ errors — the `const` binding exists throughout the scope but can't be accessed before its declaration line. **All bridge destructures must be at the top of the IIFE scope** (currently lines 77-121). This applies even though the functions are only called at runtime, because JavaScript's TDZ check is lexical.
 
 ### 4. Phantom Function Names in Callbacks
 When wiring `_ui` callbacks, the callback name in the receiving module may not match any actual function in app.js. **Verify every callback name exists as a real function** before wiring. Use a wrapper if names differ. (e.g., events.js expected `renderMonth` but the actual function is `displayDiary(monthKey)` — fixed with `renderMonth: () => displayDiary(S.currentMonth)`.)
@@ -207,7 +207,7 @@ A function may be referenced in the section being extracted but actually defined
 ### Checklist for Future Extractions
 1. For every function in the extracted section, grep app.js for callers — add to export if needed
 2. For every function called FROM the extracted section, verify it's accessible (imported or passed via `_ui`)
-3. Place all bridge destructures at the TOP of app.js IIFE (lines 77-145)
+3. Place all bridge destructures at the TOP of app.js IIFE (lines 77-121)
 4. Verify `_ui` callback names match real function names in app.js
 5. Test by loading the app and checking console — errors cascade, fix them top-down
 
