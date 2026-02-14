@@ -13234,7 +13234,7 @@ scrollToDiaryDay(currentDayKey);
                 // Wire up events module callbacks
                 if (_setEventsCallbacks) {
                     _setEventsCallbacks({
-                        renderMonth,
+                        renderMonth: () => displayDiary(S.currentMonth),
                         closeSearchResults,
                         updateMapPaddingForSlider,
                     });
