@@ -146,6 +146,13 @@ function moveMapSmart(latlng, zoom) {
         // Alias — backward compat
         const calculateDistanceMeters = calculateDistance;
 
+        // Simple HTML escaper (was in events section, still needed for generateMarkdown)
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         // Local aliases for shared state (backward compat with existing code)
         let db = null;                  // synced from S.db
         let _dbReadyResolve = S.dbReadyResolve;
