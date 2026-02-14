@@ -3684,7 +3684,16 @@ function moveMapSmart(latlng, zoom) {
             }
         };
         window.selectImportType('backup');
-        
+
+        // Restore last-used backup import mode
+        try {
+            const savedMode = localStorage.getItem('backupImportMode');
+            if (savedMode) {
+                const radio = document.querySelector(`input[name="backupImportMode"][value="${savedMode}"]`);
+                if (radio) radio.checked = true;
+            }
+        } catch (e) {}
+
         // Backup folder input handler - setup after DOM ready
         function setupBackupImportHandler() {
             // Check if File System Access API is available
@@ -3843,6 +3852,28 @@ function moveMapSmart(latlng, zoom) {
             }
         }
 
+        // Helper: Get the last N month keys as a Set (e.g. {"2026-02","2026-01"})
+        function getRecentMonthKeys(n = 2) {
+            const keys = new Set();
+            const now = new Date();
+            for (let i = 0; i < n; i++) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                keys.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+            }
+            return keys;
+        }
+
+        // Helper: Get the last N ISO week keys as a Set (e.g. {"2026-W07","2026-W06",...})
+        function getRecentWeekKeys(n = 4) {
+            const keys = new Set();
+            const now = new Date();
+            for (let i = 0; i < n; i++) {
+                const d = new Date(now.getTime() - (i * 7 * 24 * 60 * 60 * 1000));
+                keys.add(getISOWeek(d.toISOString()));
+            }
+            return keys;
+        }
+
         // Helper: Read file as JSON
         async function readFileAsJson(fileHandle) {
             try {
@@ -3861,25 +3892,49 @@ function moveMapSmart(latlng, zoom) {
         }
 
         function mapArcEditorActivityType(code) {
-            // Arc Editor/LocoKit numeric activity type mapping (common values).
+            // LocoKit2 ActivityType enum → display activity type
+            // Source: https://github.com/sobri909/LocoKit2
             const map = {
-                0: 'unknown',
+                // Special
+                '-1': 'unknown',    // unknown
+                0: 'unknown',       // bogus
+                // Base types
                 1: 'stationary',
                 2: 'walking',
                 3: 'running',
                 4: 'cycling',
                 5: 'car',
                 6: 'airplane',
-                20: 'boat',
-                21: 'train',
-                23: 'bus',
-                24: 'motorcycle',
-                28: 'car',
-                29: 'bus',
-                30: 'train',
-                34: 'airplane',
-                56: 'tuktuk',
-                61: 'tractor'
+                // Transport types
+                20: 'train',
+                21: 'bus',
+                22: 'motorcycle',
+                23: 'boat',
+                24: 'train',        // tram → train
+                25: 'tractor',
+                26: 'tuktuk',
+                27: 'tuktuk',       // songthaew → tuktuk
+                28: 'motorcycle',   // scooter → motorcycle
+                29: 'train',        // metro → train
+                30: 'train',        // cableCar → train
+                31: 'train',        // funicular → train
+                32: 'train',        // chairlift → train
+                33: 'train',        // skiLift → train
+                34: 'car',          // taxi → car
+                35: 'airplane',     // hotAirBalloon → airplane
+                // Active types
+                50: 'skateboarding',
+                51: 'inlineSkating',
+                52: 'snowboarding',
+                53: 'skiing',
+                54: 'horseback',
+                55: 'cycling',      // swimming → cycling
+                56: 'walking',      // golf → walking
+                57: 'walking',      // wheelchair → walking
+                58: 'cycling',      // rowing → cycling
+                59: 'cycling',      // kayaking → cycling
+                60: 'surfing',
+                61: 'hiking'
             };
             return map[code] || 'unknown';
         }
@@ -3900,7 +3955,7 @@ function moveMapSmart(latlng, zoom) {
                     itemId: base.id || trip?.itemId || visit?.itemId || null,
                     isVisit: !!base.isVisit,
                     activityType: base.isVisit ? 'stationary' : mapArcEditorActivityType(activityCode),
-                    manualActivityType: false,
+                    manualActivityType: trip?.confirmedActivityType != null,
                     startDate: base.startDate || null,
                     endDate: base.endDate || null,
                     placeId: visit?.placeId || null,
@@ -3954,7 +4009,8 @@ function moveMapSmart(latlng, zoom) {
             if (!date || !rawNote.body) return null;
             return {
                 date,
-                body: rawNote.body
+                body: rawNote.body,
+                timelineItemId: rawNote.timelineItemId || null
             };
         }
 
@@ -4101,11 +4157,18 @@ function moveMapSmart(latlng, zoom) {
 
             addLog('🔄 Starting backup import (File System Access API)...');
 
-            const forceRescan = document.getElementById('backupForceRescan')?.checked || false;
+            // Read import mode from radio group
+            const importModeEl = document.querySelector('input[name="backupImportMode"]:checked');
+            const importMode = importModeEl ? importModeEl.value : 'full';
+            try { localStorage.setItem('backupImportMode', importMode); } catch (e) {}
+            const forceRescan = (importMode === 'force');
+            const recentOnly = (importMode === 'recent');
             const lastBackupSync = forceRescan ? null : await getMetadata('lastBackupSync');
 
             if (forceRescan) {
                 addLog('⚠️ Force rescan enabled - reimporting all data');
+            } else if (recentOnly) {
+                addLog('⚡ Recent only mode — last 2 months');
             } else if (lastBackupSync) {
                 addLog(`📅 Last backup sync: ${lastBackupSync}`);
             }
@@ -4180,10 +4243,20 @@ function moveMapSmart(latlng, zoom) {
                 progressFill.style.width = '5%';
                 progressFill.textContent = '5%';
                 const notesByDate = new Map();
+                const recentMonths = recentOnly ? getRecentMonthKeys(2) : null;
                 if (noteDir) {
                     let noteCount = 0;
+                    let noteFilesSkipped = 0;
                     for await (const fileHandle of readJsonFilesFromHexDirs(noteDir)) {
                         if (cancelProcessing) break;
+                        // In recent-only mode for Arc Editor, skip non-recent month files
+                        if (recentMonths && arcEditorItemsDir) {
+                            const monthMatch = fileHandle.name.match(/^(\d{4}-\d{2})\.json$/);
+                            if (monthMatch && !recentMonths.has(monthMatch[1])) {
+                                noteFilesSkipped++;
+                                continue;
+                            }
+                        }
                         importDiag.notes.files++;
                         const jsonValue = await readFileAsJson(fileHandle);
                         for (const rawNote of toRecordArray(jsonValue)) {
@@ -4211,8 +4284,9 @@ function moveMapSmart(latlng, zoom) {
                         }
                     }
                     addLog(`  Loaded ${noteCount.toLocaleString()} notes`);
+                    if (noteFilesSkipped > 0) addLog(`  Skipped ${noteFilesSkipped} older month files (recent-only)`);
                 }
-                
+
                 // Step 3: Scan TimelineItems (10-60%)
                 addLog('\n🗓️ Scanning Timeline Items...');
                 progressFill.style.width = '10%';
@@ -4228,16 +4302,26 @@ function moveMapSmart(latlng, zoom) {
                 let skippedDeleted = 0;
                 let includedForSpanning = 0;
                 let maxLastSaved = lastBackupSync || '';
-                
+                let itemFilesSkipped = 0;
+
                 // Batch reading for speed
                 const BATCH_SIZE = 50;
                 let batch = [];
-                
+
                 for await (const fileHandle of readJsonFilesFromHexDirs(activeTimelineDir, (count) => {
                     progressText.textContent = `Scanning timeline: ${count.toLocaleString()}...`;
                 })) {
                     if (cancelProcessing) break;
-                    
+
+                    // In recent-only mode for Arc Editor, skip non-recent month files
+                    if (recentMonths && arcEditorItemsDir) {
+                        const monthMatch = fileHandle.name.match(/^(\d{4}-\d{2})\.json$/);
+                        if (monthMatch && !recentMonths.has(monthMatch[1])) {
+                            itemFilesSkipped++;
+                            continue;
+                        }
+                    }
+
                     batch.push(fileHandle);
                     
                     if (batch.length >= BATCH_SIZE) {
@@ -4385,6 +4469,7 @@ function moveMapSmart(latlng, zoom) {
                 }
                 
                 addLog(`  Scanned ${scannedCount.toLocaleString()} items`);
+                if (itemFilesSkipped > 0) addLog(`  Skipped ${itemFilesSkipped} older month files (recent-only)`);
                 addLog(`  To import: ${changedItems.length.toLocaleString()} items across ${changedDays.size.toLocaleString()} days`);
                 if (skippedExisting > 0) addLog(`  Skipped: ${skippedExisting.toLocaleString()} (days exist)`);
                 if (skippedUnchanged > 0) addLog(`  Skipped: ${skippedUnchanged.toLocaleString()} unchanged`);
@@ -4604,14 +4689,19 @@ function moveMapSmart(latlng, zoom) {
                             previousItemId: item.previousItemId || null,
                             nextItemId: item.nextItemId || null,
                             notes: dayNotes.filter(n => {
+                                // Prefer direct timelineItemId match (Arc Editor v2)
+                                if (n.timelineItemId) {
+                                    return n.timelineItemId === item.itemId;
+                                }
+                                // Fall back to time-range matching (older notes)
                                 const noteTime = new Date(n.date).getTime();
                                 const itemStart = new Date(item.startDate).getTime();
                                 const itemEnd = item.endDate ? new Date(item.endDate).getTime() : itemStart + 86400000;
-                                return noteTime >= itemStart && noteTime <= itemEnd;
+                                return noteTime >= itemStart && noteTime < itemEnd;
                             }).map(n => ({ body: n.body, date: n.date }))
                         }))
                     };
-                    
+
                     const dayLastSaved = items.reduce((max, item) =>
                         item.lastSaved && item.lastSaved > max ? item.lastSaved : max, '');
                     const lastUpdated = dayLastSaved ? new Date(dayLastSaved).getTime() : Date.now();
@@ -4637,10 +4727,7 @@ function moveMapSmart(latlng, zoom) {
                 // Save sync time
                 await saveMetadata('lastBackupSync', maxLastSaved);
                 
-                // Reset checkbox
-                const forceCheckbox = document.getElementById('backupForceRescan');
-                if (forceCheckbox) forceCheckbox.checked = false;
-                
+
                 importAddedDays = addedDays;
                 importUpdatedDays = updatedDays;
                 
@@ -4658,35 +4745,26 @@ function moveMapSmart(latlng, zoom) {
                     updateAnalysisDataInBackground([...addedDays, ...updatedDays]);
                 }
                 
-                addLog('\n✅ Backup import complete!');
-                addLog(`  Days added: ${addedDays.length.toLocaleString()}`);
-                addLog(`  Days updated: ${updatedDays.length.toLocaleString()}`);
                 logBackupImportDiagnostics(importDiag);
 
-                if (addedDays.length > 0) {
-                    addLog(`  New data range: ${addedDays[0]} to ${addedDays[addedDays.length - 1]}`);
+                if (addedDays.length === 0 && updatedDays.length === 0) {
+                    addLog('\n✅ Import complete — no new or changed days');
+                } else {
+                    const parts = [];
+                    if (addedDays.length > 0) parts.push(`${addedDays.length} added`);
+                    if (updatedDays.length > 0) parts.push(`${updatedDays.length} updated`);
+                    addLog(`\n✅ Import complete — ${parts.join(', ')}`);
+                    if (addedDays.length > 0) {
+                        addLog(`  New data range: ${addedDays[0]} to ${addedDays[addedDays.length - 1]}`);
+                    }
                 }
 
                 progress.style.display = 'none';
                 cancelBtn.style.display = 'none';
 
-                const results = document.getElementById('results');
-                if (results) {
-                    results.style.display = 'block';
-                    const resultsList = document.getElementById('resultsList');
-                    if (resultsList) {
-                        resultsList.innerHTML = `
-                            <p><strong>${addedDays.length}</strong> days added</p>
-                            <p><strong>${updatedDays.length}</strong> days updated</p>
-                            <p>Total: <strong>${sortedDays.length}</strong> days processed</p>
-                        `;
-                    }
-                }
-
-                // Refresh monthKeys and selectors after import
+                // Refresh DB stats — dbStatusSection shows the "Open Diary Reader" button
                 await updateDBStatusDisplay();
-                await loadMostRecentMonth();
-                
+
             } catch (err) {
                 addLog(`\n❌ Error: ${err.message}`, 'error');
                 console.error('Backup import error:', err);
@@ -4732,11 +4810,18 @@ function moveMapSmart(latlng, zoom) {
             await new Promise(r => requestAnimationFrame(r));
             await new Promise(r => setTimeout(r, 0));
 
-            const forceRescan = document.getElementById('backupForceRescan')?.checked || false;
+            // Read import mode from radio group
+            const safariImportModeEl = document.querySelector('input[name="backupImportMode"]:checked');
+            const safariImportMode = safariImportModeEl ? safariImportModeEl.value : 'full';
+            try { localStorage.setItem('backupImportMode', safariImportMode); } catch (e) {}
+            const forceRescan = (safariImportMode === 'force');
+            const recentOnly = (safariImportMode === 'recent');
             const lastBackupSync = forceRescan ? null : await getMetadata('lastBackupSync');
 
             if (forceRescan) {
                 addLog('⚠️ Force rescan enabled - reimporting all data');
+            } else if (recentOnly) {
+                addLog('⚡ Recent only mode — last 2 months');
             }
 
             try {
@@ -4745,9 +4830,9 @@ function moveMapSmart(latlng, zoom) {
                 // Categorize files by subdirectory (yield periodically to keep UI responsive)
                 // Note: Iterate FileList directly - don't use Array.from() which blocks on 200k+ files
                 const placeFiles = [];
-                const noteFiles = [];
-                const timelineFiles = [];
-                const sampleFiles = [];
+                let noteFiles = [];
+                let timelineFiles = [];
+                let sampleFiles = [];
 
                 const totalFiles = files.length;
                 const CHUNK_SIZE = 5000;
@@ -4782,6 +4867,29 @@ function moveMapSmart(latlng, zoom) {
                 const hasArcEditorPath = timelineFiles.some(f => (f.webkitRelativePath || '').includes('/items/'));
                 importDiag.format = hasArcEditorPath ? 'Arc Editor' : 'Arc Timeline';
                 addLog(`📦 Detected backup format: ${importDiag.format}`);
+
+                // In recent-only mode for Arc Editor, filter to recent month/week files
+                if (recentOnly && hasArcEditorPath) {
+                    const recentMonths = getRecentMonthKeys(2);
+                    const origItems = timelineFiles.length;
+                    const origNotes = noteFiles.length;
+                    const origSamples = sampleFiles.length;
+                    timelineFiles = timelineFiles.filter(f => {
+                        const m = f.name.match(/^(\d{4}-\d{2})\.json$/);
+                        return !m || recentMonths.has(m[1]);
+                    });
+                    noteFiles = noteFiles.filter(f => {
+                        const m = f.name.match(/^(\d{4}-\d{2})\.json$/);
+                        return !m || recentMonths.has(m[1]);
+                    });
+                    // Samples are already filtered later by changedWeeks, but pre-filter too
+                    const recentWeeks = getRecentWeekKeys(4);
+                    sampleFiles = sampleFiles.filter(f => {
+                        const m = f.name.match(/^(\d{4}-W\d{2})/);
+                        return !m || recentWeeks.has(m[1]);
+                    });
+                    addLog(`⚡ Filtered to ${timelineFiles.length}/${origItems} item files, ${noteFiles.length}/${origNotes} note files, ${sampleFiles.length}/${origSamples} sample files`);
+                }
 
                 addLog(`📂 Indexed ${totalFiles.toLocaleString()} files`);
                 addLog(`  Timeline items: ${timelineFiles.length.toLocaleString()} files`);
@@ -5170,10 +5278,15 @@ function moveMapSmart(latlng, zoom) {
                             previousItemId: item.previousItemId || null,
                             nextItemId: item.nextItemId || null,
                             notes: dayNotes.filter(n => {
+                                // Prefer direct timelineItemId match (Arc Editor v2)
+                                if (n.timelineItemId) {
+                                    return n.timelineItemId === item.itemId;
+                                }
+                                // Fall back to time-range matching (older notes)
                                 const noteTime = new Date(n.date).getTime();
                                 const itemStart = new Date(item.startDate).getTime();
                                 const itemEnd = item.endDate ? new Date(item.endDate).getTime() : itemStart + 86400000;
-                                return noteTime >= itemStart && noteTime <= itemEnd;
+                                return noteTime >= itemStart && noteTime < itemEnd;
                             }).map(n => ({ body: n.body, date: n.date }))
                         }))
                     };
@@ -5201,9 +5314,6 @@ function moveMapSmart(latlng, zoom) {
                 // Save sync time
                 await saveMetadata('lastBackupSync', maxLastSaved);
 
-                // Reset checkbox
-                const forceCheckbox = document.getElementById('backupForceRescan');
-                if (forceCheckbox) forceCheckbox.checked = false;
 
                 importAddedDays = addedDays;
                 importUpdatedDays = updatedDays;
@@ -5222,13 +5332,18 @@ function moveMapSmart(latlng, zoom) {
                     updateAnalysisDataInBackground([...addedDays, ...updatedDays]);
                 }
 
-                addLog('\n✅ Backup import complete!');
-                addLog(`  Days added: ${addedDays.length.toLocaleString()}`);
-                addLog(`  Days updated: ${updatedDays.length.toLocaleString()}`);
                 logBackupImportDiagnostics(importDiag);
 
-                if (addedDays.length > 0) {
-                    addLog(`  New data range: ${addedDays[0]} to ${addedDays[addedDays.length - 1]}`);
+                if (addedDays.length === 0 && updatedDays.length === 0) {
+                    addLog('\n✅ Import complete — no new or changed days');
+                } else {
+                    const parts = [];
+                    if (addedDays.length > 0) parts.push(`${addedDays.length} added`);
+                    if (updatedDays.length > 0) parts.push(`${updatedDays.length} updated`);
+                    addLog(`\n✅ Import complete — ${parts.join(', ')}`);
+                    if (addedDays.length > 0) {
+                        addLog(`  New data range: ${addedDays[0]} to ${addedDays[addedDays.length - 1]}`);
+                    }
                 }
 
                 // Report any files that failed to read
@@ -5247,23 +5362,8 @@ function moveMapSmart(latlng, zoom) {
                 progress.style.display = 'none';
                 cancelBtn.style.display = 'none';
 
-                const results = document.getElementById('results');
-                if (results) {
-                    results.style.display = 'block';
-                    const resultsList = document.getElementById('resultsList');
-                    if (resultsList) {
-                        resultsList.innerHTML = `
-                            <p><strong>${addedDays.length}</strong> days added</p>
-                            <p><strong>${updatedDays.length}</strong> days updated</p>
-                            <p>Total: <strong>${sortedDays.length}</strong> days processed</p>
-                            ${failedFiles.length > 0 ? `<p style="color: #856404;"><strong>${failedFiles.length}</strong> files unreadable</p>` : ''}
-                        `;
-                    }
-                }
-
-                // Refresh display
+                // Refresh DB stats — dbStatusSection shows the "Open Diary Reader" button
                 await updateDBStatusDisplay();
-                await loadMostRecentMonth();
 
             } catch (err) {
                 addLog(`\n❌ Error: ${err.message}`, 'error');

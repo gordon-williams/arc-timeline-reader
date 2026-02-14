@@ -1,5 +1,27 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 870 (2026-02-14)
+
+### Import - Recent Only Quick Mode
+- Added "Recent only" import mode for Arc Editor backups that reads only the last 2 months of item and note files instead of the entire archive (~97% fewer files).
+- Backup import UI now offers three modes: Recent only (fast), Full import (default), Force rescan.
+- Works on both Chrome (File System Access API) and Safari (webkitdirectory) import paths.
+
+### Fix - Import Results Now Visible
+- Backup import no longer auto-opens the diary/map on completion, so the user can read the import results first.
+- User clicks "Open Diary Reader" when ready to proceed.
+
+### Fix - Duplicate Notes on Trip/Visit Boundaries
+- Notes with `timelineItemId` (Arc Editor v2) are now matched directly to their linked timeline item, eliminating duplicate note attachment at trip/visit boundaries.
+- Older notes without `timelineItemId` continue to use time-range matching with exclusive end boundary.
+
+### Fix - Activity Type Mapping (LocoKit2 Audit)
+- Corrected activity type mapping against LocoKit2 source. 9 codes were mapped to the wrong activity (e.g. train↔boat, bus↔train, taxi→airplane, scooter→car, hiking→tractor).
+- Added all missing activity types: motorcycle, tram, tractor, tuktuk, songthaew, metro, cableCar, funicular, chairlift, skiLift, taxi, hotAirBalloon, skateboarding, inlineSkating, snowboarding, skiing, horseback, swimming, golf, wheelchair, rowing, kayaking, surfing, hiking.
+- `manualActivityType` now correctly set when `confirmedActivityType` is present (user-confirmed activity in Arc).
+
+---
+
 ## Build 869 (2026-02-11)
 
 ### Import - Incremental Refresh Reliability

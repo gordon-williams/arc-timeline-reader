@@ -32,7 +32,7 @@ SOFTWARE.
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"  crossorigin="anonymous" />
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = 869;
+  window.__ARC_BUILD__ = 870;
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -189,10 +189,18 @@ SOFTWARE.
                         <span style="font-size: 13px; color: #999;">~/Library/Mobile Documents/iCloud~com~bigpaua~LearnerCoacher/Documents/Backups</span>
                     </div>
                     <div class="file-count" id="backupFileCount"></div>
-                    <div style="margin-top: 16px;" onclick="event.stopPropagation();">
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: #666;">
-                            <input type="checkbox" id="backupForceRescan" style="width: 18px; height: 18px;">
-                            Force full rescan (reimport all data)
+                    <div style="margin-top: 16px; padding: 12px; background: #f5f5f7; border-radius: 8px;" onclick="event.stopPropagation();">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: #333; margin-bottom: 6px;">
+                            <input type="radio" name="backupImportMode" value="recent" style="width: 16px; height: 16px;">
+                            Recent only (fast — last 2 months)
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: #333; margin-bottom: 6px;">
+                            <input type="radio" name="backupImportMode" value="full" checked style="width: 16px; height: 16px;">
+                            Full import (skip unchanged)
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: #333;">
+                            <input type="radio" name="backupImportMode" value="force" style="width: 16px; height: 16px;">
+                            Force rescan (reimport all data)
                         </label>
                     </div>
                     <div id="backupBrowserWarning" style="display: none; margin-top: 16px; padding: 12px; background: #fff3cd; border-radius: 8px; font-size: 13px; color: #856404;">
@@ -479,7 +487,7 @@ SOFTWARE.
                         <div class="diary-title-row">
                             <div class="diary-title-group">
                                 <span class="diary-title" id="diaryTitle">Diary Timeline</span>
-                                <span class="diary-build" id="diaryBuild">Build 869</span>
+                                <span class="diary-build" id="diaryBuild">Build 870</span>
                             </div>
                             <div class="diary-nav-group" id="diaryNavGroup">
                                 <button class="btn-diary-nav btn-nav-circular" id="prevDayBtn" onclick="NavigationController.navigateBy(-1, 'day')" title="Previous day">‹</button>
