@@ -47,8 +47,26 @@ SOFTWARE.
     document.head.appendChild(l);
 
     function loadApp() {
-      // Load map-tools.js directly
-      loadMapTools();
+      // Load arc-state.js first (shared state)
+      loadArcState();
+    }
+
+    function loadArcState() {
+      var a = document.createElement('script');
+      a.src = 'arc-state.js?v=' + b;
+      a.async = false;
+      a.onload = function() { loadArcUtils(); };
+      a.onerror = function() { loadArcUtils(); };
+      document.body.appendChild(a);
+    }
+
+    function loadArcUtils() {
+      var u = document.createElement('script');
+      u.src = 'arc-utils.js?v=' + b;
+      u.async = false;
+      u.onload = function() { loadMapTools(); };
+      u.onerror = function() { loadMapTools(); };
+      document.body.appendChild(u);
     }
 
     function loadMapTools() {

@@ -103,11 +103,13 @@ function moveMapSmart(latlng, zoom) {
         // IndexedDB Storage Layer (v3.0)
         // ========================================
         
-        const DB_NAME = 'ArcTimelineDiary';
-        const DB_VERSION = 2;  // Must stay at v2 - can't downgrade
-        let db = null;
-        let _dbReadyResolve = null;
-        const dbReadyPromise = new Promise(resolve => { _dbReadyResolve = resolve; });
+        // Shared state — bridge to ArcState for cross-module access
+        const S = window.ArcState;
+        const DB_NAME = S.DB_NAME;
+        const DB_VERSION = S.DB_VERSION;
+        let db = null;                  // synced to S.db after init
+        let _dbReadyResolve = S.dbReadyResolve;
+        const dbReadyPromise = S.dbReadyPromise;
         
         // Initialize IndexedDB
         async function initDatabase() {
@@ -122,6 +124,7 @@ function moveMapSmart(latlng, zoom) {
                 
                 request.onsuccess = () => {
                     db = request.result;
+                    S.db = db; // sync to ArcState for cross-module access
                     logInfo('✅ IndexedDB initialized');
                     resolve(db);
                 };
@@ -10659,21 +10662,8 @@ scrollToDiaryDay(currentDayKey);
             return isNaN(parsed) ? null : parsed;
         }
         
-        function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371000;
-            const φ1 = lat1 * Math.PI / 180;
-            const φ2 = lat2 * Math.PI / 180;
-            const Δφ = (lat2 - lat1) * Math.PI / 180;
-            const Δλ = (lon2 - lon1) * Math.PI / 180;
-            
-            const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-                      Math.cos(φ1) * Math.cos(φ2) *
-                      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            
-            return R * c;
-        }
-        
+        // calculateDistance — now in arc-utils.js (bridged at top of utils section)
+
         function formatRouteTime(ms) {
             const totalSeconds = Math.floor(ms / 1000);
             const hours = Math.floor(totalSeconds / 3600);
@@ -16072,155 +16062,10 @@ scrollToDiaryDay(currentDayKey);
             logDebug(`⭐ ${wasAdded ? 'Added' : 'Removed'} favorite: ${name} (${currentMonth}, ${currentDayKey})`);
         }
         
-        // Utility functions
-        function addLog(message, type = 'info') {
-            const entry = document.createElement('div');
-            entry.className = `log-entry ${type}`;
-            
-            // Check if message contains HTML (e.g., buttons)
-            if (message.includes('<button') || message.includes('<a')) {
-                // For HTML content, don't add timestamp and use innerHTML
-                entry.innerHTML = message;
-            } else {
-                // For regular text, add timestamp and use textContent
-                entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
-            }
-            
-            logDiv.appendChild(entry);
-            logDiv.scrollTop = logDiv.scrollHeight;
-        }
-        
-        function formatTime(date) {
-            if (!date) return 'Unknown Time';
-            const d = new Date(date);
-            if (isNaN(d.getTime())) return 'Unknown Time';
-            const hours = d.getHours();
-            const minutes = d.getMinutes().toString().padStart(2, '0');
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            const hour12 = hours % 12 || 12;
-            return `${hour12}:${minutes} ${ampm}`;
-        }
-        
-        function formatDate(dateStr) {
-            const d = new Date(dateStr);
-            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-            return d.toLocaleDateString('en-US', options);
-        }
-        
-        function formatDuration(seconds) {
-            if (!seconds || seconds <= 0) return '0m';
-            
-            const hours = Math.floor(seconds / 3600);
-            const minutes = Math.floor((seconds % 3600) / 60);
-            const secs = Math.floor(seconds % 60);
-            
-            if (hours > 0) {
-                return `${hours}h ${minutes}m`;
-            } else if (minutes > 0) {
-                return `${minutes}m`;
-            } else {
-                return `${secs}s`;
-            }
-        }
-        
-        function formatDistance(meters) {
-            if (!meters || meters < 1) return '0 m';
-            
-            if (meters >= 1000) {
-                const km = (meters / 1000).toFixed(1);
-                return `${km} km`;
-            } else {
-                return `${Math.round(meters)} m`;
-            }
-        }
-        
-        // Expose formatting functions for analysis.js
-        window.formatDistance = formatDistance;
-        window.formatDuration = formatDuration;
-        window.calculatePathDistance = calculatePathDistance;
-        window.calculateDistance = calculateDistance;
-        
-        function calculatePathDistance(samples) {
-            if (!samples || samples.length < 2) return null;
-            
-            // First, extract all valid GPS points (skip nulls)
-            const validPoints = [];
-            for (const sample of samples) {
-                const lat = sample.location?.latitude ?? sample.latitude;
-                const lng = sample.location?.longitude ?? sample.longitude;
-                if (lat != null && lng != null) {
-                    validPoints.push({
-                        lat,
-                        lng
-                    });
-                }
-            }
-            
-            // Need at least 2 valid points to calculate distance
-            if (validPoints.length < 2) return null;
-            
-            // Calculate total distance between consecutive valid points
-            let totalDistance = 0;
-            for (let i = 1; i < validPoints.length; i++) {
-                const prev = validPoints[i - 1];
-                const curr = validPoints[i];
-                
-                const segmentDistance = calculateDistance(
-                    prev.lat,
-                    prev.lng,
-                    curr.lat,
-                    curr.lng
-                );
-                
-                totalDistance += segmentDistance;
-            }
-            
-            return totalDistance > 0 ? totalDistance : null;
-        }
-        
-        function calculateElevationGain(samples) {
-            if (!samples || samples.length < 2) return null;
-            
-            // Extract altitude values from samples
-            const altitudes = [];
-            for (const sample of samples) {
-                const altitude = sample.location?.altitude || sample.altitude;
-                if (altitude != null && !isNaN(altitude)) {
-                    altitudes.push(altitude);
-                }
-            }
-            
-            // Need at least 2 valid altitude points
-            if (altitudes.length < 2) return null;
-            
-            // Calculate net elevation gain (positive changes only)
-            let gain = 0;
-            for (let i = 1; i < altitudes.length; i++) {
-                const change = altitudes[i] - altitudes[i - 1];
-                if (change > 0) {
-                    gain += change;
-                }
-            }
-            
-            return gain > 0 ? gain : null;
-        }
-        
-        async function decompressFile(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        const compressed = new Uint8Array(e.target.result);
-                        const decompressed = pako.ungzip(compressed, { to: 'string' });
-                        resolve(JSON.parse(decompressed));
-                    } catch (error) {
-                        reject(error);
-                    }
-                };
-                reader.onerror = reject;
-                reader.readAsArrayBuffer(file);
-            });
-        }
+        // Utility functions — bridged from arc-utils.js
+        const { addLog, formatTime, formatDate, formatDuration, formatDistance,
+                calculateDistance, calculatePathDistance, calculateElevationGain,
+                decompressFile } = window.ArcUtils;
         
         // ========== Display-Only Timeline Coalescer ==========
         // Applies ONLY to iCloud backup imports - JSON exports work correctly without coalescing
@@ -16436,18 +16281,9 @@ scrollToDiaryDay(currentDayKey);
             return result;
         }
         
-        // Calculate distance in meters between two lat/lng points
-        function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
-            const R = 6371000; // Earth radius in meters
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                      Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c;
-        }
-        
+        // calculateDistanceMeters — now in arc-utils.js (alias of calculateDistance)
+        const calculateDistanceMeters = calculateDistance;
+
         function getItemDurationMs(item) {
             if (!item.startDate || !item.endDate) return 0;
             const start = new Date(item.startDate).getTime();
