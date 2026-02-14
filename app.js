@@ -139,6 +139,7 @@ function moveMapSmart(latlng, zoom) {
             getSmartLocationName,
             getFilteredNotesForDay,
             calculateDailyActivityStats,
+            calculateMonthlyActivityStats,
             getItemDurationMs,
             getGapMs,
         } = window.ArcData;

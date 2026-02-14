@@ -1189,6 +1189,7 @@
         // Filtering & stats
         getFilteredNotesForDay,
         calculateDailyActivityStats,
+        calculateMonthlyActivityStats,
 
         // Utility
         getItemDurationMs,
