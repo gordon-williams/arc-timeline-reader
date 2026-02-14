@@ -1,5 +1,15 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 872 (2026-02-14)
+
+### Cleanup - Dead Code Removal
+- Removed ~1,350 lines of dead code across 3 files.
+- **import.js**: Removed legacy Arc Timeline backup import functions (`orderItemsByLinkedList`, `readGzippedFileAsJson`, `readFileAsJson`, `readJsonFilesFromHexDirs`, `importFromBackupDir`, `importFromBackupFiles`) — ~770 lines. These were for the old iCloud backup format; all backup import now goes through app.js.
+- **app.js**: Removed `confirmClearDatabase` (replaced by Delete Days modal), localStorage diary persistence system (`saveDiariesToLocalStorage`, `loadDiariesFromLocalStorage`, `initializeSavedDiaryUI`, etc. — ~180 lines), `generateDiaries` + `resetGenerateButton` (~305 lines), `populateSelectorsLegacy` (~40 lines), and 3 orphaned window exposures (`analysisNavigateTo`, `closeAnalysisPanel`, `updateAnimationSpeed`).
+- **styles.css**: Removed 7 unused CSS classes (`.date-range`, `.file-input-wrapper`, `.result-item`, `.result-info`, `.result-title`, `.result-stats`, `.download-btn`) — ~50 lines.
+
+---
+
 ## Build 871 (2026-02-14)
 
 ### Feature - Delete Days

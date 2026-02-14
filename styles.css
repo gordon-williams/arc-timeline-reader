@@ -72,30 +72,6 @@
             border-color: #667eea;
         }
         
-        .date-range {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-        
-        .file-input-wrapper {
-            border: 2px dashed #e0e0e0;
-            border-radius: 8px;
-            padding: 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .file-input-wrapper:hover {
-            border-color: #667eea;
-            background: #f8f9ff;
-        }
-        
-        .file-input-wrapper input[type="file"] {
-            display: none;
-        }
-        
         .file-count {
             margin-top: 10px;
             font-size: 14px;
@@ -166,48 +142,6 @@
         .results h2 {
             color: #333;
             margin-bottom: 15px;
-        }
-        
-        .result-item {
-            background: #f8f9ff;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .result-info {
-            flex: 1;
-        }
-        
-        .result-title {
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 4px;
-        }
-        
-        .result-stats {
-            font-size: 13px;
-            color: #666;
-        }
-        
-        .download-btn {
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            font-size: 14px;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-        }
-        
-        .download-btn:hover {
-            background: #5568d3;
         }
         
         .log {
