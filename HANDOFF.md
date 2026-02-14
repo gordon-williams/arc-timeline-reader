@@ -182,6 +182,32 @@ Functions defined inside the main closure must be exposed via `window.funcName =
 - Uses Mapbox for tiles/geocoding (token in localStorage)
 - Arc Editor backup data is at `Arc Editor Backups/26DD32A8-63E3-422E-92CB-C3321569E72B/`
 
+## Modularization Lessons (Build 873)
+
+When extracting code from app.js into modules, these issues arose repeatedly and must be checked for in future extractions:
+
+### 1. Missing Exports
+Functions defined in a module but not listed in its `window.ArcXxx` export object won't be visible to app.js. **After extracting, verify every function used by app.js is in the export AND in the app.js bridge destructure.** (e.g., `calculateMonthlyActivityStats` was in arc-data.js but missing from both the export and the bridge.)
+
+### 2. Orphaned References
+When extracting a section that contains utility functions (like `escapeHtml`), other parts of app.js may still call those functions. **Search the entire app.js for every function name being extracted** before removing the code. (e.g., `escapeHtml` was in the events section and got extracted to events.js, but `generateMarkdown` in app.js still called it.)
+
+### 3. Temporal Dead Zone (TDZ)
+Bridge destructures using `const { fn } = window.ArcXxx` at the bottom of app.js cause TDZ errors — the `const` binding exists throughout the scope but can't be accessed before its declaration line. **All bridge destructures must be at the top of the IIFE scope** (currently lines 77-145). This applies even though the functions are only called at runtime, because JavaScript's TDZ check is lexical.
+
+### 4. Phantom Function Names in Callbacks
+When wiring `_ui` callbacks, the callback name in the receiving module may not match any actual function in app.js. **Verify every callback name exists as a real function** before wiring. Use a wrapper if names differ. (e.g., events.js expected `renderMonth` but the actual function is `displayDiary(monthKey)` — fixed with `renderMonth: () => displayDiary(S.currentMonth)`.)
+
+### 5. Functions That Live in Multiple Sections
+A function may be referenced in the section being extracted but actually defined elsewhere in app.js. Don't include it in the module's exports if its body isn't in the module. (e.g., `orderItemsByLinkedList` was referenced in the DB section but defined in the backup import section — exporting it from arc-db.js caused a crash.)
+
+### Checklist for Future Extractions
+1. For every function in the extracted section, grep app.js for callers — add to export if needed
+2. For every function called FROM the extracted section, verify it's accessible (imported or passed via `_ui`)
+3. Place all bridge destructures at the TOP of app.js IIFE (lines 77-145)
+4. Verify `_ui` callback names match real function names in app.js
+5. Test by loading the app and checking console — errors cascade, fix them top-down
+
 ## Git Notes
 - **IMPORTANT**: `Arc Editor Backups/` and `Backups/` contain large data — do NOT commit
 - Use `git add <specific files>` not `git add -A`
