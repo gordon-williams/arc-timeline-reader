@@ -3648,6 +3648,216 @@ function moveMapSmart(latlng, zoom) {
             addLog('✅ Database cleared');
         }
         
+        // ============================================================
+        // Delete Days Modal
+        // ============================================================
+
+        function openDeleteModal() {
+            const overlay = document.getElementById('deleteModalOverlay');
+            if (!overlay) return;
+
+            // Default date to currently viewed day or today
+            const dayKey = (window.NavigationController && window.NavigationController.dayKey) || currentDayKey;
+            const defaultDate = dayKey || new Date().toISOString().slice(0, 10);
+
+            const singleInput = document.getElementById('deleteSingleDate');
+            const startInput = document.getElementById('deleteStartDate');
+            const endInput = document.getElementById('deleteEndDate');
+
+            if (singleInput) singleInput.value = defaultDate;
+            if (startInput) startInput.value = defaultDate;
+            if (endInput) endInput.value = defaultDate;
+
+            // Reset to single day mode
+            const singleRadio = document.querySelector('input[name="deleteMode"][value="single"]');
+            if (singleRadio) singleRadio.checked = true;
+
+            document.getElementById('deleteSingleRow').style.display = '';
+            document.getElementById('deleteRangeRow').style.display = 'none';
+
+            overlay.style.display = 'flex';
+            updateDeletePreview();
+        }
+
+        function closeDeleteModal() {
+            const overlay = document.getElementById('deleteModalOverlay');
+            if (overlay) overlay.style.display = 'none';
+        }
+
+        async function updateDeletePreview() {
+            const mode = document.querySelector('input[name="deleteMode"]:checked')?.value || 'single';
+            const preview = document.getElementById('deletePreview');
+            const deleteBtn = document.getElementById('deleteConfirmBtn');
+            const singleRow = document.getElementById('deleteSingleRow');
+            const rangeRow = document.getElementById('deleteRangeRow');
+
+            // Show/hide date inputs based on mode
+            if (singleRow) singleRow.style.display = (mode === 'single') ? '' : 'none';
+            if (rangeRow) rangeRow.style.display = (mode === 'range') ? '' : 'none';
+
+            if (mode === 'all') {
+                const stats = await getDBStats();
+                if (preview) {
+                    preview.style.color = '#ff3b30';
+                    preview.textContent = `⚠️ All ${stats.dayCount.toLocaleString()} days will be permanently deleted`;
+                }
+                if (deleteBtn) deleteBtn.disabled = stats.dayCount === 0;
+                return;
+            }
+
+            let startKey, endKey;
+            if (mode === 'single') {
+                const val = document.getElementById('deleteSingleDate')?.value;
+                if (!val) {
+                    if (preview) { preview.style.color = '#86868b'; preview.textContent = 'Select a date'; }
+                    if (deleteBtn) deleteBtn.disabled = true;
+                    return;
+                }
+                startKey = endKey = val;
+            } else {
+                startKey = document.getElementById('deleteStartDate')?.value;
+                endKey = document.getElementById('deleteEndDate')?.value;
+                if (!startKey || !endKey) {
+                    if (preview) { preview.style.color = '#86868b'; preview.textContent = 'Select start and end dates'; }
+                    if (deleteBtn) deleteBtn.disabled = true;
+                    return;
+                }
+                if (startKey > endKey) {
+                    if (preview) { preview.style.color = '#ff3b30'; preview.textContent = 'Start date must be before end date'; }
+                    if (deleteBtn) deleteBtn.disabled = true;
+                    return;
+                }
+            }
+
+            try {
+                const dayKeys = await getDayKeysInRange(startKey, endKey);
+                if (dayKeys.length === 0) {
+                    if (preview) { preview.style.color = '#86868b'; preview.textContent = 'No days found in this range'; }
+                    if (deleteBtn) deleteBtn.disabled = true;
+                } else {
+                    const label = dayKeys.length === 1
+                        ? `1 day will be deleted (${dayKeys[0]})`
+                        : `${dayKeys.length} days will be deleted (${dayKeys[0]} to ${dayKeys[dayKeys.length - 1]})`;
+                    if (preview) { preview.style.color = '#ff3b30'; preview.textContent = label; }
+                    if (deleteBtn) deleteBtn.disabled = false;
+                }
+            } catch (err) {
+                if (preview) { preview.style.color = '#ff3b30'; preview.textContent = 'Error reading database'; }
+                if (deleteBtn) deleteBtn.disabled = true;
+            }
+        }
+
+        async function getDayKeysInRange(startKey, endKey) {
+            if (!db) return [];
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(['days'], 'readonly');
+                const store = tx.objectStore('days');
+                const range = IDBKeyRange.bound(startKey, endKey);
+                const req = store.getAllKeys(range);
+                req.onsuccess = () => resolve(req.result || []);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function confirmDeleteDays() {
+            const mode = document.querySelector('input[name="deleteMode"]:checked')?.value || 'single';
+
+            if (mode === 'all') {
+                if (confirm('Are you sure you want to clear the entire database? This cannot be undone.')) {
+                    closeDeleteModal();
+                    await clearDatabaseAndReset();
+                }
+                return;
+            }
+
+            let startKey, endKey;
+            if (mode === 'single') {
+                startKey = endKey = document.getElementById('deleteSingleDate')?.value;
+            } else {
+                startKey = document.getElementById('deleteStartDate')?.value;
+                endKey = document.getElementById('deleteEndDate')?.value;
+            }
+
+            if (!startKey || !endKey) return;
+
+            const dayKeys = await getDayKeysInRange(startKey, endKey);
+            if (dayKeys.length === 0) return;
+
+            const label = dayKeys.length === 1
+                ? `Delete ${dayKeys[0]}? This cannot be undone.`
+                : `Delete ${dayKeys.length} days (${dayKeys[0]} to ${dayKeys[dayKeys.length - 1]})? This cannot be undone.`;
+
+            if (!confirm(label)) return;
+
+            closeDeleteModal();
+            const count = await deleteDaysFromDB(dayKeys);
+            addLog(`🗑️ Deleted ${count} day${count !== 1 ? 's' : ''}`);
+        }
+
+        async function deleteDaysFromDB(dayKeys) {
+            if (!db || dayKeys.length === 0) return 0;
+
+            // Delete from days, dailySummaries, locationVisits, and reset sync timestamps
+            const stores = ['days', 'metadata'];
+            if (db.objectStoreNames.contains('dailySummaries')) stores.push('dailySummaries');
+            if (db.objectStoreNames.contains('locationVisits')) stores.push('locationVisits');
+
+            await new Promise((resolve, reject) => {
+                const tx = db.transaction(stores, 'readwrite');
+                const daysStore = tx.objectStore('days');
+                const metaStore = tx.objectStore('metadata');
+                const summaryStore = stores.includes('dailySummaries') ? tx.objectStore('dailySummaries') : null;
+                const visitStore = stores.includes('locationVisits') ? tx.objectStore('locationVisits') : null;
+
+                for (const dayKey of dayKeys) {
+                    daysStore.delete(dayKey);
+                    if (summaryStore) summaryStore.delete(dayKey);
+
+                    // Delete locationVisits for this dayKey via index
+                    if (visitStore) {
+                        const dayIndex = visitStore.index('dayKey');
+                        const cursor = dayIndex.openCursor(IDBKeyRange.only(dayKey));
+                        cursor.onsuccess = (e) => {
+                            const c = e.target.result;
+                            if (c) { c.delete(); c.continue(); }
+                        };
+                    }
+                }
+
+                // Reset sync timestamps so next import will re-process deleted days
+                metaStore.delete('lastBackupSync');
+                metaStore.delete('lastSync');
+
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
+
+            // Rebuild location aggregates
+            if (db.objectStoreNames.contains('locationVisits')) {
+                try { await rebuildLocationsAggregate(); } catch (e) { logWarn('Location rebuild failed:', e); }
+            }
+
+            // Clear memory caches
+            for (const dayKey of dayKeys) {
+                const monthKey = dayKey.substring(0, 7);
+                if (generatedDiaries[monthKey]) {
+                    delete generatedDiaries[monthKey].days?.[dayKey];
+                    delete generatedDiaries[monthKey].locationsByDay?.[dayKey];
+                    delete generatedDiaries[monthKey].routesByDay?.[dayKey];
+                }
+            }
+
+            // Update UI
+            await updateDBStatusDisplay();
+
+            // If diary is open, close it (simplest safe approach)
+            if (modalOverlay && modalOverlay.style.display === 'block') {
+                modalOverlay.style.display = 'none';
+            }
+
+            return dayKeys.length;
+        }
+
         let selectedFiles = [];
         let selectedBackupFiles = []; // For backup import
         let currentImportType = 'backup'; // 'json' or 'backup'
@@ -18284,11 +18494,13 @@ if (typeof analysisNavigateTo === 'function') window.analysisNavigateTo = analys
 if (typeof changeMapStyle === 'function') window.changeMapStyle = changeMapStyle;
 if (typeof clearSearch === 'function') window.clearSearch = clearSearch;
 if (typeof closeAnalysisPanel === 'function') window.closeAnalysisPanel = closeAnalysisPanel;
+if (typeof closeDeleteModal === 'function') window.closeDeleteModal = closeDeleteModal;
 if (typeof closeDiaryReader === 'function') window.closeDiaryReader = closeDiaryReader;
 if (typeof closeFilterModal === 'function') window.closeFilterModal = closeFilterModal;
 if (typeof closeSearchResults === 'function') window.closeSearchResults = closeSearchResults;
 if (typeof closeStatsPanel === 'function') window.closeStatsPanel = closeStatsPanel;
 if (typeof confirmClearDatabase === 'function') window.confirmClearDatabase = confirmClearDatabase;
+if (typeof confirmDeleteDays === 'function') window.confirmDeleteDays = confirmDeleteDays;
 if (typeof confirmClearSavedDiary === 'function') window.confirmClearSavedDiary = confirmClearSavedDiary;
 if (typeof downloadCurrentMonth === 'function') window.downloadCurrentMonth = downloadCurrentMonth;
 if (typeof exportDatabaseBackup === 'function') window.exportDatabaseBackup = exportDatabaseBackup;
@@ -18302,6 +18514,7 @@ if (typeof navigateDay === 'function') window.navigateDay = navigateDay;
 if (typeof navigateMonth === 'function') window.navigateMonth = navigateMonth;
 if (typeof navigateSearch === 'function') window.navigateSearch = navigateSearch;
 if (typeof navigateToSearchResultByIndex === 'function') window.navigateToSearchResultByIndex = navigateToSearchResultByIndex;
+if (typeof openDeleteModal === 'function') window.openDeleteModal = openDeleteModal;
 if (typeof openDiaryFromDatabase === 'function') window.openDiaryFromDatabase = openDiaryFromDatabase;
 if (typeof openDiaryReader === 'function') window.openDiaryReader = openDiaryReader;
 if (typeof performFindSearch === 'function') window.performFindSearch = performFindSearch;
@@ -18435,6 +18648,7 @@ if (typeof closeElevationPanel === 'function') window.closeElevationPanel = clos
 if (typeof closeTransparencyPopup === 'function') window.closeTransparencyPopup = closeTransparencyPopup;
 if (typeof startDragModal === 'function') window.startDragModal = startDragModal;
 if (typeof updateAnimationSpeed === 'function') window.updateAnimationSpeed = updateAnimationSpeed;
+if (typeof updateDeletePreview === 'function') window.updateDeletePreview = updateDeletePreview;
 if (typeof updateElevationChart === 'function') window.updateElevationChart = updateElevationChart;
 if (typeof updateMapRoutes === 'function') window.updateMapRoutes = updateMapRoutes;
 if (typeof updateTransparencyValue === 'function') window.updateTransparencyValue = updateTransparencyValue;

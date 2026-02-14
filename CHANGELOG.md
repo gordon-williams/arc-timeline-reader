@@ -1,5 +1,15 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 871 (2026-02-14)
+
+### Feature - Delete Days
+- The "Clear" button now opens a modal with three options: delete a single day, a date range, or clear all data.
+- Shows a live preview of how many days will be deleted before confirming.
+- Full cleanup: removes day records, daily summaries, and location visits, then rebuilds location aggregates.
+- Replaces the old one-click "clear everything" confirm dialog.
+
+---
+
 ## Build 870 (2026-02-14)
 
 ### Import - Recent Only Quick Mode

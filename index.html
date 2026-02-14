@@ -32,7 +32,7 @@ SOFTWARE.
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"  crossorigin="anonymous" />
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = 870;
+  window.__ARC_BUILD__ = 871;
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -120,7 +120,7 @@ SOFTWARE.
 					</div>
 					
 					<div style="display: flex; gap: 12px; margin-bottom: 24px;">
-						<button onclick="confirmClearDatabase()" title="Clears local app database (IndexedDB) only. Does not delete files." style="flex: 1; background: #ff3b30; color: white; border: none; padding: 14px; border-radius: 12px; cursor: pointer; font-size: 17px; font-weight: 600; transition: opacity 0.2s; min-height: 50px;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+						<button onclick="openDeleteModal()" title="Delete specific days or clear entire database" style="flex: 1; background: #ff3b30; color: white; border: none; padding: 14px; border-radius: 12px; cursor: pointer; font-size: 17px; font-weight: 600; transition: opacity 0.2s; min-height: 50px;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
 							Clear
 						</button>
 						<button onclick="openExportModal()" style="flex: 1; background: #f5f5f7; color: #1d1d1f; border: none; padding: 14px; border-radius: 12px; cursor: pointer; font-size: 17px; font-weight: 600; transition: background 0.2s; min-height: 50px;" onmouseover="this.style.background='#e8e8ed'" onmouseout="this.style.background='#f5f5f7'">
@@ -271,6 +271,55 @@ SOFTWARE.
             <div class="export-modal-footer">
                 <button class="btn-export-cancel" onclick="closeExportModal()">Cancel</button>
                 <button class="btn-export-start" onclick="startExport()">Export</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Days Modal -->
+    <div class="export-modal-overlay" id="deleteModalOverlay" style="display: none;">
+        <div class="export-modal">
+            <div class="export-modal-header">
+                <span>Delete Days</span>
+                <button class="export-modal-close" onclick="closeDeleteModal()">×</button>
+            </div>
+            <div class="export-modal-body">
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px;">
+                        <input type="radio" name="deleteMode" value="single" checked onchange="updateDeletePreview()">
+                        Single day
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px;">
+                        <input type="radio" name="deleteMode" value="range" onchange="updateDeletePreview()">
+                        Date range
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px;">
+                        <input type="radio" name="deleteMode" value="all" onchange="updateDeletePreview()">
+                        Clear all data
+                    </label>
+                </div>
+                <div id="deleteSingleRow" class="export-row export-range" style="margin-top: 8px;">
+                    <div>
+                        <label for="deleteSingleDate">Date</label>
+                        <input type="date" id="deleteSingleDate" onchange="updateDeletePreview()">
+                    </div>
+                </div>
+                <div id="deleteRangeRow" class="export-row export-range" style="display: none; margin-top: 8px;">
+                    <div>
+                        <label for="deleteStartDate">Start</label>
+                        <input type="date" id="deleteStartDate" onchange="updateDeletePreview()">
+                    </div>
+                    <div>
+                        <label for="deleteEndDate">End</label>
+                        <input type="date" id="deleteEndDate" onchange="updateDeletePreview()">
+                    </div>
+                </div>
+                <div id="deletePreview" style="margin-top: 8px; padding: 10px; background: #f5f5f7; border-radius: 8px; font-size: 13px; color: #86868b; text-align: center;">
+                    Select a date to preview
+                </div>
+            </div>
+            <div class="export-modal-footer">
+                <button class="btn-export-cancel" onclick="closeDeleteModal()">Cancel</button>
+                <button class="btn-export-start" id="deleteConfirmBtn" onclick="confirmDeleteDays()" disabled style="background: #ff3b30;">Delete</button>
             </div>
         </div>
     </div>
@@ -487,7 +536,7 @@ SOFTWARE.
                         <div class="diary-title-row">
                             <div class="diary-title-group">
                                 <span class="diary-title" id="diaryTitle">Diary Timeline</span>
-                                <span class="diary-build" id="diaryBuild">Build 870</span>
+                                <span class="diary-build" id="diaryBuild">Build 871</span>
                             </div>
                             <div class="diary-nav-group" id="diaryNavGroup">
                                 <button class="btn-diary-nav btn-nav-circular" id="prevDayBtn" onclick="NavigationController.navigateBy(-1, 'day')" title="Previous day">‹</button>
