@@ -114,11 +114,43 @@ function moveMapSmart(latlng, zoom) {
             updateAnalysisButtonIndicator,
         } = window.ArcDB;
 
+        // ========================================
+        // Utilities — Bridge to arc-utils.js
+        // ========================================
+
+        const { addLog, formatTime, formatDate, formatDuration, formatDistance,
+                calculateDistance, calculatePathDistance, calculateElevationGain,
+                decompressFile } = window.ArcUtils;
+
+        // ========================================
+        // Data Extraction — Bridge to arc-data.js
+        // ========================================
+
+        const {
+            getActivityFilterType,
+            coalesceTimelineForDisplay,
+            extractNotesFromData,
+            extractEntriesAndNotesFromData,
+            extractItemNotes,
+            extractPinsFromData,
+            extractTracksFromData,
+            getDaysFromModel,
+            buildLocationClusters,
+            getSmartLocationName,
+            getFilteredNotesForDay,
+            calculateDailyActivityStats,
+            getItemDurationMs,
+            getGapMs,
+        } = window.ArcData;
+
+        // Alias — backward compat
+        const calculateDistanceMeters = calculateDistance;
+
         // Local aliases for shared state (backward compat with existing code)
         let db = null;                  // synced from S.db
         let _dbReadyResolve = S.dbReadyResolve;
         const dbReadyPromise = S.dbReadyPromise;
-        
+
         // placesById — local alias kept in sync with ArcState
         let placesById = S.placesById;
 
@@ -7514,9 +7546,6 @@ scrollToDiaryDay(currentDayKey);
             }
         }
         
-        // getActivityFilterType — now in arc-data.js
-        const getActivityFilterType = window.ArcData.getActivityFilterType;
-
         function getActivityColor(activityType) {
             const colors = {
                 'stationary': '#7A3CFC',
@@ -12631,36 +12660,6 @@ scrollToDiaryDay(currentDayKey);
             
             logDebug(`⭐ ${wasAdded ? 'Added' : 'Removed'} favorite: ${name} (${currentMonth}, ${currentDayKey})`);
         }
-        
-        // Utility functions — bridged from arc-utils.js
-        const { addLog, formatTime, formatDate, formatDuration, formatDistance,
-                calculateDistance, calculatePathDistance, calculateElevationGain,
-                decompressFile } = window.ArcUtils;
-        
-        
-        // ========================================
-        // Data Extraction — Bridge to arc-data.js
-        // ========================================
-        
-        const {
-            coalesceTimelineForDisplay,
-            extractNotesFromData,
-            extractEntriesAndNotesFromData,
-            extractItemNotes,
-            extractPinsFromData,
-            extractTracksFromData,
-            getDaysFromModel,
-            buildLocationClusters,
-            getSmartLocationName,
-            getFilteredNotesForDay,
-            calculateDailyActivityStats,
-            getItemDurationMs,
-            getGapMs,
-        } = window.ArcData;
-
-        // Alias — backward compat
-        const calculateDistanceMeters = calculateDistance;
-
         
         function showStatsPanel(stats, title) {
             // Record when stats panel is shown to prevent accidental tile clicks
