@@ -169,7 +169,7 @@ Rules:
 Key design: Timeline uses **DISTANCE** not time — this is a "trip player" where stationary time doesn't dominate the bar.
 
 ## Build Process
-Build number source of truth: `index.html` line 35: `window.__ARC_BUILD__ = 872`
+Build number source of truth: `index.html` line 35: `window.__ARC_BUILD__ = 874`
 
 Update when releasing:
 1. `index.html` — `window.__ARC_BUILD__` constant AND `#diaryBuild` span

@@ -8484,6 +8484,14 @@ scrollToDiaryDay(currentDayKey);
             
             // Show/hide Find button based on input
             if (query.length >= 2) {
+                // Tag search: #new, #updated, #event, #event Name
+                if (query.startsWith('#')) {
+                    findBtn.style.display = 'inline-block';
+                    searchCount.textContent = '🏷️ Tag search (Enter to find)';
+                    if (event.key === 'Enter') {
+                        performFindSearch();
+                    }
+                } else {
                 // Check if it's a date - dates navigate immediately
                 const dateKey = parseDateQuery(query);
                 if (dateKey) {
@@ -8507,6 +8515,7 @@ scrollToDiaryDay(currentDayKey);
                         performFindSearch();
                     }
                 }
+                } // end else (non-tag branch)
                 clearSearchBtn.style.display = 'inline-block';
             } else {
                 findBtn.style.display = 'none';
@@ -8564,6 +8573,12 @@ scrollToDiaryDay(currentDayKey);
             const eventSlider = document.getElementById('eventSlider');
             if (eventSlider && eventSlider.classList.contains('open')) {
                 closeEventSlider();
+            }
+
+            // Check for tag search (#new, #updated, #event)
+            if (query.startsWith('#')) {
+                performTagSearch(query);
+                return;
             }
 
             // Check for date first
@@ -8845,6 +8860,157 @@ scrollToDiaryDay(currentDayKey);
             }
         }
 
+        // Tag search: #new, #updated, #event, #event <name>
+        async function performTagSearch(query) {
+            const tag = query.substring(1).trim().toLowerCase();
+            const spaceIdx = tag.indexOf(' ');
+            const tagName = spaceIdx > 0 ? tag.substring(0, spaceIdx) : tag;
+            const tagArg = spaceIdx > 0 ? tag.substring(spaceIdx + 1).trim() : '';
+
+            // Build lookup sets for O(1) matching
+            const addedSet = new Set(importAddedDays);
+            const updatedSet = new Set(importUpdatedDays);
+
+            // Determine match function
+            let matchDay;
+            let tagLabel;
+            if (tagName === 'new') {
+                matchDay = (dayKey) => addedSet.has(dayKey) ? 'NEW' : null;
+                tagLabel = 'NEW';
+            } else if (tagName === 'updated') {
+                matchDay = (dayKey) => updatedSet.has(dayKey) ? 'UPDATED' : null;
+                tagLabel = 'UPDATED';
+            } else if (tagName === 'event') {
+                matchDay = (dayKey) => {
+                    const evts = getEventsForDay(dayKey);
+                    if (evts.length === 0) return null;
+                    if (tagArg) {
+                        const match = evts.find(e => e.name.toLowerCase().includes(tagArg));
+                        return match ? match.name : null;
+                    }
+                    return evts.map(e => e.name).join(', ');
+                };
+                tagLabel = tagArg ? `EVENT: ${tagArg}` : 'EVENT';
+            } else {
+                searchCount.textContent = 'Unknown tag: #' + tagName;
+                return;
+            }
+
+            const MAX_RESULTS = 100;
+            const matches = [];
+
+            // Open slider with progress
+            const slider = document.getElementById('searchResultsSlider');
+            const resultsList = document.getElementById('searchResultsList');
+            const resultsTitle = document.getElementById('searchResultsTitle');
+            const container = document.getElementById('diaryContentContainer');
+
+            window.searchAborted = false;
+            resultsTitle.textContent = `Searching #${tagName}...`;
+            resultsList.innerHTML = `<div class="search-progress" id="searchProgress">
+                <div class="search-progress-bar-container">
+                    <div class="search-progress-bar" id="searchProgressBar" style="width: 0%"></div>
+                </div>
+                <div class="search-progress-text" id="searchProgressText">0 found</div>
+                <button class="btn-stop-search" onclick="window.searchAborted = true; this.textContent = 'Stopping...'">Stop</button>
+            </div>`;
+
+            positionSearchSlider();
+            slider.classList.add('open');
+            if (container) container.classList.add('slider-open');
+            updateMapPaddingForSlider(true);
+
+            window.currentSearchMatches = matches;
+            window.currentSearchQuery = query;
+            window.lastSearchQuery = query;
+
+            // Count days for progress
+            let totalDays = 0;
+            try {
+                totalDays = await new Promise((resolve, reject) => {
+                    const tx = db.transaction(['days'], 'readonly');
+                    const req = tx.objectStore('days').count();
+                    req.onsuccess = () => resolve(req.result || 0);
+                    req.onerror = () => reject(req.error);
+                });
+            } catch (e) { totalDays = 1000; }
+
+            let processedDays = 0;
+            let lastRenderedCount = 0;
+            let lastUIUpdate = Date.now();
+
+            // Iterate days via cursor (reverse chronological)
+            await new Promise((resolve) => {
+                const tx = db.transaction(['days'], 'readonly');
+                const req = tx.objectStore('days').openCursor(null, 'prev');
+
+                req.onsuccess = (event) => {
+                    const cursor = event.target.result;
+                    if (!cursor || matches.length >= MAX_RESULTS || window.searchAborted) {
+                        resolve();
+                        return;
+                    }
+
+                    const dayKey = cursor.key;
+                    processedDays++;
+
+                    const label = matchDay(dayKey);
+                    if (label) {
+                        const monthKey = dayKey.substring(0, 7);
+                        const date = new Date(dayKey + 'T00:00:00');
+                        const dayTitle = date.toLocaleDateString('en-AU', {
+                            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+                        });
+                        matches.push({
+                            monthKey,
+                            dayKey,
+                            time: '',
+                            type: 'tag',
+                            name: label,
+                            text: dayTitle,
+                            inNote: false,
+                            startTime: dayKey + 'T00:00:00'
+                        });
+                    }
+
+                    // Update UI periodically
+                    const now = Date.now();
+                    if (now - lastUIUpdate > 100) {
+                        lastUIUpdate = now;
+                        const bar = document.getElementById('searchProgressBar');
+                        const txt = document.getElementById('searchProgressText');
+                        if (bar && totalDays > 0) bar.style.width = Math.min(Math.round((processedDays / totalDays) * 100), 100) + '%';
+                        if (txt) txt.textContent = `${matches.length} found`;
+                        if (matches.length > lastRenderedCount) {
+                            appendSearchResults(matches, lastRenderedCount, null);
+                            lastRenderedCount = matches.length;
+                        }
+                    }
+
+                    cursor.continue();
+                };
+                req.onerror = () => resolve();
+            });
+
+            // Final render
+            if (matches.length > lastRenderedCount) {
+                appendSearchResults(matches, lastRenderedCount, null);
+            }
+
+            // Remove progress bar
+            const progress = document.getElementById('searchProgress');
+            if (progress) progress.remove();
+
+            resultsTitle.textContent = matches.length === 0 ? 'No results' :
+                `${matches.length}${matches.length >= MAX_RESULTS ? '+' : ''} results`;
+
+            if (matches.length === 0) {
+                resultsList.innerHTML = `<div class="search-result-item" style="text-align:center;color:#888;">No days with #${tagName} tag</div>`;
+            }
+
+            searchCount.textContent = `${matches.length} ${tagLabel}`;
+        }
+
         function buildHighlightedFragment(text, regex, highlightClass = '', tagName = 'mark') {
             const fragment = document.createDocumentFragment();
             const rawText = String(text ?? '');
@@ -8907,7 +9073,7 @@ scrollToDiaryDay(currentDayKey);
                         displayText = displayText.substring(0, 77) + '...';
                     }
                 }
-                const icon = match.type === 'note' ? '📝' : (match.type === 'visit' ? '📍' : '🚶');
+                const icon = match.type === 'tag' ? '🏷️' : match.type === 'note' ? '📝' : (match.type === 'visit' ? '📍' : '🚶');
                 
                 const div = document.createElement('div');
                 div.className = 'search-result-item';
@@ -10011,6 +10177,12 @@ scrollToDiaryDay(currentDayKey);
             const dayKey = match.dayKey;
             const monthKey = match.monthKey;
             
+            // Tag results: navigate to day directly
+            if (match.type === 'tag') {
+                navigateToDate(monthKey, dayKey);
+                return;
+            }
+
             // If match is in a note and Notes Only is checked, disable it first
             const notesOnly = document.getElementById('notesOnly');
             if (match.inNote && notesOnly && notesOnly.checked) {

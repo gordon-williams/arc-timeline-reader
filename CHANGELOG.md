@@ -1,5 +1,22 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 874 (2026-02-15)
+
+### Architecture - Phase 2 Modularization
+- Moved ~1,800 lines of backup import code from `app.js` into `import.js`, consolidating all three import pathways (JSON export, Arc Editor backup, Legacy backup) in one module.
+- `import.js` now ~2,560 lines; `app.js` reduced from ~13,470 to ~11,280 lines.
+- Removed ~550 lines of dead code: unreachable JSON import fallback, 23 unused bridge destructures, unused `generateDayHash`/`importDayToDB`/`getDayMetadataFromDB` from `arc-db.js`.
+
+### Bug Fix - Content Hash Mismatch
+- Fixed `generateDayHash` in `import.js` to include `displayName` field (4-field format), matching `arc-db.js` version. Previously all days were flagged as "updated" on re-import due to hash mismatch.
+
+### Feature - Tag Search
+- Search for tagged days using `#` prefix: `#new`, `#updated`, `#event`, `#event <name>`.
+- Results shown in the search slider with day navigation.
+- Reuses existing search UI — no new CSS or HTML needed.
+
+---
+
 ## Build 873 (2026-02-14)
 
 ### Architecture - Modularization (Phases 0-5, excluding Phase 2)
@@ -13,7 +30,7 @@
 - Modules communicate via `_ui` callback pattern to avoid circular dependencies.
 - Bridge aliases in `app.js` so existing call sites don't need renaming.
 - Script loading chain: `arc-state.js → arc-utils.js → arc-db.js → arc-data.js → events.js → map-tools.js → replay.js → import.js → app.js`.
-- Phase 2 (merge backup import from app.js into import.js) deferred to a future build.
+- Phase 2 (merge backup import from app.js into import.js) completed in Build 874.
 
 ---
 
