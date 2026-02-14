@@ -93,7 +93,6 @@ function moveMapSmart(latlng, zoom) {
             filterGhostItems,
             findContainedItems,
             applyImportFixes,
-            orderItemsByLinkedList,
             getLocalDayKey,
             getPreviousDayKey,
             getPreviousMonthKey,

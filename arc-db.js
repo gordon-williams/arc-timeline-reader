@@ -2498,7 +2498,6 @@ async function clearDatabase() {
 
         // Utility
         generateDayHash,
-        orderItemsByLinkedList,
         getLocalDayKey,
         getPreviousDayKey,
         getPreviousMonthKey,
