@@ -11,13 +11,13 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and Arc Ed
 | File | Lines | Description |
 |------|-------|-------------|
 | `index.html` | ~830 | Main entry point, import UI, modal shells |
-| `app.js` | ~13,470 | Core application logic (UI, rendering, navigation, backup import) |
+| `app.js` | ~11,710 | Core application logic (UI, rendering, navigation) |
 | `arc-state.js` | ~90 | Shared state (`window.ArcState`) + logging setup |
 | `arc-utils.js` | ~207 | Pure utility functions (formatting, distance, decompression) |
 | `arc-db.js` | ~2,540 | IndexedDB storage layer (CRUD, analysis, place names) |
 | `arc-data.js` | ~1,200 | Data extraction & transformation (notes, pins, tracks, stats) |
 | `events.js` | ~1,105 | Events system (CRUD, slider UI, categories) |
-| `import.js` | ~760 | JSON export import module |
+| `import.js` | ~2,560 | All import: JSON export + Arc Editor/Legacy backup import |
 | `map-tools.js` | ~1,692 | Map utilities, measurement, location search |
 | `replay.js` | ~1,731 | Day replay animation system |
 | `styles.css` | ~5,650 | All styling |
@@ -57,7 +57,7 @@ All modules use IIFE + `window.ArcXxx` namespace. Modules that need app.js UI fu
 - **Leaflet.js** for maps with Mapbox/CARTO tile support
 - **BroadcastChannel** (`arc-diary-nav`) syncs between diary and analysis tabs
 - Data flow: Backup files → normalise → group by day → IndexedDB → diary renderer
-- **Pending**: Phase 2 (merge backup import from app.js into import.js) — currently backup import lives in app.js (~1,800 lines)
+- **Import module** (`import.js`) handles all three import pathways: JSON export, Arc Editor backup, and Legacy backup
 
 ## IndexedDB Stores
 
@@ -108,17 +108,20 @@ Note/                      — hex-bucketed notes
 
 Last-used mode is persisted in localStorage.
 
-### Key Import Functions
+### Key Import Functions (all in import.js)
 | Function | Line ~| Description |
 |----------|-------|-------------|
-| `normalizeBackupItem(rawItem)` | 3942 | Normalises Arc Editor nested `{base, visit, trip}` or legacy flat format |
-| `normalizeBackupPlace(rawPlace)` | 3957 | Normalises place data |
-| `normalizeBackupNote(rawNote)` | 3981 | Normalises notes, preserves `timelineItemId` |
-| `normalizeBackupSample(rawSample)` | 3992 | Normalises GPS samples |
-| `mapArcEditorActivityType(code)` | 3894 | Maps LocoKit2 numeric ActivityType enum to display strings |
-| `importDayToDB(dayKey, ...)` | ~679 | Stores day with content hash comparison |
-| `getRecentMonthKeys(n)` | ~3860 | Returns Set of last n month strings for filtering |
-| `getRecentWeekKeys(n)` | ~3870 | Returns Set of last n ISO week strings for filtering |
+| `importFromBackupDir()` | ~1327 | Chrome backup import (File System Access API) |
+| `importFromBackupFiles()` | ~1962 | Safari backup import (webkitdirectory fallback) |
+| `normalizeBackupItem(rawItem)` | ~1062 | Normalises Arc Editor nested `{base, visit, trip}` or legacy flat format |
+| `normalizeBackupPlace(rawPlace)` | ~1101 | Normalises place data |
+| `normalizeBackupNote(rawNote)` | ~1125 | Normalises notes, preserves `timelineItemId` |
+| `normalizeBackupSample(rawSample)` | ~1137 | Normalises GPS samples |
+| `mapArcEditorActivityType(code)` | ~1014 | Maps LocoKit2 numeric ActivityType enum to display strings |
+| `orderItemsByLinkedList()` | ~1190 | Orders items using doubly-linked list pointers |
+| `getRecentMonthKeys(n)` | ~976 | Returns Set of last n month strings for filtering |
+| `getRecentWeekKeys(n)` | ~987 | Returns Set of last n ISO week strings for filtering |
+| `importDayToDB(dayKey, ...)` | arc-db.js ~679 | Stores day with content hash comparison |
 
 ### LocoKit2 Data Model (Arc Editor)
 Source: https://github.com/sobri909/LocoKit2
@@ -147,7 +150,7 @@ ActivityType enum (key values): unknown=-1, bogus=0, stationary=1, walking=2, ru
 ## Display Pipeline
 
 ### Timeline Coalescing (display-only, non-destructive)
-Applied only to backup imports. Key function: `coalesceTimelineForDisplay(items)` (~line 16218).
+Applied only to backup imports. Key function: `coalesceTimelineForDisplay(items)` in arc-data.js (~line 75).
 
 Rules:
 1. **Containment**: visits fully within a longer visit's timespan are hidden (`_contained`)
@@ -174,7 +177,7 @@ Update when releasing:
 3. `CHANGELOG.md` — Add entry for new build
 
 ### Window Function Exposure
-Functions defined inside the main closure must be exposed via `window.funcName = funcName` at the bottom of app.js (~line 18490+) for inline `onclick` handlers to work. These are alphabetically ordered.
+Functions defined inside the main closure must be exposed via `window.funcName = funcName` at the bottom of app.js (~line 11680+) for inline `onclick` handlers to work. These are alphabetically ordered. Import-related window exposures (`selectImportType`, `selectBackupFolder`, `handleBackupFolderSelected`) are now set in import.js `init()`.
 
 ## User Context
 - Gordon is a retired software developer (retired September 2025)
@@ -199,7 +202,7 @@ Bridge destructures using `const { fn } = window.ArcXxx` at the bottom of app.js
 When wiring `_ui` callbacks, the callback name in the receiving module may not match any actual function in app.js. **Verify every callback name exists as a real function** before wiring. Use a wrapper if names differ. (e.g., events.js expected `renderMonth` but the actual function is `displayDiary(monthKey)` — fixed with `renderMonth: () => displayDiary(S.currentMonth)`.)
 
 ### 5. Functions That Live in Multiple Sections
-A function may be referenced in the section being extracted but actually defined elsewhere in app.js. Don't include it in the module's exports if its body isn't in the module. (e.g., `orderItemsByLinkedList` was referenced in the DB section but defined in the backup import section — exporting it from arc-db.js caused a crash.)
+A function may be referenced in the section being extracted but actually defined elsewhere in app.js. Don't include it in the module's exports if its body isn't in the module. (e.g., `orderItemsByLinkedList` was referenced in the DB section but defined in the backup import section — exporting it from arc-db.js caused a crash. It now lives in import.js.)
 
 ### Checklist for Future Extractions
 1. For every function in the extracted section, grep app.js for callers — add to export if needed
