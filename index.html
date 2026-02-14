@@ -32,7 +32,7 @@ SOFTWARE.
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"  crossorigin="anonymous" />
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = 872;
+  window.__ARC_BUILD__ = 873;
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -64,9 +64,36 @@ SOFTWARE.
       var u = document.createElement('script');
       u.src = 'arc-utils.js?v=' + b;
       u.async = false;
-      u.onload = function() { loadMapTools(); };
-      u.onerror = function() { loadMapTools(); };
+      u.onload = function() { loadArcDB(); };
+      u.onerror = function() { loadArcDB(); };
       document.body.appendChild(u);
+    }
+
+    function loadArcDB() {
+      var d = document.createElement('script');
+      d.src = 'arc-db.js?v=' + b;
+      d.async = false;
+      d.onload = function() { loadArcData(); };
+      d.onerror = function() { loadArcData(); };
+      document.body.appendChild(d);
+    }
+
+    function loadArcData() {
+      var t = document.createElement('script');
+      t.src = 'arc-data.js?v=' + b;
+      t.async = false;
+      t.onload = function() { loadEvents(); };
+      t.onerror = function() { loadEvents(); };
+      document.body.appendChild(t);
+    }
+
+    function loadEvents() {
+      var e = document.createElement('script');
+      e.src = 'events.js?v=' + b;
+      e.async = false;
+      e.onload = function() { loadMapTools(); };
+      e.onerror = function() { loadMapTools(); };
+      document.body.appendChild(e);
     }
 
     function loadMapTools() {

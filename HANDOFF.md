@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader - Handoff Document
 
-## Current Build: 872
+## Current Build: 873
 
 ## Project Overview
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and Arc Editor GPS tracking data. Generates interactive diaries with maps from backup data stored in IndexedDB. Single-file HTML application, no server required.
@@ -8,16 +8,30 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and Arc Ed
 ## Project Files
 
 ### Application Files
-| File | Size | Lines | Description |
-|------|------|-------|-------------|
-| `index.html` | 49 KB | 812 | Main entry point, import UI, modal shells |
-| `app.js` | 847 KB | 18,668 | Core application logic |
-| `replay.js` | 68 KB | 1,731 | Day replay animation system |
-| `styles.css` | 143 KB | 5,653 | All styling |
-| `map-tools.js` | 59 KB | 1,692 | Map utilities and helpers |
-| `import.js` | — | — | JSON export import module (used by importFilesToDatabase) |
-| `analysis.html` | — | — | Location analysis tool (standalone) |
-| `delete-db.html` | — | — | Database deletion utility |
+| File | Lines | Description |
+|------|-------|-------------|
+| `index.html` | ~830 | Main entry point, import UI, modal shells |
+| `app.js` | ~13,470 | Core application logic (UI, rendering, navigation, backup import) |
+| `arc-state.js` | ~90 | Shared state (`window.ArcState`) + logging setup |
+| `arc-utils.js` | ~207 | Pure utility functions (formatting, distance, decompression) |
+| `arc-db.js` | ~2,540 | IndexedDB storage layer (CRUD, analysis, place names) |
+| `arc-data.js` | ~1,200 | Data extraction & transformation (notes, pins, tracks, stats) |
+| `events.js` | ~1,105 | Events system (CRUD, slider UI, categories) |
+| `import.js` | ~760 | JSON export import module |
+| `map-tools.js` | ~1,692 | Map utilities, measurement, location search |
+| `replay.js` | ~1,731 | Day replay animation system |
+| `styles.css` | ~5,650 | All styling |
+| `analysis.html` | — | Location analysis tool (standalone) |
+| `delete-db.html` | — | Database deletion utility |
+
+### Module Loading Chain
+```
+arc-state.js → arc-utils.js → arc-db.js → arc-data.js → events.js →
+map-tools.js → replay.js → import.js → app.js
+```
+
+### Module Pattern
+All modules use IIFE + `window.ArcXxx` namespace. Modules that need app.js UI functions use a `_ui` callback pattern (registered via `setUICallbacks()`) to avoid circular dependencies. App.js has bridge aliases (`const { fn } = window.ArcDB;`) so existing call sites don't need renaming.
 
 ### Documentation Files
 | File | Description |
@@ -37,11 +51,13 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and Arc Ed
 | `arc-timeline-daily.*.json` | Test data exports |
 
 ## Architecture
+- **Modular design**: Shared state (`arc-state.js`), utilities (`arc-utils.js`), DB layer (`arc-db.js`), data extraction (`arc-data.js`), events (`events.js`), then app.js for UI/rendering
 - **IndexedDB** stores imported timeline data (days, metadata, analysis)
 - **NavigationController** (`window.NavigationController`) is the single source of truth for navigation state (see `STATE_MODEL.md`)
 - **Leaflet.js** for maps with Mapbox/CARTO tile support
 - **BroadcastChannel** (`arc-diary-nav`) syncs between diary and analysis tabs
 - Data flow: Backup files → normalise → group by day → IndexedDB → diary renderer
+- **Pending**: Phase 2 (merge backup import from app.js into import.js) — currently backup import lives in app.js (~1,800 lines)
 
 ## IndexedDB Stores
 

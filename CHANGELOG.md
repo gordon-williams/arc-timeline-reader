@@ -1,5 +1,22 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 873 (2026-02-14)
+
+### Architecture - Modularization (Phases 0-5, excluding Phase 2)
+- Broke the monolithic `app.js` (~18,100 lines) into focused modules, reducing it to ~13,470 lines (26% reduction).
+- **`arc-state.js`** (NEW, ~90 lines): Shared application state (`window.ArcState`) — database refs, data cache, navigation, import tracking, search, map state. Also hosts logging setup (moved from app.js top).
+- **`arc-utils.js`** (NEW, ~207 lines): Pure utility functions — `addLog`, `formatTime`, `formatDate`, `formatDuration`, `formatDistance`, Haversine distance calculations, path distance, elevation gain, file decompression. Consolidated 3 duplicate distance implementations.
+- **`arc-db.js`** (NEW, ~2,540 lines): Complete IndexedDB storage layer — database init/schema, day CRUD, metadata, place name mapping, activity type inference, ghost filtering, containment detection, analysis data functions, export/clear, `AppDB` debug API.
+- **`arc-data.js`** (NEW, ~1,200 lines): Data extraction & transformation — timeline coalescing, note/pin/track extraction, location clustering, activity classification (`getActivityFilterType`), daily stats calculation.
+- **`events.js`** (NEW, ~1,105 lines): Events system — multi-day event CRUD, categories (localStorage persistence), event slider UI, bound selection from diary, category manager modal.
+- All modules use IIFE + `window.ArcXxx` namespace pattern (matching existing `import.js`).
+- Modules communicate via `_ui` callback pattern to avoid circular dependencies.
+- Bridge aliases in `app.js` so existing call sites don't need renaming.
+- Script loading chain: `arc-state.js → arc-utils.js → arc-db.js → arc-data.js → events.js → map-tools.js → replay.js → import.js → app.js`.
+- Phase 2 (merge backup import from app.js into import.js) deferred to a future build.
+
+---
+
 ## Build 872 (2026-02-14)
 
 ### Cleanup - Dead Code Removal
