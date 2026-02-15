@@ -3774,19 +3774,21 @@
                     return;
                 }
 
-                // Calculate max intensity for the variable
-                // The intensity slider (1-100) scales the auto-detected max
+                // Calculate max intensity for the variable using percentile scaling.
+                // For all variables we compute autoMax from the actual data so the
+                // gradient spreads evenly across the real intensity distribution.
                 const intensityPct = parseInt(document.getElementById('heatIntensity')?.value || '50');
+                const intensities = finalPoints.map(p => p[2]).sort((a, b) => a - b);
                 let autoMax;
-                if (variable === 'frequency' || variable === 'recency') {
-                    autoMax = 1.0;
+                if (intensities.length === 0) {
+                    autoMax = 1;
                 } else {
-                    // Use 90th percentile of intensity values for good contrast
-                    const intensities = finalPoints.map(p => p[2]).sort((a, b) => a - b);
-                    const p90 = intensities[Math.floor(intensities.length * 0.9)] || 1;
-                    autoMax = p90;
+                    // Use 95th percentile — lets the top 5% saturate to full red
+                    // while giving the remaining 95% of points a good colour spread
+                    const p95 = intensities[Math.floor(intensities.length * 0.95)] || 1;
+                    autoMax = Math.max(p95, 0.001); // avoid zero
                 }
-                // Intensity slider: 1 = very sensitive (max=autoMax*0.02), 100 = very flat (max=autoMax*2)
+                // Intensity slider: 50 = auto, <50 = more sensitive, >50 = less sensitive
                 heatAutoMax = autoMax; // Store for live slider updates
                 const heatMax = autoMax * (intensityPct / 50);
 
@@ -3800,14 +3802,18 @@
                     maxZoom: 17,
                     max: heatMax,
                     gradient: {
-                        0.2: '#313695',
-                        0.4: '#4575b4',
-                        0.5: '#74add1',
-                        0.6: '#abd9e9',
-                        0.7: '#fee090',
-                        0.8: '#fdae61',
-                        0.9: '#f46d43',
-                        1.0: '#d73027'
+                        0.0:  '#3b0764',   // deep purple — barely any intensity
+                        0.05: '#4338ca',   // indigo
+                        0.10: '#2563eb',   // blue
+                        0.20: '#0891b2',   // cyan
+                        0.30: '#059669',   // emerald
+                        0.40: '#16a34a',   // green
+                        0.50: '#65a30d',   // lime
+                        0.60: '#ca8a04',   // yellow-amber
+                        0.70: '#ea580c',   // orange
+                        0.80: '#dc2626',   // red
+                        0.90: '#e11d48',   // rose-red
+                        1.0:  '#fef08a'    // bright yellow — hottest spots pop
                     }
                 }).addTo(heatMap);
 
