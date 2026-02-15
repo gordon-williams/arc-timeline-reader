@@ -385,30 +385,13 @@ The heat map streams through your raw GPS data day by day, extracting every samp
 
 The **Variable** dropdown controls what the heat intensity represents. Different variables reveal different patterns in your data.
 
-#### Frequency
-Every recorded GPS point contributes equally to the heat. The more samples in an area, the hotter it glows.
-
-**Best for**: a general overview of everywhere you have been. Be aware that a single long walk with frequent GPS logging can outshine a daily commute with sparser logging, since this counts raw samples rather than visits.
-
-#### Unique Days
-Points are bucketed into a grid of ~50-metre cells. For each cell, the heat intensity is the number of different calendar days you visited that cell. A cell visited on 200 different days glows much hotter than one visited once with 1,000 GPS samples.
-
-**Best for**: revealing habitual routes -- your daily commute, regular dog walk, gym route, school run. This is the most meaningful variable for multi-year datasets because it eliminates the bias of GPS sample frequency and shows genuine patterns of repeated travel.
-
-#### Time Spent
-Each GPS sample is weighted by the number of seconds until the next sample was recorded (capped at 5 minutes to prevent idle gaps from inflating the result). Spots where you linger -- parks, cafes, workplaces, waiting areas -- glow hotter than roads you drive through quickly.
-
-**Best for**: finding where you actually spend time versus where you merely pass through. A park bench you sit at for 30 minutes will glow brighter than the street you walked down to get there.
-
-#### Speed
-The intensity at each point is the speed in metres per second between that GPS sample and the next one. Fast segments (highways, cycling downhill) glow hot; slow segments (walking, stuck in traffic) stay cool.
-
-**Best for**: visualising fast versus slow corridors in your travel. You can see which roads you tend to drive on versus walk along, or where traffic typically slows down.
-
-#### Recency
-Works the same as Frequency, but with a time weight applied to each day. The oldest day in your selected range contributes just 10% intensity; the newest day contributes 100%. Everything in between scales linearly.
-
-**Best for**: seeing how your travel patterns have shifted over time. If you changed your commute route a year ago, the old route will be faded while the new one glows brightly. Recent habits dominate and old patterns fade away.
+| Variable | How intensity is calculated | What it reveals | Best for | Watch out for |
+|----------|---------------------------|-----------------|----------|---------------|
+| **Frequency** | Every recorded GPS sample contributes intensity of 1. More samples in an area = hotter. | Where you have been, weighted by how densely your phone recorded GPS points there. | A general overview of everywhere you have travelled. Good starting point for exploring your data. | A single long walk with frequent GPS logging can outshine a daily commute with sparser logging. This counts raw samples, not visits -- so recording frequency matters as much as actual travel. |
+| **Unique Days** | Points are bucketed into ~50m grid cells. Each cell's intensity is the number of different calendar days it was visited. A cell visited on 200 days glows far hotter than one visited once with 1,000 samples. | Your habitual routes and regular destinations, independent of GPS recording frequency. | Multi-year datasets. Reveals your daily commute, regular walks, gym route, school run -- the places you return to again and again. The most meaningful variable for long time periods. | Single visits do not stand out even if they had dense GPS logging, which is the intended behaviour. |
+| **Time Spent** | Each GPS sample is weighted by the seconds until the next sample (capped at 5 minutes to prevent idle gaps inflating the result). Where you linger glows hotter than where you pass through. | Places where you actually spend time versus corridors you merely travel along. | Finding your real destinations -- the park bench you sit on, the cafe you linger in, the platform you wait at. A 30-minute park visit glows brighter than the street you walked down to reach it. | Stationary periods with GPS drift can create artificial hot spots. The 5-minute cap helps but does not eliminate this entirely. |
+| **Speed** | Speed in m/s between consecutive GPS samples. Fast segments glow hot; slow segments stay cool. | Fast versus slow corridors in your travel patterns. | Visualising which roads you drive on versus walk along, where traffic typically slows down, or identifying cycling descent routes. | GPS inaccuracy near buildings or tunnels can create false speed spikes. The speed is capped at ~200 km/h to limit outliers. |
+| **Recency** | Same as Frequency, but each day is time-weighted. The oldest day in your range contributes 10% intensity; the newest contributes 100%, scaling linearly. | How your travel patterns have shifted over time. Recent habits dominate while old patterns fade. | Seeing change -- if you moved house, changed jobs, or started a new exercise route, the old patterns fade while current ones glow brightly. | Short date ranges show little variation since all days are similarly weighted. Most useful over 6+ months. |
 
 ### Controls
 
