@@ -85,6 +85,30 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracki
 - **Grouping Options** - By day, week, or month
 - **Stacked Charts** - Compare multiple activities
 
+### Heat Map
+A geographic density overlay in the Activity Analysis tab showing where you travel most. Toggle between **Trend** (chart + table) and **Heat Map** views using the segmented control.
+
+#### Heat Map Variables
+The **Variable** dropdown controls what the heat intensity represents:
+
+| Variable | What it shows | Best for |
+|----------|--------------|----------|
+| **Frequency** | Raw GPS sample density. Every recorded GPS point contributes equally. Areas with more samples glow hotter. | General overview of where you've been. Note: a single long walk with frequent GPS logging can outshine a daily commute with sparser logging. |
+| **Unique Days** | How many different days you visited each area. Points are bucketed into ~50m grid cells and counted by distinct calendar days. A grid cell visited on 200 different days glows hotter than one visited once with 1,000 GPS samples. | Revealing habitual routes — your daily commute, regular walks, gym route. Best variable for multi-year datasets. |
+| **Time Spent** | Dwell time at each point. Each GPS sample is weighted by the number of seconds until the next sample (capped at 5 minutes to avoid idle gaps). Spots where you linger — parks, cafes, waiting areas — glow hotter than roads you drive through. | Finding where you actually spend time vs where you just pass through. |
+| **Speed** | Average speed (m/s) between consecutive GPS samples. Fast segments (highways, cycling downhill) glow hot; slow segments (walking, traffic) stay cool. | Visualising fast vs slow corridors. Identifying which roads you drive vs walk. |
+| **Recency** | Same as Frequency but with a time weight. The oldest day in your range contributes 10% intensity; the newest contributes 100%. | Seeing how your travel patterns have shifted over time. Recent habits dominate, old patterns fade. |
+
+#### Heat Map Controls
+| Control | Range | What it does |
+|---------|-------|-------------|
+| **Radius** | 5–40 px | Size of each heat point on screen. Larger = smoother blobs, smaller = tighter detail. |
+| **Blur** | 1–40 | Sharpness of heat edges. Low = crisp borders, high = soft gradient. |
+| **Intensity** | 1–100 | Contrast/sensitivity. Low values make only the hottest areas reach red; high values light up more of the map. Auto-scales to the data's 90th percentile. |
+| **Opacity** | 0–100 | Overall layer transparency. Lower lets the base map show through more clearly. |
+| **Region** | All / 10–250 km | Limits points to a radius around a centre point. Prevents distant trips (interstate, overseas) from dominating the view. |
+| **Set Centre** | button | Sets the region centre to the current map view centre. Without this, the centre is auto-detected from the median of all points. |
+
 ## Files
 
 | File | Description |
@@ -153,6 +177,7 @@ Access via gear icon or Settings button:
 
 - [Arc Timeline](https://www.bigpaua.com/arcapp) by Big Paua
 - [Leaflet.js](https://leafletjs.com/) for maps
+- [Leaflet.heat](https://github.com/Leaflet/Leaflet.heat) for heat-map overlay
 - [OSRM](https://project-osrm.org/) for free routing
 - [Open-Elevation](https://open-elevation.com/) for elevation data
 - [Chart.js](https://www.chartjs.org/) for charts

@@ -1975,11 +1975,11 @@
                                 <div class="option-group">
                                     <label>Variable</label>
                                     <select id="heatVariable" class="option-select" title="What the heat intensity represents">
-                                        <option value="frequency">Frequency</option>
-                                        <option value="uniqueDays">Unique Days</option>
-                                        <option value="timeSpent">Time Spent</option>
-                                        <option value="speed">Speed</option>
-                                        <option value="recency">Recency</option>
+                                        <option value="frequency" title="Raw GPS sample count — every recorded point contributes equally">Frequency</option>
+                                        <option value="uniqueDays" title="How many different calendar days you visited each area (~50m grid). Best for habitual routes over long periods">Unique Days</option>
+                                        <option value="timeSpent" title="Dwell time — each point weighted by seconds to next sample (max 5 min). Shows where you linger vs pass through">Time Spent</option>
+                                        <option value="speed" title="Speed (m/s) between consecutive samples. Fast corridors glow hot, slow areas stay cool">Speed</option>
+                                        <option value="recency" title="Like Frequency but recent days weighted higher (10% oldest → 100% newest). Shows how patterns shifted over time">Recency</option>
                                     </select>
                                 </div>
                                 <div class="option-group">
