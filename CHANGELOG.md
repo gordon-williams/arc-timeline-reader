@@ -11,7 +11,11 @@
 - Region filter: limit to radius (10-250 km) around a user-set centre point, preventing distant trips from dominating the view.
 - Auto-detects centre from median lat/lng when no centre is set.
 - Grid-based downsampling (~50m cells) for datasets exceeding 150k points.
-- Adjustable heat radius slider, progress bar with cancel support.
+- Adjustable heat radius, blur, intensity, and opacity sliders — all update live.
+- Variable selector: Frequency (sample count), Unique Days (distinct days per grid cell), Time Spent (weighted by dwell time), Speed (m/s between samples), Recency (recent days weighted higher).
+- Auto-scaling intensity: uses 90th percentile of values for non-frequency variables to ensure good contrast.
+- Capture button screenshots the heat map as PNG via html2canvas.
+- Grid-based downsampling uses average for speed mode, sum for others.
 - Supports Mapbox and CARTO tile layers, respects dark/light theme toggle.
 - ANALYSIS_BUILD incremented to 602.
 
