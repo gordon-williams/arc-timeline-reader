@@ -6,6 +6,7 @@
     <title>Arc Timeline Analysis</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
@@ -621,6 +622,136 @@
             border-radius: 2px;
         }
         
+        /* View Toggle (Trend / Heat Map) */
+        .view-toggle {
+            display: flex;
+            gap: 2px;
+            background: var(--bg-input);
+            padding: 3px;
+            border-radius: 8px;
+            margin-right: 8px;
+        }
+
+        .view-toggle-btn {
+            padding: 5px 14px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+
+        .view-toggle-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .view-toggle-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .trend-controls, .heatmap-controls {
+            display: contents;
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 11px;
+        }
+
+        .heat-status {
+            font-size: 11px;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        /* Heat Map */
+        .heatmap-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 400px;
+            background: var(--bg-surface);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+
+        .heatmap-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 16px;
+            background: var(--bg-elevated);
+            border-bottom: 1px solid var(--border-subtle);
+            min-height: 36px;
+        }
+
+        .heat-point-count {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .heat-progress {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+
+        .heat-progress-bar {
+            flex: 1;
+            height: 6px;
+            background: var(--bg-input);
+            border-radius: 3px;
+            overflow: hidden;
+            max-width: 200px;
+        }
+
+        .heat-progress-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 3px;
+            transition: width 0.1s ease;
+            width: 0%;
+        }
+
+        .heat-progress-text {
+            font-size: 11px;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .heatmap-map {
+            flex: 1;
+            min-height: 350px;
+        }
+
+        .heatmap-map .leaflet-control-zoom {
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .heatmap-map:hover .leaflet-control-zoom {
+            opacity: 1;
+        }
+
+        .heatmap-map .leaflet-control-zoom a {
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            border-color: var(--border-subtle);
+        }
+
+        body:not(.light-mode):not(.mapbox-active) .heatmap-map .leaflet-tile-pane {
+            filter: brightness(0.8) contrast(1.1);
+        }
+
         /* Table */
         .table-container {
             background: var(--bg-surface);
@@ -1801,38 +1932,79 @@
                             <div class="activity-checkboxes" id="activityCheckboxes"></div>
                         </div>
                         <div class="control-row">
-                            <div class="option-group">
-                                <label>Metric</label>
-                                <select id="metric" class="option-select">
-                                    <option value="distance">Distance (km)</option>
-                                    <option value="duration">Duration (hrs)</option>
-                                </select>
+                            <div class="view-toggle" id="viewToggle">
+                                <button class="view-toggle-btn active" data-view="trend">Trend</button>
+                                <button class="view-toggle-btn" data-view="heatmap">Heat Map</button>
                             </div>
-                            <div class="option-group">
-                                <label>Group</label>
-                                <select id="groupBy" class="option-select">
-                                    <option value="day">Day</option>
-                                    <option value="week">Week</option>
-                                    <option value="month" selected>Month</option>
-                                </select>
+                            <div id="trendControls" class="trend-controls">
+                                <div class="option-group">
+                                    <label>Metric</label>
+                                    <select id="metric" class="option-select">
+                                        <option value="distance">Distance (km)</option>
+                                        <option value="duration">Duration (hrs)</option>
+                                    </select>
+                                </div>
+                                <div class="option-group">
+                                    <label>Group</label>
+                                    <select id="groupBy" class="option-select">
+                                        <option value="day">Day</option>
+                                        <option value="week">Week</option>
+                                        <option value="month" selected>Month</option>
+                                    </select>
+                                </div>
+                                <div class="option-group">
+                                    <label>Chart</label>
+                                    <select id="chartType" class="option-select">
+                                        <option value="line">Line</option>
+                                        <option value="bar">Bar</option>
+                                        <option value="stacked">Stacked Area</option>
+                                    </select>
+                                </div>
+                                <div class="option-group">
+                                    <label>Smooth</label>
+                                    <input type="range" id="smoothing" class="smoothing-slider" min="0" max="5" value="0" title="Smoothing window size">
+                                    <span id="smoothValue" class="smooth-value">0</span>
+                                </div>
+                                <div class="option-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="hideZeros"> Hide zeros
+                                    </label>
+                                </div>
                             </div>
-                            <div class="option-group">
-                                <label>Chart</label>
-                                <select id="chartType" class="option-select">
-                                    <option value="line">Line</option>
-                                    <option value="bar">Bar</option>
-                                    <option value="stacked">Stacked Area</option>
-                                </select>
-                            </div>
-                            <div class="option-group">
-                                <label>Smooth</label>
-                                <input type="range" id="smoothing" class="smoothing-slider" min="0" max="5" value="0" title="Smoothing window size">
-                                <span id="smoothValue" class="smooth-value">0</span>
-                            </div>
-                            <div class="option-group">
-                                <label class="checkbox-label">
-                                    <input type="checkbox" id="hideZeros"> Hide zeros
-                                </label>
+                            <div id="heatmapControls" class="heatmap-controls" style="display: none;">
+                                <div class="option-group">
+                                    <label>Radius</label>
+                                    <input type="range" id="heatRadius" class="smoothing-slider" min="5" max="40" value="15" title="Heat point radius (px)">
+                                    <span id="heatRadiusValue" class="smooth-value">15</span>
+                                </div>
+                                <div class="option-group">
+                                    <label>Blur</label>
+                                    <input type="range" id="heatBlur" class="smoothing-slider" min="1" max="40" value="20" title="Blur (sharpness of heat blobs)">
+                                    <span id="heatBlurValue" class="smooth-value">20</span>
+                                </div>
+                                <div class="option-group">
+                                    <label>Intensity</label>
+                                    <input type="range" id="heatIntensity" class="smoothing-slider" min="1" max="100" value="50" title="Sensitivity — lower means more contrast">
+                                    <span id="heatIntensityValue" class="smooth-value">50</span>
+                                </div>
+                                <div class="option-group">
+                                    <label>Opacity</label>
+                                    <input type="range" id="heatOpacity" class="smoothing-slider" min="0" max="100" value="100" title="Layer transparency">
+                                    <span id="heatOpacityValue" class="smooth-value">100</span>
+                                </div>
+                                <div class="option-group">
+                                    <label>Region</label>
+                                    <select id="heatRegion" class="option-select" title="Limit to radius around map centre">
+                                        <option value="0">All</option>
+                                        <option value="10">10 km</option>
+                                        <option value="25">25 km</option>
+                                        <option value="50" selected>50 km</option>
+                                        <option value="100">100 km</option>
+                                        <option value="250">250 km</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-secondary btn-sm" id="heatCentreBtn" title="Set region centre from current map view">Set Centre</button>
+                                <span id="heatStatus" class="heat-status"></span>
                             </div>
                             <button class="btn btn-primary" id="analyzeBtn">Analyze</button>
                             <button class="btn btn-secondary" id="exportBtn" title="Export PNG">Capture</button>
@@ -1841,6 +2013,20 @@
                     
                     <div class="placeholder" id="activityPlaceholder">
                         <p>Select activities and click Analyze to see results</p>
+                    </div>
+
+                    <div id="heatmapContainer" class="heatmap-container" style="display: none;">
+                        <div class="heatmap-toolbar">
+                            <span id="heatPointCount" class="heat-point-count"></span>
+                            <div id="heatProgress" class="heat-progress" style="display: none;">
+                                <div class="heat-progress-bar">
+                                    <div id="heatProgressFill" class="heat-progress-fill"></div>
+                                </div>
+                                <span id="heatProgressText" class="heat-progress-text">Loading...</span>
+                                <button class="btn btn-secondary btn-sm" id="heatCancelBtn">Cancel</button>
+                            </div>
+                        </div>
+                        <div id="heatmapMap" class="heatmap-map"></div>
                     </div>
                 </div>
             </div>
@@ -1894,7 +2080,7 @@
 
     <script>
         // Build version
-        const ANALYSIS_BUILD = 601;
+        const ANALYSIS_BUILD = 602;
         
         // Database and state
         let db = null;
@@ -1907,7 +2093,15 @@
         let selectedTableRows = new Set(); // For multi-select table rows
         let currentTableData = []; // Store table data for highlighting
         let topActivities = []; // Top activities for table columns
-        
+
+        // Heat map state
+        let heatMap = null;             // Leaflet map instance for heat-map
+        let heatLayer = null;           // L.heatLayer instance
+        let heatTileLayer = null;       // Tile layer for heat map
+        let currentView = 'trend';      // 'trend' or 'heatmap'
+        let heatCancelled = false;      // Cancel flag for async build
+        let heatCentre = null;          // { lat, lng } region centre, null = auto from data
+
         // Mapbox integration (token configured on main page)
         const MAPBOX_TOKEN_KEY = 'arc_mapbox_token';
         let mapboxToken = localStorage.getItem(MAPBOX_TOKEN_KEY) || '';
@@ -1926,6 +2120,7 @@
                 } else {
                     document.body.classList.remove('mapbox-active');
                 }
+                updateHeatTileLayer();
             }
         });
         
@@ -1969,6 +2164,8 @@
                 const { byHour, peakStart, peakEnd } = window._lastClockData;
                 clockContainer.outerHTML = renderClockVisualization(byHour, peakStart, peakEnd);
             }
+            // Update heat map tiles on theme change
+            updateHeatTileLayer();
         };
         
         // Distinct activity colors (maximum hue separation)
@@ -2128,6 +2325,11 @@
                 tab.addEventListener('click', () => switchTab(tab.dataset.tab));
             });
 
+            // View toggle (Trend / Heat Map)
+            document.querySelectorAll('.view-toggle-btn').forEach(btn => {
+                btn.addEventListener('click', () => switchView(btn.dataset.view));
+            });
+
             // Event selector change
             document.getElementById('eventSelector')?.addEventListener('change', (e) => {
                 const eventId = e.target.value;
@@ -2201,7 +2403,10 @@
             document.getElementById('metric')?.addEventListener('change', updateChart);
             document.getElementById('groupBy')?.addEventListener('change', updateChart);
             document.getElementById('chartType')?.addEventListener('change', updateChart);
-            document.getElementById('activityCheckboxes')?.addEventListener('change', updateChart);
+            document.getElementById('activityCheckboxes')?.addEventListener('change', () => {
+                if (currentView === 'heatmap') buildHeatmap();
+                else updateChart();
+            });
             
             // Smoothing slider
             const smoothSlider = document.getElementById('smoothing');
@@ -2315,9 +2520,15 @@
         function runAnalysis() {
             dateRange.start = document.getElementById('startDate').value;
             dateRange.end = document.getElementById('endDate').value;
-            
+
             if (!dateRange.start || !dateRange.end) {
                 // Silently return if dates not set yet
+                return;
+            }
+
+            // Route to heat map builder if in heat-map view
+            if (currentView === 'heatmap') {
+                buildHeatmap();
                 return;
             }
             
@@ -3202,6 +3413,371 @@
             }
         }
         
+        // ── Heat Map ─────────────────────────────────────────────
+
+        function switchView(view) {
+            if (view === currentView) return;
+            currentView = view;
+
+            // Toggle button active state
+            document.querySelectorAll('.view-toggle-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.view === view);
+            });
+
+            const trendCtrl = document.getElementById('trendControls');
+            const heatCtrl = document.getElementById('heatmapControls');
+            const heatContainer = document.getElementById('heatmapContainer');
+            const resultsContent = document.getElementById('analysisResultsContent');
+            const placeholder = document.getElementById('activityPlaceholder');
+
+            const exportBtn = document.getElementById('exportBtn');
+
+            if (view === 'heatmap') {
+                trendCtrl.style.display = 'none';
+                heatCtrl.style.display = 'contents';
+                heatContainer.style.display = 'flex';
+                if (resultsContent) resultsContent.style.display = 'none';
+                if (placeholder) placeholder.style.display = 'none';
+                if (exportBtn) exportBtn.title = 'Save heat map as PNG';
+                initHeatMap();
+                if (dateRange.start && dateRange.end) {
+                    buildHeatmap();
+                }
+            } else {
+                trendCtrl.style.display = 'contents';
+                heatCtrl.style.display = 'none';
+                heatContainer.style.display = 'none';
+                if (resultsContent) resultsContent.style.display = '';
+                else if (placeholder) placeholder.style.display = '';
+                if (exportBtn) exportBtn.title = 'Export PNG';
+            }
+        }
+
+        function initHeatMap() {
+            if (heatMap) {
+                heatMap.invalidateSize();
+                return;
+            }
+
+            heatMap = L.map('heatmapMap', {
+                zoomControl: true,
+                zoomDelta: 0.5,
+                zoomSnap: 0.5
+            }).setView([-33.87, 151.21], 12); // Default: Sydney
+
+            // Tile layer (reuse Mapbox logic from location map)
+            updateHeatTileLayer();
+
+            // Live slider updates for heat layer appearance
+            function setupHeatSlider(sliderId, valueId, optionName, transform) {
+                const slider = document.getElementById(sliderId);
+                const valSpan = document.getElementById(valueId);
+                if (!slider) return;
+                slider.addEventListener('input', () => {
+                    valSpan.textContent = slider.value;
+                    if (heatLayer) {
+                        const opts = {};
+                        opts[optionName] = transform ? transform(slider.value) : parseInt(slider.value);
+                        heatLayer.setOptions(opts);
+                        heatLayer.redraw();
+                    }
+                });
+            }
+            setupHeatSlider('heatRadius', 'heatRadiusValue', 'radius');
+            setupHeatSlider('heatBlur', 'heatBlurValue', 'blur');
+            setupHeatSlider('heatIntensity', 'heatIntensityValue', 'max', v => parseInt(v) / 50);
+
+            // Opacity slider controls the canvas element directly
+            const opacitySlider = document.getElementById('heatOpacity');
+            const opacityValue = document.getElementById('heatOpacityValue');
+            if (opacitySlider) {
+                opacitySlider.addEventListener('input', () => {
+                    opacityValue.textContent = opacitySlider.value;
+                    if (heatLayer) {
+                        const canvas = heatLayer._canvas || heatLayer._heat?._canvas;
+                        if (canvas) canvas.style.opacity = parseInt(opacitySlider.value) / 100;
+                    }
+                });
+            }
+
+            // Set Centre button
+            const centreBtn = document.getElementById('heatCentreBtn');
+            if (centreBtn) {
+                centreBtn.addEventListener('click', () => {
+                    const c = heatMap.getCenter();
+                    heatCentre = { lat: c.lat, lng: c.lng };
+                    const status = document.getElementById('heatStatus');
+                    if (status) status.textContent = `Centre: ${c.lat.toFixed(2)}, ${c.lng.toFixed(2)}`;
+                    // Rebuild with new centre if data exists
+                    if (dateRange.start && dateRange.end) buildHeatmap();
+                });
+            }
+
+            // Region change triggers rebuild
+            const regionSelect = document.getElementById('heatRegion');
+            if (regionSelect) {
+                regionSelect.addEventListener('change', () => {
+                    if (dateRange.start && dateRange.end) buildHeatmap();
+                });
+            }
+
+            // Cancel button
+            const cancelBtn = document.getElementById('heatCancelBtn');
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', () => { heatCancelled = true; });
+            }
+        }
+
+        function updateHeatTileLayer() {
+            if (!heatMap) return;
+            if (heatTileLayer) heatMap.removeLayer(heatTileLayer);
+
+            if (mapboxToken) {
+                const style = isLightMode ? 'streets-v12' : 'dark-v11';
+                heatTileLayer = L.tileLayer(
+                    `https://api.mapbox.com/styles/v1/mapbox/${style}/tiles/{z}/{x}/{y}@2x?access_token=${mapboxToken}`,
+                    { maxZoom: 20, tileSize: 512, zoomOffset: -1, attribution: '© Mapbox' }
+                );
+            } else {
+                heatTileLayer = L.tileLayer(
+                    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+                    { maxZoom: 19, attribution: '© CARTO' }
+                );
+            }
+            heatTileLayer.addTo(heatMap);
+        }
+
+        async function buildHeatmap() {
+            if (!db || !heatMap) return;
+
+            // Cancel any in-progress build
+            heatCancelled = true;
+            await new Promise(r => setTimeout(r, 10));
+            heatCancelled = false;
+
+            // Clear previous layer
+            if (heatLayer) {
+                heatMap.removeLayer(heatLayer);
+                heatLayer = null;
+            }
+
+            // Get checked activities
+            const checkboxes = document.querySelectorAll('#activityCheckboxes input:checked');
+            const selectedActivities = new Set(Array.from(checkboxes).map(cb => cb.value));
+            if (selectedActivities.size === 0) {
+                document.getElementById('heatPointCount').textContent = 'No activities selected';
+                return;
+            }
+
+            // Get region filter
+            const regionKm = parseInt(document.getElementById('heatRegion')?.value || '0');
+
+            // Show progress
+            const progressEl = document.getElementById('heatProgress');
+            const progressFill = document.getElementById('heatProgressFill');
+            const progressText = document.getElementById('heatProgressText');
+            const pointCountEl = document.getElementById('heatPointCount');
+            progressEl.style.display = 'flex';
+            progressFill.style.width = '0%';
+            progressText.textContent = 'Counting days...';
+            pointCountEl.textContent = '';
+
+            try {
+                // Get all day keys in range
+                const dayKeys = await new Promise((resolve, reject) => {
+                    const tx = db.transaction(['days'], 'readonly');
+                    const store = tx.objectStore('days');
+                    const range = IDBKeyRange.bound(dateRange.start, dateRange.end);
+                    const keys = [];
+                    const cursor = store.openKeyCursor(range);
+                    cursor.onsuccess = (e) => {
+                        const c = e.target.result;
+                        if (c) { keys.push(c.key); c.continue(); }
+                    };
+                    tx.oncomplete = () => resolve(keys);
+                    tx.onerror = () => reject(tx.error);
+                });
+
+                const total = dayKeys.length;
+                if (total === 0) {
+                    progressEl.style.display = 'none';
+                    pointCountEl.textContent = 'No data in range';
+                    return;
+                }
+
+                // Stream days one at a time, extract GPS points
+                const points = [];
+                let centreForRadius = heatCentre; // User-set centre
+                let firstPassPoints = []; // For auto-detecting centre if needed
+
+                // Process days in batches to keep UI responsive
+                for (let i = 0; i < total; i++) {
+                    if (heatCancelled) {
+                        progressEl.style.display = 'none';
+                        pointCountEl.textContent = 'Cancelled';
+                        return;
+                    }
+
+                    const dayRecord = await new Promise((resolve, reject) => {
+                        const tx = db.transaction(['days'], 'readonly');
+                        const req = tx.objectStore('days').get(dayKeys[i]);
+                        req.onsuccess = () => resolve(req.result);
+                        req.onerror = () => reject(req.error);
+                    });
+
+                    if (dayRecord?.data?.timelineItems) {
+                        for (const item of dayRecord.data.timelineItems) {
+                            if (item.isVisit) continue;
+                            const type = normalizeType(item.activityType);
+                            if (!selectedActivities.has(type)) continue;
+                            if (!Array.isArray(item.samples)) continue;
+
+                            for (const s of item.samples) {
+                                const lat = s?.location?.latitude ?? s?.latitude;
+                                const lng = s?.location?.longitude ?? s?.longitude;
+                                if (lat && lng) {
+                                    points.push([lat, lng, 1]);
+                                }
+                            }
+                        }
+                    }
+
+                    // Update progress every 10 days
+                    if (i % 10 === 0 || i === total - 1) {
+                        const pct = Math.round(((i + 1) / total) * 100);
+                        progressFill.style.width = pct + '%';
+                        progressText.textContent = `Day ${i + 1} of ${total} (${points.length.toLocaleString()} pts)`;
+                        // Yield to UI
+                        await new Promise(r => setTimeout(r, 0));
+                    }
+                }
+
+                if (heatCancelled) {
+                    progressEl.style.display = 'none';
+                    pointCountEl.textContent = 'Cancelled';
+                    return;
+                }
+
+                // Apply region filter if set
+                let filteredPoints = points;
+                if (regionKm > 0) {
+                    if (!centreForRadius && points.length > 0) {
+                        // Auto-detect centre: median of all points
+                        centreForRadius = getMedianCentre(points);
+                    }
+                    if (centreForRadius) {
+                        const maxDist = regionKm * 1000; // metres
+                        filteredPoints = points.filter(p =>
+                            haversine(centreForRadius.lat, centreForRadius.lng, p[0], p[1]) <= maxDist
+                        );
+                    }
+                }
+
+                // Downsample if very large
+                let finalPoints = filteredPoints;
+                if (filteredPoints.length > 150000) {
+                    finalPoints = downsamplePoints(filteredPoints);
+                }
+
+                progressEl.style.display = 'none';
+
+                if (finalPoints.length === 0) {
+                    pointCountEl.textContent = 'No GPS points in range/region';
+                    return;
+                }
+
+                // Create heat layer with current slider values
+                const radius = parseInt(document.getElementById('heatRadius')?.value || '15');
+                const blur = parseInt(document.getElementById('heatBlur')?.value || '20');
+                const intensity = parseInt(document.getElementById('heatIntensity')?.value || '50');
+                const opacity = parseInt(document.getElementById('heatOpacity')?.value || '100');
+                heatLayer = L.heatLayer(finalPoints, {
+                    radius: radius,
+                    blur: blur,
+                    maxZoom: 17,
+                    max: intensity / 50,
+                    gradient: {
+                        0.2: '#313695',
+                        0.4: '#4575b4',
+                        0.5: '#74add1',
+                        0.6: '#abd9e9',
+                        0.7: '#fee090',
+                        0.8: '#fdae61',
+                        0.9: '#f46d43',
+                        1.0: '#d73027'
+                    }
+                }).addTo(heatMap);
+
+                // Apply opacity
+                if (opacity < 100) {
+                    setTimeout(() => {
+                        const canvas = heatLayer._canvas || heatLayer._heat?._canvas;
+                        if (canvas) canvas.style.opacity = opacity / 100;
+                    }, 50);
+                }
+
+                // Fit bounds to the displayed points
+                const lats = finalPoints.map(p => p[0]);
+                const lngs = finalPoints.map(p => p[1]);
+                const bounds = L.latLngBounds(
+                    [Math.min(...lats), Math.min(...lngs)],
+                    [Math.max(...lats), Math.max(...lngs)]
+                );
+                heatMap.fitBounds(bounds, { padding: [30, 30] });
+
+                const regionNote = filteredPoints.length < points.length
+                    ? ` (${points.length.toLocaleString()} total, ${regionKm}km filter)`
+                    : '';
+                const downsampleNote = finalPoints.length < filteredPoints.length
+                    ? ` [downsampled from ${filteredPoints.length.toLocaleString()}]`
+                    : '';
+                pointCountEl.textContent = `${finalPoints.length.toLocaleString()} points${regionNote}${downsampleNote}`;
+
+            } catch (err) {
+                progressEl.style.display = 'none';
+                pointCountEl.textContent = 'Error: ' + err.message;
+                console.error('Heat map build error:', err);
+            }
+        }
+
+        function getMedianCentre(points) {
+            // Use median lat/lng for robustness against outliers (e.g. Japan trips)
+            const sorted = arr => [...arr].sort((a, b) => a - b);
+            const median = arr => { const s = sorted(arr); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+            return { lat: median(points.map(p => p[0])), lng: median(points.map(p => p[1])) };
+        }
+
+        function downsamplePoints(points) {
+            // Grid-based aggregation: bucket into ~50m cells, intensity = count
+            const gridSize = 0.0005; // ~50m at mid-latitudes
+            const grid = new Map();
+            for (const [lat, lng, intensity] of points) {
+                const key = `${Math.round(lat / gridSize)},${Math.round(lng / gridSize)}`;
+                if (grid.has(key)) {
+                    grid.get(key)[2] += intensity;
+                } else {
+                    // Snap to grid centre
+                    grid.set(key, [
+                        Math.round(lat / gridSize) * gridSize,
+                        Math.round(lng / gridSize) * gridSize,
+                        intensity
+                    ]);
+                }
+            }
+            return Array.from(grid.values());
+        }
+
+        function clearHeatLayer() {
+            if (heatLayer && heatMap) {
+                heatMap.removeLayer(heatLayer);
+                heatLayer = null;
+            }
+            const el = document.getElementById('heatPointCount');
+            if (el) el.textContent = '';
+        }
+
+        // ── End Heat Map ─────────────────────────────────────────
+
         function navigateToDiary(idx, groupBy) {
             if (!currentTableData[idx]) return;
             
@@ -3399,26 +3975,67 @@
         }
         
         function exportChart() {
+            if (currentView === 'heatmap') {
+                exportHeatmap();
+                return;
+            }
             const canvas = document.getElementById('chart');
             if (!canvas) return;
-            
+
             // Create a new canvas with background color
             const exportCanvas = document.createElement('canvas');
             exportCanvas.width = canvas.width;
             exportCanvas.height = canvas.height;
             const ctx = exportCanvas.getContext('2d');
-            
+
             // Fill with appropriate background color based on theme
             ctx.fillStyle = isLightMode ? '#ffffff' : '#2c2c2e';
             ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-            
+
             // Draw the chart on top
             ctx.drawImage(canvas, 0, 0);
-            
+
             const link = document.createElement('a');
             link.download = `arc-analysis-${dateRange.start}-${dateRange.end}.png`;
             link.href = exportCanvas.toDataURL('image/png');
             link.click();
+        }
+
+        async function exportHeatmap() {
+            const mapEl = document.getElementById('heatmapContainer');
+            if (!mapEl || !heatMap) return;
+
+            const btn = document.getElementById('exportBtn');
+            const origText = btn?.textContent;
+            if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
+
+            try {
+                // Dynamically load html2canvas if needed
+                if (!window.html2canvas) {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+                    document.head.appendChild(script);
+                    await new Promise(resolve => script.onload = resolve);
+                }
+
+                const canvas = await html2canvas(mapEl, {
+                    backgroundColor: isLightMode ? '#f0f0f2' : '#1c1c1e',
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                    logging: false
+                });
+
+                const link = document.createElement('a');
+                link.download = `arc-heatmap-${dateRange.start || 'all'}-${dateRange.end || 'all'}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            } catch (err) {
+                console.error('Failed to export heatmap:', err);
+                alert('Failed to capture heat map. Try again.');
+            } finally {
+                if (btn) { btn.textContent = origText; btn.disabled = false; }
+            }
         }
         
         // Location functions

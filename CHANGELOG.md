@@ -1,5 +1,22 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 875 (2026-02-15)
+
+### Feature - Heat Map in Analysis
+- Added frequency/density heat-map view to the Activities tab in `analysis.html`.
+- Toggled via Trend/Heat Map segmented control in the controls row.
+- Uses `leaflet.heat` canvas-based plugin for efficient rendering of 100k+ GPS points.
+- Streams days from IndexedDB one at a time (cursor-based) for memory efficiency.
+- Activity checkboxes filter which activities contribute to the heat layer (combined density).
+- Region filter: limit to radius (10-250 km) around a user-set centre point, preventing distant trips from dominating the view.
+- Auto-detects centre from median lat/lng when no centre is set.
+- Grid-based downsampling (~50m cells) for datasets exceeding 150k points.
+- Adjustable heat radius slider, progress bar with cancel support.
+- Supports Mapbox and CARTO tile layers, respects dark/light theme toggle.
+- ANALYSIS_BUILD incremented to 602.
+
+---
+
 ## Build 874 (2026-02-15)
 
 ### Architecture - Phase 2 Modularization

@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader - Handoff Document
 
-## Current Build: 873
+## Current Build: 875
 
 ## Project Overview
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and Arc Editor GPS tracking data. Generates interactive diaries with maps from backup data stored in IndexedDB. Single-file HTML application, no server required.
@@ -21,7 +21,7 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and Arc Ed
 | `map-tools.js` | ~1,692 | Map utilities, measurement, location search |
 | `replay.js` | ~1,731 | Day replay animation system |
 | `styles.css` | ~5,650 | All styling |
-| `analysis.html` | — | Location analysis tool (standalone) |
+| `analysis.html` | ~6,200 | Activity/location analysis + heat-map (standalone) |
 | `delete-db.html` | — | Database deletion utility |
 
 ### Module Loading Chain
@@ -169,7 +169,7 @@ Rules:
 Key design: Timeline uses **DISTANCE** not time — this is a "trip player" where stationary time doesn't dominate the bar.
 
 ## Build Process
-Build number source of truth: `index.html` line 35: `window.__ARC_BUILD__ = 874`
+Build number source of truth: `index.html` line 35: `window.__ARC_BUILD__ = 875`
 
 Update when releasing:
 1. `index.html` — `window.__ARC_BUILD__` constant AND `#diaryBuild` span
