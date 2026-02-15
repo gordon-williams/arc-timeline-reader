@@ -2240,6 +2240,17 @@
             });
         }
         
+        function getMetadataValue(key) {
+            return new Promise((resolve) => {
+                try {
+                    const tx = db.transaction(['metadata'], 'readonly');
+                    const req = tx.objectStore('metadata').get(key);
+                    req.onsuccess = () => resolve(req.result?.value || null);
+                    req.onerror = () => resolve(null);
+                } catch { resolve(null); }
+            });
+        }
+
         async function loadData() {
             // Load daily summaries
             dailySummaries = await new Promise((resolve, reject) => {
@@ -2248,19 +2259,22 @@
                 req.onsuccess = () => resolve(req.result || []);
                 req.onerror = () => reject(req.error);
             });
-            
+
             dailySummaries.sort((a, b) => a.dayKey.localeCompare(b.dayKey));
-            
+
+            // Load stored activity totals (maintained at import/rebuild time)
+            const storedActivityTotals = await getMetadataValue('activityTotals');
+
             // Get counts
             const dayCount = await getStoreCount('days');
             const locationCount = await getStoreCount('locations');
-            
-            document.getElementById('headerStats').textContent = 
+
+            document.getElementById('headerStats').textContent =
                 `${dayCount.toLocaleString()} days • ${dailySummaries.length.toLocaleString()} analyzed • ${locationCount.toLocaleString()} locations`;
-            
+
             // Setup activity checkboxes
             if (dailySummaries.length > 0) {
-                setupActivityCheckboxes();
+                setupActivityCheckboxes(storedActivityTotals);
                 applyPreset('all', 'activity');
                 applyPreset('all', 'location');
                 document.querySelector('#presets .preset-btn[data-preset="all"]')?.classList.add('active');
@@ -2287,27 +2301,43 @@
             });
         }
         
-        function setupActivityCheckboxes() {
-            const totals = {};
-            const allActivities = new Set();
-            
-            dailySummaries.forEach(s => {
-                Object.entries(s.activityStats || {}).forEach(([a, stats]) => {
-                    allActivities.add(a);
-                    if (!totals[a]) totals[a] = 0;
-                    totals[a] += stats.distance || 0;
+        function setupActivityCheckboxes(storedTotals) {
+            const MAX_BUTTONS = 10;
+            let sorted;
+
+            if (storedTotals && typeof storedTotals === 'object') {
+                // Use pre-computed totals from metadata (maintained at import/rebuild)
+                // Sort by count (most-encountered activities first)
+                sorted = Object.entries(storedTotals)
+                    .filter(([a, s]) => (s.count || 0) > 0
+                        && a.toLowerCase() !== 'bogus'
+                        && a.toLowerCase() !== 'unknown')
+                    .sort((a, b) => (b[1].count || 0) - (a[1].count || 0))
+                    .map(([a]) => a);
+            } else {
+                // Fallback: scan dailySummaries (first run or old DB without totals)
+                const totals = {};
+                const allActivities = new Set();
+                dailySummaries.forEach(s => {
+                    Object.entries(s.activityStats || {}).forEach(([a, stats]) => {
+                        allActivities.add(a);
+                        if (!totals[a]) totals[a] = 0;
+                        totals[a] += stats.count || stats.distance || 0;
+                    });
                 });
-            });
-            
-            // Filter out bogus and zero-distance activities
-            const filtered = Array.from(allActivities).filter(a => 
-                (totals[a] || 0) > 0 && a.toLowerCase() !== 'bogus'
-            );
-            const sorted = filtered.sort((a, b) => (totals[b] || 0) - (totals[a] || 0));
-            
+                sorted = Array.from(allActivities)
+                    .filter(a => (totals[a] || 0) > 0
+                        && a.toLowerCase() !== 'bogus'
+                        && a.toLowerCase() !== 'unknown')
+                    .sort((a, b) => (totals[b] || 0) - (totals[a] || 0));
+            }
+
+            // Show only the top N most common activities
+            const top = sorted.slice(0, MAX_BUTTONS);
+
             const container = document.getElementById('activityCheckboxes');
             container.replaceChildren();
-            sorted.forEach((a) => {
+            top.forEach((a) => {
                 const color = activityColors[a] || defaultColor;
                 // Default to walking checked so users see data immediately
                 const isWalking = a.toLowerCase() === 'walking';

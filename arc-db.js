@@ -1125,9 +1125,10 @@ async function rebuildAnalysisData(onProgress = null) {
     }
     updateMainStatusForRebuild(processed, total, true);
     
-    // Rebuild locations aggregate
+    // Rebuild locations aggregate and activity totals
     await rebuildLocationsAggregate();
-    
+    await rebuildActivityTotals();
+
     logInfo(`✅ Rebuilt analysis data: ${processed} days processed`);
     
     // Mark rebuild complete
@@ -1276,9 +1277,10 @@ function updateAnalysisDataInBackground(dayKeys) {
                 }
             }
             
-            // Update locations aggregate after all visits are processed
+            // Update locations aggregate and activity totals after all visits are processed
             await rebuildLocationsAggregate();
-            
+            await rebuildActivityTotals();
+
             logDebug(`✅ Analysis data updated for ${dayKeys.length} days`);
         } catch (e) {
             logError('Error updating analysis data:', e);
@@ -1341,6 +1343,45 @@ async function rebuildLocationsAggregate() {
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
     });
+}
+
+/**
+ * Rebuild aggregate activity totals from all dailySummaries.
+ * Stores the result in the metadata store under key 'activityTotals'.
+ * Structure: { walking: { count, duration, distance }, car: { ... }, ... }
+ * Called after rebuild and after incremental import updates.
+ */
+async function rebuildActivityTotals() {
+    if (!db || !db.objectStoreNames.contains('dailySummaries')) return;
+
+    const totals = {};
+
+    await new Promise((resolve, reject) => {
+        const tx = db.transaction(['dailySummaries'], 'readonly');
+        const req = tx.objectStore('dailySummaries').openCursor();
+
+        req.onsuccess = (e) => {
+            const cursor = e.target.result;
+            if (cursor) {
+                const stats = cursor.value.activityStats || {};
+                for (const [activity, s] of Object.entries(stats)) {
+                    if (!totals[activity]) {
+                        totals[activity] = { count: 0, duration: 0, distance: 0 };
+                    }
+                    totals[activity].count += s.count || 0;
+                    totals[activity].duration += s.duration || 0;
+                    totals[activity].distance += s.distance || 0;
+                }
+                cursor.continue();
+            } else {
+                resolve();
+            }
+        };
+        req.onerror = () => reject(req.error);
+    });
+
+    await saveMetadata('activityTotals', totals);
+    logDebug('📊 Activity totals updated:', Object.keys(totals).length, 'types');
 }
 
 // Analysis helper functions
@@ -2406,6 +2447,7 @@ async function clearDatabase() {
         startAnalysisRebuild,
         updateAnalysisDataInBackground,
         rebuildLocationsAggregate,
+        rebuildActivityTotals,
         updateAnalysisButtonIndicator,
         calculateDistanceForAnalysis,
         normalizeActivityTypeForAnalysis,
