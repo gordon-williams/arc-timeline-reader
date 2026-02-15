@@ -2179,28 +2179,33 @@
             updateHeatTileLayer();
         };
         
-        // Distinct activity colors (maximum hue separation)
+        // Activity colours — matches app.js getActivityColor() palette.
+        // Top 10 by frequency in real Arc data (56k+ entries):
+        // stationary 48%, car 26%, walking 20%, cycling 3%, motorcycle 1%,
+        // bus, train, boat, airplane, running (all <1%).
+        // After import LocoKit2 codes are mapped to display names, so
+        // scooter→motorcycle, tram/metro→train, taxi→car, etc.
         const activityColors = {
-            walking: '#0a84ff',    // Blue
-            running: '#ff3b30',    // Red
-            cycling: '#34c759',    // Green
-            car: '#af52de',        // Purple
-            train: '#ff9500',      // Orange
-            bus: '#00c7be',        // Teal
-            airplane: '#ff2d55',   // Pink
-            boat: '#5856d6',       // Indigo
-            motorcycle: '#ffcc00', // Yellow
-            scooter: '#ff6b35',    // Coral
-            transport: '#30b0c7',  // Cyan
-            stationary: '#8e8e93', // Gray
-            tram: '#a2845e',       // Brown
-            metro: '#64d2ff',      // Light Blue
-            taxi: '#ffd60a',       // Gold
-            skateboarding: '#bf5af2', // Magenta
-            skiing: '#5ac8fa',     // Sky Blue
-            swimming: '#32ade6',   // Ocean Blue
-            hiking: '#8b5c2a',     // Earth Brown
-            golf: '#98d42a'        // Lime
+            stationary: '#7A3CFC',    // Purple
+            walking: '#12A656',       // Green
+            hiking: '#0E8444',        // Dark Green
+            running: '#EB781B',       // Orange
+            cycling: '#039FD4',       // Blue
+            car: '#4E5268',           // Gray-Blue
+            bus: '#4056B5',           // Blue
+            motorcycle: '#E35641',    // Red-Orange
+            airplane: '#8E1DD2',      // Purple
+            boat: '#3B71F6',          // Bright Blue
+            train: '#AA9131',         // Gold
+            skateboarding: '#18A1B1', // Teal
+            inlineSkating: '#D85582', // Pink
+            snowboarding: '#4884AE',  // Blue
+            skiing: '#26398B',        // Dark Blue
+            horseback: '#8B408C',     // Purple
+            surfing: '#D85582',       // Pink
+            tractor: '#2D2F3E',       // Dark Gray
+            tuktuk: '#B4831D',        // Brown
+            unknown: '#808080'        // Gray
         };
         
         const defaultColor = '#636366'; // Neutral gray for unknown activities
