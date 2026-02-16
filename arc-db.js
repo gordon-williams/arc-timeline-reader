@@ -1408,12 +1408,18 @@ function getDurationSecondsForAnalysis(start, end) {
 function calculateDistanceForAnalysis(samples) {
     if (!samples || samples.length < 2) return 0;
     
-    // Extract valid GPS points (samples use sample.location.latitude/longitude)
+    // Extract valid GPS points, filtering bogus samples
     const validPoints = [];
     for (const sample of samples) {
+        // Skip samples marked as bogus by user (confirmedType 0) or classifier (classifiedType 0)
+        const confirmedType = sample.confirmedType ?? sample.classifiedType;
+        if (confirmedType === 0 || confirmedType === '0' || confirmedType === 'bogus') continue;
+        
         if (sample.location && 
             sample.location.latitude != null && 
             sample.location.longitude != null) {
+            // Skip invalid GPS: null island (near 0,0)
+            if (Math.abs(sample.location.latitude) < 0.01 && Math.abs(sample.location.longitude) < 0.01) continue;
             validPoints.push(sample.location);
         }
     }

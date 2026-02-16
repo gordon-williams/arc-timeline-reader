@@ -109,12 +109,28 @@
         if (!samples || samples.length < 2) return null;
 
         const validPoints = [];
+        let bogusCount = 0;
+        let nullIslandCount = 0;
+        
         for (const sample of samples) {
+            // Skip samples marked as bogus by user (confirmedType 0) or classifier (classifiedType 0)
+            const confirmedType = sample.confirmedType ?? sample.classifiedType;
+            if (confirmedType === 0 || confirmedType === '0' || confirmedType === 'bogus') {
+                bogusCount++;
+                continue;
+            }
+            
             const lat = sample.location?.latitude ?? sample.latitude;
             const lng = sample.location?.longitude ?? sample.longitude;
-            if (lat != null && lng != null) {
-                validPoints.push({ lat, lng });
+            
+            // Skip invalid GPS: null island (near 0,0) or missing coordinates
+            if (lat == null || lng == null) continue;
+            if (Math.abs(lat) < 0.01 && Math.abs(lng) < 0.01) {
+                nullIslandCount++;
+                continue;
             }
+            
+            validPoints.push({ lat, lng });
         }
 
         if (validPoints.length < 2) return null;
@@ -138,6 +154,10 @@
 
         const altitudes = [];
         for (const sample of samples) {
+            // Skip samples marked as bogus by user (confirmedType 0) or classifier (classifiedType 0)
+            const confirmedType = sample.confirmedType ?? sample.classifiedType;
+            if (confirmedType === 0 || confirmedType === '0' || confirmedType === 'bogus') continue;
+            
             const altitude = sample.location?.altitude || sample.altitude;
             if (altitude != null && !isNaN(altitude)) {
                 altitudes.push(altitude);

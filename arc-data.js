@@ -348,7 +348,7 @@
             // Apply display-only coalescing ONLY for iCloud backup imports
             // JSON exports already produce correct diary output without coalescing
             const shouldCoalesce = sourceFile === 'backup-import';
-            const displayItems = shouldCoalesce 
+            let displayItems = shouldCoalesce 
                 ? coalesceTimelineForDisplay(data.timelineItems)
                 : data.timelineItems;
 
@@ -1014,7 +1014,19 @@
                     const lng = s?.location?.longitude ?? s?.longitude;
                     const alt = s?.location?.altitude ?? s?.altitude;
                     const ts = s?.location?.timestamp || s?.timestamp || s?.date;
+                    
+                    // Skip samples without coordinates
                     if (!lat || !lng) continue;
+                    
+                    // Filter bogus samples (confirmedType === 0 or classifiedType === 0)
+                    const confirmedType = s?.confirmedType;
+                    const classifiedType = s?.classifiedType;
+                    if (confirmedType === 0 || confirmedType === '0' || confirmedType === 'bogus') continue;
+                    if (classifiedType === 0 || classifiedType === '0' || classifiedType === 'bogus') continue;
+                    
+                    // Filter null island samples (near 0,0 coordinates)
+                    if (Math.abs(lat) < 0.01 && Math.abs(lng) < 0.01) continue;
+                    
                     pts.push({
                         lat,
                         lng,

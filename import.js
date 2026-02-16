@@ -1141,6 +1141,7 @@
 
     function normalizeBackupSample(rawSample, requireTimelineItemId = true) {
         if (!rawSample || typeof rawSample !== 'object') return null;
+        
         const location = rawSample.location || (
             rawSample.latitude != null && rawSample.longitude != null
                 ? {
@@ -1154,13 +1155,17 @@
         // optional for Safari path (which matches samples to items by date/time range)
         if (!location) return null;
         if (requireTimelineItemId && !rawSample.timelineItemId) return null;
-        return {
+        
+        const normalized = {
             timelineItemId: rawSample.timelineItemId || null,
             location,
             date: rawSample.date,
             movingState: rawSample.movingState,
+            confirmedType: rawSample.confirmedType ?? rawSample.confirmedActivityType,
             classifiedType: rawSample.classifiedType ?? rawSample.classifiedActivityType
         };
+        
+        return normalized;
     }
 
     function createBackupImportDiagnostics(mode) {
@@ -1729,6 +1734,7 @@
                                 location: normalizedSample.location,
                                 date: normalizedSample.date,
                                 movingState: normalizedSample.movingState,
+                                confirmedType: normalizedSample.confirmedType,
                                 classifiedType: normalizedSample.classifiedType
                             });
                             sampleCount++;
@@ -1850,6 +1856,7 @@
                             location: s.location || { latitude: s.latitude, longitude: s.longitude, altitude: s.altitude },
                             date: s.date,
                             movingState: s.movingState,
+                            confirmedType: s.confirmedType,
                             classifiedType: s.classifiedType
                         }));
                         item.samples.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
@@ -1857,6 +1864,7 @@
                 }
 
                 const dayNotes = notesByDate.get(dayKey) || [];
+                
                 const dayData = {
                     timelineItems: items.map(item => ({
                         itemId: item.itemId,
@@ -2444,6 +2452,7 @@
                 }
 
                 const dayNotes = notesByDate.get(dayKey) || [];
+                
                 const dayData = {
                     timelineItems: orderedItems.map(item => ({
                         itemId: item.itemId,
