@@ -939,11 +939,19 @@ async function updateAnalysisDataForDay(dayKey, dayData) {
         if (item.isVisit) {
             // Process location visit
             const name = item.place?.name || item.customTitle || item.streetAddress;
-            if (!name) continue;
-            
             const duration = getDurationSecondsForAnalysis(item.startDate, item.endDate);
+
+            // Track stationary time in activityStats so it appears in analysis
+            if (!summary.activityStats['stationary']) {
+                summary.activityStats['stationary'] = { count: 0, duration: 0, distance: 0 };
+            }
+            summary.activityStats['stationary'].count++;
+            summary.activityStats['stationary'].duration += duration;
+            summary.totalDuration += duration;
+
+            if (!name) continue;
             const visitTime = item.startDate ? new Date(item.startDate).toTimeString().slice(0, 5) : null;
-            
+
             if (locationMap.has(name)) {
                 const existing = locationMap.get(name);
                 existing.duration += duration;
@@ -963,7 +971,7 @@ async function updateAnalysisDataForDay(dayKey, dayData) {
         } else {
             // Process activity
             const activityType = normalizeActivityTypeForAnalysis(item.activityType);
-            if (activityType === 'stationary' || activityType === 'unknown') continue;
+            if (activityType === 'unknown') continue;
             
             const duration = getDurationSecondsForAnalysis(item.startDate, item.endDate);
             // Calculate distance from samples (Arc doesn't store distance directly on items)

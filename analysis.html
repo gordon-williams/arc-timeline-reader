@@ -2303,6 +2303,8 @@
         
         function setupActivityCheckboxes(storedTotals) {
             const MAX_BUTTONS = 10;
+            // Core activities always shown (in display order)
+            const CORE = ['stationary','walking','running','cycling','car','bus','train','motorcycle'];
             let sorted;
 
             if (storedTotals && typeof storedTotals === 'object') {
@@ -2332,8 +2334,14 @@
                     .sort((a, b) => (totals[b] || 0) - (totals[a] || 0));
             }
 
-            // Show only the top N most common activities
-            const top = sorted.slice(0, MAX_BUTTONS);
+            // Build final list: 8 core activities first, then fill remaining
+            // slots (up to MAX_BUTTONS total) with top data-driven extras
+            const coreSet = new Set(CORE);
+            const top = [...CORE];
+            for (const a of sorted) {
+                if (top.length >= MAX_BUTTONS) break;
+                if (!coreSet.has(a)) top.push(a);
+            }
 
             const container = document.getElementById('activityCheckboxes');
             container.replaceChildren();
