@@ -3699,7 +3699,36 @@
                             : 1;
 
                         for (const item of dayRecord.data.timelineItems) {
-                            if (item.isVisit) continue;
+                            // Handle visit items (stationary) — use center coordinate
+                            if (item.isVisit) {
+                                if (!selectedActivities.has('stationary')) continue;
+                                const lat = item.center?.latitude;
+                                const lng = item.center?.longitude;
+                                if (!lat || !lng) continue;
+
+                                const durSec = (item.startDate && item.endDate)
+                                    ? Math.max(0, (new Date(item.endDate) - new Date(item.startDate)) / 1000)
+                                    : 0;
+
+                                if (variable === 'frequency' || variable === 'recency') {
+                                    points.push([lat, lng, recencyWeight]);
+                                } else if (variable === 'uniqueDays') {
+                                    const key = `${Math.round(lat / GRID)},${Math.round(lng / GRID)}`;
+                                    if (!uniqueDayGrid.has(key)) {
+                                        uniqueDayGrid.set(key, { lat, lng, days: new Set() });
+                                    }
+                                    uniqueDayGrid.get(key).days.add(dayKey);
+                                } else if (variable === 'timeSpent') {
+                                    // Weight by visit duration (capped at 8 hours)
+                                    const weight = Math.min(Math.max(durSec, 1), 28800);
+                                    points.push([lat, lng, weight]);
+                                } else if (variable === 'speed') {
+                                    // Stationary = speed 0, skip (would just be noise)
+                                }
+                                continue;
+                            }
+
+                            // Handle trip items — use GPS samples
                             const type = normalizeType(item.activityType);
                             if (!selectedActivities.has(type)) continue;
                             if (!Array.isArray(item.samples) || item.samples.length < 2) continue;
