@@ -3897,13 +3897,15 @@
                     }, 50);
                 }
 
-                // Fit bounds to the displayed points
-                const lats = finalPoints.map(p => p[0]);
-                const lngs = finalPoints.map(p => p[1]);
-                const bounds = L.latLngBounds(
-                    [Math.min(...lats), Math.min(...lngs)],
-                    [Math.max(...lats), Math.max(...lngs)]
-                );
+                // Fit bounds to the displayed points (loop to avoid stack overflow with large arrays)
+                let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+                for (const p of finalPoints) {
+                    if (p[0] < minLat) minLat = p[0];
+                    if (p[0] > maxLat) maxLat = p[0];
+                    if (p[1] < minLng) minLng = p[1];
+                    if (p[1] > maxLng) maxLng = p[1];
+                }
+                const bounds = L.latLngBounds([minLat, minLng], [maxLat, maxLng]);
                 heatMap.fitBounds(bounds, { padding: [30, 30] });
 
                 const regionNote = filteredPoints.length < points.length
