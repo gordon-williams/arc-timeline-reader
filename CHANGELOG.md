@@ -13,11 +13,35 @@
 - Grid-based downsampling (~50m cells) for datasets exceeding 150k points.
 - Adjustable heat radius, blur, intensity, and opacity sliders — all update live.
 - Variable selector: Frequency (sample count), Unique Days (distinct days per grid cell), Time Spent (weighted by dwell time), Speed (m/s between samples), Recency (recent days weighted higher).
-- Auto-scaling intensity: uses 90th percentile of values for non-frequency variables to ensure good contrast.
+- Auto-scaling intensity: uses 95th percentile of actual data for all variables to ensure good colour spread.
+- 12-stop colour gradient (purple → indigo → blue → cyan → green → lime → amber → orange → red → rose → bright yellow) for better differentiation across intensity levels.
 - Capture button screenshots the heat map as PNG via html2canvas.
 - Grid-based downsampling uses average for speed mode, sum for others.
 - Supports Mapbox and CARTO tile layers, respects dark/light theme toggle.
 - ANALYSIS_BUILD incremented to 602.
+
+### Enhancement - Data-Driven Activity Buttons
+- Analysis activity checkboxes now show 8 core activities (Stationary, Walking, Running, Cycling, Car, Bus, Train, Motorcycle) plus up to 3 data-driven extras from the user's most common activities (11 buttons max).
+- New `rebuildActivityTotals()` function in `arc-db.js` aggregates activity counts from all dailySummaries and stores in the `metadata` IndexedDB store (key: `activityTotals`).
+- Called automatically after full rebuild and incremental import updates.
+- Analysis colours aligned with `app.js` palette — consistent across diary and analysis views.
+- Removed impossible post-import activity types (scooter, tram, metro, taxi, transport, swimming, golf) that could never appear after LocoKit2 mapping.
+
+### Enhancement - Stationary Tracking in Analysis
+- Visit items now tracked as `stationary` in `activityStats` (count + duration), enabling stationary time in trend charts and heat maps.
+- Previously visits were only counted for location analysis, not activity analysis.
+- Requires Rebuild Analysis to populate for existing databases.
+
+### Bug Fix - GPS Drift Noise Clusters
+- New pre-pass in `coalesceTimelineForDisplay()` detects and collapses rapid sequences of phantom timeline items caused by GPS drift.
+- A noise cluster = 3+ consecutive items where visits are unnamed (no placeId/customTitle/streetAddress) and trips are ≤120s / ≤50m, with gaps ≤30 seconds between items.
+- Keeps first item of each cluster; marks the rest for display skipping.
+- Raw data preserved in IndexedDB — display-only filter, consistent with existing coalesce rules.
+
+### Documentation
+- Added comprehensive user manual (`MANUAL.md`, ~600 lines).
+- Heat-map variable documentation in README and in-app option tooltips.
+- Leaflet.heat added to Credits.
 
 ---
 

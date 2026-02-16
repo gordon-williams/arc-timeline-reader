@@ -14,14 +14,14 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and Arc Ed
 | `app.js` | ~11,280 | Core application logic (UI, rendering, navigation) |
 | `arc-state.js` | ~90 | Shared state (`window.ArcState`) + logging setup |
 | `arc-utils.js` | ~207 | Pure utility functions (formatting, distance, decompression) |
-| `arc-db.js` | ~2,420 | IndexedDB storage layer (CRUD, analysis, place names) |
-| `arc-data.js` | ~1,200 | Data extraction & transformation (notes, pins, tracks, stats) |
+| `arc-db.js` | ~2,470 | IndexedDB storage layer (CRUD, analysis, place names) |
+| `arc-data.js` | ~1,255 | Data extraction & transformation (notes, pins, tracks, stats) |
 | `events.js` | ~1,105 | Events system (CRUD, slider UI, categories) |
 | `import.js` | ~2,560 | All import: JSON export + Arc Editor/Legacy backup import |
 | `map-tools.js` | ~1,692 | Map utilities, measurement, location search |
 | `replay.js` | ~1,731 | Day replay animation system |
 | `styles.css` | ~5,650 | All styling |
-| `analysis.html` | ~6,200 | Activity/location analysis + heat-map (standalone) |
+| `analysis.html` | ~6,780 | Activity/location analysis + heat-map (standalone) |
 | `delete-db.html` | — | Database deletion utility |
 
 ### Module Loading Chain
@@ -37,7 +37,8 @@ All modules use IIFE + `window.ArcXxx` namespace. Modules that need app.js UI fu
 | File | Description |
 |------|-------------|
 | `README.md` | Project overview and usage instructions |
-| `CHANGELOG.md` | Version history (146 KB, extensive) |
+| `MANUAL.md` | Comprehensive user manual (~600 lines) |
+| `CHANGELOG.md` | Version history (extensive) |
 | `HANDOFF.md` | This document - developer context |
 | `STATE_MODEL.md` | NavigationController state documentation |
 | `ACKNOWLEDGEMENTS.md` | Third-party library credits |
@@ -64,7 +65,7 @@ All modules use IIFE + `window.ArcXxx` namespace. Modules that need app.js UI fu
 | Store | Key | Description |
 |-------|-----|-------------|
 | `days` | `dayKey` (YYYY-MM-DD) | Raw timeline data per day. Indexes: monthKey, lastUpdated, sourceFile |
-| `metadata` | `key` | App metadata: lastBackupSync, lastSync timestamps |
+| `metadata` | `key` | App metadata: lastBackupSync, lastSync, activityTotals, analysisDataVersion |
 | `dailySummaries` | `dayKey` | Activity stats per day (v2) |
 | `locationVisits` | `id` (auto) | Individual location visits. Indexes: locationName, dayKey, locationDay |
 | `locations` | `name` | Aggregated location stats (rebuilt from locationVisits) |
@@ -152,12 +153,13 @@ ActivityType enum (key values): unknown=-1, bogus=0, stationary=1, walking=2, ru
 ### Timeline Coalescing (display-only, non-destructive)
 Applied only to backup imports. Key function: `coalesceTimelineForDisplay(items)` in arc-data.js (~line 75).
 
-Rules:
+Rules (applied in order):
 1. **Containment**: visits fully within a longer visit's timespan are hidden (`_contained`)
-2. **Zero-duration suppression**: zero-length visits without customTitle between same-place visits
-3. **Low-signal suppression**: short (<15 min) stationary/unknown/tiny-walking fragments between same-place visits
-4. **Adjacent visit merging**: same-place visits with gap ≤15 min merged for display
-5. Items with `customTitle` are NEVER hidden or suppressed
+2. **GPS drift noise clusters** (pre-pass): 3+ consecutive items with unnamed visits and short/zero-distance trips, gaps ≤30s — collapses to first item only (`_driftClusterSize`)
+3. **Zero-duration suppression**: zero-length visits without customTitle between same-place visits
+4. **Low-signal suppression**: short (<15 min) stationary/unknown/tiny-walking fragments between same-place visits
+5. **Adjacent visit merging**: same-place visits with gap ≤15 min merged for display
+6. Items with `customTitle` are NEVER hidden or suppressed
 
 ### Diary Rendering
 `extractNotesFromData()` → `coalesceTimelineForDisplay()` → generates markdown-like diary entries with timestamps, locations, notes, and activity icons.
