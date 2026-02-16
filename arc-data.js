@@ -132,14 +132,63 @@
                 if (!item.startDate || !item.endDate) return 0;
                 return new Date(item.endDate).getTime() - new Date(item.startDate).getTime();
             }
-            
+
+            // Helper: Is this item a GPS drift noise candidate?
+            // Visits: unnamed, no placeId/customTitle/streetAddress/place name
+            // Trips: ≤120s duration AND ≤50m distance (activityType unreliable
+            //        because inferActivityTypeFromSamples maps drift to 'walking')
+            function isDriftNoiseCandidate(item) {
+                if (item.isVisit) {
+                    return !item.placeId && !item.customTitle && !item.streetAddress
+                        && !(item.place?.name);
+                }
+                const durSec = getDurationMs(item) / 1000;
+                const dist = Array.isArray(item.samples) && item.samples.length > 1
+                    ? calculatePathDistance(item.samples) : 0;
+                return durSec <= 120 && dist <= 50;
+            }
+
             // Sort items chronologically before processing
             const sortedItems = [...items].sort((a, b) => {
                 const aStart = a.startDate ? new Date(a.startDate).getTime() : 0;
                 const bStart = b.startDate ? new Date(b.startDate).getTime() : 0;
                 return aStart - bStart;
             });
-            
+
+            // Pre-pass: detect GPS drift noise clusters.
+            // A cluster = 3+ consecutive drift-noise candidates with gaps ≤30s.
+            // Keep the first item of each cluster; mark the rest for skipping.
+            const driftNoiseIds = new Set();
+            let clusterStart = 0;
+            while (clusterStart < sortedItems.length) {
+                if (!isDriftNoiseCandidate(sortedItems[clusterStart])) {
+                    clusterStart++;
+                    continue;
+                }
+                // Grow cluster while consecutive items are noise candidates with small gaps
+                let clusterEnd = clusterStart;
+                for (let j = clusterStart + 1; j < sortedItems.length; j++) {
+                    if (!isDriftNoiseCandidate(sortedItems[j])) break;
+                    const prevEnd = sortedItems[j - 1].endDate
+                        ? new Date(sortedItems[j - 1].endDate).getTime() : 0;
+                    const currStart = sortedItems[j].startDate
+                        ? new Date(sortedItems[j].startDate).getTime() : 0;
+                    const gapMs = currStart - prevEnd;
+                    if (gapMs > 30000) break; // >30s gap breaks the cluster
+                    clusterEnd = j;
+                }
+                const clusterSize = clusterEnd - clusterStart + 1;
+                if (clusterSize >= 3) {
+                    // Mark all but first for skipping
+                    sortedItems[clusterStart]._driftClusterSize = clusterSize;
+                    for (let k = clusterStart + 1; k <= clusterEnd; k++) {
+                        const id = sortedItems[k].itemId || sortedItems[k].startDate;
+                        driftNoiseIds.add(id);
+                    }
+                }
+                clusterStart = clusterEnd + 1;
+            }
+
             // Process items - skip contained, apply display annotations
             const result = [];
             
@@ -155,6 +204,11 @@
                 // Skip contained items (using shared detection)
                 if (containedIds.has(itemId)) {
                     item._contained = true;
+                    continue;
+                }
+
+                // Skip GPS drift noise cluster members (keep first item only)
+                if (driftNoiseIds.has(itemId)) {
                     continue;
                 }
                 
