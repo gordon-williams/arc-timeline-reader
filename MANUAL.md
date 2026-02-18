@@ -37,7 +37,7 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and [Arc E
 
 ### Optional: Mapbox Token
 
-A free Mapbox token unlocks enhanced maps (multiple styles including satellite and dark mode), faster geocoding, and route searching. Enter it in the **Mapbox Integration** section on the landing page and click **Save**.
+A free Mapbox token unlocks enhanced maps (multiple styles including satellite and outdoors), faster geocoding, and route searching. Enter it in the **Mapbox Integration** section on the landing page and click **Save**.
 
 Get a free token at [mapbox.com/account/access-tokens](https://account.mapbox.com/access-tokens/).
 
@@ -98,14 +98,15 @@ Click **Open Diary Reader** on the landing page to open the main interface. It c
 ### Header Bar
 
 From left to right:
-- **Analysis** -- opens the Analysis page in a new tab.
+- **Tools** dropdown -- map style selector and map tools (see [Map Tools](#map-tools)).
 - **Year** and **Month** selectors -- jump to any month.
 - **Previous/Next month** arrows.
-- **Map style** selector -- choose between tile providers.
-- **Tools** dropdown -- access map tools (see [Map Tools](#map-tools)).
+- **Analysis** -- opens the Analysis page in a new tab.
 - **Save** -- save the current map view as an image.
-- **Zoom +/-** buttons.
 - **Close (X)** -- returns to the landing page.
+
+Floating controls (bottom-right of map):
+- **Zoom +/-** buttons.
 
 ### Diary Panel
 
@@ -163,10 +164,9 @@ You can link directly to a specific date or month:
 
 With a Mapbox token:
 - **Street** -- Mapbox Streets
-- **Dark** -- Mapbox Dark
 - **Outdoors** -- Mapbox Outdoors
 - **Cycle** -- CyclOSM (topographic cycling map)
-- **Satellite** -- Mapbox Satellite with labels
+- **Satellite** -- Mapbox Satellite with labels (brightness-boosted)
 
 Without a Mapbox token:
 - **Street** -- CARTO Light
@@ -502,7 +502,7 @@ Selected via the dropdown in the diary header. Available styles depend on whethe
 
 ### Theme
 
-The diary reader follows a light theme. The Analysis page defaults to dark mode with a **Light/Dark** toggle in its header.
+The diary reader uses a light theme. The Analysis page defaults to dark mode with a **Light/Dark** toggle in its header.
 
 ---
 

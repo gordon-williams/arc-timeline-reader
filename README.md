@@ -26,7 +26,7 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracki
 - **Search** - Find entries by location name, date, or notes
 - **Favourites** - Star locations for quick access
 - **Events** - Define multi-day date ranges (vacations, trips) with start/end times
-- **Dark Mode** - System-aware theme with toggle
+- **Satellite Boost** - Enhanced satellite tile brightness for better visibility
 - **Raw Toggle** - View uncoalesced timeline data for debugging
 
 ### Events
@@ -76,7 +76,7 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracki
 - **Tools Menu** - Consolidated dropdown for Search, Measure, Elevation & Speed, Transparency, Animation, Filter
 - **Measure Tool** - Click to measure distances between points
 - **Location Search** - Mapbox-powered place search
-- **Multiple Tile Providers** - Mapbox (streets, dark, satellite, outdoors) or CARTO
+- **Multiple Tile Providers** - Mapbox (streets, satellite, outdoors) or CARTO
 - **PNG/PDF Export** - Save maps with markers and routes
 
 ### Activity Analysis
