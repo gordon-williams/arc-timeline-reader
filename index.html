@@ -30,9 +30,12 @@ SOFTWARE.
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"  crossorigin="anonymous" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"  crossorigin="anonymous" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"  crossorigin="anonymous" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = 875;
+  window.__ARC_BUILD__ = 883;
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -151,74 +154,73 @@ SOFTWARE.
         <div class="content">
 				
 				<!-- Database Status (v3.0) -->
-				<div id="dbStatusSection" style="display: none; background: #ffffff; border: 1px solid #d1d1d6; border-radius: 18px; padding: 32px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+				<div id="dbStatusSection" class="import-panel" style="display: none; cursor: default; text-align: left; margin-bottom: 24px;">
 					<!-- Loading Bar -->
 					<div id="dbLoadingBar" style="display: none; margin-bottom: 24px;">
-						<div style="background: #e5e5ea; height: 4px; border-radius: 2px; overflow: hidden;">
-							<div style="background: linear-gradient(90deg, #007AFF, #5AC8FA); height: 100%; width: 30%; animation: loading-slide 1.5s ease-in-out infinite;"></div>
+						<div style="background: var(--border-medium); height: 4px; border-radius: 2px; overflow: hidden;">
+							<div style="background: linear-gradient(90deg, var(--accent), #5AC8FA); height: 100%; width: 30%; animation: loading-slide 1.5s ease-in-out infinite;"></div>
 						</div>
 					</div>
 					
 					<div style="margin-bottom: 28px;">
-						<div style="font-size: 28px; font-weight: 700; color: #1d1d1f; margin-bottom: 12px; letter-spacing: -0.5px;">Your Timeline</div>
-						<div id="dbStats" style="font-size: 17px; color: #86868b; line-height: 1.47;">Loading...</div>
+						<div class="import-panel-title" style="font-size: 28px; letter-spacing: -0.5px; margin-bottom: 12px;">Your Timeline</div>
+						<div id="dbStats" class="import-panel-desc">Loading...</div>
 					</div>
 					
-					<div style="display: flex; gap: 12px; margin-bottom: 24px;">
-						<button onclick="openDeleteModal()" title="Delete specific days or clear entire database" style="flex: 1; background: #ff3b30; color: white; border: none; padding: 14px; border-radius: 12px; cursor: pointer; font-size: 17px; font-weight: 600; transition: opacity 0.2s; min-height: 50px;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+					<div class="import-tab-row" style="margin-bottom: 24px;">
+						<button class="btn-danger" style="flex: 1; margin-top: 0; min-height: 50px;" onclick="openDeleteModal()" title="Delete specific days or clear entire database">
 							Clear
 						</button>
-						<button onclick="openExportModal()" style="flex: 1; background: #f5f5f7; color: #1d1d1f; border: none; padding: 14px; border-radius: 12px; cursor: pointer; font-size: 17px; font-weight: 600; transition: background 0.2s; min-height: 50px;" onmouseover="this.style.background='#e8e8ed'" onmouseout="this.style.background='#f5f5f7'">
+						<button class="btn-secondary" onclick="openExportModal()">
 							Export
 						</button>
-						<button onclick="importMoreFiles()" style="flex: 1; background: #f5f5f7; color: #1d1d1f; border: none; padding: 14px; border-radius: 12px; cursor: pointer; font-size: 17px; font-weight: 600; transition: background 0.2s; min-height: 50px;" onmouseover="this.style.background='#e8e8ed'" onmouseout="this.style.background='#f5f5f7'">
+						<button class="btn-secondary" onclick="importMoreFiles()">
 							Import
 						</button>
 					</div>
 					
-					<button onclick="openDiaryFromDatabase()" style="width: 100%; background: #007AFF; color: white; border: none; padding: 16px; border-radius: 12px; cursor: pointer; font-size: 19px; font-weight: 600; transition: opacity 0.2s; min-height: 56px;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+					<button class="btn-primary" onclick="openDiaryFromDatabase()">
 						Open Diary Reader
 					</button>
 				</div>
 				
 				<!-- Mapbox Settings - always visible -->
-				<div id="mapboxSettingsSection" style="background: #ffffff; border: 1px solid #d1d1d6; border-radius: 18px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+				<div id="mapboxSettingsSection" class="import-panel" style="cursor: default; text-align: left; padding: 24px; margin-bottom: 24px;">
 					<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-						<span style="font-size: 15px; font-weight: 600; color: #1d1d1f;">🗺️ Mapbox Integration</span>
-						<span id="mapboxStatusBadge" style="font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #e5e5ea; color: #86868b;">Not configured</span>
+						<span class="import-panel-title" style="font-size: 15px; margin-bottom: 0;">🗺️ Mapbox Integration</span>
+						<span id="mapboxStatusBadge" style="font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--bg-app); color: var(--text-secondary);">Not configured</span>
 					</div>
 					<div style="display: flex; gap: 8px; align-items: center;">
-						<input type="text" id="mainMapboxToken" placeholder="pk.eyJ1Ijoi..." style="flex: 1; padding: 10px 12px; border: 1px solid #d1d1d6; border-radius: 8px; font-size: 13px; font-family: monospace;">
-						<button onclick="saveMainMapboxToken()" style="padding: 10px 16px; background: #007AFF; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">Save</button>
+						<input type="text" id="mainMapboxToken" placeholder="pk.eyJ1Ijoi..." style="flex: 1; padding: 10px 12px; border: 1px solid var(--border-card); border-radius: 8px; font-size: 13px; font-family: monospace; background: var(--bg-input); color: var(--text-primary);">
+						<button onclick="saveMainMapboxToken()" style="padding: 10px 16px; background: var(--accent); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">Save</button>
 					</div>
-					<div style="font-size: 12px; color: #86868b; margin-top: 8px;">
-						Optional: <a href="https://account.mapbox.com/access-tokens/" target="_blank" rel="noopener" style="color: #007AFF;">Get free token</a> for faster geocoding and more map styles (Dark, Outdoors, Satellite with labels)
+					<div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
+						Optional: <a href="https://account.mapbox.com/access-tokens/" target="_blank" rel="noopener" style="color: var(--accent);">Get free token</a> for faster geocoding and more map styles (Dark, Outdoors, Satellite with labels)
 					</div>
 				</div>
 
 
             <div class="form-group" id="fileInputSection">
                 <!-- Import Type Selector -->
-                <div style="display: flex; gap: 12px; margin-bottom: 16px;">
-                    <button id="jsonImportTab" onclick="selectImportType('json')" style="flex: 1; padding: 12px 20px; border: 2px solid #d1d1d6; background: white; color: #1d1d1f; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
-                        📄 Import JSON
+                <div class="import-tab-row">
+                    <button id="jsonImportTab" class="btn-import-tab" onclick="selectImportType('json')">
+                        Import JSON
                     </button>
-                    <button id="backupImportTab" onclick="selectImportType('backup')" style="flex: 1; padding: 12px 20px; border: 2px solid #34C759; background: #34C759; color: white; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
-                        💾 Import Backup
+                    <button id="backupImportTab" class="btn-import-tab active" onclick="selectImportType('backup')">
+                        Import Backup
                     </button>
                 </div>
                 
                 <!-- JSON Import Panel -->
-                <div id="jsonImportPanel" style="display: none; background: #ffffff; border: 1px solid #d1d1d6; border-radius: 18px; padding: 48px; text-align: center; cursor: pointer; transition: border-color 0.2s;" onclick="document.getElementById('fileInput').click()" onmouseover="this.style.borderColor='#007AFF'" onmouseout="this.style.borderColor='#d1d1d6'">
-                    <div style="font-size: 72px; margin-bottom: 20px; opacity: 0.7;">📂</div>
-                    <div style="font-size: 21px; font-weight: 600; color: #1d1d1f; margin-bottom: 8px;">Import JSON Files</div>
-                    <div style="font-size: 15px; color: #86868b; line-height: 1.47;">
+                <div id="jsonImportPanel" class="import-panel" style="display: none;" onclick="document.getElementById('fileInput').click()">
+                    <div class="import-panel-title">Import JSON Files</div>
+                    <div class="import-panel-desc">
                         Select your Arc Timeline export folder containing daily JSON files
                     </div>
                     <input type="file" id="fileInput" webkitdirectory directory multiple>
                     <div class="file-count" id="fileCount"></div>
-                    <div style="margin-top: 16px;" onclick="event.stopPropagation();">
-                        <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: #666;">
+                    <div class="import-options-group" style="background: none; padding: 0;" onclick="event.stopPropagation();">
+                        <label class="import-radio-label">
                             <input type="checkbox" id="forceFullRescan" style="width: 18px; height: 18px;">
                             Force full rescan (ignore last scan time)
                         </label>
@@ -226,35 +228,34 @@ SOFTWARE.
                 </div>
                 
                 <!-- Backup Import Panel -->
-                <div id="backupImportPanel" style="background: #ffffff; border: 1px solid #d1d1d6; border-radius: 18px; padding: 48px; text-align: center; cursor: pointer; transition: border-color 0.2s;" onclick="selectBackupFolder()" onmouseover="this.style.borderColor='#34C759'" onmouseout="this.style.borderColor='#d1d1d6'">
-                    <div style="font-size: 72px; margin-bottom: 20px; opacity: 0.7;">💾</div>
-                    <div style="font-size: 21px; font-weight: 600; color: #1d1d1f; margin-bottom: 8px;">Import from Backup</div>
-                    <div style="font-size: 15px; color: #86868b; line-height: 1.47;">
+                <div id="backupImportPanel" class="import-panel" onclick="selectBackupFolder()">
+                    <div class="import-panel-title">Import from Backup</div>
+                    <div class="import-panel-desc">
                         Select Arc Timeline's <strong>Backups</strong> folder from iCloud<br>
-                        <span style="font-size: 13px; color: #999;">~/Library/Mobile Documents/iCloud~com~bigpaua~LearnerCoacher/Documents/Backups</span>
+                        <span class="import-panel-path">~/Library/Mobile Documents/iCloud~com~bigpaua~LearnerCoacher/Documents/Backups</span>
                     </div>
                     <div class="file-count" id="backupFileCount"></div>
-                    <div style="margin-top: 16px; padding: 12px; background: #f5f5f7; border-radius: 8px;" onclick="event.stopPropagation();">
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: #333; margin-bottom: 6px;">
+                    <div class="import-options-group" onclick="event.stopPropagation();">
+                        <label class="import-radio-label">
                             <input type="radio" name="backupImportMode" value="recent" style="width: 16px; height: 16px;">
                             Recent only (fast — last 2 months)
                         </label>
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: #333; margin-bottom: 6px;">
+                        <label class="import-radio-label">
                             <input type="radio" name="backupImportMode" value="full" checked style="width: 16px; height: 16px;">
                             Full import (skip unchanged)
                         </label>
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: #333;">
+                        <label class="import-radio-label">
                             <input type="radio" name="backupImportMode" value="force" style="width: 16px; height: 16px;">
                             Force rescan (reimport all data)
                         </label>
                     </div>
-                    <div id="backupBrowserWarning" style="display: none; margin-top: 16px; padding: 12px; background: #fff3cd; border-radius: 8px; font-size: 13px; color: #856404;">
+                    <div id="backupBrowserWarning" class="import-warning" style="display: none;">
                         ⚠️ Safari mode: Import may be slower for large backups. Chrome/Edge recommended for best performance.
                     </div>
                     <input type="file" id="backupFolderInput" webkitdirectory directory multiple style="display: none;" onchange="handleBackupFolderSelected(this.files)">
                 </div>
                 
-                <button id="cancelBtn" onclick="cancelProcessing = true; event.stopPropagation();" style="display: none; background: #ff3b30; color: white; border: none; padding: 12px 28px; border-radius: 12px; cursor: pointer; margin-top: 20px; font-size: 17px; font-weight: 600; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">Cancel Import</button>
+                <button id="cancelBtn" class="btn-danger" onclick="cancelProcessing = true; event.stopPropagation();" style="display: none;">Cancel Import</button>
             </div>
             
             
@@ -375,10 +376,54 @@ SOFTWARE.
             <div class="modal-header">
                 <!-- Hidden title (for screen readers) -->
                 <div class="modal-title" id="mapPanelTitle">Map</div>
-                
-                <!-- Analysis button -->
-                <button id="dbButton" class="btn-nav-compact btn-analysis" onclick="toggleAnalysisPanel()" title="Analysis">Analysis</button>
-                
+
+                <!-- Tools dropdown (moved to left side) -->
+                <div class="tools-dropdown-wrapper">
+                    <button class="map-filter-btn" id="toolsBtn" onclick="toggleToolsDropdown()" title="Tools" style="display: none;">Tools</button>
+                    <div class="tools-dropdown-menu" id="toolsDropdownMenu">
+                        <div class="tools-dropdown-item tools-style-item active" data-style="street" onclick="selectMapStyle('street')">
+                            <span class="tools-dropdown-icon">🗺️</span>
+                            <span>Street</span>
+                        </div>
+                        <div class="tools-dropdown-item tools-style-item" data-style="cycle" onclick="selectMapStyle('cycle')">
+                            <span class="tools-dropdown-icon">🚴</span>
+                            <span>Cycle</span>
+                        </div>
+                        <div class="tools-dropdown-item tools-style-item" data-style="satellite" onclick="selectMapStyle('satellite')">
+                            <span class="tools-dropdown-icon">🛰️</span>
+                            <span>Satellite</span>
+                        </div>
+                        <div class="tools-dropdown-divider"></div>
+                        <div class="tools-dropdown-item" onclick="selectToolFromDropdown('search')">
+                            <span class="tools-dropdown-icon">🔍</span>
+                            <span>Search Location</span>
+                        </div>
+                        <div class="tools-dropdown-item" onclick="selectToolFromDropdown('measure')">
+                            <span class="tools-dropdown-icon">📏</span>
+                            <span>Measure Distance</span>
+                        </div>
+                        <div class="tools-dropdown-item" onclick="selectToolFromDropdown('elevation')">
+                            <span class="tools-dropdown-icon">📈</span>
+                            <span>Elevation &amp; Speed</span>
+                        </div>
+                        <div class="tools-dropdown-divider"></div>
+                        <div class="tools-dropdown-item" onclick="selectToolFromDropdown('transparency')">
+                            <span class="tools-dropdown-icon">💧</span>
+                            <span>Transparency</span>
+                        </div>
+                        <div class="tools-dropdown-item" onclick="selectToolFromDropdown('animation')">
+                            <span class="tools-dropdown-icon">🎬</span>
+                            <span>Day Animation</span>
+                        </div>
+                        <div class="tools-dropdown-item" onclick="selectToolFromDropdown('filter')">
+                            <span class="tools-dropdown-icon">🎯</span>
+                            <span>Activity Filter</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="toolbar-divider"></div>
+
                 <!-- Month selector and navigation -->
                 <div class="modal-controls">
                     <div class="nav-group">
@@ -390,59 +435,17 @@ SOFTWARE.
                         <button class="btn-nav-compact btn-nav-circular" id="nextMonthBtn" onclick="NavigationController.navigateMonth(1)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>
                     </div>
                 </div>
-                
-                <!-- Map style selector -->
-                <select class="map-filter-btn" id="mapStyleSelector" onchange="changeMapStyle()" style="display: none;">
-                    <option value="street">Street</option>
-                    <option value="cycle">Cycle</option>
-                    <option value="satellite">Satellite</option>
-                </select>
+
+                <div class="toolbar-divider"></div>
 
                 <!-- Map controls on the RIGHT -->
                 <div class="map-controls-inline">
-                    <!-- Tools dropdown menu -->
-                    <div class="tools-dropdown-wrapper">
-                        <button class="map-filter-btn" id="toolsBtn" onclick="toggleToolsDropdown()" title="Tools" style="display: none;">Tools</button>
-                        <div class="tools-dropdown-menu" id="toolsDropdownMenu">
-                            <div class="tools-dropdown-item" onclick="selectToolFromDropdown('search')">
-                                <span class="tools-dropdown-icon">🔍</span>
-                                <span>Search Location</span>
-                            </div>
-                            <div class="tools-dropdown-item" onclick="selectToolFromDropdown('measure')">
-                                <span class="tools-dropdown-icon">📏</span>
-                                <span>Measure Distance</span>
-                            </div>
-                            <div class="tools-dropdown-item" onclick="selectToolFromDropdown('elevation')">
-                                <span class="tools-dropdown-icon">📈</span>
-                                <span>Elevation &amp; Speed</span>
-                            </div>
-                            <div class="tools-dropdown-divider"></div>
-                            <div class="tools-dropdown-item" onclick="selectToolFromDropdown('transparency')">
-                                <span class="tools-dropdown-icon">💧</span>
-                                <span>Transparency</span>
-                            </div>
-                            <div class="tools-dropdown-item" onclick="selectToolFromDropdown('animation')">
-                                <span class="tools-dropdown-icon">🎬</span>
-                                <span>Day Animation</span>
-                            </div>
-                            <div class="tools-dropdown-item" onclick="selectToolFromDropdown('filter')">
-                                <span class="tools-dropdown-icon">🎯</span>
-                                <span>Activity Filter</span>
-                            </div>
-                        </div>
-                    </div>
-
+                    <button id="dbButton" class="btn-nav-compact btn-analysis" onclick="toggleAnalysisPanel()" title="Analysis">Analysis</button>
                     <button class="map-filter-btn" id="mapSaveBtn" onclick="saveMapAsImage()" style="display: none;">
                         Save
                     </button>
                 </div>
-                
-                <!-- Zoom controls -->
-                <div class="zoom-controls">
-                    <button class="btn-zoom btn-zoom-circular" onclick="zoomIn()">+</button>
-                    <button class="btn-zoom btn-zoom-circular" onclick="zoomOut()">−</button>
-                </div>
-                
+
                 <button class="modal-close" onclick="closeDiaryReader()">&times;</button>
             </div>
             <div class="modal-body">
@@ -452,7 +455,13 @@ SOFTWARE.
                         <div class="map-placeholder-icon">🗺️</div>
                         <div class="map-placeholder-text">Loading map...</div>
                     </div>
-                    
+
+                    <!-- Floating zoom controls (bottom-right of map) -->
+                    <div class="map-zoom-float" id="mapZoomFloat">
+                        <button class="btn-zoom btn-zoom-circular" onclick="zoomIn()">+</button>
+                        <button class="btn-zoom btn-zoom-circular" onclick="zoomOut()">−</button>
+                    </div>
+
                     <!-- Elevation Profile Panel -->
                     <div class="elevation-panel" id="elevationPanel" style="display: none;">
                         <div class="elevation-header">
@@ -581,7 +590,7 @@ SOFTWARE.
                         <div class="diary-title-row">
                             <div class="diary-title-group">
                                 <span class="diary-title" id="diaryTitle">Diary Timeline</span>
-                                <span class="diary-build" id="diaryBuild">Build 875</span>
+                                <span class="diary-build" id="diaryBuild">Build 883</span>
                             </div>
                             <div class="diary-nav-group" id="diaryNavGroup">
                                 <button class="btn-diary-nav btn-nav-circular" id="prevDayBtn" onclick="NavigationController.navigateBy(-1, 'day')" title="Previous day"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>

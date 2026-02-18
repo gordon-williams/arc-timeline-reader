@@ -522,6 +522,25 @@ function moveMapSmart(latlng, zoom) {
             }
         }
         
+        // ========================================
+        // Theme Management (Dark Mode)
+        // ========================================
+
+        // Force light theme — dark mode removed
+        document.documentElement.dataset.theme = 'light';
+
+        function isDarkThemeActive() { return false; }
+        function toggleTheme() {} // no-op stub
+
+        // RGBA helpers for transparency system (light-only)
+        function getThemeRGBA(opacity) {
+            return `rgba(255, 255, 255, ${opacity})`;
+        }
+
+        function getThemeHeaderRGBA(opacity) {
+            return `rgba(248, 249, 250, ${opacity})`;
+        }
+
         // Helper: Format month for display
         function formatMonthDisplay(monthKey) {
             const [year, month] = monthKey.split('-');
@@ -1639,7 +1658,9 @@ function moveMapSmart(latlng, zoom) {
             #atDayLevel = false;
             #renderVersion = 0;
             #internalCall = false;
-            
+            #panVersion = 0;    // Incremented on each pan — stale animations check this
+            #lastPanTime = 0;   // Timestamp of last panToWithOffset call
+
             // Viewport margin state (pixels from each edge that are obstructed)
             #margins = {
                 left: 0,      // Diary panel width
@@ -1723,6 +1744,14 @@ function moveMapSmart(latlng, zoom) {
                         logDebug(`🗺️ updateMargins: skipping refit (fitBounds was ${timeSinceFitBounds}ms ago)`);
                         return;
                     }
+
+                    // Skip refit if a panToWithOffset is still animating (within 800ms)
+                    // This prevents margin updates from overriding an in-progress location pan
+                    const timeSinceLastPan = Date.now() - this.#lastPanTime;
+                    if (timeSinceLastPan < 800) {
+                        logDebug(`🗺️ updateMargins: skipping refit (pan was ${timeSinceLastPan}ms ago)`);
+                        return;
+                    }
                     
                     // If route search has active route, refit to those bounds
                     if (window.routeSearchLayer) {
@@ -1758,7 +1787,12 @@ function moveMapSmart(latlng, zoom) {
              */
             #panToWithOffset(lat, lng, zoom = null, animate = true) {
                 if (!map) return;
-                
+                this.#panVersion++;
+                this.#lastPanTime = Date.now();
+
+                // Close any open popup so it doesn't auto-pan the map
+                map.closePopup();
+
                 // Calculate offset to center target in visible area (between UI panels)
                 // Visible area: left edge at (left + sliderLeft), right edge at (mapWidth - right)
                 // To center: shift map by (leftObstruction - rightObstruction) / 2
@@ -1770,8 +1804,6 @@ function moveMapSmart(latlng, zoom) {
                 const topObstruction = this.#margins.top;
                 const bottomObstruction = this.#margins.bottom;
                 const verticalOffsetPixels = (topObstruction - bottomObstruction) / 2;
-                
-                logDebug(`📍 panTo: target=(${lat.toFixed(5)},${lng.toFixed(5)}), offset=(${horizontalOffsetPixels}px,${verticalOffsetPixels}px)`);
                 
                 // Visual debug: show target point on map (persists until next command)
                 if (window.__ARC_DEBUG_LOGS__) {
@@ -1820,7 +1852,9 @@ function moveMapSmart(latlng, zoom) {
                     targetPoint.y + verticalOffsetPixels
                 );
                 const offsetLatLng = map.unproject(offsetPoint, targetZoom);
-                
+
+                logDebug(`📍 panTo: input=(${lat.toFixed(5)},${lng.toFixed(5)}) offset=(${horizontalOffsetPixels.toFixed(0)}px,${verticalOffsetPixels.toFixed(0)}px) zoom=${targetZoom}`);
+
                 // Calculate zoom delta for adaptive animation speed
                 const currentZoom = map.getZoom();
                 const zoomDelta = Math.abs(targetZoom - currentZoom);
@@ -2941,6 +2975,12 @@ function moveMapSmart(latlng, zoom) {
 
                             // All selection via NavigationController
                             // Pass date for unique matching when multiple entries have same coordinates
+                            // Guard: skip map pan if no GPS coordinates
+                            if (isNaN(lat) || isNaN(lng)) {
+                                logDebug(`⚠️ Diary click: no GPS for ${locationData.dataset.location}`);
+                                return;
+                            }
+                            logDebug(`📌 Diary click: "${locationData.dataset.location}" → (${lat},${lng}) ${dayKey}`);
                             NavigationController.selectEntry(entryId, dayKey, {
                                 source: 'diary',
                                 type: 'location',
@@ -3400,63 +3440,39 @@ function moveMapSmart(latlng, zoom) {
             }
         }
         
-        // Zoom functions
+        // Get the geo-coordinate at the centre of the safe area (between diary and stats panels)
+        function getSafeAreaCenter() {
+            const margins = NavigationController.margins;
+            const leftObstruction = margins.left + margins.sliderLeft;
+            const rightObstruction = margins.right;
+            const topObstruction = margins.top;
+            const bottomObstruction = margins.bottom;
+
+            const mapSize = map.getSize();
+            // Safe area centre in pixel coordinates
+            const safeCenterX = (leftObstruction + mapSize.x - rightObstruction) / 2;
+            const safeCenterY = (topObstruction + mapSize.y - bottomObstruction) / 2;
+
+            return map.containerPointToLatLng(L.point(safeCenterX, safeCenterY));
+        }
+
+        // Zoom functions — zoom toward the centre of the safe area
         function zoomIn() {
             if (!map) return;
-            
-            const diaryFloat = document.querySelector('.diary-float');
-            const isDiaryVisible = diaryFloat && diaryFloat.style.display !== 'none';
-            
-            if (!isDiaryVisible) {
-                // No diary panel, just zoom normally
-                map.zoomIn();
-                return;
-            }
-            
-            // Calculate what point is currently in the center of the visible area
-            const diaryWidth = diaryFloat.offsetWidth || 0;
-            const mapCenter = map.getCenter();
-            const currentZoom = map.getZoom();
-            
-            // The visible area center is offset to the right by half the diary width
-            const centerPoint = map.project(mapCenter, currentZoom);
-            const visibleCenterPoint = L.point(centerPoint.x + (diaryWidth / 2), centerPoint.y);
-            const visibleCenter = map.unproject(visibleCenterPoint, currentZoom);
-            
-            // Zoom in
-            map.zoomIn();
-            
-            // Re-center on the same visible point with offset
-            panToWithDiaryOffset(visibleCenter.lat, visibleCenter.lng);
+            const safeCenter = L.point(
+                (NavigationController.margins.left + NavigationController.margins.sliderLeft + map.getSize().x - NavigationController.margins.right) / 2,
+                (NavigationController.margins.top + map.getSize().y - NavigationController.margins.bottom) / 2
+            );
+            map.setZoomAround(safeCenter, map.getZoom() + 1);
         }
-        
+
         function zoomOut() {
             if (!map) return;
-            
-            const diaryFloat = document.querySelector('.diary-float');
-            const isDiaryVisible = diaryFloat && diaryFloat.style.display !== 'none';
-            
-            if (!isDiaryVisible) {
-                // No diary panel, just zoom normally
-                map.zoomOut();
-                return;
-            }
-            
-            // Calculate what point is currently in the center of the visible area
-            const diaryWidth = diaryFloat.offsetWidth || 0;
-            const mapCenter = map.getCenter();
-            const currentZoom = map.getZoom();
-            
-            // The visible area center is offset to the right by half the diary width
-            const centerPoint = map.project(mapCenter, currentZoom);
-            const visibleCenterPoint = L.point(centerPoint.x + (diaryWidth / 2), centerPoint.y);
-            const visibleCenter = map.unproject(visibleCenterPoint, currentZoom);
-            
-            // Zoom out
-            map.zoomOut();
-            
-            // Re-center on the same visible point with offset
-            panToWithDiaryOffset(visibleCenter.lat, visibleCenter.lng);
+            const safeCenter = L.point(
+                (NavigationController.margins.left + NavigationController.margins.sliderLeft + map.getSize().x - NavigationController.margins.right) / 2,
+                (NavigationController.margins.top + map.getSize().y - NavigationController.margins.bottom) / 2
+            );
+            map.setZoomAround(safeCenter, map.getZoom() - 1);
         }
         
         // Toggle diary visibility
@@ -3888,26 +3904,26 @@ function moveMapSmart(latlng, zoom) {
                     const diaryPanel = diaryFloat.querySelector('.diary-panel');
                     const diaryHeader = diaryFloat.querySelector('.diary-header');
                     if (diaryPanel) {
-                        diaryPanel.style.background = `rgba(255, 255, 255, ${contentOpacity})`;
+                        diaryPanel.style.background = getThemeRGBA(contentOpacity);
                     }
                     // Header should match panel transparency
                     if (diaryHeader) {
-                        diaryHeader.style.background = `rgba(255, 255, 255, ${contentOpacity})`;
+                        diaryHeader.style.background = getThemeRGBA(contentOpacity);
                     }
                     // Apply same opacity to search slider
                     if (sliderEl) {
-                        sliderEl.style.background = `rgba(255, 255, 255, ${contentOpacity})`;
+                        sliderEl.style.background = getThemeRGBA(contentOpacity);
                         const sliderHeader = sliderEl.querySelector('.search-results-header');
                         if (sliderHeader) {
-                            sliderHeader.style.background = `rgba(248, 249, 250, ${contentOpacity})`;
+                            sliderHeader.style.background = getThemeHeaderRGBA(contentOpacity);
                         }
                     }
                     // Apply same opacity to event slider
                     if (eventSliderEl) {
-                        eventSliderEl.style.background = `rgba(255, 255, 255, ${contentOpacity})`;
+                        eventSliderEl.style.background = getThemeRGBA(contentOpacity);
                         const eventSliderHeader = eventSliderEl.querySelector('.event-slider-header');
                         if (eventSliderHeader) {
-                            eventSliderHeader.style.background = `rgba(248, 249, 250, ${contentOpacity})`;
+                            eventSliderHeader.style.background = getThemeHeaderRGBA(contentOpacity);
                         }
                     }
                     // Note: Map titlebar transparency does NOT change on focus - only via slider control
@@ -4024,10 +4040,10 @@ function moveMapSmart(latlng, zoom) {
         }
         
         // Helper function to pan map to center a location in the visible area (accounting for diary)
-        function panToWithDiaryOffset(lat, lng, zoom = null) {
-            logDebug(`📍 panToWithDiaryOffset: lat=${lat}, lng=${lng}, zoom=${zoom}`);
+        function panToWithDiaryOffset(lat, lng, zoom = null, animate = true) {
+            logDebug(`📍 panToWithDiaryOffset: lat=${lat}, lng=${lng}, zoom=${zoom}, animate=${animate}`);
             // Delegate to NavigationController which owns viewport margin state
-            NavigationController.panToLocation(lat, lng, zoom, true);
+            NavigationController.panToLocation(lat, lng, zoom, animate);
         }
         
         // Helper function to refit map bounds with or without diary padding
@@ -4144,10 +4160,8 @@ function moveMapSmart(latlng, zoom) {
             // Show controls
             document.getElementById('toolsBtn').style.display = 'block';
             document.getElementById('mapSaveBtn').style.display = 'block';
-            document.getElementById('mapStyleSelector').style.display = 'block';
             updateMapStyleOptions(); // Update options based on Mapbox availability
-            document.getElementById('mapStyleSelector').value = currentMapStyle;
-            
+
             // Populate activity filters
             const activities = getUniqueActivitiesFromRoutes(routesByDay);
             populateActivityFilters(activities);
@@ -4214,6 +4228,7 @@ function moveMapSmart(latlng, zoom) {
         }
         
         function showDayMap(dayKey, targetLat = null, targetLng = null, skipFit = false) {
+            logDebug(`🗺️ showDayMap(${dayKey}, target=${targetLat},${targetLng}, skipFit=${skipFit})`);
             // Guard: map must be initialized
             if (!map) {
                 logWarn(`showDayMap: map not initialized yet, deferring`);
@@ -4225,11 +4240,17 @@ function moveMapSmart(latlng, zoom) {
                 return;
             }
 
+            // Sanitise target coordinates — NaN means no GPS data
+            if (targetLat !== null && (isNaN(targetLat) || isNaN(targetLng))) {
+                targetLat = null;
+                targetLng = null;
+            }
+
             const diary = generatedDiaries[currentMonth];
             const locs = diary.locationsByDay?.[dayKey] || [];
             const routeData = diary.routesByDay?.[dayKey];
-            
-            logDebug(`📍 showDayMap(${dayKey}): ${locs.length} locations, ${routeData?.length || 0} route points`);
+
+            logDebug(`📍 showDayMap(${dayKey}): ${locs.length} locations, ${routeData?.length || 0} route points, target=${targetLat},${targetLng}`);
 
             // Need either locations OR routes to show anything
             if (locs.length === 0 && (!routeData || routeData.length < 2)) {
@@ -4241,55 +4262,62 @@ function moveMapSmart(latlng, zoom) {
             // If we're already showing this day, and the user clicked a specific location again,
             // do NOT rebuild the map or refit bounds (that causes the zoom-out toggle).
             if (mapMode === 'day' && currentDayKey === dayKey && clusterGroup && targetLat !== null) {
+                // Close any open popup and collapse any spiderfied cluster
+                // so they don't interfere with the pan animation
+                map.closePopup();
+                if (clusterGroup.unspiderfy) clusterGroup.unspiderfy();
+
+                // Find closest marker (same robust matching as slow path)
                 let targetMarker = null;
+                let bestD2 = Infinity;
+                let markerCount = 0;
 
                 clusterGroup.eachLayer(layer => {
                     if (layer && layer.getLatLng) {
+                        markerCount++;
                         const ll = layer.getLatLng();
-                        if (Math.abs(ll.lat - targetLat) < 0.00001 && Math.abs(ll.lng - targetLng) < 0.00001) {
+                        const dLat = ll.lat - targetLat;
+                        const dLng = ll.lng - targetLng;
+                        const d2 = dLat * dLat + dLng * dLng;
+                        if (d2 < bestD2) {
+                            bestD2 = d2;
                             targetMarker = layer;
                         }
                     }
                 });
 
-                if (targetMarker) {
-                    // Pan to the marker with diary offset
-                    const ll = targetMarker.getLatLng();
-                    panToWithDiaryOffset(ll.lat, ll.lng);
-                    
-                    // Handle clustering: expand cluster if needed, then open popup
+                logDebug(`🔍 Fast path: markers=${markerCount}, bestD2=${bestD2}`);
+
+                // Reject match if closest marker is too far (~110m threshold)
+                const MAX_MATCH_D2 = 0.001 * 0.001;
+                if (!targetMarker || bestD2 > MAX_MATCH_D2) {
+                    logDebug(`⚠️ Fast path: no close marker — using diary coordinates`);
+                    panToWithDiaryOffset(targetLat, targetLng, Math.max(15, map.getZoom()));
+                    return;
+                }
+
+                const ll = targetMarker.getLatLng();
+
+                // Check if marker is inside a cluster at current zoom
+                const visibleParent = clusterGroup.getVisibleParent(targetMarker);
+                const isClustered = visibleParent && visibleParent !== targetMarker;
+
+                if (isClustered) {
+                    // Pan to the marker location, then spiderfy the cluster to reveal it
+                    panToWithDiaryOffset(ll.lat, ll.lng, Math.max(15, map.getZoom()));
                     setTimeout(() => {
                         if (!clusterGroup) return;
-                        const visibleParent = clusterGroup.getVisibleParent(targetMarker);
-                        
-                        if (visibleParent && visibleParent !== targetMarker) {
-                            // Marker is clustered - expand it
-                            // Use one-time spiderfied event listener for reliable popup opening
-                            const onSpiderfied = () => {
-                                clusterGroup.off('spiderfied', onSpiderfied);
-                                setTimeout(() => {
-                                    panToWithDiaryOffset(ll.lat, ll.lng);
-                                    openPopupDelayed(targetMarker, 50);
-                                }, 100);
-                            };
-                            clusterGroup.on('spiderfied', onSpiderfied);
-                            
-                            if (visibleParent.spiderfy) {
-                                visibleParent.spiderfy();
-                            }
-                            
-                            // Fallback timeout in case spiderfied doesn't fire
-                            setTimeout(() => {
-                                clusterGroup.off('spiderfied', onSpiderfied);
-                            }, 1000);
-                        } else {
-                            // Already visible
-                            openPopupDelayed(targetMarker);
+                        // Re-check visible parent after pan/zoom completes
+                        const vp = clusterGroup.getVisibleParent(targetMarker);
+                        if (vp && vp !== targetMarker && vp.spiderfy) {
+                            vp.spiderfy();
                         }
-                    }, 100);
+                        openPopupDelayed(targetMarker, 200);
+                    }, 500);
                 } else {
-                    // Fallback: at least centre the map
-                    panToWithDiaryOffset(targetLat, targetLng);
+                    // Already visible — just pan and open popup
+                    panToWithDiaryOffset(ll.lat, ll.lng);
+                    openPopupDelayed(targetMarker, 100);
                 }
                 return;
             }
@@ -4311,10 +4339,8 @@ function moveMapSmart(latlng, zoom) {
             // Show controls
             document.getElementById('toolsBtn').style.display = 'block';
             document.getElementById('mapSaveBtn').style.display = 'block';
-            document.getElementById('mapStyleSelector').style.display = 'block';
             updateMapStyleOptions(); // Update options based on Mapbox availability
-            document.getElementById('mapStyleSelector').value = currentMapStyle;
-            
+
             // Populate activity filters
             if (routeData) {
                 const activities = getUniqueActivitiesFromRoutes(routeData);
@@ -4462,49 +4488,49 @@ function moveMapSmart(latlng, zoom) {
                 }
             }
 
-            // Resolve clicked target marker (use closest marker; rounding between diary pins and route points can differ)
-            if (targetLat !== null && targetLng !== null && bestTargetMarker) {
+            // Resolve clicked target marker — only accept if within ~110m of diary coordinates
+            const MAX_MATCH_D2 = 0.001 * 0.001;
+            if (targetLat !== null && targetLng !== null && bestTargetMarker && bestTargetD2 <= MAX_MATCH_D2) {
                 targetMarker = bestTargetMarker;
+            } else if (targetLat !== null && targetLng !== null && bestTargetMarker) {
+                logDebug(`⚠️ Slow path: nearest marker ${Math.sqrt(bestTargetD2).toFixed(6)}° away — using diary coordinates`);
             }
 
             // Fit bounds / focus logic (skip if caller will handle fitting)
-            if (!skipFit && targetMarker) {
-                // When a specific location was clicked, focus immediately on it (don’t start zoomed-out)
+            // If user clicked a location but no pin matched, zoom to diary coordinates directly
+            // Never zoom out when user clicked a specific location
+            const locationZoom = Math.max(15, map.getZoom());
+
+            if (!skipFit && !targetMarker && targetLat !== null && targetLng !== null) {
+                logDebug(`🗺️ Slow path: no matching pin — zooming to diary coords`);
+                panToWithDiaryOffset(targetLat, targetLng, locationZoom);
+            } else if (!skipFit && targetMarker) {
+                // When a specific location was clicked, focus immediately on it (don't start zoomed-out)
                 const ll = targetMarker.getLatLng();
-                panToWithDiaryOffset(ll.lat, ll.lng, 15);
+                panToWithDiaryOffset(ll.lat, ll.lng, locationZoom);
 
                 // Ensure it is visible even if inside a cluster, then open the popup
+                // Wait for zoom animation to finish before checking cluster state
+                const zoomDelta = Math.abs(locationZoom - (map.getZoom() || 0));
+                const spiderfyDelay = zoomDelta > 2 ? 1000 : 500;
                 setTimeout(() => {
                     // Guard against clusterGroup being cleared by rapid navigation
                     if (!clusterGroup) return;
-                    
+
                     // Check if the marker is inside a cluster
                     const visibleParent = clusterGroup.getVisibleParent(targetMarker);
-                    
+
                     if (visibleParent && visibleParent !== targetMarker) {
-                        // Marker is clustered - use spiderfied event for reliable popup opening
-                        const onSpiderfied = () => {
-                            clusterGroup.off('spiderfied', onSpiderfied);
-                            setTimeout(() => {
-                                panToWithDiaryOffset(ll.lat, ll.lng);
-                                openPopupDelayed(targetMarker, 50);
-                            }, 100);
-                        };
-                        clusterGroup.on('spiderfied', onSpiderfied);
-                        
+                        // Spiderfy the cluster to reveal the marker
                         if (visibleParent.spiderfy) {
                             visibleParent.spiderfy();
                         }
-                        
-                        // Fallback timeout in case spiderfied doesn't fire
-                        setTimeout(() => {
-                            clusterGroup.off('spiderfied', onSpiderfied);
-                        }, 1000);
+                        openPopupDelayed(targetMarker, 300);
                     } else {
                         // Marker is already visible (not clustered)
                         openPopupDelayed(targetMarker);
                     }
-                }, 300);
+                }, spiderfyDelay);
             } else if (!skipFit && bounds.length >= 2) {
                 // Calculate comprehensive bounds including BOTH markers AND polyline points
                 const allBounds = [...bounds]; // Start with marker locations
@@ -5752,7 +5778,6 @@ scrollToDiaryDay(currentDayKey);
             if (mapboxToken) {
                 const mapboxStyles = {
                     street: { style: 'streets-v12', maxZoom: 20 },
-                    dark: { style: 'dark-v11', maxZoom: 20 },
                     outdoors: { style: 'outdoors-v12', maxZoom: 20 },
                     satellite: { style: 'satellite-streets-v12', maxZoom: 20 }
                 };
@@ -5806,63 +5831,87 @@ scrollToDiaryDay(currentDayKey);
         }
         
         function changeMapStyle() {
+            // Legacy — delegate to selectMapStyle with current style
             if (!map) return;
-            
-            const selector = document.getElementById('mapStyleSelector');
-            const newStyle = selector.value;
-            
-            if (currentTileLayer) {
-                map.removeLayer(currentTileLayer);
-            }
-            
-            currentTileLayer = getTileLayer(newStyle);
-            currentTileLayer.addTo(map);
-            currentMapStyle = newStyle;
-            
-            // Update diary transparency based on map style
-            updateDiaryTransparencyForMapStyle(newStyle);
-            
-            // Update stats panel transparency
-            updateStatsTransparency();
+            selectMapStyle(currentMapStyle);
         }
-        
-        // Update map style selector options based on Mapbox availability
-        function updateMapStyleOptions() {
-            const selector = document.getElementById('mapStyleSelector');
-            if (!selector) return;
-            
-            const mapboxToken = localStorage.getItem('arc_mapbox_token');
-            const currentValue = selector.value;
-            
-            // Clear existing options
-            selector.innerHTML = '';
-            
-            if (mapboxToken) {
-                // Mapbox options (more choices)
-                selector.innerHTML = `
-                    <option value="street">Street</option>
-                    <option value="dark">Dark</option>
-                    <option value="outdoors">Outdoors</option>
-                    <option value="cycle">Cycle</option>
-                    <option value="satellite">Satellite</option>
-                `;
+
+        function selectMapStyle(style) {
+            if (!map) return;
+
+            // Update the tile layer
+            if (currentTileLayer) map.removeLayer(currentTileLayer);
+            currentMapStyle = style;
+            currentTileLayer = getTileLayer(style);
+            currentTileLayer.addTo(map);
+
+            // Boost satellite tile brightness — Mapbox satellite imagery is darker than Apple Maps
+            const tilePane = map.getPane('tilePane');
+            if (tilePane) {
+                tilePane.classList.toggle('satellite-boost', style === 'satellite');
+            }
+
+            // Set map background for ocean areas — satellite imagery has near-black oceans
+            const mapEl = map.getContainer();
+            if (style === 'satellite') {
+                mapEl.style.background = '#1a3a5c';  // Dark ocean blue
             } else {
-                // Free options only
-                selector.innerHTML = `
-                    <option value="street">Street</option>
-                    <option value="cycle">Cycle</option>
-                    <option value="satellite">Satellite</option>
-                `;
+                mapEl.style.background = '';  // Default for street/cycle/outdoors
             }
-            
-            // Restore selection if still valid, otherwise default to street
-            const validOptions = Array.from(selector.options).map(o => o.value);
-            selector.value = validOptions.includes(currentValue) ? currentValue : 'street';
-            
-            // Update the map if style changed
-            if (map && currentMapStyle !== selector.value) {
-                changeMapStyle();
+
+            // Update active state in tools dropdown
+            document.querySelectorAll('.tools-style-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.style === style);
+            });
+
+            // Update transparency and close dropdown
+            if (typeof updateDiaryTransparencyForMapStyle === 'function') updateDiaryTransparencyForMapStyle(style);
+            if (typeof updateStatsTransparency === 'function') updateStatsTransparency();
+            closeToolsDropdown();
+        }
+
+        // Update map style options in tools dropdown based on Mapbox availability
+        function updateMapStyleOptions() {
+            const menu = document.getElementById('toolsDropdownMenu');
+            if (!menu) return;
+
+            const mapboxToken = localStorage.getItem('arc_mapbox_token');
+
+            // Remove any previously-injected Mapbox-only style items
+            menu.querySelectorAll('.tools-style-item[data-mapbox-only]').forEach(el => el.remove());
+
+            if (mapboxToken) {
+                // Find the first divider (after the style section) to insert before it
+                const firstDivider = menu.querySelector('.tools-dropdown-divider');
+                if (firstDivider) {
+                    const mapboxStyles = [
+                        { style: 'outdoors', icon: '🏔️', label: 'Outdoors' }
+                    ];
+                    mapboxStyles.forEach(s => {
+                        // Only add if not already present
+                        if (!menu.querySelector(`.tools-style-item[data-style="${s.style}"]`)) {
+                            const item = document.createElement('div');
+                            item.className = 'tools-dropdown-item tools-style-item';
+                            item.dataset.style = s.style;
+                            item.dataset.mapboxOnly = 'true';
+                            item.onclick = () => selectMapStyle(s.style);
+                            item.innerHTML = `<span class="tools-dropdown-icon">${s.icon}</span><span>${s.label}</span>`;
+                            firstDivider.insertAdjacentElement('beforebegin', item);
+                        }
+                    });
+                }
+            } else {
+                // If Mapbox token removed, also remove Mapbox-only items already cleaned above
+                // and reset to street if current style is Mapbox-only
+                if (['dark', 'outdoors'].includes(currentMapStyle)) {
+                    selectMapStyle('street');
+                }
             }
+
+            // Update active highlight
+            document.querySelectorAll('.tools-style-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.style === currentMapStyle);
+            });
         }
         
         // Listen for Mapbox token changes (from analysis.html settings)
@@ -6140,17 +6189,20 @@ scrollToDiaryDay(currentDayKey);
             // Apply the transparency immediately to diary
             const diaryPanel = diaryFloat.querySelector('.diary-panel');
             const diaryHeader = diaryFloat.querySelector('.diary-header');
+            const dark = isDarkThemeActive();
+            const base = dark ? '44, 44, 46' : '255, 255, 255';
+            const effectiveOpacity = dark ? Math.max(opacity, 0.5) : opacity;
             if (diaryPanel) {
-                diaryPanel.style.background = `rgba(255, 255, 255, ${opacity})`;
+                diaryPanel.style.background = `rgba(${base}, ${effectiveOpacity})`;
             }
             // Header should match panel transparency
             if (diaryHeader) {
-                diaryHeader.style.background = `rgba(255, 255, 255, ${opacity})`;
+                diaryHeader.style.background = `rgba(${base}, ${effectiveOpacity})`;
             }
-            
+
             // Apply the same transparency to map titlebar live
             if (mapHeader) {
-                mapHeader.style.background = `rgba(255, 255, 255, ${opacity})`;
+                mapHeader.style.background = `rgba(${base}, ${effectiveOpacity})`;
             }
             
             // Update stats panel transparency to match
@@ -6169,7 +6221,7 @@ scrollToDiaryDay(currentDayKey);
             const opacity = diaryFloat ? parseFloat(diaryFloat.dataset.unfocusedOpacity) || 0.05 : 0.05;
 
             // Apply to elevation panel background
-            panel.style.background = `rgba(255, 255, 255, ${opacity})`;
+            panel.style.background = getThemeRGBA(opacity);
         }
 
         function saveTransparencySetting() {
@@ -6234,15 +6286,15 @@ scrollToDiaryDay(currentDayKey);
             const mapHeader = document.querySelector('.modal-header');
             
             if (diaryPanel) {
-                diaryPanel.style.background = `rgba(255, 255, 255, ${defaultOpacity})`;
+                diaryPanel.style.background = getThemeRGBA(defaultOpacity);
             }
             // Header should match panel transparency
             if (diaryHeader) {
-                diaryHeader.style.background = `rgba(255, 255, 255, ${defaultOpacity})`;
+                diaryHeader.style.background = getThemeRGBA(defaultOpacity);
             }
             // Map titlebar should also match
             if (mapHeader) {
-                mapHeader.style.background = `rgba(255, 255, 255, ${defaultOpacity})`;
+                mapHeader.style.background = getThemeRGBA(defaultOpacity);
             }
             
             // Update stats panel transparency to match
@@ -6687,6 +6739,10 @@ scrollToDiaryDay(currentDayKey);
             panel.style.display = 'block';
             panel.classList.add('unfocused');
 
+            // Shift floating zoom controls above elevation panel
+            const zoomFloat = document.getElementById('mapZoomFloat');
+            if (zoomFloat) zoomFloat.classList.add('shifted-up');
+
             updateElevationTabs();
             attachElevationPanelDragGuard();
             initSpeedOutlierToggle();
@@ -6769,6 +6825,10 @@ scrollToDiaryDay(currentDayKey);
 
             elevationPanelVisible = false;
             panel.style.display = 'none';
+
+            // Restore floating zoom controls position
+            const zoomFloat = document.getElementById('mapZoomFloat');
+            if (zoomFloat) zoomFloat.classList.remove('shifted-up');
 
             if (panel._draggingDisabledByPanel && map && map.dragging) {
                 map.dragging.enable();
@@ -10740,12 +10800,17 @@ scrollToDiaryDay(currentDayKey);
         function updateStatsTransparency() {
             const statsFloat = document.getElementById('statsFloat');
             if (!statsFloat) return;
-            
+
             // Use the same opacity as the diary's unfocused state
             const diaryFloat = document.querySelector('.diary-float');
             if (diaryFloat) {
                 const opacity = parseFloat(diaryFloat.dataset.unfocusedOpacity) || 0.05;
-                statsFloat.style.background = `rgba(255, 255, 255, ${opacity})`;
+                const dark = isDarkThemeActive();
+                if (dark) {
+                    statsFloat.style.background = `rgba(44, 44, 46, ${Math.max(opacity, 0.5)})`;
+                } else {
+                    statsFloat.style.background = `rgba(255, 255, 255, ${opacity})`;
+                }
             }
         }
         
@@ -11281,6 +11346,8 @@ scrollToDiaryDay(currentDayKey);
 
 // === Expose UI handlers required by inline HTML (consolidated) ===
 if (typeof changeMapStyle === 'function') window.changeMapStyle = changeMapStyle;
+if (typeof selectMapStyle === 'function') window.selectMapStyle = selectMapStyle;
+if (typeof toggleTheme === 'function') window.toggleTheme = toggleTheme;
 if (typeof clearSearch === 'function') window.clearSearch = clearSearch;
 if (typeof closeDeleteModal === 'function') window.closeDeleteModal = closeDeleteModal;
 if (typeof closeDiaryReader === 'function') window.closeDiaryReader = closeDiaryReader;

@@ -797,21 +797,13 @@
         const backupPanel = document.getElementById('backupImportPanel');
 
         if (type === 'json') {
-            jsonTab.style.background = '#007AFF';
-            jsonTab.style.color = 'white';
-            jsonTab.style.borderColor = '#007AFF';
-            backupTab.style.background = 'white';
-            backupTab.style.color = '#1d1d1f';
-            backupTab.style.borderColor = '#d1d1d6';
+            jsonTab.classList.add('active');
+            backupTab.classList.remove('active');
             jsonPanel.style.display = 'block';
             backupPanel.style.display = 'none';
         } else {
-            backupTab.style.background = '#34C759';
-            backupTab.style.color = 'white';
-            backupTab.style.borderColor = '#34C759';
-            jsonTab.style.background = 'white';
-            jsonTab.style.color = '#1d1d1f';
-            jsonTab.style.borderColor = '#d1d1d6';
+            backupTab.classList.add('active');
+            jsonTab.classList.remove('active');
             jsonPanel.style.display = 'none';
             backupPanel.style.display = 'block';
         }

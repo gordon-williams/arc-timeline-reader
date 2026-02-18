@@ -1,5 +1,39 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 883 (2026-02-18)
+
+### UI/UX - Toolbar & Panel Adjustments
+- Rearranged toolbar: Tools dropdown moved to first position, Analysis and Save buttons swapped.
+- Tools dropdown menu now left-justified instead of right-justified.
+- Diary panel initial width reduced from 33% to 28% for more map space.
+- Diary content container inset by 10px on the right to prevent scrollbar/resize handle overlap.
+
+### Removed - Dark Mode
+- Completely removed dark mode from the map tab GUI.
+- Removed theme toggle button, all dark CSS variable blocks (`[data-theme="dark"]`, `@media prefers-color-scheme: dark`), and all Leaflet dark popup/attribution overrides.
+- `isDarkThemeActive()` now always returns false; `toggleTheme()` is a no-op stub.
+- Page always loads with `data-theme="light"`.
+- Removed dark map style from Mapbox styles and Tools dropdown.
+
+### Enhancement - Satellite Map Brightness
+- Mapbox satellite tiles now get a CSS brightness/saturation boost (`brightness(1.3) saturate(1.15)`) to counteract inherently dark ocean rendering.
+- Toggled via `.satellite-boost` class on the Leaflet tile pane when satellite style is selected.
+
+### Bug Fix - Location Click → Map Pan
+- **Root cause**: Open route popups (from activity clicks) were interfering with subsequent pan animations via Leaflet's popup auto-pan.
+- Added `map.closePopup()` at the start of every pan operation (`#panToWithOffset`) and at the fast path entry point.
+- Added distance threshold (~110m) to marker matching — if no pin is within range, the map zooms to the diary's own coordinates instead of panning to a distant wrong marker.
+- Fast and slow paths both now use `Math.max(15, currentZoom)` so clicking a location never zooms the map out.
+- Clustered markers are now spiderfied directly after panning, with adaptive delay (500ms–1000ms) to wait for zoom animations.
+- Navigating to a different location on the same day now unspiderfies any open cluster first.
+
+### Bug Fix - Zoom Buttons
+- Fixed disappearing zoom buttons: `z-index` on `.map-zoom-float` increased from 8 to 1000 (above Leaflet's internal layers).
+- Fixed zoom drift: removed double-offset calculation; zoom now centres on the safe area between diary and stats panels using `map.setZoomAround()`.
+- Fixed zoom-out-occasionally-zooms-in: switched from `map.setView()` with 0.5 delta to `setZoomAround()` with delta of 1 to avoid `zoomSnap: 0.5` rounding issues.
+
+---
+
 ## Build 875 (2026-02-15)
 
 ### Feature - Heat Map in Analysis
