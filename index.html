@@ -386,8 +386,8 @@ SOFTWARE.
                         </select>
                         <select class="month-selector-compact" id="monthSelector" onchange="switchMonth()">
                         </select>
-                        <button class="btn-nav-compact btn-nav-circular" id="prevMonthBtn" onclick="NavigationController.navigateMonth(-1)">‹</button>
-                        <button class="btn-nav-compact btn-nav-circular" id="nextMonthBtn" onclick="NavigationController.navigateMonth(1)">›</button>
+                        <button class="btn-nav-compact btn-nav-circular" id="prevMonthBtn" onclick="NavigationController.navigateMonth(-1)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+                        <button class="btn-nav-compact btn-nav-circular" id="nextMonthBtn" onclick="NavigationController.navigateMonth(1)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>
                     </div>
                 </div>
                 
@@ -584,8 +584,8 @@ SOFTWARE.
                                 <span class="diary-build" id="diaryBuild">Build 875</span>
                             </div>
                             <div class="diary-nav-group" id="diaryNavGroup">
-                                <button class="btn-diary-nav btn-nav-circular" id="prevDayBtn" onclick="NavigationController.navigateBy(-1, 'day')" title="Previous day">‹</button>
-                                <button class="btn-diary-nav btn-nav-circular" id="nextDayBtn" onclick="NavigationController.navigateBy(1, 'day')" title="Next day">›</button>
+                                <button class="btn-diary-nav btn-nav-circular" id="prevDayBtn" onclick="NavigationController.navigateBy(-1, 'day')" title="Previous day"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+                                <button class="btn-diary-nav btn-nav-circular" id="nextDayBtn" onclick="NavigationController.navigateBy(1, 'day')" title="Next day"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>
                             </div>
                             
                             <!-- Inline checkbox -->
@@ -623,8 +623,8 @@ SOFTWARE.
                             <div class="search-controls">
                                 <button class="btn-find" id="findBtn" onclick="performFindSearch()" style="display: none;" title="Find matches">Find</button>
                                 <span class="search-count" id="searchCount"></span>
-                                <button class="btn-search" id="prevSearchBtn" onclick="navigateSearch(-1)" disabled title="Previous match" style="display: none;">‹</button>
-                                <button class="btn-search" id="nextSearchBtn" onclick="navigateSearch(1)" disabled title="Next match" style="display: none;">›</button>
+                                <button class="btn-search" id="prevSearchBtn" onclick="navigateSearch(-1)" disabled title="Previous match" style="display: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+                                <button class="btn-search" id="nextSearchBtn" onclick="navigateSearch(1)" disabled title="Next match" style="display: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>
                                 <button class="btn-search" id="clearSearchBtn" onclick="clearSearch()" title="Clear search" style="display: none;">✕</button>
                                 <button class="btn-events" id="eventsBtn" onclick="openEventList()" title="Events (multi-day trips, vacations)">📅</button>
                             </div>
