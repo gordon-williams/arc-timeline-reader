@@ -35,7 +35,7 @@ SOFTWARE.
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = 884;
+  window.__ARC_BUILD__ = 886;
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -124,9 +124,19 @@ SOFTWARE.
       var i = document.createElement('script');
       i.src = 'import.js?v=' + b;
       i.async = false;
-      i.onload = function() { loadMainApp(); };
-      i.onerror = function() { loadMainApp(); }; // Continue even if missing
+      i.onload = function() { loadShare(); };
+      i.onerror = function() { loadShare(); }; // Continue even if missing
       document.body.appendChild(i);
+    }
+
+    function loadShare() {
+      // Load share.js (tour sharing functionality)
+      var sh = document.createElement('script');
+      sh.src = 'share.js?v=' + b;
+      sh.async = false;
+      sh.onload = function() { loadMainApp(); };
+      sh.onerror = function() { loadMainApp(); }; // Continue even if missing
+      document.body.appendChild(sh);
     }
 
     function loadMainApp() {
@@ -294,9 +304,6 @@ SOFTWARE.
                     <label><input type="checkbox" id="exportJson" checked> JSON</label>
                     <label><input type="checkbox" id="exportGpx" checked> GPX</label>
                 </div>
-                <div class="export-row">
-                    <label><input type="checkbox" id="exportAllDays"> ALL days</label>
-                </div>
                 <div class="export-row export-range">
                     <div>
                         <label for="exportStart">Start</label>
@@ -317,6 +324,74 @@ SOFTWARE.
             <div class="export-modal-footer">
                 <button class="btn-export-cancel" onclick="closeExportModal()">Cancel</button>
                 <button class="btn-export-start" onclick="startExport()">Export</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Share Tour Modal -->
+    <div class="export-modal-overlay" id="shareModalOverlay" style="display: none;">
+        <div class="export-modal share-modal" id="shareModal">
+            <div class="export-modal-header share-modal-drag-header" id="shareModalHeader">
+                <span>Share Tour</span>
+                <button class="export-modal-close" onclick="closeShareModal()">&times;</button>
+            </div>
+
+            <!-- Tab Bar -->
+            <div class="share-tab-bar">
+                <button class="share-tab active" data-tab="create" onclick="switchShareTab('create')">Create Tour</button>
+                <button class="share-tab" data-tab="open" onclick="switchShareTab('open')">Open Tour</button>
+            </div>
+
+            <!-- Create Tour Tab -->
+            <div class="export-modal-body share-tab-content" id="shareTabCreate">
+                <div class="share-field" id="shareEventField" style="display: none;">
+                    <label for="shareEventSelect">Event</label>
+                    <select id="shareEventSelect" onchange="if(window.ArcShare)ArcShare.onEventSelected()">
+                        <option value="">— Select an event —</option>
+                    </select>
+                </div>
+                <div class="share-field">
+                    <label for="shareTourTitle">Title</label>
+                    <input type="text" id="shareTourTitle" placeholder="e.g. Camino de Santiago 2024">
+                </div>
+                <div class="share-field">
+                    <label for="shareTourAuthor">Author</label>
+                    <input type="text" id="shareTourAuthor" placeholder="Your name">
+                </div>
+                <div class="export-row export-range">
+                    <div>
+                        <label for="shareStartDate">Start</label>
+                        <input type="date" id="shareStartDate" onchange="if(window.ArcShare)ArcShare.updateShareRangeInfo()">
+                    </div>
+                    <div>
+                        <label for="shareEndDate">End</label>
+                        <input type="date" id="shareEndDate" onchange="if(window.ArcShare)ArcShare.updateShareRangeInfo()">
+                    </div>
+                </div>
+                <div class="share-range-info" id="shareRangeInfo"></div>
+                <div class="share-error" id="shareError" style="display: none;"></div>
+                <div class="export-progress" id="shareProgress" style="display: none;">
+                    <div class="export-progress-bar">
+                        <div class="export-progress-fill" id="shareProgressFill">0%</div>
+                    </div>
+                    <div class="export-progress-text" id="shareProgressText"></div>
+                </div>
+            </div>
+
+            <!-- Open Tour Tab -->
+            <div class="export-modal-body share-tab-content" id="shareTabOpen" style="display: none;">
+                <div class="share-open-zone" id="shareOpenZone" onclick="if(window.ArcShare)ArcShare.handleTourFileSelect()">
+                    <div class="share-open-icon">📂</div>
+                    <div class="share-open-text">Select an <strong>.arctrip</strong> file to view</div>
+                </div>
+                <input type="file" id="shareTourFileInput" accept=".arctrip" style="display: none;">
+                <div id="shareOpenPreview" style="display: none;"></div>
+            </div>
+
+            <!-- Footer -->
+            <div class="export-modal-footer">
+                <button class="btn-export-cancel" onclick="closeShareModal()">Cancel</button>
+                <button class="btn-export-start" id="shareActionBtn" onclick="if(window.ArcShare)ArcShare.createTourFile()">OK</button>
             </div>
         </div>
     </div>
@@ -441,6 +516,7 @@ SOFTWARE.
                 <!-- Map controls on the RIGHT -->
                 <div class="map-controls-inline">
                     <button id="dbButton" class="btn-nav-compact btn-analysis" onclick="toggleAnalysisPanel()" title="Analysis">Analysis</button>
+                    <button class="btn-nav-compact" id="shareBtn" onclick="openShareModal()" title="Share Tour">Share</button>
                     <button class="map-filter-btn" id="mapSaveBtn" onclick="saveMapAsImage()" style="display: none;">
                         Save
                     </button>
@@ -448,6 +524,7 @@ SOFTWARE.
 
                 <button class="modal-close" onclick="closeDiaryReader()">&times;</button>
             </div>
+
             <div class="modal-body">
                 <!-- Map container - fills entire viewport -->
                 <div class="map-container" id="mapContainer">
@@ -595,7 +672,7 @@ SOFTWARE.
                         <div class="diary-title-row">
                             <div class="diary-title-group">
                                 <span class="diary-title" id="diaryTitle">Diary Timeline</span>
-                                <span class="diary-build" id="diaryBuild">Build 884</span>
+                                <span class="diary-build" id="diaryBuild">Build 885</span>
                             </div>
                             <div class="diary-nav-group" id="diaryNavGroup">
                                 <button class="btn-diary-nav btn-nav-circular" id="prevDayBtn" onclick="NavigationController.navigateBy(-1, 'day')" title="Previous day"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>

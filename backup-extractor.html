@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Arc Backup Date-Range Extractor</title>
-    <script>window.__EXTRACTOR_VERSION__ = '1.0'; window.__EXTRACTOR_BUILD__ = 884;</script>
+    <script>window.__EXTRACTOR_VERSION__ = '1.0'; window.__EXTRACTOR_BUILD__ = 3;</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
@@ -221,6 +221,7 @@
                 <input type="date" id="endDate">
             </div>
         </div>
+        <div style="font-size:12px; color:#888; margin-top:4px;">Maximum range: 6 months (182 days)</div>
     </div>
 
     <!-- Step 3: Extract -->
@@ -456,6 +457,11 @@
         const endDate = $('endDate').value;
         if (!startDate || !endDate) { showError('Please enter both start and end dates'); return; }
         if (startDate > endDate) { showError('Start date must be before end date'); return; }
+        const rangeDays = Math.round((new Date(endDate) - new Date(startDate)) / 86400000);
+        if (rangeDays > 182) {
+            showError(`Date range is ${rangeDays} days. Maximum is 6 months (182 days). Please narrow the range.`);
+            return;
+        }
 
         $('extractBtn').disabled = true;
         $('selectBtn').disabled = true;
@@ -620,6 +626,28 @@
                 $('extractBtn').disabled = false;
                 $('selectBtn').disabled = false;
                 return;
+            }
+
+            // ── Large extraction gate ──
+            const LARGE_THRESHOLD = 5000;
+            if (matchedCount > LARGE_THRESHOLD) {
+                log(`Large extraction: ${matchedCount.toLocaleString()} items. Waiting for confirmation...`, 'log-warn');
+                setProgress(40, `${matchedCount.toLocaleString()} items matched — confirm to proceed`);
+                const proceed = await new Promise(resolve => {
+                    const msg = `This range contains ${matchedCount.toLocaleString()} timeline items, `
+                        + `${neededPlaceIds.size.toLocaleString()} places, and ${neededWeekKeys.size} sample weeks.\n\n`
+                        + `Large extractions use significant memory and may be slow.\n\n`
+                        + `Continue?`;
+                    resolve(confirm(msg));
+                });
+                if (!proceed) {
+                    log('Extraction cancelled by user.', 'log-warn');
+                    setProgress(0, 'Cancelled');
+                    $('extractBtn').disabled = false;
+                    $('selectBtn').disabled = false;
+                    return;
+                }
+                log('User confirmed. Continuing...', 'log-info');
             }
 
             // ── Phase 2: Collect places ──

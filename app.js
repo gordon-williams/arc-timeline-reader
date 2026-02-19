@@ -227,81 +227,35 @@ function moveMapSmart(latlng, zoom) {
         }
         
         // Load a specific month from database into memory
-        async function loadMonthFromDatabase(monthKey) {
-            const dayRecords = await getMonthDaysFromDB(monthKey);
-            
-            logDebug(`📅 Loading ${monthKey}: ${dayRecords.length} day records from DB`);
-            
-            if (dayRecords.length === 0) {
-                addLog(`No data found for ${monthKey}`, 'error');
-                return;
-            }
-            
-            // Sort dayRecords by dayKey to ensure proper order
-            dayRecords.sort((a, b) => a.dayKey.localeCompare(b.dayKey));
-            
-            // Build a map for quick lookup
-            const dayDataMap = new Map();
-            for (const rec of dayRecords) {
-                dayDataMap.set(rec.dayKey, rec.data);
-            }
-            
-            // Build index of ALL multi-day visits in this month (and from previous month)
-            // Key: dayKey, Value: array of visits that span INTO that day
+        // ── Spanning visits index builder (shared by DB load and tour load) ──
+        // Builds a Map<dayKey, visit[]> of visits that span INTO each day.
+        // dayRecords: the month's day records. extraRecords: optional additional records
+        // (e.g., previous month from DB, or all tour days for cross-month spanning).
+        function buildSpanningVisitsIndex(dayRecords, extraRecords) {
             const spanningVisitsIndex = new Map();
-            
-            // First, collect all visits that span multiple days (deduplicated by itemId)
             const allSpanningVisits = [];
             const seenSpanningItemIds = new Set();
-            
-            for (const rec of dayRecords) {
+
+            // Scan provided records for multi-day visits
+            const allRecords = extraRecords ? [...dayRecords, ...extraRecords] : dayRecords;
+            for (const rec of allRecords) {
                 if (!rec.data?.timelineItems) continue;
                 for (const item of rec.data.timelineItems) {
                     if (!item.isVisit || !item.endDate || !item.startDate) continue;
                     if (!item.itemId || seenSpanningItemIds.has(item.itemId)) continue;
-                    
+
                     const startDay = getLocalDayKey(item.startDate);
                     const endDay = getLocalDayKey(item.endDate);
                     if (endDay > startDay) {
-                        // This visit spans multiple days (in local time)
                         seenSpanningItemIds.add(item.itemId);
-                        allSpanningVisits.push({
-                            item,
-                            startDay,
-                            endDay
-                        });
+                        allSpanningVisits.push({ item, startDay, endDay });
                     }
                 }
             }
-            
-            // For the first day of the month, check previous month for spanning visits
-            if (dayRecords.length > 0) {
-                const firstDayKey = dayRecords[0].dayKey;
-                const prevDayKey = getPreviousDayKey(firstDayKey);
-                if (prevDayKey.substring(0, 7) !== monthKey) {
-                    // Previous day is in a different month - load it
-                    const prevDayRecord = await getDayFromDB(prevDayKey);
-                    if (prevDayRecord?.data?.timelineItems) {
-                        for (const item of prevDayRecord.data.timelineItems) {
-                            if (!item.isVisit || !item.endDate || !item.startDate) continue;
-                            if (!item.itemId || seenSpanningItemIds.has(item.itemId)) continue;
-                            
-                            const startDay = getLocalDayKey(item.startDate);
-                            const endDay = getLocalDayKey(item.endDate);
-                            if (endDay >= firstDayKey) {
-                                seenSpanningItemIds.add(item.itemId);
-                                allSpanningVisits.push({ item, startDay, endDay });
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Now build the index: for each day, which visits span into it?
+
+            // Build the index: for each day, which visits span into it?
             for (const { item, startDay, endDay } of allSpanningVisits) {
-                // Add this visit to every day it spans INTO (not the start day, which already has it)
-                let currentDay = getPreviousDayKey(endDay); // Start from day before end
-                // Walk backwards, but don't go before start day
+                let currentDay = getPreviousDayKey(endDay);
                 while (currentDay > startDay) {
                     if (!spanningVisitsIndex.has(currentDay)) {
                         spanningVisitsIndex.set(currentDay, []);
@@ -309,7 +263,6 @@ function moveMapSmart(latlng, zoom) {
                     spanningVisitsIndex.get(currentDay).push(item);
                     currentDay = getPreviousDayKey(currentDay);
                 }
-                // Also add to the end day itself
                 if (endDay > startDay) {
                     if (!spanningVisitsIndex.has(endDay)) {
                         spanningVisitsIndex.set(endDay, []);
@@ -317,133 +270,96 @@ function moveMapSmart(latlng, zoom) {
                     spanningVisitsIndex.get(endDay).push(item);
                 }
             }
-            
-            // Find days that have spanning visits but NO day record (stayed home all day)
-            const existingDayKeys = new Set(dayRecords.map(r => r.dayKey));
-            const spanningOnlyDays = [];
-            for (const [dayKey, visits] of spanningVisitsIndex) {
-                // Only include days in this month that don't have existing data
-                if (dayKey.startsWith(monthKey) && !existingDayKeys.has(dayKey)) {
-                    spanningOnlyDays.push({
-                        dayKey,
-                        data: { timelineItems: visits }
-                    });
-                }
-            }
-            
-            // Combine existing day records with spanning-only days
-            const allDayRecords = [...dayRecords, ...spanningOnlyDays];
-            allDayRecords.sort((a, b) => a.dayKey.localeCompare(b.dayKey));
-            
-            // Reconstruct month data in the format expected by the diary generator
+            return spanningVisitsIndex;
+        }
+
+        // ── Process day records into generatedDiaries (shared pipeline) ──
+        // Processes allDayRecords + spanningVisitsIndex and stores result in generatedDiaries[monthKey].
+        function processMonthDayRecords(monthKey, allDayRecords, spanningVisitsIndex) {
             const monthData = {
                 month: monthKey,
                 days: {},
-                emptyDays: new Set()  // Days with DB records but no timeline items
+                emptyDays: new Set()
             };
-            
+
             let totalTracks = 0;
             let totalPoints = 0;
             let totalEntries = 0;
             let totalNotes = 0;
-            
+
             for (const dayRecord of allDayRecords) {
                 const dayKey = dayRecord.dayKey;
                 const data = dayRecord.data;
-                const sourceFile = dayRecord.sourceFile || 'json-import'; // Track import source
-                
-                // Check for visits that span into this day (from any previous day)
+                const sourceFile = dayRecord.sourceFile || 'json-import';
+
                 const spanningVisits = spanningVisitsIndex.get(dayKey) || [];
-                
-                // Get existing itemIds in this day's data to avoid duplicates
                 const existingItemIds = new Set();
                 if (data?.timelineItems) {
                     for (const item of data.timelineItems) {
                         if (item.itemId) existingItemIds.add(item.itemId);
                     }
                 }
-                
-                // Filter out spanning visits that are already in this day's data
                 const newSpanningVisits = spanningVisits.filter(v => !existingItemIds.has(v.itemId));
-                
-                // Merge spanning visits into current day's data
+
                 let mergedItems = [...newSpanningVisits, ...(data.timelineItems || [])];
-                
-                // Sort by startDate to ensure chronological order
                 mergedItems.sort((a, b) => {
                     const aStart = a.startDate ? new Date(a.startDate).getTime() : 0;
                     const bStart = b.startDate ? new Date(b.startDate).getTime() : 0;
                     return aStart - bStart;
                 });
-
-                // Filter out ghost items (0-sample duplicates that overlap real items)
                 mergedItems = filterGhostItems(mergedItems);
 
                 const mergedData = { ...data, timelineItems: mergedItems };
-                
-                // Extract LEGACY notes, pins, tracks (for existing diary/map code)
-                // Pass sourceFile to determine if coalescing should be applied
                 const notes = extractNotesFromData(mergedData, dayKey, sourceFile);
                 const pins = extractPinsFromData(mergedData);
                 const tracks = extractTracksFromData(mergedData);
-                
-                // Extract NEW normalized entries and notes
                 const { entries, notes: itemNotes } = extractEntriesAndNotesFromData(mergedData, dayKey);
-                
+
                 totalTracks += tracks.length;
                 totalEntries += entries.length;
                 totalNotes += itemNotes.length;
-                
+
                 if (notes.length > 0 || (pins && pins.length > 0) || (tracks && tracks.length > 0) || entries.length > 0) {
                     monthData.days[dayKey] = {
                         date: dayKey,
-                        // Raw data for re-extraction (when coalesce settings change)
                         _rawData: mergedData,
-                        _sourceFile: sourceFile, // Track import source for coalescing decision
-                        // Legacy fields (for existing diary markdown generation)
+                        _sourceFile: sourceFile,
                         notes: notes,
                         locations: pins || [],
                         tracks: tracks || [],
-                        // New normalized fields (for navigation/table/database)
                         entries: entries,
-                        itemNotes: itemNotes  // Renamed to avoid confusion with legacy 'notes'
+                        itemNotes: itemNotes
                     };
                 } else {
-                    // Day has DB record but no content - Arc crashed or nothing recorded
                     monthData.emptyDays.add(dayKey);
                 }
             }
-            
-            // Store in memory (for existing diary display code)
+
+            // Store in memory
             generatedDiaries[monthKey] = {
                 monthData: monthData,
                 routesByDay: {},
                 locationsByDay: {}
             };
-            
-            // Process locationsByDay and routesByDay (same structure as generateDiaries)
+
+            // Process locationsByDay and routesByDay
             let totalRoutePoints = 0;
             for (const dayKey in monthData.days) {
                 const dayData = monthData.days[dayKey];
-                
-                // Process locations (pins) for showDayMap
-                // extractPinsFromData returns pins with: location, lat, lng, altitude, hasNote, startDate, endDate, timelineItemId
-                const dayPins = dayData.locations || []; // 'locations' is populated from extractPinsFromData
+
+                const dayPins = dayData.locations || [];
                 const seen = new Set();
                 const locs = [];
-                
                 for (const p of dayPins) {
                     if (!p.lat || !p.lng) continue;
                     const uniqueKey = p.timelineItemId || `${p.location}_${p.lat}_${p.lng}`;
                     if (seen.has(uniqueKey)) continue;
                     seen.add(uniqueKey);
-                    
                     locs.push({
                         day: dayKey,
                         name: p.location || 'Unknown Location',
                         location: p.location || 'Unknown Location',
-                        lat: p.lat,
-                        lng: p.lng,
+                        lat: p.lat, lng: p.lng,
                         altitude: p.altitude ?? null,
                         date: p.startDate || null,
                         startDate: p.startDate || null,
@@ -452,35 +368,27 @@ function moveMapSmart(latlng, zoom) {
                         timelineItemId: p.timelineItemId || uniqueKey
                     });
                 }
-                
                 if (locs.length) {
                     generatedDiaries[monthKey].locationsByDay[dayKey] = locs;
                 }
-                
-                // Process routes (tracks) for map display
+
                 if (dayData.tracks && dayData.tracks.length > 0) {
                     const routePoints = [];
                     for (const track of dayData.tracks) {
-                        // extractTracksFromData returns tracks with 'points' property, not 'samples'
                         if (track.points) {
                             for (const point of track.points) {
                                 routePoints.push({
-                                    lat: point.lat,
-                                    lng: point.lng,
-                                    altitude: point.alt ?? null,  // Include altitude
+                                    lat: point.lat, lng: point.lng,
+                                    altitude: point.alt ?? null,
                                     activityType: track.activityType || 'unknown',
                                     timelineItemId: point.timelineItemId || track.timelineItemId || null,
-                                    timestamp: point.t,
-                                    date: point.t,
-                                    dayKey: dayKey,
-                                    t: point.t  // Add 't' for sorting
+                                    timestamp: point.t, date: point.t,
+                                    dayKey: dayKey, t: point.t
                                 });
                             }
                             totalPoints += track.points.length;
                         }
                     }
-                    
-                    // Sort route points by time (same as old code)
                     routePoints.sort((a, b) => {
                         if (a.t == null && b.t == null) return 0;
                         if (a.t == null) return 1;
@@ -489,35 +397,70 @@ function moveMapSmart(latlng, zoom) {
                         const tb = (typeof b.t === 'number') ? b.t : Date.parse(b.t);
                         return (ta || 0) - (tb || 0);
                     });
-                    
                     if (routePoints.length >= 2) {
                         generatedDiaries[monthKey].routesByDay[dayKey] = routePoints;
                         totalRoutePoints += routePoints.length;
                     }
                 }
             }
-            
-            logDebug(`✅ Loaded ${monthKey}: ${Object.keys(monthData.days).length} days, ${Object.keys(generatedDiaries[monthKey].locationsByDay).length} days with locations, ${totalRoutePoints} route points, ${totalEntries} entries, ${totalNotes} notes`);
-            
-            // Update global state - DO NOT modify monthKeys (already set globally)
+
+            logDebug(`✅ Processed ${monthKey}: ${Object.keys(monthData.days).length} days, ${Object.keys(generatedDiaries[monthKey].locationsByDay).length} days with locations, ${totalRoutePoints} route points, ${totalEntries} entries, ${totalNotes} notes`);
+        }
+
+        // ── Load month from IndexedDB ──
+        async function loadMonthFromDatabase(monthKey) {
+            const dayRecords = await getMonthDaysFromDB(monthKey);
+
+            logDebug(`📅 Loading ${monthKey}: ${dayRecords.length} day records from DB`);
+
+            if (dayRecords.length === 0) {
+                addLog(`No data found for ${monthKey}`, 'error');
+                return;
+            }
+
+            dayRecords.sort((a, b) => a.dayKey.localeCompare(b.dayKey));
+
+            // Build spanning visits index (with previous-month DB lookup for cross-month spanning)
+            const extraRecords = [];
+            if (dayRecords.length > 0) {
+                const firstDayKey = dayRecords[0].dayKey;
+                const prevDayKey = getPreviousDayKey(firstDayKey);
+                if (prevDayKey.substring(0, 7) !== monthKey) {
+                    const prevDayRecord = await getDayFromDB(prevDayKey);
+                    if (prevDayRecord?.data?.timelineItems) {
+                        extraRecords.push(prevDayRecord);
+                    }
+                }
+            }
+            const spanningVisitsIndex = buildSpanningVisitsIndex(dayRecords, extraRecords.length > 0 ? extraRecords : null);
+
+            // Find days with spanning visits but no day record
+            const existingDayKeys = new Set(dayRecords.map(r => r.dayKey));
+            const spanningOnlyDays = [];
+            for (const [dayKey, visits] of spanningVisitsIndex) {
+                if (dayKey.startsWith(monthKey) && !existingDayKeys.has(dayKey)) {
+                    spanningOnlyDays.push({ dayKey, data: { timelineItems: visits } });
+                }
+            }
+            const allDayRecords = [...dayRecords, ...spanningOnlyDays];
+            allDayRecords.sort((a, b) => a.dayKey.localeCompare(b.dayKey));
+
+            // Process through shared pipeline
+            processMonthDayRecords(monthKey, allDayRecords, spanningVisitsIndex);
+
+            // Update global state
             currentMonth = monthKey;
-            
-            // Update month selector
             if (monthSelector) {
                 monthSelector.value = monthKey;
             }
-            
-            // Update month nav buttons
             updateMonthNavButtons();
-            
-            // If diary is not open, open it. Otherwise just update the display
+
+            // Display
             if (modalOverlay.style.display === 'block') {
-                // Diary already open - just update display
                 displayDiary(monthKey);
                 showMonthMap();
                 setTimeout(() => updateStatsForCurrentView(), 10);
             } else {
-                // Open diary reader for first time
                 openDiaryReader();
             }
         }
@@ -750,11 +693,16 @@ function moveMapSmart(latlng, zoom) {
             // Set currentMonth FIRST, unconditionally (fixes year selector bug)
             currentMonth = monthKey;
             
-            // Load the month from database if not already loaded
+            // Load the month — from tour data if in tour mode, otherwise from database
             if (!generatedDiaries[monthKey]) {
-                logDebug(`📥 Loading ${monthKey} from database...`);
-                await loadMonthFromDatabase(monthKey);
-                // loadMonthFromDatabase handles display and map updates
+                if (window.ArcShare?.isTourActive()) {
+                    logDebug(`📥 Loading ${monthKey} from tour data...`);
+                    window.ArcShare.loadMonthFromTourData(monthKey);
+                } else {
+                    logDebug(`📥 Loading ${monthKey} from database...`);
+                    await loadMonthFromDatabase(monthKey);
+                }
+                // loadMonthFromDatabase/loadMonthFromTourData handles display and map updates
             } else {
                 // Month already loaded, just display it
                 displayDiary(currentMonth);
@@ -1566,6 +1514,11 @@ function moveMapSmart(latlng, zoom) {
         }
         
         function closeDiaryReader() {
+            // End tour mode if active (before hiding modal)
+            if (window.ArcShare?.isTourActive()) {
+                window.ArcShare.closeTour();
+            }
+
             modalOverlay.style.display = 'none';
             document.body.style.overflow = 'auto';
 
@@ -8253,7 +8206,6 @@ scrollToDiaryDay(currentDayKey);
         function openExportModal() {
             const overlay = document.getElementById('exportModalOverlay');
             if (!overlay) return;
-            const allCheckbox = document.getElementById('exportAllDays');
             const startInput = document.getElementById('exportStart');
             const endInput = document.getElementById('exportEnd');
             const jsonCheckbox = document.getElementById('exportJson');
@@ -8264,7 +8216,6 @@ scrollToDiaryDay(currentDayKey);
 
             if (jsonCheckbox) jsonCheckbox.checked = true;
             if (gpxCheckbox) gpxCheckbox.checked = true;
-            if (allCheckbox) allCheckbox.checked = false;
 
             const dayKey = (window.NavigationController && window.NavigationController.dayKey) || currentDayKey;
             if (startInput) startInput.value = dayKey || '';
@@ -8434,7 +8385,6 @@ scrollToDiaryDay(currentDayKey);
         async function startExport() {
             const jsonCheckbox = document.getElementById('exportJson');
             const gpxCheckbox = document.getElementById('exportGpx');
-            const allCheckbox = document.getElementById('exportAllDays');
             const startInput = document.getElementById('exportStart');
             const endInput = document.getElementById('exportEnd');
 
@@ -8445,24 +8395,30 @@ scrollToDiaryDay(currentDayKey);
                 return;
             }
 
+            const start = startInput?.value || '';
+            const end = endInput?.value || '';
+
+            // Enforce 30-day maximum range
+            if (start && end) {
+                const rangeDays = Math.round((new Date(end) - new Date(start)) / 86400000);
+                if (rangeDays > 30) {
+                    alert(`Date range is ${rangeDays} days. Maximum export range is 30 days.`);
+                    return;
+                }
+            }
+
             const allDays = await getAllDayKeysFromDB();
             let dayKeys = [];
 
-            if (allCheckbox?.checked) {
-                dayKeys = allDays.sort();
-            } else {
-                const start = startInput?.value || '';
-                const end = endInput?.value || '';
-                if (!start && !end) {
-                    const dayKey = (window.NavigationController && window.NavigationController.dayKey) || currentDayKey;
-                    if (!dayKey) {
-                        alert('Select a day or range');
-                        return;
-                    }
-                    dayKeys = [dayKey];
-                } else {
-                    dayKeys = getDateRangeDayKeys(allDays, start, end);
+            if (!start && !end) {
+                const dayKey = (window.NavigationController && window.NavigationController.dayKey) || currentDayKey;
+                if (!dayKey) {
+                    alert('Select a day or range');
+                    return;
                 }
+                dayKeys = [dayKey];
+            } else {
+                dayKeys = getDateRangeDayKeys(allDays, start, end);
             }
 
             if (dayKeys.length === 0) {
@@ -11320,6 +11276,39 @@ scrollToDiaryDay(currentDayKey);
                         renderMonth: () => displayDiary(S.currentMonth),
                         closeSearchResults,
                         updateMapPaddingForSlider,
+                    });
+                }
+
+                // Wire up share/tour module callbacks
+                if (window.ArcShare) {
+                    window.ArcShare.init({
+                        getDayFromDB,
+                        getAllDayKeysFromDB,
+                        processMonthDayRecords,
+                        buildSpanningVisitsIndex,
+                        displayDiary,
+                        showMonthMap,
+                        updateMonthNavButtons,
+                        populateYearAndMonthSelectors,
+                        populateMonthSelector,
+                        saveBlobToFile,
+                        updateStatsForCurrentView,
+                        openDiaryReader,
+                        getState: () => ({
+                            generatedDiaries,
+                            monthKeys,
+                            currentMonth,
+                            currentYear,
+                            currentMonthNum,
+                            currentDayKey: (window.NavigationController && window.NavigationController.dayKey) || currentDayKey,
+                        }),
+                        setState: (s) => {
+                            if ('generatedDiaries' in s) { generatedDiaries = s.generatedDiaries; S.generatedDiaries = generatedDiaries; }
+                            if ('monthKeys' in s) { monthKeys = s.monthKeys; }
+                            if ('currentMonth' in s) { currentMonth = s.currentMonth; }
+                            if ('currentYear' in s) { currentYear = s.currentYear; }
+                            if ('currentMonthNum' in s) { currentMonthNum = s.currentMonthNum; }
+                        },
                     });
                 }
 

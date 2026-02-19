@@ -1,5 +1,30 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 886 (2026-02-20)
+
+### Feature - Share Tour
+- New **Share** button on the toolbar for sharing trips/holidays with other Arc Reader users.
+- **Create Tour**: Select a date range (up to 182 days), enter a title and author, and export a compressed `.arctrip` file. Events dropdown auto-fills title and dates if the Events feature is in use. Author name is remembered in localStorage.
+- **Open Tour**: Select a received `.arctrip` file to preview its contents (title, author, dates, day/item counts, file size), then open it in guest viewing mode.
+- **Guest viewing mode**: Tour data is loaded into memory and displayed through the same diary/map pipeline as the user's own data. The user's real data is saved and restored when the tour is closed. No tour data touches IndexedDB.
+- **Close Tour**: The Share button turns green and changes to "Close Tour" when a tour is active. The map control bar also gets a green tint to indicate tour mode. Clicking "Close Tour" restores the user's own data. Closing the diary reader also ends tour mode automatically.
+- **Security**: Comprehensive validation of untrusted `.arctrip` files — compressed size limit (50 MB), decompressed size limit (500 MB), day key regex validation (blocks prototype pollution), day count cap (183), item count cap (50,000), HTML stripping on string fields, `textContent` only for display.
+- **Analysis disabled during tour**: The Analysis button is disabled with a tooltip explanation, since Analysis reads directly from IndexedDB and cannot display tour data.
+- **Share modal**: Draggable via header, tabs for Create Tour / Open Tour, OK button disabled on Open tab until a valid file is selected, position resets to centered on each open.
+- **File format**: `.arctrip` files are gzip-compressed JSON (using pako) containing metadata (title, author, dates, build info) and all day data objects for the date range.
+
+### UI Fixes
+- Fixed close button alignment on Export, Delete, and Share modals — added flex centering.
+- Share modal tabs styled to match the app's existing segmented control pattern (pill-shaped, green when active).
+- Share button uses standard `btn-nav-compact` toolbar styling (not a custom green button).
+
+### Export Changes
+- Removed "ALL days" checkbox from the main export modal to prevent catastrophic memory usage.
+- Added 30-day maximum range limit to the export modal.
+- Backup extractor: added 6-month (182 day) max range validation and post-scan confirmation gate for >5,000 items.
+
+---
+
 ## Build 884 (2026-02-19)
 
 ### Feature - Tile Opacity Slider

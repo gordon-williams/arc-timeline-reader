@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader - User Manual
 
-**Build 875**
+**Build 886**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and [Arc Editor](https://editor.arc.wiki) GPS tracking data. Generates interactive diaries with maps from your location history, stored locally in your browser. No server required.
 
@@ -22,10 +22,11 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and [Arc E
 12. [Heat Map](#heat-map)
 13. [Location Analysis](#location-analysis)
 14. [Exporting Your Data](#exporting-your-data)
-15. [Settings](#settings)
-16. [Database Management](#database-management)
-17. [Keyboard Shortcuts](#keyboard-shortcuts)
-18. [Troubleshooting](#troubleshooting)
+15. [Share Tour](#share-tour)
+16. [Settings](#settings)
+17. [Database Management](#database-management)
+18. [Keyboard Shortcuts](#keyboard-shortcuts)
+19. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -481,6 +482,46 @@ A progress bar shows during export.
 - **Capture** (Trend view) -- exports the chart as a PNG.
 - **Capture** (Heat Map view) -- exports the heat map as a PNG.
 - **Save PDF / Save PNG** (Locations tab) -- exports location reports.
+
+---
+
+## Share Tour
+
+Share trips and holidays with other Arc Reader users as `.arctrip` files. The recipient views the tour in a guest mode that does not touch their own database.
+
+### Creating a Tour
+
+1. Click **Share** in the toolbar.
+2. Select the **Create Tour** tab.
+3. If you use the Events feature, choose an event from the dropdown to auto-fill the title and date range.
+4. Enter or adjust the **Title**, **Author**, **Start** and **End** dates. Maximum range is 182 days.
+5. Click **OK**. The app reads the days from your database, compresses them, and saves a `.arctrip` file.
+6. Send the file to another Arc Reader user.
+
+Your author name is remembered for next time.
+
+### Opening a Tour
+
+1. Click **Share** in the toolbar.
+2. Select the **Open Tour** tab.
+3. Click the file picker zone and select a `.arctrip` file.
+4. A preview shows the tour title, author, date range, day count, item count, and file size.
+5. Click **OK** to enter guest viewing mode.
+
+### Guest Viewing Mode
+
+When a tour is open:
+- The **Share** button turns green and changes to **Close Tour**.
+- The map control bar gets a green tint.
+- The diary, map, and routes display the tour data exactly as they would your own data.
+- The **Analysis** button is disabled (Analysis reads from the database and cannot display tour data).
+- Your own data is safely preserved in the background.
+
+Click **Close Tour** to restore your own data. Closing the diary reader window also ends tour mode automatically.
+
+### Security
+
+Files received from others are validated before opening: file size limits, format checks, day count and item count caps, and HTML stripping on text fields. No tour data is written to your database.
 
 ---
 

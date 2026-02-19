@@ -4402,6 +4402,17 @@
     height: 24px;
     border-radius: 50%;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: var(--text-muted);
+    padding: 0;
+    line-height: 1;
+}
+.export-modal-close:hover {
+    background: rgba(0,0,0,0.1);
+    transform: scale(1.05);
 }
 
 .export-modal-body {
@@ -4488,6 +4499,159 @@
     border-radius: 6px;
     font-size: 13px;
     cursor: pointer;
+}
+
+/* ── Share Tour ── */
+
+.modal-header .btn-nav-compact.tour-active {
+    background: var(--green) !important;
+    color: white !important;
+    border-color: var(--green) !important;
+    white-space: nowrap;
+}
+.modal-header .btn-nav-compact.tour-active:hover {
+    background: #2aad4a !important;
+    border-color: #2aad4a !important;
+}
+
+.modal-header.tour-mode {
+    background: rgba(52, 199, 89, 0.15) !important;
+}
+
+.share-modal {
+    width: 460px;
+}
+.share-modal-drag-header {
+    cursor: move;
+    user-select: none;
+}
+
+.share-tab-bar {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px 0;
+}
+.share-tab {
+    flex: 1;
+    padding: 9px 16px;
+    border: 2px solid var(--border-card);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+.share-tab:hover:not(.active) {
+    border-color: var(--accent);
+    background: var(--bg-hover);
+}
+.share-tab.active {
+    border-color: var(--green);
+    background: var(--green);
+    color: white;
+}
+
+.share-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.share-field label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+.share-field input[type="text"] {
+    padding: 8px 10px;
+    border: 1px solid var(--border-card);
+    border-radius: 6px;
+    font-size: 14px;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+}
+.share-field input[type="text"]:focus,
+.share-field select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+.share-field select {
+    padding: 8px 10px;
+    border: 1px solid var(--border-card);
+    border-radius: 6px;
+    font-size: 13px;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.share-range-info {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+    padding: 2px 0;
+}
+.share-range-info.error {
+    color: var(--red);
+    font-weight: 600;
+}
+
+.share-error {
+    font-size: 13px;
+    color: var(--red);
+    background: #ffebee;
+    padding: 8px 12px;
+    border-radius: 6px;
+}
+
+.share-open-zone {
+    padding: 32px 16px;
+    text-align: center;
+    border: 2px dashed var(--border-card);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.share-open-zone:hover {
+    border-color: var(--accent);
+    background: rgba(0, 122, 255, 0.04);
+}
+.share-open-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+}
+.share-open-text {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.share-preview-info {
+    text-align: center;
+    padding: 16px;
+    background: var(--green-dim);
+    border-radius: 10px;
+}
+.share-preview-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+.share-preview-author {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+.share-preview-dates {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+.share-preview-stats {
+    font-size: 12px;
+    color: var(--text-muted);
 }
 
 /* Map click waypoint popup */
