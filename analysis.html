@@ -2090,7 +2090,7 @@
 
     <script>
         // Build version
-        const ANALYSIS_BUILD = 602;
+        const ANALYSIS_BUILD = 603;
         
         // Database and state
         let db = null;
@@ -6024,14 +6024,49 @@
             }
         }
         
+        // Find visits contained inside longer visits (noise filtering)
+        // Must match arc-db.js findContainedItems() for consistent counts
+        function findContainedItems(items) {
+            const containedIds = new Set();
+            if (!items || items.length === 0) return containedIds;
+            const sortedItems = [...items].sort((a, b) => {
+                const aStart = a.startDate ? new Date(a.startDate).getTime() : 0;
+                const bStart = b.startDate ? new Date(b.startDate).getTime() : 0;
+                return aStart - bStart;
+            });
+            let activeContainerEnd = 0;
+            for (let i = 0; i < sortedItems.length; i++) {
+                const item = sortedItems[i];
+                if (!item.startDate) continue;
+                const itemId = item.itemId || item.startDate;
+                const itemStart = new Date(item.startDate).getTime();
+                const itemEnd = item.endDate ? new Date(item.endDate).getTime() : itemStart;
+                if (item.isVisit && !item.customTitle && activeContainerEnd > 0 && itemStart < activeContainerEnd) {
+                    if (itemEnd <= activeContainerEnd) {
+                        containedIds.add(itemId);
+                        continue;
+                    }
+                }
+                if (item.isVisit && itemEnd > activeContainerEnd) {
+                    activeContainerEnd = itemEnd;
+                }
+            }
+            return containedIds;
+        }
+
         async function processDay(dayKey, dayData) {
             const items = dayData?.timelineItems || [];
-            
+
             const summary = { dayKey, totalDistance: 0, totalDuration: 0, activityStats: {} };
             const locationVisits = [];
             const locationMap = new Map(); // Keyed by location NAME for same-day aggregation
-            
+
+            // Filter out contained visits (noise inside longer stays)
+            const containedItemIds = findContainedItems(items);
+
             for (const item of items) {
+                // Skip contained items
+                if (containedItemIds.has(item.itemId || item.startDate)) continue;
                 if (item.isVisit) {
                     const name = item.place?.name || item.customTitle || item.streetAddress;
                     if (!name) continue;
