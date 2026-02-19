@@ -1002,9 +1002,7 @@
             for (const item of data.timelineItems) {
                 if (item.isVisit) continue;
                 if (!Array.isArray(item.samples) || item.samples.length < 2) {
-                    if (item.activityType === 'walking') {
-                        logDebug(`🚶 Walking skipped: samples=${item.samples?.length || 0}, startDate=${item.startDate}`);
-                    }
+                    logDebug(`🛤️ Track skipped: ${item.activityType || 'unknown'}, samples=${item.samples?.length || 0}, startDate=${item.startDate}`);
                     continue;
                 }
 
@@ -1031,7 +1029,7 @@
                     continue;
                 }
 
-                logDebug(`🚶 Track extracted: ${item.activityType}, ${pts.length} points, startDate=${item.startDate}`);
+                logDebug(`🛤️ Track extracted: ${item.activityType}, ${pts.length} points from ${item.samples.length} samples, startDate=${item.startDate}`);
                 
                 tracks.push({
                     timelineItemId: item.itemId || null,

@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arc Backup Date-Range Extractor</title>
+    <script>window.__EXTRACTOR_VERSION__ = '1.0'; window.__EXTRACTOR_BUILD__ = 884;</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 700px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 { color: #333; margin-bottom: 8px; font-size: 26px; }
+        .subtitle { color: #666; margin-bottom: 24px; font-size: 14px; }
+
+        .warning-box {
+            background: #fff8e1;
+            border: 1px solid #ffe082;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 24px;
+            font-size: 13px;
+            color: #6d4c00;
+            line-height: 1.5;
+        }
+        .warning-box strong { color: #e65100; }
+
+        .step { margin-bottom: 20px; }
+        .step-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #667eea;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .select-btn, .extract-btn {
+            padding: 14px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        .select-btn:hover, .extract-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        .select-btn:disabled, .extract-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .extract-btn { width: 100%; padding: 16px; font-size: 16px; }
+
+        .folder-status {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+            display: none;
+        }
+        .folder-status.visible { display: block; }
+        .folder-status.success { color: #2e7d32; }
+        .folder-status.error { color: #c62828; }
+
+        .date-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+        .date-field { flex: 1; }
+        .date-field label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #555;
+            margin-bottom: 6px;
+        }
+        .date-field input[type="date"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        .date-field input[type="date"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .hidden { display: none; }
+
+        .progress-section {
+            margin-top: 20px;
+            display: none;
+        }
+        .progress-section.visible { display: block; }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        .progress-text {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .log-section {
+            margin-top: 16px;
+            display: none;
+        }
+        .log-section.visible { display: block; }
+        .log-box {
+            background: #1e1e2e;
+            color: #a6e3a1;
+            border-radius: 10px;
+            padding: 14px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 220px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+        .log-box .log-warn { color: #f9e2af; }
+        .log-box .log-err { color: #f38ba8; }
+        .log-box .log-info { color: #89b4fa; }
+
+        .result-section {
+            margin-top: 20px;
+            background: #e8f5e9;
+            border-radius: 10px;
+            padding: 20px;
+            display: none;
+        }
+        .result-section.visible { display: block; }
+        .result-section h3 { color: #2e7d32; margin-bottom: 10px; }
+        .result-stats {
+            font-size: 14px;
+            color: #333;
+            line-height: 1.8;
+        }
+        .result-stats strong { color: #1b5e20; }
+
+        .error-section {
+            margin-top: 20px;
+            background: #ffebee;
+            border-radius: 10px;
+            padding: 20px;
+            display: none;
+            color: #c62828;
+        }
+        .error-section.visible { display: block; }
+
+        #safariInput { display: none; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Backup Date-Range Extractor</h1>
+    <p class="subtitle">Extract a date range from your Arc Timeline backup into a mini backup ZIP</p>
+
+    <div class="warning-box">
+        <strong>Important:</strong> Import the extracted mini backup in a <strong>different browser</strong>
+        (or Chrome profile) than the one holding your full backup. Importing it into the same browser
+        will merge with your existing database, and re-importing the full backup could take days.
+    </div>
+
+    <!-- Step 1: Select folder -->
+    <div class="step">
+        <div class="step-label">Step 1 &mdash; Select backup folder</div>
+        <button class="select-btn" id="selectBtn" onclick="selectFolder()">Select Backup Folder</button>
+        <input type="file" id="safariInput" webkitdirectory multiple>
+        <div class="folder-status" id="folderStatus"></div>
+    </div>
+
+    <!-- Step 2: Date range -->
+    <div class="step hidden" id="dateStep">
+        <div class="step-label">Step 2 &mdash; Date range</div>
+        <div class="date-row">
+            <div class="date-field">
+                <label for="startDate">Start date</label>
+                <input type="date" id="startDate">
+            </div>
+            <div class="date-field">
+                <label for="endDate">End date</label>
+                <input type="date" id="endDate">
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Extract -->
+    <div class="step hidden" id="extractStep">
+        <button class="extract-btn" id="extractBtn" onclick="startExtraction()">Extract &amp; Download ZIP</button>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-section" id="progressSection">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-text" id="progressText">Preparing...</div>
+    </div>
+
+    <!-- Log -->
+    <div class="log-section" id="logSection">
+        <div class="log-box" id="logBox"></div>
+    </div>
+
+    <!-- Result -->
+    <div class="result-section" id="resultSection">
+        <h3>Extraction Complete</h3>
+        <div class="result-stats" id="resultStats"></div>
+    </div>
+
+    <!-- Error -->
+    <div class="error-section" id="errorSection"></div>
+
+    <div style="text-align:center; margin-top:20px; font-size:12px; color:#999;">
+        Arc Backup Extractor v<script>document.write(window.__EXTRACTOR_VERSION__)</script>
+        &middot; Build <script>document.write(window.__EXTRACTOR_BUILD__)</script>
+    </div>
+</div>
+
+<script>
+    // ── State ──
+    let dirHandle = null;
+    let safariFiles = null;
+    let backupFormat = null; // 'Arc Editor' | 'Arc Timeline'
+    let dirs = {};           // { timeline, places, notes, samples }
+
+    // ── UI helpers ──
+    const $ = id => document.getElementById(id);
+    const show = el => { if (typeof el === 'string') el = $(el); el.classList.add('visible'); el.classList.remove('hidden'); };
+    const hide = el => { if (typeof el === 'string') el = $(el); el.classList.remove('visible'); el.classList.add('hidden'); };
+
+    function setProgress(pct, text) {
+        $('progressFill').style.width = pct + '%';
+        if (text) $('progressText').textContent = text;
+    }
+
+    function log(msg, cls) {
+        const box = $('logBox');
+        const line = document.createElement('div');
+        if (cls) line.className = cls;
+        line.textContent = msg;
+        box.appendChild(line);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function showError(msg) {
+        const el = $('errorSection');
+        el.textContent = msg;
+        show(el);
+    }
+
+    // ── ISO Week (Monday's calendar year — matches Arc's file naming) ──
+    function getISOWeek(dateStr) {
+        const date = new Date(dateStr);
+        const dayOfWeek = date.getDay() || 7;
+        const monday = new Date(date);
+        monday.setDate(date.getDate() - (dayOfWeek - 1));
+        monday.setHours(0, 0, 0, 0);
+        const thursday = new Date(monday);
+        thursday.setDate(monday.getDate() + 3);
+        const yearStart = new Date(thursday.getFullYear(), 0, 1);
+        const weekNum = Math.ceil(((thursday - yearStart) / 86400000 + 1) / 7);
+        return `${monday.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+    }
+
+    // ── Date range check ──
+    function itemIntersectsRange(rawItem, rangeStart, rangeEnd) {
+        let itemStart, itemEnd;
+        if (rawItem.base) {
+            // Arc Editor format
+            itemStart = rawItem.base.startDate;
+            itemEnd = rawItem.base.endDate || itemStart;
+        } else {
+            // Legacy / flat format
+            itemStart = rawItem.startDate;
+            itemEnd = rawItem.endDate || itemStart;
+        }
+        if (!itemStart) return false;
+        // Include if any part of item overlaps [rangeStart 00:00, rangeEnd 23:59:59]
+        return itemEnd >= rangeStart && itemStart <= rangeEnd + 'T23:59:59.999Z';
+    }
+
+    function getItemId(rawItem) {
+        if (rawItem.base) return rawItem.base.id || null;
+        return rawItem.itemId || rawItem.id || null;
+    }
+
+    function getPlaceId(rawItem) {
+        if (rawItem.visit) return rawItem.visit.placeId || null;
+        if (rawItem.base && rawItem.base.isVisit === false) return null;
+        return rawItem.placeId || null;
+    }
+
+    function getItemStartDate(rawItem) {
+        if (rawItem.base) return rawItem.base.startDate;
+        return rawItem.startDate;
+    }
+
+    function isDeleted(rawItem) {
+        if (rawItem.base) return !!rawItem.base.deleted;
+        return !!rawItem.deleted;
+    }
+
+    function getNoteDate(rawNote) {
+        return rawNote.date || rawNote.startDate || rawNote.creationDate || null;
+    }
+
+    function getNoteItemId(rawNote) {
+        return rawNote.timelineItemId || null;
+    }
+
+    function getPlaceIdFromPlace(rawPlace) {
+        return rawPlace.placeId || rawPlace.id || null;
+    }
+
+    // ── Folder selection ──
+    async function selectFolder() {
+        const status = $('folderStatus');
+
+        // Try File System Access API first (Chrome/Edge)
+        if (window.showDirectoryPicker) {
+            try {
+                dirHandle = await showDirectoryPicker({ mode: 'read' });
+                safariFiles = null;
+            } catch (e) {
+                if (e.name === 'AbortError') return;
+                showError('Failed to open folder: ' + e.message);
+                return;
+            }
+            await detectFormat();
+        } else {
+            // Safari fallback
+            const input = $('safariInput');
+            input.onchange = async () => {
+                safariFiles = Array.from(input.files);
+                dirHandle = null;
+                await detectFormatSafari();
+            };
+            input.click();
+        }
+    }
+
+    async function detectFormat() {
+        const status = $('folderStatus');
+        show(status);
+        status.className = 'folder-status visible';
+
+        try {
+            // Check for Arc Editor format (items/ directory)
+            const itemsDir = await dirHandle.getDirectoryHandle('items').catch(() => null);
+            const timelineDir = await dirHandle.getDirectoryHandle('TimelineItem').catch(() => null);
+
+            if (!itemsDir && !timelineDir) {
+                status.textContent = 'Not a valid Arc backup folder (no items/ or TimelineItem/ found)';
+                status.classList.add('error');
+                return;
+            }
+
+            if (itemsDir) {
+                backupFormat = 'Arc Editor';
+                dirs.timeline = itemsDir;
+                dirs.places = await dirHandle.getDirectoryHandle('places').catch(() => null);
+                dirs.notes = await dirHandle.getDirectoryHandle('notes').catch(() => null);
+                dirs.samples = await dirHandle.getDirectoryHandle('samples').catch(() => null);
+            } else {
+                backupFormat = 'Arc Timeline';
+                dirs.timeline = timelineDir;
+                dirs.places = await dirHandle.getDirectoryHandle('Place').catch(() => null);
+                dirs.notes = await dirHandle.getDirectoryHandle('Note').catch(() => null);
+                dirs.samples = await dirHandle.getDirectoryHandle('LocomotionSample').catch(() => null);
+            }
+
+            status.textContent = `Detected: ${backupFormat} backup`;
+            status.classList.add('success');
+            show('dateStep');
+            show('extractStep');
+        } catch (e) {
+            status.textContent = 'Error reading folder: ' + e.message;
+            status.classList.add('error');
+        }
+    }
+
+    async function detectFormatSafari() {
+        const status = $('folderStatus');
+        show(status);
+        status.className = 'folder-status visible';
+
+        if (!safariFiles || safariFiles.length === 0) {
+            status.textContent = 'No files selected';
+            status.classList.add('error');
+            return;
+        }
+
+        // Detect format from webkitRelativePath
+        const hasItems = safariFiles.some(f => /\/items\//.test(f.webkitRelativePath));
+        const hasTimelineItem = safariFiles.some(f => /\/TimelineItem\//.test(f.webkitRelativePath));
+
+        if (!hasItems && !hasTimelineItem) {
+            status.textContent = 'Not a valid Arc backup folder';
+            status.classList.add('error');
+            return;
+        }
+
+        backupFormat = hasItems ? 'Arc Editor' : 'Arc Timeline';
+        status.textContent = `Detected: ${backupFormat} backup (${safariFiles.length.toLocaleString()} files)`;
+        status.classList.add('success');
+        show('dateStep');
+        show('extractStep');
+    }
+
+    // ── Yield to UI ──
+    function yieldUI() {
+        return new Promise(r => setTimeout(r, 0));
+    }
+
+    // ── Main extraction ──
+    async function startExtraction() {
+        const startDate = $('startDate').value;
+        const endDate = $('endDate').value;
+        if (!startDate || !endDate) { showError('Please enter both start and end dates'); return; }
+        if (startDate > endDate) { showError('Start date must be before end date'); return; }
+
+        $('extractBtn').disabled = true;
+        $('selectBtn').disabled = true;
+        hide('resultSection');
+        hide('errorSection');
+        show('progressSection');
+        show('logSection');
+        $('logBox').innerHTML = '';
+
+        const rangeStart = startDate;
+        const rangeEnd = endDate;
+        const zipRoot = `arc-backup-${startDate}-to-${endDate}`;
+        const collectedFiles = [];
+
+        try {
+            // ── Phase 1: Scan timeline items ──
+            setProgress(0, 'Scanning timeline items...');
+            log(`Extracting ${startDate} to ${endDate} (${backupFormat} format)`, 'log-info');
+
+            const matchedItemIds = new Set();
+            const neededPlaceIds = new Set();
+            const neededWeekKeys = new Set();
+            let totalItemsScanned = 0;
+            let matchedCount = 0;
+            let deletedCount = 0;
+
+            if (dirHandle) {
+                // ── Chrome/Edge path (File System Access API) ──
+                if (backupFormat === 'Arc Editor') {
+                    // Monthly bucket files in items/
+                    for await (const entry of dirs.timeline.values()) {
+                        if (entry.kind !== 'file' || !entry.name.endsWith('.json')) continue;
+                        const file = await entry.getFile();
+                        const text = await file.text();
+                        let items;
+                        try { items = JSON.parse(text); } catch { continue; }
+                        if (!Array.isArray(items)) continue;
+
+                        const filtered = [];
+                        for (const item of items) {
+                            totalItemsScanned++;
+                            if (isDeleted(item)) { deletedCount++; continue; }
+                            if (itemIntersectsRange(item, rangeStart, rangeEnd)) {
+                                filtered.push(item);
+                                const id = getItemId(item);
+                                if (id) matchedItemIds.add(id);
+                                const pid = getPlaceId(item);
+                                if (pid) neededPlaceIds.add(pid);
+                                const sd = getItemStartDate(item);
+                                if (sd) neededWeekKeys.add(getISOWeek(sd));
+                                matchedCount++;
+                            }
+                        }
+                        if (filtered.length > 0) {
+                            collectedFiles.push({
+                                path: `${zipRoot}/items/${entry.name}`,
+                                content: JSON.stringify(filtered, null, 2)
+                            });
+                        }
+                        setProgress(Math.min(38, Math.round(totalItemsScanned / 500 * 38)),
+                            `Scanning items: ${totalItemsScanned.toLocaleString()} scanned, ${matchedCount} matched`);
+                        await yieldUI();
+                    }
+                } else {
+                    // Legacy: individual UUID files in hex subdirs
+                    for await (const subEntry of dirs.timeline.values()) {
+                        if (subEntry.kind !== 'directory') continue;
+                        let subDir;
+                        try { subDir = await dirs.timeline.getDirectoryHandle(subEntry.name); } catch { continue; }
+                        for await (const fileEntry of subDir.values()) {
+                            if (fileEntry.kind !== 'file' || !fileEntry.name.endsWith('.json')) continue;
+                            const file = await fileEntry.getFile();
+                            const text = await file.text();
+                            let item;
+                            try { item = JSON.parse(text); } catch { continue; }
+                            totalItemsScanned++;
+
+                            if (isDeleted(item)) { deletedCount++; continue; }
+                            if (itemIntersectsRange(item, rangeStart, rangeEnd)) {
+                                collectedFiles.push({
+                                    path: `${zipRoot}/TimelineItem/${subEntry.name}/${fileEntry.name}`,
+                                    content: text
+                                });
+                                const id = getItemId(item);
+                                if (id) matchedItemIds.add(id);
+                                const pid = getPlaceId(item);
+                                if (pid) neededPlaceIds.add(pid);
+                                const sd = getItemStartDate(item);
+                                if (sd) neededWeekKeys.add(getISOWeek(sd));
+                                matchedCount++;
+                            }
+
+                            if (totalItemsScanned % 1000 === 0) {
+                                setProgress(Math.min(38, Math.round(totalItemsScanned / 200000 * 38)),
+                                    `Scanning items: ${totalItemsScanned.toLocaleString()} scanned, ${matchedCount} matched`);
+                                await yieldUI();
+                            }
+                        }
+                    }
+                }
+            } else {
+                // ── Safari path ──
+                const itemFiles = safariFiles.filter(f => {
+                    const rp = f.webkitRelativePath;
+                    return backupFormat === 'Arc Editor'
+                        ? /\/items\/[^/]+\.json$/.test(rp)
+                        : /\/TimelineItem\/[^/]+\/[^/]+\.json$/.test(rp);
+                });
+
+                for (const file of itemFiles) {
+                    const text = await file.text();
+                    let parsed;
+                    try { parsed = JSON.parse(text); } catch { continue; }
+
+                    const itemsArr = Array.isArray(parsed) ? parsed : [parsed];
+                    const filtered = [];
+
+                    for (const item of itemsArr) {
+                        totalItemsScanned++;
+                        if (isDeleted(item)) { deletedCount++; continue; }
+                        if (itemIntersectsRange(item, rangeStart, rangeEnd)) {
+                            filtered.push(item);
+                            const id = getItemId(item);
+                            if (id) matchedItemIds.add(id);
+                            const pid = getPlaceId(item);
+                            if (pid) neededPlaceIds.add(pid);
+                            const sd = getItemStartDate(item);
+                            if (sd) neededWeekKeys.add(getISOWeek(sd));
+                            matchedCount++;
+                        }
+                    }
+
+                    if (filtered.length > 0) {
+                        // Reconstruct relative path for ZIP
+                        const parts = file.webkitRelativePath.split('/');
+                        const relPath = backupFormat === 'Arc Editor'
+                            ? `items/${parts[parts.length - 1]}`
+                            : `TimelineItem/${parts[parts.length - 2]}/${parts[parts.length - 1]}`;
+                        collectedFiles.push({
+                            path: `${zipRoot}/${relPath}`,
+                            content: Array.isArray(parsed) ? JSON.stringify(filtered, null, 2) : text
+                        });
+                    }
+
+                    if (totalItemsScanned % 500 === 0) {
+                        setProgress(Math.min(38, Math.round(totalItemsScanned / itemFiles.length * 38)),
+                            `Scanning items: ${totalItemsScanned.toLocaleString()} scanned, ${matchedCount} matched`);
+                        await yieldUI();
+                    }
+                }
+            }
+
+            setProgress(40, `Found ${matchedCount} items in date range`);
+            log(`Scanned ${totalItemsScanned.toLocaleString()} items, ${matchedCount} matched, ${deletedCount} deleted skipped`);
+            if (neededPlaceIds.size > 0) log(`Need ${neededPlaceIds.size} places`, 'log-info');
+            log(`Need ${neededWeekKeys.size} sample week files`, 'log-info');
+            await yieldUI();
+
+            if (matchedCount === 0) {
+                log('No items found in date range. Nothing to extract.', 'log-warn');
+                setProgress(100, 'No items in range');
+                $('extractBtn').disabled = false;
+                $('selectBtn').disabled = false;
+                return;
+            }
+
+            // ── Phase 2: Collect places ──
+            setProgress(42, 'Collecting places...');
+            let placesCollected = 0;
+
+            if (neededPlaceIds.size > 0) {
+                if (dirHandle && dirs.places) {
+                    if (backupFormat === 'Arc Editor') {
+                        for await (const entry of dirs.places.values()) {
+                            if (entry.kind !== 'file' || !entry.name.endsWith('.json')) continue;
+                            const file = await entry.getFile();
+                            const text = await file.text();
+                            let places;
+                            try { places = JSON.parse(text); } catch { continue; }
+                            if (!Array.isArray(places)) continue;
+                            const filtered = places.filter(p => neededPlaceIds.has(getPlaceIdFromPlace(p)));
+                            if (filtered.length > 0) {
+                                collectedFiles.push({
+                                    path: `${zipRoot}/places/${entry.name}`,
+                                    content: JSON.stringify(filtered, null, 2)
+                                });
+                                placesCollected += filtered.length;
+                            }
+                        }
+                    } else {
+                        for await (const subEntry of dirs.places.values()) {
+                            if (subEntry.kind !== 'directory') continue;
+                            let subDir;
+                            try { subDir = await dirs.places.getDirectoryHandle(subEntry.name); } catch { continue; }
+                            for await (const fileEntry of subDir.values()) {
+                                if (fileEntry.kind !== 'file' || !fileEntry.name.endsWith('.json')) continue;
+                                const file = await fileEntry.getFile();
+                                const text = await file.text();
+                                let place;
+                                try { place = JSON.parse(text); } catch { continue; }
+                                const pid = getPlaceIdFromPlace(place);
+                                if (pid && neededPlaceIds.has(pid)) {
+                                    collectedFiles.push({
+                                        path: `${zipRoot}/Place/${subEntry.name}/${fileEntry.name}`,
+                                        content: text
+                                    });
+                                    placesCollected++;
+                                }
+                            }
+                        }
+                    }
+                } else if (safariFiles) {
+                    const placeFiles = safariFiles.filter(f => {
+                        const rp = f.webkitRelativePath;
+                        return backupFormat === 'Arc Editor'
+                            ? /\/places\/[^/]+\.json$/.test(rp)
+                            : /\/Place\/[^/]+\/[^/]+\.json$/.test(rp);
+                    });
+                    for (const file of placeFiles) {
+                        const text = await file.text();
+                        let parsed;
+                        try { parsed = JSON.parse(text); } catch { continue; }
+                        const arr = Array.isArray(parsed) ? parsed : [parsed];
+                        const filtered = arr.filter(p => neededPlaceIds.has(getPlaceIdFromPlace(p)));
+                        if (filtered.length > 0) {
+                            const parts = file.webkitRelativePath.split('/');
+                            const relPath = backupFormat === 'Arc Editor'
+                                ? `places/${parts[parts.length - 1]}`
+                                : `Place/${parts[parts.length - 2]}/${parts[parts.length - 1]}`;
+                            collectedFiles.push({
+                                path: `${zipRoot}/${relPath}`,
+                                content: Array.isArray(parsed) ? JSON.stringify(filtered, null, 2) : text
+                            });
+                            placesCollected += filtered.length;
+                        }
+                    }
+                }
+            }
+
+            setProgress(55, `Collected ${placesCollected} places`);
+            log(`Collected ${placesCollected} places`);
+            await yieldUI();
+
+            // ── Phase 3: Collect notes ──
+            setProgress(57, 'Collecting notes...');
+            let notesCollected = 0;
+
+            const notesDir = dirs.notes;
+            if (dirHandle && notesDir) {
+                if (backupFormat === 'Arc Editor') {
+                    for await (const entry of notesDir.values()) {
+                        if (entry.kind !== 'file' || !entry.name.endsWith('.json')) continue;
+                        const file = await entry.getFile();
+                        const text = await file.text();
+                        let notes;
+                        try { notes = JSON.parse(text); } catch { continue; }
+                        if (!Array.isArray(notes)) continue;
+                        const filtered = notes.filter(n => {
+                            if (n.deleted) return false;
+                            const nd = getNoteDate(n);
+                            const nid = getNoteItemId(n);
+                            if (nid && matchedItemIds.has(nid)) return true;
+                            if (nd && nd >= rangeStart && nd <= rangeEnd + 'T23:59:59.999Z') return true;
+                            return false;
+                        });
+                        if (filtered.length > 0) {
+                            collectedFiles.push({
+                                path: `${zipRoot}/notes/${entry.name}`,
+                                content: JSON.stringify(filtered, null, 2)
+                            });
+                            notesCollected += filtered.length;
+                        }
+                    }
+                } else {
+                    for await (const subEntry of notesDir.values()) {
+                        if (subEntry.kind !== 'directory') continue;
+                        let subDir;
+                        try { subDir = await notesDir.getDirectoryHandle(subEntry.name); } catch { continue; }
+                        for await (const fileEntry of subDir.values()) {
+                            if (fileEntry.kind !== 'file' || !fileEntry.name.endsWith('.json')) continue;
+                            const file = await fileEntry.getFile();
+                            const text = await file.text();
+                            let note;
+                            try { note = JSON.parse(text); } catch { continue; }
+                            if (note.deleted) continue;
+                            const nd = getNoteDate(note);
+                            const nid = getNoteItemId(note);
+                            let include = false;
+                            if (nid && matchedItemIds.has(nid)) include = true;
+                            else if (nd && nd >= rangeStart && nd <= rangeEnd + 'T23:59:59.999Z') include = true;
+                            if (include) {
+                                collectedFiles.push({
+                                    path: `${zipRoot}/Note/${subEntry.name}/${fileEntry.name}`,
+                                    content: text
+                                });
+                                notesCollected++;
+                            }
+                        }
+                    }
+                }
+            } else if (safariFiles) {
+                const noteFiles = safariFiles.filter(f => {
+                    const rp = f.webkitRelativePath;
+                    return backupFormat === 'Arc Editor'
+                        ? /\/notes\/[^/]+\.json$/.test(rp)
+                        : /\/Note\/[^/]+\/[^/]+\.json$/.test(rp);
+                });
+                for (const file of noteFiles) {
+                    const text = await file.text();
+                    let parsed;
+                    try { parsed = JSON.parse(text); } catch { continue; }
+                    const arr = Array.isArray(parsed) ? parsed : [parsed];
+                    const filtered = arr.filter(n => {
+                        if (n.deleted) return false;
+                        const nd = getNoteDate(n);
+                        const nid = getNoteItemId(n);
+                        if (nid && matchedItemIds.has(nid)) return true;
+                        if (nd && nd >= rangeStart && nd <= rangeEnd + 'T23:59:59.999Z') return true;
+                        return false;
+                    });
+                    if (filtered.length > 0) {
+                        const parts = file.webkitRelativePath.split('/');
+                        const relPath = backupFormat === 'Arc Editor'
+                            ? `notes/${parts[parts.length - 1]}`
+                            : `Note/${parts[parts.length - 2]}/${parts[parts.length - 1]}`;
+                        collectedFiles.push({
+                            path: `${zipRoot}/${relPath}`,
+                            content: Array.isArray(parsed) ? JSON.stringify(filtered, null, 2) : text
+                        });
+                        notesCollected += filtered.length;
+                    }
+                }
+            }
+
+            setProgress(70, `Collected ${notesCollected} notes`);
+            log(`Collected ${notesCollected} notes`);
+            await yieldUI();
+
+            // ── Phase 4: Collect samples ──
+            setProgress(72, 'Collecting sample files...');
+            let samplesCollected = 0;
+
+            const samplesDir = dirs.samples;
+            const samplesDirName = backupFormat === 'Arc Editor' ? 'samples' : 'LocomotionSample';
+
+            if (dirHandle && samplesDir) {
+                for await (const entry of samplesDir.values()) {
+                    if (entry.kind !== 'file') continue;
+                    const weekMatch = entry.name.match(/^(\d{4}-W\d{2})/);
+                    if (!weekMatch) continue;
+                    if (!neededWeekKeys.has(weekMatch[1])) continue;
+
+                    const file = await entry.getFile();
+                    const bytes = new Uint8Array(await file.arrayBuffer());
+                    collectedFiles.push({
+                        path: `${zipRoot}/${samplesDirName}/${entry.name}`,
+                        content: bytes
+                    });
+                    samplesCollected++;
+                    setProgress(72 + Math.round(samplesCollected / Math.max(neededWeekKeys.size, 1) * 13),
+                        `Collecting samples: ${samplesCollected} week files`);
+                    await yieldUI();
+                }
+            } else if (safariFiles) {
+                const sampleFiles = safariFiles.filter(f => {
+                    const rp = f.webkitRelativePath;
+                    const match = rp.match(/(\d{4}-W\d{2})\.json\.gz$/);
+                    return match && neededWeekKeys.has(match[1]);
+                });
+                for (const file of sampleFiles) {
+                    const bytes = new Uint8Array(await file.arrayBuffer());
+                    const parts = file.webkitRelativePath.split('/');
+                    collectedFiles.push({
+                        path: `${zipRoot}/${samplesDirName}/${parts[parts.length - 1]}`,
+                        content: bytes
+                    });
+                    samplesCollected++;
+                }
+            }
+
+            setProgress(85, `Collected ${samplesCollected} sample files`);
+            log(`Collected ${samplesCollected} sample week files`);
+            await yieldUI();
+
+            // ── Phase 5: Build ZIP ──
+            setProgress(87, 'Building ZIP...');
+            log('Building ZIP archive...', 'log-info');
+
+            const zip = new JSZip();
+            for (const f of collectedFiles) {
+                if (f.content instanceof Uint8Array) {
+                    zip.file(f.path, f.content, { binary: true });
+                } else {
+                    zip.file(f.path, f.content);
+                }
+            }
+
+            const blob = await zip.generateAsync(
+                { type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } },
+                meta => {
+                    setProgress(87 + Math.round(meta.percent / 100 * 10),
+                        `Creating ZIP: ${Math.round(meta.percent)}%`);
+                }
+            );
+
+            // ── Phase 6: Download ──
+            setProgress(98, 'Downloading...');
+            const sizeMB = (blob.size / (1024 * 1024)).toFixed(1);
+            log(`ZIP created: ${sizeMB} MB`, 'log-info');
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${zipRoot}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            setProgress(100, 'Done!');
+
+            // Show results
+            const stats = $('resultStats');
+            stats.innerHTML = `
+                <strong>${matchedCount}</strong> timeline items<br>
+                <strong>${placesCollected}</strong> places<br>
+                <strong>${notesCollected}</strong> notes<br>
+                <strong>${samplesCollected}</strong> sample week files<br>
+                <strong>${collectedFiles.length}</strong> total files in ZIP<br>
+                <strong>${sizeMB} MB</strong> ZIP size
+            `;
+            show('resultSection');
+            log('Download complete!', 'log-info');
+
+        } catch (e) {
+            showError('Extraction failed: ' + e.message);
+            log('ERROR: ' + e.message, 'log-err');
+            console.error(e);
+        }
+
+        $('extractBtn').disabled = false;
+        $('selectBtn').disabled = false;
+    }
+</script>
+</body>
+</html>

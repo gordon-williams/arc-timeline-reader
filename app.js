@@ -3336,7 +3336,15 @@ function moveMapSmart(latlng, zoom) {
                 
                 currentTileLayer = getTileLayer(currentMapStyle);
                 currentTileLayer.addTo(map);
-                
+                applyTileOpacityForCurrentStyle();
+
+                // Prevent map drag/scroll when interacting with floating controls
+                const opacityEl = document.getElementById('tileOpacityFloat');
+                if (opacityEl) {
+                    L.DomEvent.disableClickPropagation(opacityEl);
+                    L.DomEvent.disableScrollPropagation(opacityEl);
+                }
+
                 // Add zoom event listener to dynamically resize markers (like Arc Timeline)
                 map.on('zoomend', function() {
                     const newZoom = map.getZoom();
@@ -5851,13 +5859,9 @@ scrollToDiaryDay(currentDayKey);
                 tilePane.classList.toggle('satellite-boost', style === 'satellite');
             }
 
-            // Set map background for ocean areas — satellite imagery has near-black oceans
+            // White background beneath tiles — visible when tile opacity is reduced
             const mapEl = map.getContainer();
-            if (style === 'satellite') {
-                mapEl.style.background = '#1a3a5c';  // Dark ocean blue
-            } else {
-                mapEl.style.background = '';  // Default for street/cycle/outdoors
-            }
+            mapEl.style.background = '#ffffff';
 
             // Update active state in tools dropdown
             document.querySelectorAll('.tools-style-item').forEach(item => {
@@ -5868,6 +5872,30 @@ scrollToDiaryDay(currentDayKey);
             if (typeof updateDiaryTransparencyForMapStyle === 'function') updateDiaryTransparencyForMapStyle(style);
             if (typeof updateStatsTransparency === 'function') updateStatsTransparency();
             closeToolsDropdown();
+
+            // Restore saved tile opacity for this map style
+            applyTileOpacityForCurrentStyle();
+        }
+
+        // ── Tile opacity slider ──
+        function setTileOpacity(percentage) {
+            percentage = Math.max(10, Math.min(100, Number(percentage)));
+            if (currentTileLayer) {
+                currentTileLayer.setOpacity(percentage / 100);
+            }
+            localStorage.setItem('tileOpacity-' + currentMapStyle, percentage);
+            const slider = document.getElementById('tileOpacitySlider');
+            if (slider && Number(slider.value) !== percentage) slider.value = percentage;
+        }
+
+        function applyTileOpacityForCurrentStyle() {
+            const saved = localStorage.getItem('tileOpacity-' + currentMapStyle);
+            const pct = saved !== null ? Number(saved) : 100;
+            const slider = document.getElementById('tileOpacitySlider');
+            if (slider) slider.value = pct;
+            if (currentTileLayer) {
+                currentTileLayer.setOpacity(pct / 100);
+            }
         }
 
         // Update map style options in tools dropdown based on Mapbox availability
@@ -6739,9 +6767,11 @@ scrollToDiaryDay(currentDayKey);
             panel.style.display = 'block';
             panel.classList.add('unfocused');
 
-            // Shift floating zoom controls above elevation panel
+            // Shift floating controls above elevation panel
             const zoomFloat = document.getElementById('mapZoomFloat');
             if (zoomFloat) zoomFloat.classList.add('shifted-up');
+            const opacityFloat = document.getElementById('tileOpacityFloat');
+            if (opacityFloat) opacityFloat.classList.add('shifted-up');
 
             updateElevationTabs();
             attachElevationPanelDragGuard();
@@ -6826,9 +6856,11 @@ scrollToDiaryDay(currentDayKey);
             elevationPanelVisible = false;
             panel.style.display = 'none';
 
-            // Restore floating zoom controls position
+            // Restore floating controls position
             const zoomFloat = document.getElementById('mapZoomFloat');
             if (zoomFloat) zoomFloat.classList.remove('shifted-up');
+            const opacityFloat = document.getElementById('tileOpacityFloat');
+            if (opacityFloat) opacityFloat.classList.remove('shifted-up');
 
             if (panel._draggingDisabledByPanel && map && map.dragging) {
                 map.dragging.enable();
@@ -11504,6 +11536,7 @@ if (typeof updateMapRoutes === 'function') window.updateMapRoutes = updateMapRou
 if (typeof updateTransparencyValue === 'function') window.updateTransparencyValue = updateTransparencyValue;
 if (typeof zoomIn === 'function') window.zoomIn = zoomIn;
 if (typeof zoomOut === 'function') window.zoomOut = zoomOut;
+if (typeof setTileOpacity === 'function') window.setTileOpacity = setTileOpacity;
 // Note: toggleMeasureTool, toggleSearchPopup, handleSearchKeydown, selectSearchResult
 // are defined in map-tools.js
 // Replay functions are exported inside initApp where they are defined

@@ -27,6 +27,7 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracki
 - **Favourites** - Star locations for quick access
 - **Events** - Define multi-day date ranges (vacations, trips) with start/end times
 - **Satellite Boost** - Enhanced satellite tile brightness for better visibility
+- **Tile Opacity** - Floating slider to fade map tiles for better route visibility
 - **Raw Toggle** - View uncoalesced timeline data for debugging
 
 ### Events
@@ -119,6 +120,7 @@ The **Variable** dropdown controls what the heat intensity represents:
 | `analysis.html` | Standalone analysis tool (~5,600 lines) |
 | `map-tools.js` | Measurement and search tools |
 | `delete-db.html` | Database reset utility |
+| `backup-extractor.html` | Extract date range from backup to mini ZIP |
 
 ## Usage
 

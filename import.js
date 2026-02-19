@@ -1256,28 +1256,42 @@
         }
     }
 
-    // Helper: get ISO week string from date (e.g., "2025-W03")
+    // Helper: get week key matching Arc's sample filename convention (e.g., "2025-W03")
+    // Arc uses the calendar year of the Monday (start of the ISO week) as the year prefix,
+    // NOT the ISO year. This matters at year boundaries: ISO 2014-W01 starts Mon Dec 30 2013,
+    // so Arc names the file 2013-W01.json.gz (calendar year of Monday = 2013).
     function getISOWeek(dateStr) {
         const date = new Date(dateStr);
-        const thursday = new Date(date);
-        thursday.setDate(date.getDate() + (4 - (date.getDay() || 7)));
-        // Normalize to midnight to avoid time-of-day affecting week calculation
-        thursday.setHours(0, 0, 0, 0);
+        // Find the Monday of this date's ISO week
+        const dayOfWeek = date.getDay() || 7; // Mon=1..Sun=7
+        const monday = new Date(date);
+        monday.setDate(date.getDate() - (dayOfWeek - 1));
+        monday.setHours(0, 0, 0, 0);
+        // Find the Thursday to determine the ISO week number
+        const thursday = new Date(monday);
+        thursday.setDate(monday.getDate() + 3);
         const yearStart = new Date(thursday.getFullYear(), 0, 1);
         const weekNum = Math.ceil(((thursday - yearStart) / 86400000 + 1) / 7);
-        return `${thursday.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+        // Use Monday's calendar year (Arc's convention), not Thursday's ISO year
+        return `${monday.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
     }
 
-    // ISO week using UTC (prevents local-time week shifts near boundaries)
+    // Week key using UTC (prevents local-time week shifts near boundaries)
+    // Uses Monday's calendar year to match Arc's sample file naming convention.
     function getISOWeekUTC(dateStr) {
         if (!dateStr) return null;
         const date = new Date(dateStr);
-        const thursday = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-        thursday.setUTCDate(thursday.getUTCDate() + (4 - (thursday.getUTCDay() || 7)));
+        // Find Monday of this date's ISO week (in UTC)
+        const dayOfWeek = date.getUTCDay() || 7; // Mon=1..Sun=7
+        const monday = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - (dayOfWeek - 1)));
+        // Find Thursday to determine ISO week number
+        const thursday = new Date(monday);
+        thursday.setUTCDate(monday.getUTCDate() + 3);
         thursday.setUTCHours(0, 0, 0, 0);
         const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
         const weekNum = Math.ceil(((thursday - yearStart) / 86400000 + 1) / 7);
-        return `${thursday.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+        // Use Monday's calendar year (Arc's convention), not Thursday's ISO year
+        return `${monday.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`;
     }
 
     function getAdjacentWeekKeys(weekKey) {

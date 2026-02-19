@@ -1,5 +1,31 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 884 (2026-02-19)
+
+### Feature - Tile Opacity Slider
+- New floating vertical slider on the map (above zoom buttons) controls tile layer opacity.
+- Allows fading map tiles to improve polyline/route visibility on dark map styles.
+- Opacity saved per map style in localStorage, restored on style change and page reload.
+- Slider container uses 80% opaque white background for visibility on dark tiles.
+- Map container background changed to white for all styles (visible when tiles are faded).
+- Leaflet drag/scroll events blocked on slider to prevent map pan interference.
+
+### Bug Fix - ISO Week Year Boundary (Sample Import)
+- **Root cause**: `getISOWeek()` and `getISOWeekUTC()` used the ISO year (Thursday's year) for the week key, but Arc's sample filenames use the calendar year of the Monday (start of the ISO week). At year boundaries (e.g., Dec 30 2013 = ISO 2014-W01), the import looked for `2014-W01.json.gz` instead of `2013-W01.json.gz`, silently losing all GPS samples for those dates.
+- Fixed both functions to use Monday's calendar year, matching Arc's file naming convention.
+- Affected all year-end/year-start boundary weeks across the entire dataset.
+- **Action required**: Re-import backup to pick up previously missing samples at year boundaries.
+
+### New Tool - Backup Date-Range Extractor
+- New standalone `backup-extractor.html` tool for extracting a date range from an Arc Timeline backup into a mini backup ZIP.
+- Supports both Arc Timeline (individual UUID files, 200K+ files) and Arc Editor (monthly bucket) formats.
+- Auto-detects format, filters items/places/notes by date range, includes relevant sample week files.
+- Outputs a single ZIP maintaining the original directory structure — directly importable.
+- Warning displayed about using a different browser/profile for mini backup imports.
+- Uses JSZip (CDN) for ZIP creation, pako (CDN) for gzip handling.
+
+---
+
 ## Build 883 (2026-02-18)
 
 ### UI/UX - Toolbar & Panel Adjustments

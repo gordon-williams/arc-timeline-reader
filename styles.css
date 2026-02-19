@@ -2229,7 +2229,77 @@
         .map-zoom-float.shifted-up {
             bottom: 260px;
         }
-        
+
+        /* Tile opacity slider — floats above zoom buttons */
+        .tile-opacity-float {
+            position: absolute;
+            bottom: 116px;  /* Above zoom buttons (20px + 40+6+40 + 10px gap) */
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 20px;
+            width: 36px;
+            height: 90px;
+            overflow: hidden;
+        }
+
+        .tile-opacity-float.shifted-up {
+            bottom: 356px;  /* 260px + 96px */
+        }
+
+        .tile-opacity-slider {
+            width: 70px;
+            height: 4px;
+            transform: rotate(-90deg);  /* Rotate horizontal slider to vertical */
+            cursor: pointer;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 2px;
+            outline: none;
+            margin: 0;
+        }
+
+        /* Webkit (Chrome/Safari) track */
+        .tile-opacity-slider::-webkit-slider-runnable-track {
+            height: 4px;
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 2px;
+        }
+
+        /* Webkit thumb */
+        .tile-opacity-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 2px solid white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            margin-top: -7px;
+        }
+
+        /* Firefox track */
+        .tile-opacity-slider::-moz-range-track {
+            height: 4px;
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 2px;
+        }
+
+        /* Firefox thumb */
+        .tile-opacity-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 2px solid white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
         .btn-zoom {
             background: rgba(0, 0, 0, 0.06);  /* Apple light gray background */
             border: 1px solid rgba(0, 0, 0, 0.1);  /* Subtle border */
@@ -3751,6 +3821,7 @@
     .map-container,
     .map-controls-inline,
     .map-zoom-float,
+    .tile-opacity-float,
     .transparency-slider-popup,
     .animation-settings-popup,
     .container,

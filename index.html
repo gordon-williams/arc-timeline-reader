@@ -35,7 +35,7 @@ SOFTWARE.
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = 883;
+  window.__ARC_BUILD__ = 884;
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -462,6 +462,11 @@ SOFTWARE.
                         <button class="btn-zoom btn-zoom-circular" onclick="zoomOut()">−</button>
                     </div>
 
+                    <!-- Floating tile opacity slider (above zoom controls) -->
+                    <div class="tile-opacity-float" id="tileOpacityFloat" title="Tile opacity — fade map tiles to see routes more clearly">
+                        <input type="range" class="tile-opacity-slider" id="tileOpacitySlider" min="10" max="100" value="100" oninput="setTileOpacity(this.value)">
+                    </div>
+
                     <!-- Elevation Profile Panel -->
                     <div class="elevation-panel" id="elevationPanel" style="display: none;">
                         <div class="elevation-header">
@@ -590,7 +595,7 @@ SOFTWARE.
                         <div class="diary-title-row">
                             <div class="diary-title-group">
                                 <span class="diary-title" id="diaryTitle">Diary Timeline</span>
-                                <span class="diary-build" id="diaryBuild">Build 883</span>
+                                <span class="diary-build" id="diaryBuild">Build 884</span>
                             </div>
                             <div class="diary-nav-group" id="diaryNavGroup">
                                 <button class="btn-diary-nav btn-nav-circular" id="prevDayBtn" onclick="NavigationController.navigateBy(-1, 'day')" title="Previous day"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>

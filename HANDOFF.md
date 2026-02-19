@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader - Handoff Document
 
-## Current Build: 883
+## Current Build: 884
 
 ## Project Overview
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and Arc Editor GPS tracking data. Generates interactive diaries with maps from backup data stored in IndexedDB. Single-file HTML application, no server required.
@@ -10,19 +10,20 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and Arc Ed
 ### Application Files
 | File | Lines | Description |
 |------|-------|-------------|
-| `index.html` | ~870 | Main entry point, import UI, modal shells |
-| `app.js` | ~11,520 | Core application logic (UI, rendering, navigation) |
+| `index.html` | ~871 | Main entry point, import UI, modal shells |
+| `app.js` | ~11,550 | Core application logic (UI, rendering, navigation) |
 | `arc-state.js` | ~90 | Shared state (`window.ArcState`) + logging setup |
 | `arc-utils.js` | ~207 | Pure utility functions (formatting, distance, decompression) |
 | `arc-db.js` | ~2,470 | IndexedDB storage layer (CRUD, analysis, place names) |
 | `arc-data.js` | ~1,255 | Data extraction & transformation (notes, pins, tracks, stats) |
 | `events.js` | ~1,105 | Events system (CRUD, slider UI, categories) |
-| `import.js` | ~2,560 | All import: JSON export + Arc Editor/Legacy backup import |
+| `import.js` | ~2,575 | All import: JSON export + Arc Editor/Legacy backup import |
 | `map-tools.js` | ~1,692 | Map utilities, measurement, location search |
 | `replay.js` | ~1,731 | Day replay animation system |
-| `styles.css` | ~5,730 | All styling (light theme only; dark mode removed in Build 883) |
+| `styles.css` | ~5,800 | All styling (light theme only; dark mode removed in Build 883) |
 | `analysis.html` | ~6,780 | Activity/location analysis + heat-map (standalone) |
 | `delete-db.html` | — | Database deletion utility |
+| `backup-extractor.html` | ~904 | Standalone backup date-range extractor (ZIP output) |
 
 ### Module Loading Chain
 ```
