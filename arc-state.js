@@ -51,8 +51,9 @@
         dbReadyPromise: null, // Initialized below
 
         // ---- Data Cache ----
-        generatedDiaries: {},
-        placesById: {},       // { placeId: "Display Name" }
+        // Object.create(null) prevents prototype pollution from untrusted backup/tour data keys
+        generatedDiaries: Object.create(null),
+        placesById: Object.create(null),  // { placeId: "Display Name" }
 
         // ---- Navigation ----
         currentMonth: null,

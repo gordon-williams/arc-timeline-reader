@@ -6,6 +6,12 @@
 (() => {
     'use strict';
 
+    // Simple HTML escaper for defense-in-depth on report output
+    function escapeHtml(text) {
+        if (!text) return '';
+        return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
     // Dependencies injected from app.js
     let deps = null;
 
@@ -708,7 +714,7 @@
                         ${updatedDays.map(d => {
                             const diff = updateDiffs.get(d);
                             if (diff) {
-                                return `<li style="margin: 4px 0;">${formatDateForReport(d)} <span style="color: #666; font-size: 12px;">— ${diff}</span></li>`;
+                                return `<li style="margin: 4px 0;">${formatDateForReport(d)} <span style="color: #666; font-size: 12px;">— ${escapeHtml(diff)}</span></li>`;
                             }
                             return `<li style="margin: 4px 0;">${formatDateForReport(d)}</li>`;
                         }).join('')}
@@ -929,7 +935,11 @@
             if (err.name === 'AbortError') {
                 backupFileCount.innerHTML = '<div style="color: #666;">Folder selection cancelled</div>';
             } else {
-                backupFileCount.innerHTML = `<div style="color: #d32f2f;">Error: ${err.message}</div>`;
+                backupFileCount.textContent = '';
+                const errDiv = document.createElement('div');
+                errDiv.style.color = '#d32f2f';
+                errDiv.textContent = `Error: ${err.message}`;
+                backupFileCount.appendChild(errDiv);
                 console.error('Backup folder error:', err);
             }
         }

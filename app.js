@@ -130,6 +130,14 @@ function moveMapSmart(latlng, zoom) {
             return div.innerHTML;
         }
 
+        // Validate CSS color values to prevent injection via style attributes
+        function safeColor(color) {
+            if (!color || typeof color !== 'string') return '#999';
+            const trimmed = color.trim();
+            if (/^(#[0-9a-fA-F]{3,8}|rgb\(\d{1,3},\s*\d{1,3},\s*\d{1,3}\)|[a-zA-Z]{1,20})$/.test(trimmed)) return trimmed;
+            return '#999';
+        }
+
         // Local aliases for shared state (backward compat with existing code)
         let db = null;                  // synced from S.db
         let _dbReadyResolve = S.dbReadyResolve;
@@ -796,7 +804,7 @@ function moveMapSmart(latlng, zoom) {
         // Clear database and reset UI
         async function clearDatabaseAndReset() {
             await clearDatabase();
-            generatedDiaries = {};
+            generatedDiaries = Object.create(null);
             S.generatedDiaries = generatedDiaries; // sync to ArcState
             monthKeys = [];
             currentMonth = null;
@@ -3997,6 +4005,20 @@ function moveMapSmart(latlng, zoom) {
                 updateTransparency(true);
             });
             
+            // Delegated click handler for map popup favorite buttons (avoids inline onclick with untrusted labels)
+            mapContainer.addEventListener('click', (e) => {
+                const favBtn = e.target.closest('.popup-fav-btn');
+                if (favBtn) {
+                    e.stopPropagation();
+                    toggleFavoriteFromPopup(
+                        favBtn.dataset.favLabel,
+                        parseFloat(favBtn.dataset.favLat),
+                        parseFloat(favBtn.dataset.favLng),
+                        parseFloat(favBtn.dataset.favAlt)
+                    );
+                }
+            });
+
             // Also detect when scrolling/interacting with diary content
             const diaryContent = diaryFloat.querySelector('#markdownContent');
             if (diaryContent) {
@@ -4401,7 +4423,7 @@ function moveMapSmart(latlng, zoom) {
                 
                 let popupContent = `
                     <div style="min-width: 200px; max-width: 300px;">
-                        <b style="display: block; margin-bottom: 8px; word-wrap: break-word; line-height: 1.4; font-size: 14px;">${label}</b>`;
+                        <b style="display: block; margin-bottom: 8px; word-wrap: break-word; line-height: 1.4; font-size: 14px;">${escapeHtml(label)}</b>`;
                 
                 if (p.altitude !== null && p.altitude !== undefined) {
                     popupContent += `<div style="color: #666; margin-bottom: 6px; font-size: 13px;">↑ ${Math.round(p.altitude)}m</div>`;
@@ -4415,15 +4437,15 @@ function moveMapSmart(latlng, zoom) {
                     Street View
                 </a>`;
 
-                // Star button at bottom
+                // Star button at bottom — use data attributes for safe label passing
                 popupContent += `
-                        <button 
-                            onclick="toggleFavoriteFromPopup('${label.replace(/'/g, "\\'")}', ${p.lat}, ${p.lng}, ${p.altitude}); return false;" 
+                        <button class="popup-fav-btn"
+                            data-fav-label="${escapeHtml(label)}" data-fav-lat="${p.lat}" data-fav-lng="${p.lng}" data-fav-alt="${p.altitude}"
                             style="width: 100%; padding: 6px 12px; background: ${isFav ? '#FFF9E6' : '#f5f5f5'}; border: 1px solid ${isFav ? '#FFD700' : '#ddd'}; border-radius: 6px; cursor: pointer; font-size: 13px; color: #333; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s;"
-                            onmouseover="this.style.background='${isFav ? '#FFF3CC' : '#e8e8e8'}'" 
+                            onmouseover="this.style.background='${isFav ? '#FFF3CC' : '#e8e8e8'}'"
                             onmouseout="this.style.background='${isFav ? '#FFF9E6' : '#f5f5f5'}'"
                             title="${isFav ? 'Remove from favorites' : 'Add to favorites'}"
-                        ><span style="font-size: 16px; color: ${starColor};">${starIcon}</span> ${starText}</button>
+                        ><span style="font-size: 16px; color: ${safeColor(starColor)};">${starIcon}</span> ${starText}</button>
                     </div>`;
                 
                 mm.bindPopup(popupContent);
@@ -6921,7 +6943,7 @@ scrollToDiaryDay(currentDayKey);
             function showNoData(message) {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 if (noDataEl) {
-                    noDataEl.innerHTML = `<span>${message}</span>`;
+                    noDataEl.textContent = message;
                     noDataEl.style.display = 'block';
                 }
                 canvas.style.display = 'none';
@@ -7964,7 +7986,7 @@ scrollToDiaryDay(currentDayKey);
                     .toLowerCase() || 'map';
             }
 
-            async function ensureScript(src, testFn, timeoutMs = 15000) {
+            async function ensureScript(src, testFn, timeoutMs = 15000, integrity = null) {
                 if (testFn()) return;
 
                 const existing = Array.from(document.scripts).find(s => s.src === src);
@@ -7981,6 +8003,10 @@ scrollToDiaryDay(currentDayKey);
                     const s = document.createElement('script');
                     s.src = src;
                     s.async = true;
+                    if (integrity) {
+                        s.integrity = integrity;
+                        s.crossOrigin = 'anonymous';
+                    }
                     s.onload = resolve;
                     s.onerror = reject;
                     document.head.appendChild(s);
@@ -8036,7 +8062,9 @@ scrollToDiaryDay(currentDayKey);
             try {
                 await ensureScript(
                     'https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js',
-                    () => typeof window.domtoimage !== 'undefined'
+                    () => typeof window.domtoimage !== 'undefined',
+                    15000,
+                    'sha384-zESinL+vR3OR5XGFqKjneclbVKOL8SfP+fKKO3K9BHAaPtboci56Vu3g5flevHk9'
                 );
 
                 // Temporarily hide diary for clean capture
@@ -9066,7 +9094,12 @@ scrollToDiaryDay(currentDayKey);
                 `${matches.length}${matches.length >= MAX_RESULTS ? '+' : ''} results`;
 
             if (matches.length === 0) {
-                resultsList.innerHTML = `<div class="search-result-item" style="text-align:center;color:#888;">No days with #${tagName} tag</div>`;
+                resultsList.textContent = '';
+                const noResult = document.createElement('div');
+                noResult.className = 'search-result-item';
+                noResult.style.cssText = 'text-align:center;color:#888;';
+                noResult.textContent = `No days with #${tagName} tag`;
+                resultsList.appendChild(noResult);
             }
 
             searchCount.textContent = `${matches.length} ${tagLabel}`;
@@ -9604,6 +9637,39 @@ scrollToDiaryDay(currentDayKey);
             if (markdownContent) {
                 markdownContent.innerHTML = sanitizeHtml(markdown);
                 markdownContent.scrollTop = 0;
+
+                // Attach delegated click handlers for location panel elements
+                // (DOMPurify strips inline onclick handlers, so we use data-attributes + delegation)
+                if (!markdownContent._locationDelegateAttached) {
+                    markdownContent._locationDelegateAttached = true;
+                    markdownContent.addEventListener('click', function(e) {
+                        const locName = e.target.closest('.location-name[data-loc-id]');
+                        if (locName) {
+                            showSingleLocation(locName.dataset.locId);
+                            return;
+                        }
+                        const visitEl = e.target.closest('.location-visit[data-loc-id]');
+                        if (visitEl) {
+                            navigateToVisitDate(
+                                visitEl.dataset.date,
+                                parseFloat(visitEl.dataset.lat),
+                                parseFloat(visitEl.dataset.lng),
+                                visitEl.dataset.location
+                            );
+                            return;
+                        }
+                        const toggle = e.target.closest('.location-toggle');
+                        if (toggle) {
+                            toggleLocationVisits(toggle, e);
+                            return;
+                        }
+                        const header = e.target.closest('.location-view-header');
+                        if (header) {
+                            showAllLocations();
+                            return;
+                        }
+                    });
+                }
             }
             
             // Clear existing map layers and show location markers
@@ -10020,10 +10086,10 @@ scrollToDiaryDay(currentDayKey);
         // Generate markdown for location visits
         function generateLocationMarkdown(locations) {
             // Build subtitle header: first location large, rest smaller
-            const locationNames = Object.values(locations).map(l => l.name);
+            const locationNames = Object.values(locations).map(l => escapeHtml(l.name));
             const firstLocation = locationNames[0] || '';
             const otherLocations = locationNames.slice(1);
-            
+
             let subtitleHtml;
             if (otherLocations.length === 0) {
                 subtitleHtml = `<div class="location-view-title">${firstLocation}</div>`;
@@ -10034,8 +10100,8 @@ scrollToDiaryDay(currentDayKey);
                     <div class="location-view-others">${othersText}</div>
                 `;
             }
-            
-            let html = `<div class="location-view-header" onclick="showAllLocations()" title="Click to show all locations">
+
+            let html = `<div class="location-view-header" title="Click to show all locations">
                 ${subtitleHtml}
             </div>`;
             
@@ -10043,38 +10109,37 @@ scrollToDiaryDay(currentDayKey);
                 const visitCount = loc.visits.length;
                 const totalDuration = loc.visits.reduce((sum, v) => sum + (v.duration || 0), 0);
                 
-                // Escape locId for use in onclick handlers (may contain special characters like |)
-                const escapedLocId = locId.replace(/'/g, "\\'").replace(/"/g, '\\"');
-                
+                // Escape locId and name for safe HTML attribute injection
+                const safeLocId = escapeHtml(locId);
+                const safeName = escapeHtml(loc.name || '');
+
                 // Start collapsed if more than 5 visits
                 const startCollapsed = visitCount > 5;
                 const collapsedClass = startCollapsed ? 'collapsed' : '';
                 const chevronClass = startCollapsed ? '' : 'expanded';
-                
-                html += `<div class="location-section" data-loc-id="${escapedLocId}" data-lat="${loc.lat}" data-lng="${loc.lng}">`;
+
+                html += `<div class="location-section" data-loc-id="${safeLocId}" data-lat="${loc.lat}" data-lng="${loc.lng}">`;
                 html += `<div class="location-header">`;
-                html += `<h2 class="location-name" onclick="showSingleLocation('${escapedLocId}')" title="Click to show only this location">${loc.name}</h2>`;
+                html += `<h2 class="location-name" data-loc-id="${safeLocId}" title="Click to show only this location">${safeName}</h2>`;
                 html += `</div>`;
                 html += `<div class="location-summary">`;
-                html += `<span class="location-toggle ${chevronClass}" onclick="toggleLocationVisits(this, event)" title="Click to expand/collapse visits">▶</span>`;
+                html += `<span class="location-toggle ${chevronClass}" title="Click to expand/collapse visits">▶</span>`;
                 html += `<span class="location-stats">${visitCount} visit${visitCount !== 1 ? 's' : ''} • ${formatDurationCompact(totalDuration)} total</span>`;
                 html += `</div>`;
                 html += `<div class="location-visits ${collapsedClass}">`;
-                
+
                 for (const visit of loc.visits) {
                     const date = new Date(visit.dayKey + 'T00:00:00');
-                    const dateStr = date.toLocaleDateString('en-US', { 
-                        weekday: 'short', 
-                        year: 'numeric', 
-                        month: 'short', 
-                        day: 'numeric' 
+                    const dateStr = date.toLocaleDateString('en-US', {
+                        weekday: 'short',
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
                     });
                     const timeStr = visit.firstVisit || '';
                     const durationStr = visit.duration ? formatDurationCompact(visit.duration) : '';
-                    
-                    // Pass dayKey, lat, lng, and location name to navigate function
-                    const escapedName = (loc.name || '').replace(/'/g, "\\'");
-                    html += `<div class="location-visit" data-loc-id="${escapedLocId}" data-date="${visit.dayKey}" onclick="navigateToVisitDate('${visit.dayKey}', ${loc.lat}, ${loc.lng}, '${escapedName}')" title="Click to view in diary">`;
+
+                    html += `<div class="location-visit" data-loc-id="${safeLocId}" data-date="${visit.dayKey}" data-lat="${loc.lat}" data-lng="${loc.lng}" data-location="${safeName}" title="Click to view in diary">`;
                     html += `<span class="visit-date">${dateStr}</span>`;
                     if (timeStr) html += `<span class="visit-time">${timeStr}</span>`;
                     if (durationStr) html += `<span class="visit-duration">${durationStr}</span>`;
@@ -11128,7 +11193,7 @@ scrollToDiaryDay(currentDayKey);
                 if (dayEvents.length > 0) {
                     const eventNames = dayEvents.map(e => e.name).join(', ');
                     const eventColor = dayEvents[0].color || '#9C27B0';
-                    eventTag = ` <span class="import-tag event-tag" style="background: ${eventColor};" title="${escapeHtml(eventNames)}" onclick="openEventSlider('${dayEvents[0].eventId}')" data-event-id="${dayEvents[0].eventId}">EVENT</span>`;
+                    eventTag = ` <span class="import-tag event-tag" style="background: ${safeColor(eventColor)};" title="${escapeHtml(eventNames)}" onclick="openEventSlider('${dayEvents[0].eventId}')" data-event-id="${dayEvents[0].eventId}">EVENT</span>`;
                 }
 
                 if (dayHasLocations || dayHasRoute) {
@@ -11183,11 +11248,11 @@ scrollToDiaryDay(currentDayKey);
                         // For activities (routes), wrap entire line in color
                         const activityType = getActivityFilterType(note.activityType);
                         const color = getActivityColor(activityType);
-                        bulletHeader = `<span style="color: ${color};">${bulletHeader}</span>`;
+                        bulletHeader = `<span style="color: ${safeColor(color)};">${bulletHeader}</span>`;
                     }
                     
                     if (note.latitude && note.longitude) {
-                        const escapedLocation = note.location.replace(/"/g, '&quot;').replace(/'/g, "\\'");
+                        const escapedLocation = escapeHtml(note.location);
                         // Create stable placeId from Arc's placeId or fallback to lat_lng
                         const placeId = note.placeId || `${note.latitude}_${note.longitude}`;
                         // Added data-daykey="${day}" and data-start-date/data-end-date for activities
@@ -11195,7 +11260,7 @@ scrollToDiaryDay(currentDayKey);
                         const endDateAttr = note.endDate ? ` data-end-date="${note.endDate}"` : '';
                         const isVisitAttr = note.isVisit ? ' data-is-visit="true"' : '';
                         const typeAttr = note.isVisit ? '' : ' data-type="activity"';
-                        const activityTypeAttr = note.activityType ? ` data-activity-type="${note.activityType}"` : '';
+                        const activityTypeAttr = note.activityType ? ` data-activity-type="${escapeHtml(note.activityType)}"` : '';
                         bulletHeader += `<span class="location-data" data-daykey="${day}" data-lat="${note.latitude}" data-lng="${note.longitude}" data-place-id="${placeId}" data-location="${escapedLocation}" data-date="${note.date}"${startDateAttr}${endDateAttr}${isVisitAttr}${typeAttr}${activityTypeAttr} style="display:none;"></span>`;
                         
                         // Show coalescing indicator when items were merged
@@ -11209,10 +11274,10 @@ scrollToDiaryDay(currentDayKey);
                         }
                     } else if (!note.isVisit && note.startDate) {
                         // For activities without coordinates, still add location-data with startDate for matching
-                        const escapedLocation = note.location.replace(/"/g, '&quot;').replace(/'/g, "\\'");
+                        const escapedLocation = escapeHtml(note.location);
                         // Create placeId from activity start time for activities without coordinates
                         const placeId = `activity_${note.startDate}`;
-                        const activityTypeAttr = note.activityType ? ` data-activity-type="${note.activityType}"` : '';
+                        const activityTypeAttr = note.activityType ? ` data-activity-type="${escapeHtml(note.activityType)}"` : '';
                         const endDateAttr = note.endDate ? ` data-end-date="${note.endDate}"` : '';
                         bulletHeader += `<span class="location-data" data-daykey="${day}" data-place-id="${placeId}" data-location="${escapedLocation}" data-date="${note.date}" data-start-date="${note.startDate}"${endDateAttr} data-type="activity"${activityTypeAttr} data-no-gps="true" style="display:none;"></span>`;
                         // Add "No GPS" label for entries without map coordinates (with leading space)

@@ -18,7 +18,8 @@
         const entry = document.createElement('div');
         entry.className = `log-entry ${type}`;
 
-        // Check if message contains HTML (e.g., buttons)
+        // SECURITY NOTE: innerHTML is only used for trusted internal messages containing
+        // UI elements (import action buttons). Never pass backup/tour data through this path.
         if (message.includes('<button') || message.includes('<a')) {
             entry.innerHTML = message;
         } else {

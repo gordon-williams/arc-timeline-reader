@@ -441,7 +441,11 @@ class ReplayController {
     showNoDataMessage(message) {
         const container = document.getElementById('replayLocationMarkers');
         if (container) {
-            container.innerHTML = `<div style="color: #999; font-size: 12px; text-align: center; padding: 5px;">${message}</div>`;
+            container.textContent = '';
+            const msgDiv = document.createElement('div');
+            msgDiv.style.cssText = 'color: #999; font-size: 12px; text-align: center; padding: 5px;';
+            msgDiv.textContent = message;
+            container.appendChild(msgDiv);
         }
     }
 

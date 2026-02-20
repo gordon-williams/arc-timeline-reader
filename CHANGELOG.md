@@ -1,5 +1,21 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 889 (2026-02-20)
+
+### Security Hardening
+
+- **Subresource Integrity (SRI)**: Added SHA-384 integrity hashes to all 23 external CDN resources across 5 HTML files, plus 4 dynamically loaded scripts. Prevents supply-chain attacks via compromised CDNs.
+- **Pinned unversioned dependencies**: `marked.min.js` pinned to v15.0.12, `chart.js` in analysis.html pinned to v4.4.1.
+- **Content Security Policy (CSP)**: Added CSP meta tags to all HTML files restricting script/style/image sources to only the domains actually used.
+- **XSS prevention**:
+  - New `safeColor()` validator prevents CSS injection through color values from backup data
+  - `escapeHtml()` applied to location names, activity types, and data attributes in diary rendering
+  - Replaced unsafe inline `onclick` handlers with data-attribute delegation in the location panel (also fixes clicks that were being stripped by DOMPurify)
+  - Map popup favorite buttons now use data attributes instead of inline onclick with string interpolation
+  - Import report diffs and error messages use safe DOM APIs instead of innerHTML
+  - Tag search "no results" message uses textContent
+- **Prototype pollution prevention**: `placesById` and `generatedDiaries` maps now use `Object.create(null)` to block `__proto__`/`constructor` key injection from untrusted backup data.
+
 ## Build 888 (2026-02-20)
 
 ### Bug Fix - Incremental Import Missing Items
