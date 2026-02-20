@@ -315,6 +315,19 @@ function moveMapSmart(latlng, zoom) {
                 const tracks = extractTracksFromData(mergedData);
                 const { entries, notes: itemNotes } = extractEntriesAndNotesFromData(mergedData, dayKey);
 
+                // Diagnostic: detect activities with distance in notes but no track drawn
+                const trackItemIds = new Set(tracks.map(t => t.timelineItemId));
+                for (const note of notes) {
+                    if (!note.isVisit && note.distance && note.distance > 0 && !trackItemIds.has(note.timelineItemId)) {
+                        const item = mergedData.timelineItems?.find(i => (i.itemId || `${i.startDate}_${note.location}`) === note.timelineItemId);
+                        logWarn(`⚠️ Activity has distance (${(note.distance/1000).toFixed(1)}km) but no track: ${note.activityType || 'unknown'} "${note.location}", samples=${item?.samples?.length || 0}, startDate=${note.startDate}, dayKey=${dayKey}, id=${note.timelineItemId}`);
+                        if (item?.samples?.length > 0) {
+                            const s = item.samples[0];
+                            logWarn(`   Sample[0] keys: ${Object.keys(s).join(',')}, location keys: ${s.location ? Object.keys(s.location).join(',') : 'N/A'}`);
+                        }
+                    }
+                }
+
                 totalTracks += tracks.length;
                 totalEntries += entries.length;
                 totalNotes += itemNotes.length;
@@ -373,6 +386,7 @@ function moveMapSmart(latlng, zoom) {
                 }
 
                 if (dayData.tracks && dayData.tracks.length > 0) {
+                    logDebug(`📊 Day ${dayKey}: ${dayData.tracks.length} tracks, types: ${dayData.tracks.map(t => `${t.activityType}(${t.points?.length || 0}pts)`).join(', ')}`);
                     const routePoints = [];
                     for (const track of dayData.tracks) {
                         if (track.points) {
@@ -8754,12 +8768,11 @@ scrollToDiaryDay(currentDayKey);
                             }
 
                             // Keep search labels consistent with diary rendering:
-                            // unknown/no-GPS activity spans are "Data Gap", not "Unknown".
+                            // trip without GPS samples and no manual override is a "Data Gap".
                             let activityType = item.activityType || '';
                             if (!item.isVisit) {
-                                const act = activityType.toLowerCase();
                                 const hasNoGpsSamples = !Array.isArray(item.samples) || item.samples.length === 0;
-                                if ((act === 'unknown' || act === '') && hasNoGpsSamples) {
+                                if (hasNoGpsSamples && !item.manualActivityType) {
                                     locationName = 'Data Gap';
                                     activityType = '';
                                 }

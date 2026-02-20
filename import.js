@@ -209,13 +209,15 @@
         // - Notes (noteId presence indicates a note exists)
         // - Display name (custom titles, place names)
         // - Item count (changes when merging/deleting)
+        // - Sample presence (ensures re-import updates when GPS data is newly available)
         const parts = items.map(item => {
             const type = item.activityType || (item.isVisit ? 'visit' : 'trip');
             const placeId = item.placeId ?? item.place?.placeId ?? item.place?.id;
             const place = placeId ? String(placeId).slice(0, 8) : '';
             const hasNote = item.noteId ? 'N' : '';
             const label = item.displayName || '';
-            return `${type}:${place}:${hasNote}:${label}`;
+            const hasSamples = (item.samples?.length > 0) ? 'S' : '';
+            return `${type}:${place}:${hasNote}:${label}:${hasSamples}`;
         });
 
         return parts.join('|');
@@ -231,7 +233,7 @@
      * @param {Map} existingMetadata - Pre-loaded metadata for O(1) lookups
      * @returns {Promise<{action: string, dayKey: string, diff?: string}>}
      */
-    async function importDayToDB(dayKey, monthKey, dayData, sourceFile, lastUpdated, existingMetadata = null) {
+    async function importDayToDB(dayKey, monthKey, dayData, sourceFile, lastUpdated, existingMetadata = null, forceOverwrite = false) {
         const db = deps.getDB();
         if (!db) throw new Error('Database not initialized');
 
@@ -261,7 +263,7 @@
             }
         }
 
-        if (dayExists) {
+        if (dayExists && !forceOverwrite) {
             const newHash = generateDayHash(dayData);
 
             // Skip only if content hash matches - no meaningful changes
@@ -1073,6 +1075,7 @@
                 isVisit: !!base.isVisit,
                 activityType: base.isVisit ? 'stationary' : mapArcEditorActivityType(activityCode),
                 manualActivityType: trip?.confirmedActivityType != null,
+                uncertainActivityType: !!trip?.uncertainActivityType,
                 startDate: base.startDate || null,
                 endDate: base.endDate || null,
                 placeId: visit?.placeId || null,
@@ -1491,6 +1494,10 @@
             const changedItemIds = new Set();
             const changedDays = new Set();
             const changedWeeks = new Set();
+            // Track unchanged items by day so we can promote them if ANY item on the same day changed.
+            // This ensures complete days: when one item changes, all sibling items are re-imported with samples.
+            const deferredItemsByDay = new Map();
+            let deferredCount = 0;
 
             let scannedCount = 0;
             let skippedExisting = 0;
@@ -1549,6 +1556,19 @@
                             const startDayKey = deps.getLocalDayKey(item.startDate);
                             const endDayKey = item.endDate ? deps.getLocalDayKey(item.endDate) : startDayKey;
 
+                            // Attach place info (do this before deferring so deferred items are complete)
+                            if (item.placeId && placeLookup.has(item.placeId)) {
+                                const place = placeLookup.get(item.placeId);
+                                item.place = {
+                                    name: place.name,
+                                    center: place.center,
+                                    radiusMeters: place.radiusMeters || place.radius || 50
+                                };
+                                if ((!item.center || item.center.latitude == null || item.center.longitude == null) && place.center) {
+                                    item.center = place.center;
+                                }
+                            }
+
                             // Skip unchanged items, EXCEPT visits that carry naming metadata.
                             // Arc can preserve lastSaved while visit naming fields/place linkage change.
                             const preserveVisitNaming = !!(
@@ -1560,21 +1580,23 @@
                                 (!item.activityType || String(item.activityType).toLowerCase() === 'unknown')
                             );
                             if (!(preserveVisitNaming || preserveUnresolvedActivity) && lastBackupSync && item.lastSaved && item.lastSaved <= lastBackupSync) {
+                                // Defer instead of discarding: if a sibling item on the same day changed,
+                                // we need this item too so the day is complete with all samples.
+                                if (!deferredItemsByDay.has(startDayKey)) {
+                                    deferredItemsByDay.set(startDayKey, []);
+                                }
+                                deferredItemsByDay.get(startDayKey).push(item);
+                                // For spanning visits, also key by end day so they're promoted
+                                // if any covered day has changes
+                                if (item.isVisit && endDayKey > startDayKey) {
+                                    if (!deferredItemsByDay.has(endDayKey)) {
+                                        deferredItemsByDay.set(endDayKey, []);
+                                    }
+                                    deferredItemsByDay.get(endDayKey).push(item);
+                                }
+                                deferredCount++;
                                 skippedUnchanged++;
                                 continue;
-                            }
-
-                            // Attach place info
-                            if (item.placeId && placeLookup.has(item.placeId)) {
-                                const place = placeLookup.get(item.placeId);
-                                item.place = {
-                                    name: place.name,
-                                    center: place.center,
-                                    radiusMeters: place.radiusMeters || place.radius || 50
-                                };
-                                if ((!item.center || item.center.latitude == null || item.center.longitude == null) && place.center) {
-                                    item.center = place.center;
-                                }
                             }
 
                             changedItems.push(item);
@@ -1624,22 +1646,7 @@
                             const startDayKey = deps.getLocalDayKey(item.startDate);
                             const endDayKey = item.endDate ? deps.getLocalDayKey(item.endDate) : startDayKey;
 
-                            // Keep parity with the main batch path:
-                            // skip unchanged items, except visits with naming metadata.
-                            const preserveVisitNaming = !!(
-                                item.isVisit &&
-                                (item.customTitle || item.placeId || item.streetAddress)
-                            );
-                            const preserveUnresolvedActivity = !!(
-                                !item.isVisit &&
-                                (!item.activityType || String(item.activityType).toLowerCase() === 'unknown')
-                            );
-                            if (!(preserveVisitNaming || preserveUnresolvedActivity) && lastBackupSync && item.lastSaved && item.lastSaved <= lastBackupSync) {
-                                skippedUnchanged++;
-                                continue;
-                            }
-
-                            // Attach place info (name/center/radius)
+                            // Attach place info (name/center/radius) - do before deferring
                             if (item.placeId && placeLookup.has(item.placeId)) {
                                 const place = placeLookup.get(item.placeId);
                                 item.place = {
@@ -1652,6 +1659,32 @@
                                 }
                             }
 
+                            // Keep parity with the main batch path:
+                            // skip unchanged items, except visits with naming metadata.
+                            const preserveVisitNaming = !!(
+                                item.isVisit &&
+                                (item.customTitle || item.placeId || item.streetAddress)
+                            );
+                            const preserveUnresolvedActivity = !!(
+                                !item.isVisit &&
+                                (!item.activityType || String(item.activityType).toLowerCase() === 'unknown')
+                            );
+                            if (!(preserveVisitNaming || preserveUnresolvedActivity) && lastBackupSync && item.lastSaved && item.lastSaved <= lastBackupSync) {
+                                if (!deferredItemsByDay.has(startDayKey)) {
+                                    deferredItemsByDay.set(startDayKey, []);
+                                }
+                                deferredItemsByDay.get(startDayKey).push(item);
+                                if (item.isVisit && endDayKey > startDayKey) {
+                                    if (!deferredItemsByDay.has(endDayKey)) {
+                                        deferredItemsByDay.set(endDayKey, []);
+                                    }
+                                    deferredItemsByDay.get(endDayKey).push(item);
+                                }
+                                deferredCount++;
+                                skippedUnchanged++;
+                                continue;
+                            }
+
                             changedItems.push(item);
                             changedItemIds.add(item.itemId);
                             changedDays.add(startDayKey);
@@ -1661,11 +1694,59 @@
                 }
             }
 
+            // CRITICAL FIX: Promote deferred (unchanged) items whose day has at least one changed item.
+            // Without this, incremental imports miss sibling items on changed days,
+            // causing incomplete timelines and missing GPS samples.
+            let promotedCount = 0;
+            for (const dayKey of changedDays) {
+                const deferred = deferredItemsByDay.get(dayKey);
+                if (!deferred) continue;
+                let dayPromoted = 0;
+                for (const item of deferred) {
+                    if (changedItemIds.has(item.itemId)) continue; // already promoted via another day
+                    changedItems.push(item);
+                    changedItemIds.add(item.itemId);
+                    changedWeeks.add(getISOWeek(item.startDate));
+                    promotedCount++;
+                    dayPromoted++;
+                    importDiag.timeline.accepted++;
+                }
+                skippedUnchanged -= dayPromoted;
+                deferredItemsByDay.delete(dayKey);
+            }
+
+            // Also promote deferred items for days that are missing from the database.
+            // This handles the case where a user deleted days and re-imports: all items on those
+            // days may be "unchanged" by lastSaved, but the days need to be rebuilt.
+            let promotedMissingCount = 0;
+            let recoveredDayCount = 0;
+            if (deferredItemsByDay.size > 0) {
+                const existingDayKeys = await getDayMetadataFromDB();
+                for (const [dayKey, deferred] of deferredItemsByDay) {
+                    if (existingDayKeys.has(dayKey)) continue; // day exists in DB, skip
+                    recoveredDayCount++;
+                    let dayPromoted = 0;
+                    for (const item of deferred) {
+                        if (changedItemIds.has(item.itemId)) continue; // already promoted
+                        changedItems.push(item);
+                        changedItemIds.add(item.itemId);
+                        changedDays.add(dayKey);
+                        changedWeeks.add(getISOWeek(item.startDate));
+                        promotedMissingCount++;
+                        dayPromoted++;
+                        importDiag.timeline.accepted++;
+                    }
+                    skippedUnchanged -= dayPromoted;
+                }
+            }
+
             deps.addLog(`  Scanned ${scannedCount.toLocaleString()} items`);
             if (itemFilesSkipped > 0) deps.addLog(`  Skipped ${itemFilesSkipped} older month files (recent-only)`);
             deps.addLog(`  To import: ${changedItems.length.toLocaleString()} items across ${changedDays.size.toLocaleString()} days`);
             if (skippedExisting > 0) deps.addLog(`  Skipped: ${skippedExisting.toLocaleString()} (days exist)`);
             if (skippedUnchanged > 0) deps.addLog(`  Skipped: ${skippedUnchanged.toLocaleString()} unchanged`);
+            if (promotedCount > 0) deps.addLog(`  Promoted: ${promotedCount.toLocaleString()} unchanged siblings on changed days`);
+            if (promotedMissingCount > 0) deps.addLog(`  Recovered: ${promotedMissingCount.toLocaleString()} items for ${recoveredDayCount} days missing from database`);
             if (includedForSpanning > 0) deps.addLog(`  Included: ${includedForSpanning.toLocaleString()} spanning visits into missing days`);
 
             if (changedItems.length === 0) {
@@ -1870,6 +1951,7 @@
                         activityType: deps.getStoredActivityTypeForTimelineItem(item),
                         displayName: deps.getStoredDisplayNameForTimelineItem(item),
                         manualActivityType: item.manualActivityType || false,
+                        uncertainActivityType: item.uncertainActivityType || false,
                         startDate: item.startDate,
                         endDate: item.endDate,
                         center: item.center,
@@ -1898,8 +1980,8 @@
                     item.lastSaved && item.lastSaved > max ? item.lastSaved : max, '');
                 const lastUpdated = dayLastSaved ? new Date(dayLastSaved).getTime() : Date.now();
 
-                // Pass metadata for content hash comparison (skips if hash unchanged)
-                const result = await importDayToDB(dayKey, monthKey, dayData, 'backup-import', lastUpdated, existingMetadata);
+                // Pass metadata for content hash comparison (skips if hash unchanged, unless force rescan)
+                const result = await importDayToDB(dayKey, monthKey, dayData, 'backup-import', lastUpdated, existingMetadata, forceRescan);
 
                 if (result.action === 'added') addedDays.push(dayKey);
                 else if (result.action === 'updated') updatedDays.push(dayKey);
@@ -2457,6 +2539,7 @@
                         activityType: deps.getStoredActivityTypeForTimelineItem(item),
                         displayName: deps.getStoredDisplayNameForTimelineItem(item),
                         manualActivityType: item.manualActivityType || false,
+                        uncertainActivityType: item.uncertainActivityType || false,
                         startDate: item.startDate,
                         endDate: item.endDate,
                         center: item.center,
@@ -2485,7 +2568,7 @@
                     item.lastSaved && item.lastSaved > max ? item.lastSaved : max, '');
                 const lastUpdated = dayLastSaved ? new Date(dayLastSaved).getTime() : Date.now();
 
-                const result = await importDayToDB(dayKey, monthKey, dayData, 'backup-import', lastUpdated, existingMetadata);
+                const result = await importDayToDB(dayKey, monthKey, dayData, 'backup-import', lastUpdated, existingMetadata, forceRescan);
 
                 if (result.action === 'added') addedDays.push(dayKey);
                 else if (result.action === 'updated') updatedDays.push(dayKey);

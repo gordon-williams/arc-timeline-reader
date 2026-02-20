@@ -463,11 +463,10 @@
                     
                     // 🎯 Intelligent location naming
                     let locationName = getSmartLocationName(item, locationClusters);
-                    // Align with Arc Editor labeling for unknown no-GPS activity spans.
+                    // Data Gap: trip without GPS samples and no manual override.
                     if (!item.isVisit) {
-                        const act = (item.activityType || '').toLowerCase();
                         const hasNoGpsSamples = !Array.isArray(item.samples) || item.samples.length === 0;
-                        if ((act === 'unknown' || act === '') && hasNoGpsSamples) {
+                        if (hasNoGpsSamples && !item.manualActivityType) {
                             locationName = 'Data Gap';
                         }
                     }
@@ -1002,7 +1001,7 @@
             for (const item of data.timelineItems) {
                 if (item.isVisit) continue;
                 if (!Array.isArray(item.samples) || item.samples.length < 2) {
-                    logDebug(`🛤️ Track skipped: ${item.activityType || 'unknown'}, samples=${item.samples?.length || 0}, startDate=${item.startDate}`);
+                    logDebug(`🛤️ Track skipped (no samples): ${item.activityType || 'unknown'}, samples=${item.samples?.length || 0}, startDate=${item.startDate}, id=${item.itemId || '?'}`);
                     continue;
                 }
 
@@ -1012,7 +1011,7 @@
                     const lng = s?.location?.longitude ?? s?.longitude;
                     const alt = s?.location?.altitude ?? s?.altitude;
                     const ts = s?.location?.timestamp || s?.timestamp || s?.date;
-                    if (!lat || !lng) continue;
+                    if (lat == null || lng == null) continue;
                     pts.push({
                         lat,
                         lng,
@@ -1023,9 +1022,7 @@
                 }
 
                 if (pts.length < 2) {
-                    if (item.activityType === 'walking') {
-                        logDebug(`🚶 Walking skipped after filtering: valid_pts=${pts.length}, samples=${item.samples.length}, startDate=${item.startDate}`);
-                    }
+                    logDebug(`🛤️ Track filtered: ${item.activityType || 'unknown'}, valid_pts=${pts.length}, samples=${item.samples.length}, startDate=${item.startDate}`);
                     continue;
                 }
 

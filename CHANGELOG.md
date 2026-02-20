@@ -1,5 +1,34 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 888 (2026-02-20)
+
+### Bug Fix - Incremental Import Missing Items
+- **Root cause**: "Full Import (skip unchanged)" discarded items with `lastSaved <= lastBackupSync` entirely. Their weeks weren't added to `changedWeeks`, so GPS sample files weren't loaded. Sibling items on the same day were lost, creating incomplete timelines and phantom entries.
+- Items are now **deferred** instead of discarded. After scanning, two promotion passes recover them:
+  - If any item on a day changed, all deferred siblings on that day are promoted with their sample weeks.
+  - If a day was deleted from the DB but all its items are "unchanged", the day is rebuilt from scratch.
+- Spanning visits are keyed by both start and end day for correct promotion.
+- Dedup checks prevent double-inclusion of items appearing in multiple day lists.
+
+### Bug Fix - Data Gap Classification
+- Trips with no GPS samples and no manually confirmed activity type are now classified as "Data Gap", matching Arc Editor's display.
+- Previously, machine-classified types like "car" were shown even when there was no GPS data to support them (e.g., zero distance, zero speed, no samples).
+- Manual overrides from Arc Editor (`confirmedActivityType`) are respected — user-confirmed types are not overridden.
+- Data Gap logic applied consistently across import, diary display, coalescer, and search.
+
+### Bug Fix - Force Rescan Content Hash Bypass
+- Force rescan now bypasses the `importDayToDB` content hash comparison, ensuring metadata changes (like Data Gap classification) are written to the DB even when the hash appears unchanged.
+
+### Bug Fix - Coordinate Check
+- `extractTracksFromData` coordinate filter changed from `!lat || !lng` (rejects zero) to `lat == null || lng == null` (allows zero), matching `calculatePathDistance` behavior.
+
+### Import Improvements
+- `generateDayHash` now includes sample presence, so re-imports detect when GPS data becomes newly available.
+- `uncertainActivityType` and `manualActivityType` flags preserved through normalization and stored in DB.
+- Diagnostic logging: track skip/filter messages include item IDs, day-level track summaries, warnings for distance-without-track activities.
+
+---
+
 ## Build 886 (2026-02-20)
 
 ### Feature - Share Tour

@@ -542,9 +542,10 @@ window.AppDB = {
 
 function getStoredDisplayNameForTimelineItem(item) {
     if (!item || item.isVisit) return null;
-    const act = (item.activityType || '').toLowerCase();
     const hasNoGpsSamples = !Array.isArray(item.samples) || item.samples.length === 0;
-    if ((act === 'unknown' || act === '') && hasNoGpsSamples) {
+    // Data Gap: trip with no GPS samples and no manual activity type confirmation.
+    // Manual overrides (confirmedActivityType) are respected — the user intentionally set the type.
+    if (hasNoGpsSamples && !item.manualActivityType) {
         return 'Data Gap';
     }
     return null;
@@ -556,6 +557,13 @@ function getStoredActivityTypeForTimelineItem(item) {
 
     let act = (item.activityType || '').toLowerCase().trim();
     if (act === 'automotive') act = 'car';
+
+    const hasNoGpsSamples = !Array.isArray(item.samples) || item.samples.length === 0;
+
+    // Data Gap: no GPS samples + no manual confirmation → activity type is meaningless.
+    if (hasNoGpsSamples && !item.manualActivityType) {
+        return 'unknown';
+    }
 
     // When Arc backup omits confirmed/classified type, infer from samples
     // so stored output matches Arc Timeline display more closely.
