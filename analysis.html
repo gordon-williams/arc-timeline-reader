@@ -374,11 +374,15 @@
             background: var(--green);
             color: white;
         }
-        
+
         .btn-primary:hover {
             filter: brightness(1.1);
         }
-        
+
+        .btn-primary.cancel-mode {
+            background: #ff453a;
+        }
+
         .btn-secondary {
             background: var(--bg-elevated);
             color: var(--text-primary);
@@ -1915,11 +1919,39 @@
             box-shadow: var(--shadow);
             overflow: hidden;
         }
+        .chat-resize-handle {
+            display: none;
+            width: 6px;
+            cursor: col-resize;
+            background: transparent;
+            border-radius: 3px;
+            flex-shrink: 0;
+            transition: background 0.15s;
+            position: relative;
+        }
+        .chat-resize-handle::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 4px;
+            height: 40px;
+            background: var(--border-subtle, rgba(255,255,255,0.12));
+            border-radius: 2px;
+            transition: background 0.15s;
+        }
+        .chat-resize-handle:hover::after,
+        .chat-resize-handle.dragging::after {
+            background: var(--accent);
+        }
+        .chat-resize-handle.visible {
+            display: block;
+        }
         .chat-map-panel {
             display: none;
             flex-direction: column;
-            width: 50%;
-            min-width: 300px;
+            min-width: 250px;
             border-radius: 12px;
             border: 1px solid var(--border);
             background: var(--bg-surface);
@@ -1934,10 +1966,6 @@
             .chat-map-panel.map-default {
                 display: flex;
             }
-        }
-        .chat-map-panel.visible + .chat-container,
-        .chat-split:has(.chat-map-panel.visible) .chat-container {
-            /* Chat shrinks when map is open */
         }
         .chat-map-header {
             display: flex;
@@ -2161,12 +2189,115 @@
             padding: 2px 0;
             background: none;
         }
+
+        /* Inline charts */
+        .chat-message.chart-message {
+            align-self: stretch;
+            max-width: 100%;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+            border-radius: 12px;
+            padding: 12px;
+        }
+        .chat-chart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            min-height: 24px;
+        }
+        .chat-chart-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .chat-chart-container {
+            position: relative;
+            width: 100%;
+            height: 280px;
+        }
+        .chat-chart-container canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* Export buttons (chart PNG, table CSV) */
+        .chat-export-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            background: var(--bg-input, rgba(255,255,255,0.06));
+            border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .chat-export-btn:hover {
+            color: var(--text-primary);
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        /* Markdown tables in chat */
+        .chat-table-wrapper {
+            position: relative;
+            margin: 8px 0;
+        }
+        .chat-table-wrapper .chat-export-btn {
+            margin-top: 6px;
+        }
+        .chat-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .chat-table th {
+            text-align: left;
+            padding: 6px 10px;
+            border-bottom: 2px solid var(--border-subtle, rgba(255,255,255,0.15));
+            color: var(--text-primary);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .chat-table td {
+            padding: 5px 10px;
+            border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+            color: var(--text-secondary);
+        }
+        .chat-table tr:last-child td {
+            border-bottom: none;
+        }
+        .chat-table tr:hover td {
+            background: rgba(255,255,255,0.03);
+        }
+
         .chat-input-area {
             display: flex;
             gap: 8px;
             padding: 12px 16px;
             background: var(--bg-surface);
             border-top: 1px solid var(--border);
+            align-items: center;
+        }
+        .chat-map-scope {
+            display: none;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            white-space: nowrap;
+            user-select: none;
+        }
+        .chat-map-scope.visible {
+            display: inline-flex;
+        }
+        .chat-map-scope input[type="checkbox"] {
+            margin: 0;
+            cursor: pointer;
         }
         .chat-text-input {
             flex: 1;
@@ -2496,10 +2627,12 @@
                                 </div>
                             </div>
                             <div class="chat-input-area">
+                                <label class="chat-map-scope" id="chatMapScopeLabel" title="Limit query to current map area"><input type="checkbox" id="chatMapScopeCheck" /> Use map area</label>
                                 <input type="text" id="chatInput" class="chat-text-input" placeholder="Ask a question about your timeline..." />
                                 <button class="btn btn-primary" id="chatSendBtn">Send</button>
                             </div>
                         </div>
+                        <div class="chat-resize-handle" id="chatResizeHandle"></div>
                         <div class="chat-map-panel" id="chatMapPanel">
                             <div class="chat-map-header">
                                 <span class="chat-map-title" id="chatMapTitle">Map</span>
@@ -2509,7 +2642,6 @@
                                     <option value="satellite">Satellite</option>
                                 </select>
                                 <button class="btn btn-secondary btn-small" id="chatMapClearBtn">Clear Pins</button>
-                                <button class="btn btn-secondary btn-small" id="chatMapCloseBtn">&times;</button>
                             </div>
                             <div class="chat-map" id="chatMap"></div>
                         </div>
@@ -2521,7 +2653,7 @@
 
     <script>
         // Build version
-        const ANALYSIS_BUILD = '02.003';
+        const ANALYSIS_BUILD = '02.023';
         
         // Database and state
         let db = null;

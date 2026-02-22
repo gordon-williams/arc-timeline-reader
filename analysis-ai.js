@@ -21,6 +21,8 @@
     // --- State ---
     let chatHistory = [];
     let isProcessing = false;
+    let mapScopeActive = false; // "Map area" toggle state
+    let abortController = null; // AbortController for in-flight API requests
     let sessionCost = 0;
 
     // Cost per million tokens
@@ -36,6 +38,7 @@
     let chatMapMarkers = [];
     let chatMapPolylines = [];
     let chatMapTileLayer = null;
+    let chatHeatLayer = null;
 
     // Mapbox token — shared with main Arc Reader via localStorage
     const MAPBOX_TOKEN_KEY = 'arc_mapbox_token';
@@ -94,6 +97,13 @@
         return ACTIVITY_COLORS[(type || '').toLowerCase()] || '#808080';
     }
 
+    // Default chart palette for multi-dataset or pie/doughnut charts (dark-theme friendly)
+    const CHART_PALETTE = [
+        '#0a84ff', '#30d158', '#ff9f0a', '#ff453a', '#bf5af2',
+        '#64d2ff', '#ffd60a', '#ff6482', '#ac8e68', '#5e5ce6'
+    ];
+    let inlineCharts = [];
+
     /**
      * Extract GPS tracks from raw day data — mirrors extractTracksFromData() in arc-data.js.
      * Returns [{activityType, points: [{lat, lng, t}]}]
@@ -127,7 +137,8 @@
 
     // --- DOM References (set in init) ---
     let elMessages, elInput, elSendBtn, elModelSelect, elApiKey, elSaveKey, elClearBtn, elWelcome;
-    let elMapPanel, elMapContainer, elMapTitle, elMapClearBtn, elMapCloseBtn, elMapStyle;
+    let elMapScopeLabel, elMapScopeCheck;
+    let elMapPanel, elMapContainer, elMapTitle, elMapClearBtn, elMapStyle, elResizeHandle;
     let elCostBadge, elCostPanel, elCostPanelBody, elCostReset;
 
     // =========================================================================
@@ -340,24 +351,126 @@
         },
         {
             name: 'show_route',
-            description: 'Draw the full GPS route for one or more days on the map, colour-coded by activity type (walking=green, car=grey, cycling=blue, etc.) — matching the main Arc Reader. Reads GPS track data directly from the database. Can be combined with show_map markers. Optionally filter to specific activity types.',
+            description: 'Draw GPS routes on the map, colour-coded by activity type (walking=green, car=grey, cycling=blue, etc.). Use start_date+end_date for date ranges (e.g. a full year), or dates[] for specific days. Reads GPS tracks from the database. Can be combined with show_map markers. When the user mentions a specific city or region, ALWAYS supply a bounding box to filter to that area.',
             input_schema: {
                 type: 'object',
                 properties: {
                     dates: {
                         type: 'array',
                         items: { type: 'string', description: 'YYYY-MM-DD' },
-                        description: 'One or more day keys to draw routes for'
+                        description: 'Specific day keys to draw routes for. Use this OR start_date/end_date, not both.'
                     },
+                    start_date: { type: 'string', description: 'Start of date range (YYYY-MM-DD). Use with end_date for ranges like a full month or year.' },
+                    end_date: { type: 'string', description: 'End of date range (YYYY-MM-DD). Use with start_date.' },
                     activity_types: {
                         type: 'array',
                         items: { type: 'string' },
                         description: 'Filter to only these activity types (e.g. ["walking","cycling"]). Omit to show all. Valid types: walking, running, hiking, cycling, car, bus, train, motorcycle, airplane, boat, skateboarding, inlineskating, snowboarding, skiing, horseback, surfing, tractor, tuktuk, stationary, unknown'
                     },
+                    south: { type: 'number', description: 'Southern latitude bound — filter GPS points to this region. Use with north/west/east.' },
+                    north: { type: 'number', description: 'Northern latitude bound.' },
+                    west: { type: 'number', description: 'Western longitude bound.' },
+                    east: { type: 'number', description: 'Eastern longitude bound.' },
                     title: { type: 'string', description: 'Title for the map panel (optional)' },
                     clear_existing: { type: 'boolean', description: 'Clear previous routes before drawing (default true). Markers are NOT affected.' }
+                }
+            }
+        },
+        {
+            name: 'show_chart',
+            description: 'Display a chart inline in the chat. Supports bar, line, pie, and doughnut types. Use this to visualise data — NEVER generate code to make charts. Pre-compute all data values from tool results before calling.',
+            input_schema: {
+                type: 'object',
+                properties: {
+                    chart_type: {
+                        type: 'string',
+                        enum: ['bar', 'line', 'pie', 'doughnut'],
+                        description: 'Chart type. Use "bar" for comparisons/histograms, "line" for time series, "pie" or "doughnut" for proportions.'
+                    },
+                    title: { type: 'string', description: 'Chart title displayed above the chart.' },
+                    labels: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'X-axis labels (or slice labels for pie/doughnut). E.g. ["Jan","Feb","Mar"].'
+                    },
+                    datasets: {
+                        type: 'array',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                label: { type: 'string', description: 'Dataset legend label (e.g. "Walking distance")' },
+                                data: {
+                                    type: 'array',
+                                    items: { type: 'number' },
+                                    description: 'Data values, one per label. Must match labels array length.'
+                                },
+                                color: { type: 'string', description: 'CSS colour (e.g. "#12A656"). Optional — defaults to palette.' }
+                            },
+                            required: ['label', 'data']
+                        },
+                        description: 'One or more data series.'
+                    },
+                    x_label: { type: 'string', description: 'X-axis label (ignored for pie/doughnut).' },
+                    y_label: { type: 'string', description: 'Y-axis label (ignored for pie/doughnut).' },
+                    stacked: { type: 'boolean', description: 'Stack bars/lines (default false).' },
+                    horizontal: { type: 'boolean', description: 'Horizontal bar chart (default false). Only for bar type.' }
                 },
-                required: ['dates']
+                required: ['chart_type', 'labels', 'datasets']
+            }
+        },
+        {
+            name: 'show_heatmap',
+            description: 'Show GPS data as a heat map on the chat map panel. Much better than show_route for large date ranges (months/years) — avoids a mess of overlapping polylines. Shows intensity based on frequency of visits, time spent, or recency. Use this instead of show_route when visualising patterns over long periods. When the user mentions a specific city or region, ALWAYS supply a bounding box to filter to that area.',
+            input_schema: {
+                type: 'object',
+                properties: {
+                    start_date: { type: 'string', description: 'Start of date range (YYYY-MM-DD). Required.' },
+                    end_date: { type: 'string', description: 'End of date range (YYYY-MM-DD). Required.' },
+                    activity_types: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Filter to only these activity types (e.g. ["walking","cycling"]). Omit to show all moving activities. Valid types: walking, running, hiking, cycling, car, bus, train, motorcycle, airplane, boat, skateboarding, inlineskating, snowboarding, skiing, horseback, surfing, tractor, tuktuk, stationary, unknown'
+                    },
+                    mode: {
+                        type: 'string',
+                        enum: ['frequency', 'recency', 'time_spent'],
+                        description: 'Heat intensity mode. "frequency" = more GPS points = hotter (default). "recency" = recent routes brighter, old routes fade. "time_spent" = time spent at each point.'
+                    },
+                    south: { type: 'number', description: 'Southern latitude bound — filter GPS points to this region. Use with north/west/east.' },
+                    north: { type: 'number', description: 'Northern latitude bound.' },
+                    west: { type: 'number', description: 'Western longitude bound.' },
+                    east: { type: 'number', description: 'Eastern longitude bound.' },
+                    title: { type: 'string', description: 'Title for the map panel (optional).' },
+                    radius: { type: 'integer', description: 'Heat point radius in pixels (default 12). Increase for zoomed-out views.' },
+                    blur: { type: 'integer', description: 'Heat blur in pixels (default 18). Higher = smoother.' }
+                },
+                required: ['start_date', 'end_date']
+            }
+        },
+        {
+            name: 'get_elevation_stats',
+            description: 'Find highest and/or lowest altitude points from GPS samples. Scans raw GPS data for altitude extremes. Use for questions like "highest altitude walked", "what elevation did I reach hiking", etc. Returns the top N records with date, altitude, activity type, and nearby place name.',
+            input_schema: {
+                type: 'object',
+                properties: {
+                    start_date: { type: 'string', description: 'Start of date range (YYYY-MM-DD). Defaults to all data.' },
+                    end_date: { type: 'string', description: 'End of date range (YYYY-MM-DD). Defaults to today.' },
+                    activity_types: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Filter to these activity types (e.g. ["walking","hiking"]). Omit for all moving activities.'
+                    },
+                    mode: {
+                        type: 'string',
+                        enum: ['highest', 'lowest'],
+                        description: 'Return highest or lowest altitude points. Default: "highest".'
+                    },
+                    limit: { type: 'integer', description: 'Number of top records to return (default 5, max 20).' },
+                    south: { type: 'number', description: 'Southern latitude bound — filter GPS points to this region.' },
+                    north: { type: 'number', description: 'Northern latitude bound.' },
+                    west: { type: 'number', description: 'Western longitude bound.' },
+                    east: { type: 'number', description: 'Eastern longitude bound.' }
+                }
             }
         }
     ];
@@ -796,19 +909,32 @@
             return result;
         },
 
-        async show_route({ dates, title, clear_existing, activity_types }) {
-            if (!dates || dates.length === 0) {
-                return { error: 'Provide at least one date.' };
+        async show_route({ dates, start_date, end_date, title, clear_existing, activity_types, south, north, west, east }) {
+            // Build date list from either dates[] or start_date/end_date range
+            let dateList = dates || [];
+            if (start_date && end_date && dateList.length === 0) {
+                dateList = [];
+                const d = new Date(start_date + 'T00:00:00');
+                const endD = new Date(end_date + 'T00:00:00');
+                while (d <= endD) {
+                    dateList.push(d.toISOString().slice(0, 10));
+                    d.setDate(d.getDate() + 1);
+                }
+            }
+            if (dateList.length === 0) {
+                return { error: 'Provide dates[] or start_date + end_date.' };
             }
             const typeFilter = activity_types && activity_types.length > 0
                 ? new Set(activity_types.map(t => t.toLowerCase()))
                 : null;
+            const hasBBox = (south != null && north != null && west != null && east != null);
             // Extract GPS tracks from IDB — keep track boundaries intact so
             // renderRoute draws each track as a separate polyline (no straight
             // lines between unrelated segments).
             const allTracks = [];
             let totalPoints = 0;
-            for (const date of dates) {
+            let daysWithData = 0;
+            for (const date of dateList) {
                 let day;
                 try {
                     const tx = db.transaction(['days'], 'readonly');
@@ -816,20 +942,363 @@
                 } catch (e) { continue; }
                 if (!day || !day.data) continue;
                 const tracks = extractTracksFromDay(day.data);
+                let dayHasData = false;
                 for (const track of tracks) {
                     if (typeFilter && !typeFilter.has((track.activityType || 'unknown').toLowerCase())) continue;
+                    // Apply bounding box — filter points within each track
+                    if (hasBBox) {
+                        track.points = track.points.filter(pt =>
+                            pt.lat >= south && pt.lat <= north && pt.lng >= west && pt.lng <= east
+                        );
+                        if (track.points.length < 2) continue;
+                    }
                     allTracks.push(track);
                     totalPoints += track.points.length;
+                    dayHasData = true;
                 }
+                if (dayHasData) daysWithData++;
             }
             if (totalPoints < 2) {
                 const filterMsg = typeFilter ? ` (filtered to: ${activity_types.join(', ')})` : '';
-                return { error: 'No GPS track data found for ' + dates.join(', ') + filterMsg + '.' };
+                const bboxMsg = hasBBox ? ' within the specified region' : '';
+                const rangeMsg = start_date ? `${start_date} to ${end_date}` : dateList.join(', ');
+                return { error: 'No GPS track data found for ' + rangeMsg + filterMsg + bboxMsg + '.' };
             }
             renderRoute(allTracks, title, clear_existing !== false);
-            const result = { drawn: totalPoints, days: dates.length, title: title || 'Route' };
+            const result = { drawn: totalPoints, days: daysWithData, title: title || 'Route' };
             if (typeFilter) result.filtered_to = activity_types;
             return result;
+        },
+
+        async show_chart({ chart_type, title, labels, datasets, x_label, y_label, stacked, horizontal }) {
+            if (!labels || labels.length === 0) {
+                return { error: 'No labels provided.' };
+            }
+            if (!datasets || datasets.length === 0) {
+                return { error: 'No datasets provided.' };
+            }
+            for (const ds of datasets) {
+                if (!ds.data || ds.data.length !== labels.length) {
+                    return { error: `Dataset "${ds.label}" has ${ds.data?.length || 0} values but ${labels.length} labels. They must match.` };
+                }
+            }
+
+            const isPieType = (chart_type === 'pie' || chart_type === 'doughnut');
+            const coloredDatasets = datasets.map((ds, i) => {
+                const out = { label: ds.label, data: ds.data };
+                if (isPieType) {
+                    out.backgroundColor = labels.map((_, j) =>
+                        ds.color ? ds.color : (CHART_PALETTE[j % CHART_PALETTE.length] + 'cc')
+                    );
+                    out.borderColor = 'rgba(0,0,0,0.2)';
+                    out.borderWidth = 1;
+                } else {
+                    const color = ds.color || CHART_PALETTE[i % CHART_PALETTE.length];
+                    out.backgroundColor = chart_type === 'bar' ? color + 'cc' : color + '22';
+                    out.borderColor = color;
+                    out.borderWidth = chart_type === 'bar' ? 1 : 2;
+                    if (chart_type === 'line') {
+                        out.tension = 0.3;
+                        out.pointRadius = 3;
+                        out.pointBackgroundColor = color;
+                        out.fill = stacked ? (i === 0 ? 'origin' : '-1') : false;
+                    }
+                }
+                return out;
+            });
+
+            renderChart({
+                type: chart_type,
+                title: title || '',
+                labels,
+                datasets: coloredDatasets,
+                xLabel: x_label,
+                yLabel: y_label,
+                stacked: !!stacked,
+                horizontal: !!horizontal
+            });
+
+            return {
+                displayed: 'chart',
+                chart_type,
+                title: title || chart_type + ' chart',
+                data_points: labels.length,
+                datasets: datasets.length
+            };
+        },
+
+        async show_heatmap({ start_date, end_date, activity_types, mode, title, radius, blur, south, north, west, east }) {
+            if (!start_date || !end_date) {
+                return { error: 'Both start_date and end_date are required.' };
+            }
+            const heatMode = mode || 'frequency';
+            const hasBBox = (south != null && north != null && west != null && east != null);
+            const typeFilter = activity_types && activity_types.length > 0
+                ? new Set(activity_types.map(t => t.toLowerCase()))
+                : null;
+
+            // Enumerate all days in range
+            const dateList = [];
+            const d = new Date(start_date + 'T00:00:00');
+            const endD = new Date(end_date + 'T00:00:00');
+            while (d <= endD) {
+                dateList.push(d.toISOString().slice(0, 10));
+                d.setDate(d.getDate() + 1);
+            }
+            if (dateList.length === 0) {
+                return { error: 'Invalid date range.' };
+            }
+
+            const startMs = new Date(start_date).getTime();
+            const endMs = new Date(end_date).getTime();
+            const dateSpanMs = Math.max(endMs - startMs, 1);
+
+            const points = [];
+            let daysWithData = 0;
+
+            for (const date of dateList) {
+                let day;
+                try {
+                    const tx = db.transaction(['days'], 'readonly');
+                    day = await idbGet(tx.objectStore('days'), date);
+                } catch (e) { continue; }
+                if (!day || !day.data || !day.data.timelineItems) continue;
+
+                let dayHasData = false;
+                const dayMs = new Date(date).getTime();
+                const recencyWeight = heatMode === 'recency'
+                    ? 0.1 + 0.9 * ((dayMs - startMs) / dateSpanMs)
+                    : 1;
+
+                for (const item of day.data.timelineItems) {
+                    // Handle visits (stationary)
+                    if (item.isVisit) {
+                        if (typeFilter && !typeFilter.has('stationary')) continue;
+                        if (!typeFilter) continue; // Skip stationary by default when no filter
+                        const lat = item.center?.latitude;
+                        const lng = item.center?.longitude;
+                        if (!lat || !lng) continue;
+                        if (heatMode === 'time_spent') {
+                            const durSec = (item.startDate && item.endDate)
+                                ? Math.max(0, (new Date(item.endDate) - new Date(item.startDate)) / 1000)
+                                : 0;
+                            points.push([lat, lng, Math.min(Math.max(durSec, 1), 28800)]);
+                        } else {
+                            points.push([lat, lng, recencyWeight]);
+                        }
+                        dayHasData = true;
+                        continue;
+                    }
+
+                    // Handle trip items — use GPS samples
+                    const type = (item.activityType || 'unknown').toLowerCase();
+                    if (typeFilter && !typeFilter.has(type)) continue;
+                    if (!Array.isArray(item.samples) || item.samples.length < 2) continue;
+
+                    const samples = [];
+                    for (const s of item.samples) {
+                        const lat = s?.location?.latitude ?? s?.latitude;
+                        const lng = s?.location?.longitude ?? s?.longitude;
+                        if (lat == null || lng == null) continue;
+                        const ts = s?.location?.timestamp || s?.timestamp || s?.date;
+                        samples.push({ lat, lng, t: ts ? new Date(ts).getTime() : null });
+                    }
+
+                    if (heatMode === 'time_spent') {
+                        for (let j = 0; j < samples.length - 1; j++) {
+                            const s = samples[j];
+                            const next = samples[j + 1];
+                            let weight = 1;
+                            if (s.t && next.t) {
+                                const gapSec = (next.t - s.t) / 1000;
+                                weight = Math.min(Math.max(gapSec, 1), 300);
+                            }
+                            points.push([s.lat, s.lng, weight]);
+                        }
+                        if (samples.length > 0) {
+                            const last = samples[samples.length - 1];
+                            points.push([last.lat, last.lng, 1]);
+                        }
+                    } else {
+                        // frequency or recency
+                        for (const s of samples) {
+                            points.push([s.lat, s.lng, recencyWeight]);
+                        }
+                    }
+                    dayHasData = true;
+                }
+                if (dayHasData) daysWithData++;
+            }
+
+            // Apply geographic bounding box filter
+            if (hasBBox) {
+                const before = points.length;
+                for (let i = points.length - 1; i >= 0; i--) {
+                    const lat = points[i][0], lng = points[i][1];
+                    if (lat < south || lat > north || lng < west || lng > east) {
+                        points.splice(i, 1);
+                    }
+                }
+                console.log(`[show_heatmap] bbox filter: ${before} → ${points.length} points`);
+            }
+
+            if (points.length < 2) {
+                const filterMsg = typeFilter ? ` (filtered to: ${activity_types.join(', ')})` : '';
+                const bboxMsg = hasBBox ? ' within the specified region' : '';
+                return { error: `No GPS data found for ${start_date} to ${end_date}${filterMsg}${bboxMsg}.` };
+            }
+
+            // Downsample if very large — grid-based aggregation
+            let finalPoints = points;
+            if (points.length > 150000) {
+                const GRID = 0.0003; // ~30m grid
+                const grid = new Map();
+                for (const p of points) {
+                    const key = `${Math.round(p[0] / GRID)},${Math.round(p[1] / GRID)}`;
+                    if (grid.has(key)) {
+                        const cell = grid.get(key);
+                        cell[2] += p[2]; // sum intensity
+                        cell[3]++;       // count
+                    } else {
+                        grid.set(key, [p[0], p[1], p[2], 1]);
+                    }
+                }
+                finalPoints = Array.from(grid.values()).map(c => [c[0], c[1], c[2]]);
+            }
+
+            // Compute bounds for the result
+            let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+            for (const p of finalPoints) {
+                if (p[0] < minLat) minLat = p[0];
+                if (p[0] > maxLat) maxLat = p[0];
+                if (p[1] < minLng) minLng = p[1];
+                if (p[1] > maxLng) maxLng = p[1];
+            }
+
+            renderHeatmap(finalPoints, title, radius || 12, blur || 18);
+
+            return {
+                displayed: 'heatmap',
+                mode: heatMode,
+                gps_points: points.length,
+                days_with_data: daysWithData,
+                date_range: `${start_date} to ${end_date}`,
+                title: title || 'Heatmap',
+                bounds: { south: +minLat.toFixed(4), north: +maxLat.toFixed(4), west: +minLng.toFixed(4), east: +maxLng.toFixed(4) },
+                downsampled: finalPoints.length < points.length ? finalPoints.length : undefined
+            };
+        },
+
+        async get_elevation_stats({ start_date, end_date, activity_types, mode, limit: maxResults, south, north, west, east }) {
+            const elevMode = mode || 'highest';
+            const resultLimit = Math.min(Math.max(maxResults || 5, 1), 20);
+            const typeFilter = activity_types && activity_types.length > 0
+                ? new Set(activity_types.map(t => t.toLowerCase()))
+                : null;
+            const hasBBox = (south != null && north != null && west != null && east != null);
+
+            // Default date range: all data
+            if (!start_date && dailySummaries && dailySummaries.length > 0) {
+                const sorted = dailySummaries.map(d => d.dayKey).sort();
+                start_date = sorted[0];
+            }
+            if (!end_date) end_date = new Date().toISOString().slice(0, 10);
+            if (!start_date) return { error: 'No data available.' };
+
+            // Enumerate days
+            const dayKeys = [];
+            const d = new Date(start_date + 'T00:00:00');
+            const endD = new Date(end_date + 'T00:00:00');
+            while (d <= endD) {
+                dayKeys.push(d.toISOString().slice(0, 10));
+                d.setDate(d.getDate() + 1);
+            }
+
+            // Track top N records (min-heap for highest, max-heap for lowest)
+            const records = []; // { alt, date, activityType, placeName }
+
+            for (const date of dayKeys) {
+                let day;
+                try {
+                    const tx = db.transaction(['days'], 'readonly');
+                    day = await idbGet(tx.objectStore('days'), date);
+                } catch (e) { continue; }
+                if (!day || !day.data || !day.data.timelineItems) continue;
+
+                for (const item of day.data.timelineItems) {
+                    if (item.isVisit) continue; // Skip stationary visits
+                    const actType = (item.activityType || 'unknown').toLowerCase();
+                    if (typeFilter && !typeFilter.has(actType)) continue;
+
+                    if (!item.samples || item.samples.length === 0) continue;
+
+                    // Find the nearby place name from the preceding/following visit
+                    const placeName = item.customTitle || '';
+
+                    for (const sample of item.samples) {
+                        const sLat = sample.location?.latitude ?? sample.latitude;
+                        const sLng = sample.location?.longitude ?? sample.longitude;
+                        // Apply bounding box filter
+                        if (hasBBox) {
+                            if (sLat == null || sLng == null) continue;
+                            if (sLat < south || sLat > north || sLng < west || sLng > east) continue;
+                        }
+                        const alt = sample.location?.altitude ?? sample.altitude;
+                        if (alt == null || alt === 0) continue; // Skip zero/null altitude
+
+                        const dominated = elevMode === 'highest'
+                            ? (records.length >= resultLimit && alt <= records[records.length - 1].alt)
+                            : (records.length >= resultLimit && alt >= records[records.length - 1].alt);
+
+                        if (dominated) continue;
+
+                        records.push({ alt: Math.round(alt), date, activityType: actType, place: placeName || undefined, lat: sLat, lng: sLng });
+
+                        // Sort and trim
+                        if (elevMode === 'highest') {
+                            records.sort((a, b) => b.alt - a.alt);
+                        } else {
+                            records.sort((a, b) => a.alt - b.alt);
+                        }
+                        if (records.length > resultLimit) records.length = resultLimit;
+                    }
+                }
+            }
+
+            if (records.length === 0) {
+                return { error: 'No altitude data found for the specified criteria.' };
+            }
+
+            // Deduplicate consecutive same-date entries (keep best per day)
+            const seen = new Set();
+            const deduped = [];
+            for (const r of records) {
+                const key = `${r.date}_${r.activityType}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    deduped.push(r);
+                }
+            }
+
+            // Cache coordinates so show_map can resolve them
+            const results = deduped.map((r, i) => {
+                const markerName = `Elevation ${r.alt}m (${r.date})`;
+                if (r.lat != null && r.lng != null) cacheCoords(markerName, r.lat, r.lng);
+                return {
+                    altitude_m: r.alt,
+                    date: r.date,
+                    activity: r.activityType,
+                    marker_name: (r.lat != null && r.lng != null) ? markerName : undefined,
+                    ...(r.place ? { place: r.place } : {})
+                };
+            });
+
+            return {
+                mode: elevMode,
+                date_range: `${start_date} to ${end_date}`,
+                records: results,
+                hint: 'Use marker_name values with show_map to plot these points on the map.'
+            };
         },
 
         async get_location_details({ location_name }) {
@@ -884,7 +1353,8 @@
         chatMap = L.map(elMapContainer, {
             center: [0, 0],  // Temporary; updated by geolocation or fallback
             zoom: 12,
-            zoomControl: true
+            zoomControl: true,
+            fadeAnimation: false   // Prevent tile opacity flash on pan/click
         });
 
         // Apply saved or default tile style (matches main Arc Reader maps)
@@ -909,10 +1379,16 @@
         }
     }
 
-    function setMapTileLayer(styleKey) {
+    let currentTileStyle = null;
+    function setMapTileLayer(styleKey, force) {
+        // Skip if the style hasn't changed — avoids visible tile flash.
+        // Pass force=true when the underlying tile URL may have changed
+        // (e.g. theme switch with Mapbox token).
+        if (!force && styleKey === currentTileStyle && chatMapTileLayer) return;
         if (chatMapTileLayer) chatMap.removeLayer(chatMapTileLayer);
         chatMapTileLayer = getChatTileLayer(styleKey);
         chatMapTileLayer.addTo(chatMap);
+        currentTileStyle = styleKey;
         localStorage.setItem('arc_chat_map_style', styleKey);
     }
 
@@ -920,6 +1396,8 @@
         if (!elMapPanel) return;
         elMapPanel.classList.add('visible');
         if (title && elMapTitle) elMapTitle.textContent = title;
+        // Show the "Use map area" checkbox
+        if (elMapScopeLabel) elMapScopeLabel.classList.add('visible');
         // Leaflet needs a resize trigger when container becomes visible
         // Use multiple delays to handle varying render timing
         if (chatMap) {
@@ -933,6 +1411,16 @@
             elMapPanel.classList.remove('visible');
             elMapPanel.classList.remove('map-default');
         }
+        if (elResizeHandle) {
+            elResizeHandle.classList.remove('visible');
+        }
+        // Hide the "Use map area" checkbox and uncheck
+        if (elMapScopeLabel) elMapScopeLabel.classList.remove('visible');
+        if (elMapScopeCheck) { elMapScopeCheck.checked = false; mapScopeActive = false; }
+        // Reset flex overrides so chat container takes full width
+        const chatContainer = document.querySelector('.chat-container');
+        if (chatContainer) chatContainer.style.flex = '';
+        if (elMapPanel) elMapPanel.style.flex = '';
     }
 
     function clearMapMarkers() {
@@ -941,6 +1429,7 @@
         }
         chatMapMarkers = [];
         clearMapPolylines();
+        clearHeatLayer();
     }
 
     function clearMapPolylines() {
@@ -996,11 +1485,14 @@
             bounds.push([m.lat, m.lng]);
         }
 
-        // Fit map to show all markers
+        // Fit map to show all markers.
+        // Re-fit after showMapPanel's invalidateSize settles (50ms & 200ms).
         if (bounds.length === 1) {
             chatMap.setView(bounds[0], 15);
+            setTimeout(() => { chatMap.invalidateSize(); chatMap.setView(bounds[0], 15); }, 250);
         } else if (bounds.length > 1) {
             chatMap.fitBounds(bounds, { padding: [30, 30] });
+            setTimeout(() => { chatMap.invalidateSize(); chatMap.fitBounds(bounds, { padding: [30, 30] }); }, 250);
         }
     }
 
@@ -1018,6 +1510,7 @@
         initMap();
         if (title) showMapPanel(title);
         if (clearExisting) clearMapPolylines();
+        clearHeatLayer(); // routes and heatmap are mutually exclusive
 
         const bounds = [];
 
@@ -1036,12 +1529,221 @@
             bounds.push(...latlngs);
         }
 
-        // Fit map to route bounds
+        // Fit map to route bounds.
+        // Re-fit after showMapPanel's invalidateSize settles (50ms & 200ms).
         if (bounds.length >= 2) {
             chatMap.fitBounds(bounds, { padding: [30, 30] });
+            setTimeout(() => { chatMap.invalidateSize(); chatMap.fitBounds(bounds, { padding: [30, 30] }); }, 250);
         } else if (bounds.length === 1) {
             chatMap.setView(bounds[0], 15);
+            setTimeout(() => { chatMap.invalidateSize(); chatMap.setView(bounds[0], 15); }, 250);
         }
+    }
+
+    /**
+     * Render GPS data as a heat map layer on the chat map.
+     * Uses Leaflet.heat (L.heatLayer) which is already loaded.
+     * @param {Array} points - [[lat, lng, intensity], ...]
+     * @param {string} title - Map panel title
+     * @param {number} radius - Heat point radius in pixels
+     * @param {number} blur - Heat blur in pixels
+     */
+    function renderHeatmap(points, title, radius, blur) {
+        if (!elMapPanel.classList.contains('visible')) {
+            elMapPanel.classList.add('visible');
+        }
+        initMap();
+        if (title) showMapPanel(title);
+
+        // Heatmap and polylines are mutually exclusive
+        clearMapPolylines();
+        clearHeatLayer();
+
+        // Calculate max intensity using 95th percentile for good colour spread
+        const intensities = points.map(p => p[2]).sort((a, b) => a - b);
+        const p95 = intensities[Math.floor(intensities.length * 0.95)] || 1;
+        const heatMax = Math.max(p95, 0.001);
+
+        chatHeatLayer = L.heatLayer(points, {
+            radius: radius,
+            blur: blur,
+            maxZoom: 17,
+            max: heatMax,
+            gradient: {
+                0.0:  '#3b0764',
+                0.05: '#4338ca',
+                0.10: '#2563eb',
+                0.20: '#0891b2',
+                0.30: '#059669',
+                0.40: '#16a34a',
+                0.50: '#65a30d',
+                0.60: '#ca8a04',
+                0.70: '#ea580c',
+                0.80: '#dc2626',
+                0.90: '#e11d48',
+                1.0:  '#fef08a'
+            }
+        }).addTo(chatMap);
+
+        // Fit map to heat data bounds.
+        // Defer so it runs after showMapPanel's invalidateSize settles.
+        let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+        for (const p of points) {
+            if (p[0] < minLat) minLat = p[0];
+            if (p[0] > maxLat) maxLat = p[0];
+            if (p[1] < minLng) minLng = p[1];
+            if (p[1] > maxLng) maxLng = p[1];
+        }
+        if (minLat < Infinity) {
+            const bounds = [[minLat, minLng], [maxLat, maxLng]];
+            chatMap.fitBounds(bounds, { padding: [30, 30] });
+            // Re-fit after invalidateSize settles (showMapPanel fires at 50ms & 200ms)
+            setTimeout(() => {
+                chatMap.invalidateSize();
+                chatMap.fitBounds(bounds, { padding: [30, 30] });
+            }, 250);
+        }
+    }
+
+    function clearHeatLayer() {
+        if (chatHeatLayer && chatMap) {
+            chatMap.removeLayer(chatHeatLayer);
+            chatHeatLayer = null;
+        }
+    }
+
+    // =========================================================================
+    // Inline Chart Rendering
+    // =========================================================================
+
+    function renderChart(config) {
+        // Hide welcome message
+        if (elWelcome) elWelcome.style.display = 'none';
+
+        // Create chart container as a chat message
+        const wrapper = document.createElement('div');
+        wrapper.className = 'chat-message chart-message';
+
+        // Header row: title + export button
+        const header = document.createElement('div');
+        header.className = 'chat-chart-header';
+        if (config.title) {
+            const titleEl = document.createElement('span');
+            titleEl.className = 'chat-chart-title';
+            titleEl.textContent = config.title;
+            header.appendChild(titleEl);
+        }
+        const exportBtn = document.createElement('button');
+        exportBtn.className = 'chat-export-btn';
+        exportBtn.textContent = '📥 PNG';
+        exportBtn.title = 'Download chart as PNG';
+        header.appendChild(exportBtn);
+        wrapper.appendChild(header);
+
+        // Canvas container
+        const canvasContainer = document.createElement('div');
+        canvasContainer.className = 'chat-chart-container';
+        const canvas = document.createElement('canvas');
+        canvasContainer.appendChild(canvas);
+        wrapper.appendChild(canvasContainer);
+
+        // Append to chat
+        elMessages.appendChild(wrapper);
+        elMessages.scrollTop = elMessages.scrollHeight;
+
+        // Theme detection
+        const style = getComputedStyle(document.body);
+        const isDark = (style.getPropertyValue('--bg-app') || '').trim().startsWith('#1');
+        const axisColor = isDark ? 'rgba(255,255,255,0.8)' : '#1d1d1f';
+        const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+        const legendColor = axisColor;
+
+        const isPieType = (config.type === 'pie' || config.type === 'doughnut');
+
+        // Chart.js configuration
+        const chartConfig = {
+            type: config.type,
+            data: {
+                labels: config.labels,
+                datasets: config.datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: (config.type === 'bar' && config.horizontal) ? 'y' : 'x',
+                plugins: {
+                    legend: {
+                        display: config.datasets.length > 1 || isPieType,
+                        position: isPieType ? 'right' : 'top',
+                        labels: {
+                            font: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 11 },
+                            color: legendColor,
+                            padding: 8,
+                            usePointStyle: true
+                        }
+                    },
+                    title: { display: false },
+                    tooltip: {
+                        backgroundColor: isDark ? 'rgba(44,44,46,0.95)' : 'rgba(255,255,255,0.95)',
+                        titleColor: axisColor,
+                        bodyColor: axisColor,
+                        borderColor: gridColor,
+                        borderWidth: 1,
+                        titleFont: { family: '-apple-system, BlinkMacSystemFont, sans-serif', weight: 'bold' },
+                        bodyFont: { family: '-apple-system, BlinkMacSystemFont, sans-serif' },
+                        padding: 8
+                    }
+                }
+            }
+        };
+
+        // Axis configuration (bar/line only)
+        if (!isPieType) {
+            chartConfig.options.scales = {
+                x: {
+                    stacked: config.stacked,
+                    title: {
+                        display: !!config.xLabel,
+                        text: config.xLabel || '',
+                        font: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 11, weight: 'bold' },
+                        color: axisColor
+                    },
+                    grid: { color: gridColor, lineWidth: 0.5 },
+                    ticks: {
+                        font: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 10 },
+                        color: axisColor,
+                        maxRotation: 45
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    stacked: config.stacked,
+                    title: {
+                        display: !!config.yLabel,
+                        text: config.yLabel || '',
+                        font: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 11, weight: 'bold' },
+                        color: axisColor
+                    },
+                    grid: { color: gridColor, lineWidth: 0.5 },
+                    ticks: {
+                        font: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 10 },
+                        color: axisColor
+                    }
+                }
+            };
+        }
+
+        const chart = new Chart(canvas.getContext('2d'), chartConfig);
+        inlineCharts.push(chart);
+
+        // PNG export handler
+        exportBtn.addEventListener('click', () => {
+            const slug = (config.title || 'chart').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            const link = document.createElement('a');
+            link.download = slug + '.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
     }
 
     // =========================================================================
@@ -1067,8 +1769,25 @@
         const locale = navigator.language || 'en';
         const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
 
+        // Include current map viewport bounds so Claude can reference them for geographic queries
+        let mapBoundsInfo = '';
+        if (chatMap && elMapPanel && (elMapPanel.classList.contains('visible') || elMapPanel.classList.contains('map-default'))) {
+            try {
+                const b = chatMap.getBounds();
+                if (b && b.isValid()) {
+                    const boundsStr = `south=${b.getSouth().toFixed(4)}, north=${b.getNorth().toFixed(4)}, west=${b.getWest().toFixed(4)}, east=${b.getEast().toFixed(4)}`;
+                    if (mapScopeActive) {
+                        mapBoundsInfo = `\n**MAP AREA FILTER ACTIVE.** The user has toggled "Map area" ON. You MUST use these bounding box coordinates for ALL show_route, show_heatmap, and find_days_in_region calls: ${boundsStr} (zoom ${chatMap.getZoom()}). Do NOT use wider bounds — restrict results to this exact viewport.`;
+                    } else {
+                        mapBoundsInfo = `\nThe chat map is currently showing: ${boundsStr} (zoom ${chatMap.getZoom()}). You can use these bounds (or a subset) when the user refers to "this area" or "what's on the map", or when they mention a place that's already visible on the map.`;
+                    }
+                }
+            } catch (e) { /* map not ready */ }
+        }
+
         return `Timeline assistant. Query user's location/activity data via tools.
-Today: ${today}. Locale: ${locale}. Timezone: ${tz}. Data: ${dateInfo}. Activities: ${[...actTypes].join(', ') || 'none'}.
+TODAY'S DATE: ${today}. CURRENT YEAR: ${today.slice(0, 4)}. When the user says "last N months" or "last year", ALWAYS calculate dates relative to today (${today}), NOT from the start of the data range.
+Locale: ${locale}. Timezone: ${tz}. Data: ${dateInfo}. Activities: ${[...actTypes].join(', ') || 'none'}.${mapBoundsInfo}
 ALWAYS use metric units (km, metres). NEVER use miles or feet. dur values from tools are in seconds — ALWAYS convert and display as hours and minutes (e.g. 3661s → "1 hr 1 min", 120s → "2 min"). NEVER show raw seconds to the user. Times are local (already converted from UTC).
 Tool result keys: n=count, dur=duration(s), dist=distance(m), d=date, vis=raw visit segments (NOT unique days), days=unique days visited, m=month, act=activities, loc=location.
 IMPORTANT for locations: "days" means the number of UNIQUE CALENDAR DAYS the user visited that place — NOT how long they stayed. A ferry terminal with days=2 means visited on 2 separate days, not stayed for 2 days. Use "dur" (total seconds) to describe actual time spent. Say "visited on X days" not "X days". dur values may be incomplete — many visits lack end times so dur=0. If dur seems very low relative to days, note the data is incomplete.
@@ -1076,8 +1795,14 @@ For multi-month questions use get_monthly_summary. For "how often did I go to X"
 For "where did I go" or "show me on a map" over a date range, use get_date_range_places (returns all visited places in one call) then show_map. This is much cheaper than calling get_day_timeline per day.
 For "when did I go to [country/city]?" or "have I been to [region]?", use find_days_in_region with a bounding box. You know common bounding boxes (e.g. Japan: 24-46°N, 122-146°E). For small areas (islands, neighbourhoods), use a GENEROUS bounding box — add at least 0.05° padding on all sides to account for GPS drift and coastal locations. This searches stored location coordinates — much better than text search which matches restaurant names.
 To show locations on a map, use show_map with location names (coordinates are resolved locally). Include count (days count) with each marker when available. Omit label to auto-use the place name. You can proactively show a map when answering location-based questions.
-To draw a route on the map, use show_route with one or more YYYY-MM-DD dates. It reads full GPS tracks from the database and renders them colour-coded by activity type (walking=green, car=grey, cycling=blue, etc.) matching the main Arc Reader. Use the activity_types parameter to filter to specific activities (e.g. ["walking"] or ["car","bus","train"]). Combine with show_map markers. Proactively show routes when the user asks about a day's journey, trips, or commutes.
-Be concise and friendly.`;
+To draw routes on the map, use show_route for SHORT date ranges (a few days to ~2 weeks). For specific days use dates[] (e.g. dates=["2025-03-15"]). For date ranges use start_date + end_date — the tool will enumerate all days internally. Routes are colour-coded by activity type (walking=green, car=grey, cycling=blue, etc.). Use activity_types to filter (e.g. ["walking"]). When the user mentions a specific city or region, ALWAYS include a bounding box (south/north/west/east) to filter to that area. Combine with show_map markers. Proactively show routes when the user asks about journeys, trips, or commutes.
+For LONG date ranges (months or a full year), use show_heatmap instead of show_route — it displays GPS data as a heat map which is much more readable than hundreds of overlapping polylines. Modes: "frequency" (default — more visits = hotter), "recency" (recent routes brighter), "time_spent" (longer stays = hotter). Increase radius for zoomed-out views of large areas. Use show_heatmap when the user asks to see walking/cycling/activity patterns, coverage, or route frequency over extended periods. When the user mentions a specific city or region (e.g. "walking in Brisbane"), ALWAYS include a bounding box (south/north/west/east) to filter GPS data to that area — otherwise data from all locations will appear. You know common city bounding boxes.
+To visualise data as a chart, use show_chart. Supported types: bar (comparisons, histograms), line (time series), pie/doughnut (proportions). You must pre-compute the data values from tool results and provide them as arrays — convert distances to km and durations to hours BEFORE passing to show_chart. Use bar charts for monthly breakdowns, line charts for trends over time, pie/doughnut for activity proportions. Set horizontal=true for ranked lists (e.g. top locations by visits). Proactively offer charts when presenting numerical comparisons or trends. Use activity colours where appropriate: walking=#12A656, cycling=#039FD4, running=#EB781B, car=#4E5268, bus=#4056B5, train=#AA9131, hiking=#0E8444.
+For altitude/elevation questions ("highest point walked", "what elevation did I reach"), use get_elevation_stats — it scans raw GPS samples for altitude extremes. Supports bounding box (south/north/west/east) to filter to a region. Do NOT use get_daily_stats for altitude questions (it has no altitude data).
+NEVER generate code (Python, JavaScript, or any programming language). NEVER suggest the user run a script. Use the available tools to query data and display results visually.
+When presenting numerical data in text, format it as a readable markdown table with headers — NEVER dump raw values as a comma-separated list. Always include context columns (month names, location names, dates) alongside the values. Convert distances from metres to km (divide by 1000, 1 decimal place) and durations from seconds to hours/minutes before displaying.
+Be concise and friendly.
+When the user zooms the map to a specific area and asks about "this area" or a nearby place, use the map viewport bounds as a starting point for your bounding box.`;
     }
 
     async function callAnthropic(messages) {
@@ -1111,7 +1836,8 @@ Be concise and friendly.`;
         const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
             headers: headers,
-            body: JSON.stringify(body)
+            body: JSON.stringify(body),
+            signal: abortController ? abortController.signal : undefined
         });
 
         if (!response.ok) {
@@ -1144,6 +1870,18 @@ Be concise and friendly.`;
 
         if (type === 'assistant') {
             div.innerHTML = formatAssistantMessage(content);
+            // Bind CSV export buttons
+            div.querySelectorAll('.chat-csv-export').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const csv = decodeURIComponent(escape(atob(btn.dataset.csv)));
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = 'chat-table.csv';
+                    link.click();
+                    URL.revokeObjectURL(link.href);
+                });
+            });
         } else {
             div.textContent = content;
         }
@@ -1160,6 +1898,39 @@ Be concise and friendly.`;
         // Code blocks: ```...```
         safe = safe.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
             return `<pre><code>${code.trim()}</code></pre>`;
+        });
+
+        // Markdown tables: detect consecutive lines starting with |
+        safe = safe.replace(/((?:^|\n)\|[^\n]+\|(?:\n\|[^\n]+\|)+)/g, (tableBlock) => {
+            const lines = tableBlock.trim().split('\n').filter(l => l.trim());
+            if (lines.length < 2) return tableBlock;
+
+            // Parse rows — skip separator row (|---|---|)
+            const parseRow = line => line.split('|').slice(1, -1).map(c => c.trim());
+            const headers = parseRow(lines[0]);
+            const isSep = line => /^\|[\s:*-]+\|/.test(line.trim());
+            const dataLines = lines.slice(1).filter(l => !isSep(l));
+
+            // Build HTML table
+            let html = '<div class="chat-table-wrapper">';
+            html += '<table class="chat-table"><thead><tr>';
+            for (const h of headers) html += `<th>${h}</th>`;
+            html += '</tr></thead><tbody>';
+            for (const row of dataLines) {
+                const cells = parseRow(row);
+                html += '<tr>';
+                for (const c of cells) html += `<td>${c}</td>`;
+                html += '</tr>';
+            }
+            html += '</tbody></table>';
+
+            // CSV export button — encode data in a data attribute
+            const csvRows = [headers, ...dataLines.map(parseRow)];
+            const csvData = csvRows.map(r => r.map(c => '"' + c.replace(/"/g, '""') + '"').join(',')).join('\n');
+            const b64 = btoa(unescape(encodeURIComponent(csvData)));
+            html += `<button class="chat-export-btn chat-csv-export" data-csv="${b64}">📥 CSV</button>`;
+            html += '</div>';
+            return html;
         });
 
         // Inline code: `...`
@@ -1237,13 +2008,24 @@ Be concise and friendly.`;
     // Chat Loop
     // =========================================================================
 
+    function cancelChat() {
+        if (!isProcessing) return;
+        if (abortController) {
+            abortController.abort();
+            abortController = null;
+        }
+    }
+
     async function sendChatMessage(text) {
         if (isProcessing || !text.trim()) return;
 
         const userMessage = text.trim();
         isProcessing = true;
+        abortController = new AbortController();
         elInput.disabled = true;
-        elSendBtn.disabled = true;
+        elSendBtn.textContent = 'Cancel';
+        elSendBtn.classList.add('cancel-mode');
+        elSendBtn.disabled = false; // keep enabled for cancel
 
         // Show user message
         addMessage('user', userMessage);
@@ -1330,12 +2112,23 @@ Be concise and friendly.`;
 
         } catch (err) {
             hideThinking();
-            addMessage('error', `Error: ${err.message}`);
+            if (err.name === 'AbortError') {
+                addMessage('error', 'Cancelled.');
+                // Remove the unanswered user message from history
+                if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === 'user') {
+                    chatHistory.pop();
+                }
+            } else {
+                addMessage('error', `Error: ${err.message}`);
+            }
             console.error('AI Chat error:', err);
         } finally {
             isProcessing = false;
+            abortController = null;
             elInput.disabled = false;
             elSendBtn.disabled = false;
+            elSendBtn.textContent = 'Send';
+            elSendBtn.classList.remove('cancel-mode');
             elInput.focus();
         }
     }
@@ -1366,6 +2159,11 @@ Be concise and friendly.`;
         sessionCost = 0;
         coordsCache.clear();
         lastRegionMarkers = [];
+        // Destroy inline charts to prevent memory leaks
+        for (const chart of inlineCharts) {
+            try { chart.destroy(); } catch (e) { /* already destroyed */ }
+        }
+        inlineCharts = [];
         elMessages.innerHTML = '';
         // Restore welcome
         if (elWelcome) {
@@ -1489,13 +2287,17 @@ Be concise and friendly.`;
         elClearBtn = document.getElementById('chatClearBtn');
         elWelcome = document.getElementById('chatWelcome');
 
+        // Get DOM references — map scope checkbox
+        elMapScopeLabel = document.getElementById('chatMapScopeLabel');
+        elMapScopeCheck = document.getElementById('chatMapScopeCheck');
+
         // Get DOM references — map
         elMapPanel = document.getElementById('chatMapPanel');
         elMapContainer = document.getElementById('chatMap');
         elMapTitle = document.getElementById('chatMapTitle');
         elMapStyle = document.getElementById('chatMapStyle');
         elMapClearBtn = document.getElementById('chatMapClearBtn');
-        elMapCloseBtn = document.getElementById('chatMapCloseBtn');
+        elResizeHandle = document.getElementById('chatResizeHandle');
 
         // Get DOM references — cost tracking
         elCostBadge = document.getElementById('chatCostBadge');
@@ -1512,7 +2314,13 @@ Be concise and friendly.`;
         loadSettings();
 
         // Event listeners — chat
-        elSendBtn.addEventListener('click', () => sendChatMessage(elInput.value));
+        elSendBtn.addEventListener('click', () => {
+            if (isProcessing) {
+                cancelChat();
+            } else {
+                sendChatMessage(elInput.value);
+            }
+        });
 
         elInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -1529,14 +2337,95 @@ Be concise and friendly.`;
 
         elClearBtn.addEventListener('click', clearChat);
 
+        // Event listener — map scope checkbox
+        if (elMapScopeCheck) {
+            elMapScopeCheck.addEventListener('change', () => {
+                mapScopeActive = elMapScopeCheck.checked;
+            });
+        }
+
         // Event listeners — map
         if (elMapClearBtn) {
             elMapClearBtn.addEventListener('click', () => {
                 if (chatMap) clearMapMarkers();
             });
         }
-        if (elMapCloseBtn) {
-            elMapCloseBtn.addEventListener('click', hideMapPanel);
+        // Resize handle — drag to resize chat/map panels
+        if (elResizeHandle && elMapPanel) {
+            const LS_KEY_SPLIT = 'arc_chat_map_split';
+            const chatContainer = document.querySelector('.chat-container');
+            const chatSplit = document.querySelector('.chat-split');
+
+            // Restore saved split ratio (default 40% chat, 60% map)
+            const savedRatio = parseFloat(localStorage.getItem(LS_KEY_SPLIT)) || 40;
+            function applySplitRatio(chatPct) {
+                if (!chatContainer || !elMapPanel) return;
+                chatContainer.style.flex = `0 0 ${chatPct}%`;
+                elMapPanel.style.flex = `0 0 ${100 - chatPct - 2}%`; // 2% for handle+gap
+            }
+
+            // Apply on map show
+            const origShowMapPanel = showMapPanel;
+            showMapPanel = function(title) {
+                origShowMapPanel(title);
+                elResizeHandle.classList.add('visible');
+                const ratio = parseFloat(localStorage.getItem(LS_KEY_SPLIT)) || 40;
+                applySplitRatio(ratio);
+            };
+
+            let isDragging = false;
+
+            // Overlay covers the map during drag so Leaflet doesn't steal
+            // mouse events (which causes the map to pan/flash).
+            const dragOverlay = document.createElement('div');
+            dragOverlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;cursor:col-resize;display:none;';
+            document.body.appendChild(dragOverlay);
+
+            function startDrag(e) {
+                e.preventDefault();
+                isDragging = true;
+                elResizeHandle.classList.add('dragging');
+                dragOverlay.style.display = 'block';
+                document.body.style.userSelect = 'none';
+            }
+            function onDrag(clientX) {
+                if (!isDragging || !chatSplit) return;
+                const rect = chatSplit.getBoundingClientRect();
+                const x = clientX - rect.left;
+                let pct = (x / rect.width) * 100;
+                pct = Math.max(20, Math.min(80, pct)); // Clamp 20-80%
+                applySplitRatio(pct);
+            }
+            function endDrag() {
+                if (!isDragging) return;
+                isDragging = false;
+                elResizeHandle.classList.remove('dragging');
+                dragOverlay.style.display = 'none';
+                document.body.style.userSelect = '';
+                // Save the ratio
+                if (chatContainer) {
+                    const pct = parseFloat(chatContainer.style.flex.replace(/[^0-9.]/g, '')) || 40;
+                    localStorage.setItem(LS_KEY_SPLIT, pct.toFixed(1));
+                }
+                // Leaflet needs resize after panel change
+                if (chatMap) setTimeout(() => chatMap.invalidateSize(), 50);
+            }
+
+            // Mouse events — overlay captures moves during drag
+            elResizeHandle.addEventListener('mousedown', startDrag);
+            dragOverlay.addEventListener('mousemove', (e) => onDrag(e.clientX));
+            dragOverlay.addEventListener('mouseup', endDrag);
+            // Fallback: also listen on document in case mouse leaves overlay
+            document.addEventListener('mouseup', endDrag);
+
+            // Touch events (tablet support)
+            elResizeHandle.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) startDrag(e);
+            }, { passive: false });
+            document.addEventListener('touchmove', (e) => {
+                if (isDragging && e.touches.length === 1) onDrag(e.touches[0].clientX);
+            }, { passive: true });
+            document.addEventListener('touchend', endDrag);
         }
         if (elMapStyle) {
             elMapStyle.addEventListener('change', () => {
@@ -1545,13 +2434,20 @@ Be concise and friendly.`;
         }
 
         // Refresh chat map tiles when the page theme changes (dark ↔ light).
-        // Only matters for the analysis.html heatmap/location maps that use Mapbox
-        // theme-aware styles — the chat map mirrors getTileLayer() from app.js
-        // which doesn't theme-switch, so this is a no-op most of the time.
+        // Only matters when a Mapbox token is set, since free tile providers
+        // don't have theme variants. We only care about theme-relevant classes
+        // (light-mode, mapbox-active) — Leaflet adds/removes leaflet-dragging
+        // on every pan which we must ignore to avoid tile flash.
+        let lastThemeKey = (document.body.classList.contains('light-mode') ? 'L' : 'D') +
+                           (document.body.classList.contains('mapbox-active') ? 'M' : '');
         new MutationObserver(() => {
-            if (chatMap) {
+            const key = (document.body.classList.contains('light-mode') ? 'L' : 'D') +
+                        (document.body.classList.contains('mapbox-active') ? 'M' : '');
+            if (key === lastThemeKey) return; // only leaflet-dragging or similar changed
+            lastThemeKey = key;
+            if (chatMap && getMapboxToken()) {
                 const style = localStorage.getItem('arc_chat_map_style') || 'street';
-                setMapTileLayer(style);
+                setMapTileLayer(style, true); // force — theme actually changed
             }
         }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
@@ -1597,6 +2493,16 @@ Be concise and friendly.`;
         // Show map by default on wide screens (≥1200px)
         if (elMapPanel && window.innerWidth >= 1200) {
             elMapPanel.classList.add('map-default');
+            // Show resize handle, map scope button, and apply saved split ratio
+            if (elResizeHandle) elResizeHandle.classList.add('visible');
+            if (elMapScopeLabel) elMapScopeLabel.classList.add('visible');
+            const chatContainer = document.querySelector('.chat-container');
+            if (chatContainer) {
+                const LS_KEY_SPLIT = 'arc_chat_map_split';
+                const ratio = parseFloat(localStorage.getItem(LS_KEY_SPLIT)) || 40;
+                chatContainer.style.flex = `0 0 ${ratio}%`;
+                elMapPanel.style.flex = `0 0 ${100 - ratio - 2}%`;
+            }
             // Defer map init until the chat tab is visible (Leaflet needs dimensions).
             // Use a ResizeObserver on the map container to trigger init + invalidateSize.
             const mapResizeObs = new ResizeObserver(() => {

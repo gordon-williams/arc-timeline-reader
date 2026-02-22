@@ -65,7 +65,7 @@ Arc Diary Reader is a browser-based tool for exploring Arc Timeline / Arc Editor
 
 ## AI Chat Tools (analysis-ai.js)
 
-The LLM has 12 tools for querying timeline data. Tool executors run client-side and return results to Claude.
+The LLM has 15 tools for querying timeline data. Tool executors run client-side and return results to Claude.
 
 **Query tools:**
 - `get_activity_summary` — Activity totals for a date range (from dailySummaries)
@@ -78,10 +78,13 @@ The LLM has 12 tools for querying timeline data. Tool executors run client-side 
 - `find_location_visits` — Search + visit history for a location
 - `get_location_details` — Full details + last 100 visits for a location
 - `find_days_in_region` — Bounding box GPS search (for "when did I go to Japan?")
+- `get_elevation_stats` — Find highest/lowest altitude points from GPS samples
 
 **Display tools:**
 - `show_map` — Render markers on Leaflet map (resolves coords from local cache)
 - `show_route` — Draw colour-coded GPS routes on map (from days store GPS samples)
+- `show_heatmap` — Render GPS data as heat map on chat map (frequency, recency, or time spent modes)
+- `show_chart` — Render Chart.js charts inline in chat (bar, line, pie, doughnut) with PNG export
 
 ## Common Tasks
 
