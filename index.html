@@ -36,7 +36,7 @@ SOFTWARE.
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = 889;
+  window.__ARC_BUILD__ = '02.002';
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -163,7 +163,23 @@ SOFTWARE.
         </div>
         
         <div class="content">
-				
+
+				<!-- Documentation Links -->
+				<div class="doc-links">
+					<button class="doc-link-btn" onclick="openDocViewer('MANUAL.md', 'User Manual')">
+						<span class="doc-link-icon">📖</span>
+						<span class="doc-link-label">User Manual</span>
+					</button>
+					<button class="doc-link-btn" onclick="openDocViewer('CHANGELOG.md', 'Changelog')">
+						<span class="doc-link-icon">📋</span>
+						<span class="doc-link-label">Changelog</span>
+					</button>
+					<button class="doc-link-btn" onclick="openDocViewer('README.md', 'About')">
+						<span class="doc-link-icon">ℹ️</span>
+						<span class="doc-link-label">About</span>
+					</button>
+				</div>
+
 				<!-- Database Status (v3.0) -->
 				<div id="dbStatusSection" class="import-panel" style="display: none; cursor: default; text-align: left; margin-bottom: 24px;">
 					<!-- Loading Bar -->
@@ -210,8 +226,7 @@ SOFTWARE.
 					</div>
 				</div>
 
-
-            <div class="form-group" id="fileInputSection">
+	            <div class="form-group" id="fileInputSection">
                 <!-- Import Type Selector -->
                 <div class="import-tab-row">
                     <button id="jsonImportTab" class="btn-import-tab" onclick="selectImportType('json')">
@@ -286,7 +301,7 @@ SOFTWARE.
             </div>
             
             <div class="footer">
-                Arc Diary Reader v<span id="appVersion"></span> © 2025 <a href="https://github.com/YOUR_USERNAME/arc-timeline-diary-generator" target="_blank">Gordon Williams</a> | 
+                Arc Diary Reader Build <span id="appVersion"></span> © 2025–2026 Gordon Williams |
                 <a href="https://opensource.org/licenses/MIT" target="_blank">MIT License</a> |
                 <a href="#" onclick="showCredits(); return false;">Credits</a>
             </div>
@@ -370,6 +385,9 @@ SOFTWARE.
                     </div>
                 </div>
                 <div class="share-range-info" id="shareRangeInfo"></div>
+                <div class="share-privacy-notice">
+                    <strong>⚠ Privacy</strong> — The tour file contains precise GPS coordinates, place names, addresses and visit times for every day in the selected range. Consider starting and ending your date range at the airport or train station rather than at home, to avoid sharing your private home or work locations. Once sent, you lose control of this data.
+                </div>
                 <div class="share-error" id="shareError" style="display: none;"></div>
                 <div class="export-progress" id="shareProgress" style="display: none;">
                     <div class="export-progress-bar">
@@ -673,7 +691,7 @@ SOFTWARE.
                         <div class="diary-title-row">
                             <div class="diary-title-group">
                                 <span class="diary-title" id="diaryTitle">Diary Timeline</span>
-                                <span class="diary-build" id="diaryBuild">Build 888</span>
+                                <span class="diary-build" id="diaryBuild">Build 02.000</span>
                             </div>
                             <div class="diary-nav-group" id="diaryNavGroup">
                                 <button class="btn-diary-nav btn-nav-circular" id="prevDayBtn" onclick="NavigationController.navigateBy(-1, 'day')" title="Previous day"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -875,8 +893,10 @@ SOFTWARE.
   // Populate build label in footer and title
   (function() {
     var b = window.__ARC_BUILD__;
-    var el = document.getElementById('buildLabel');
-    if (el) el.textContent = ' 286';
+    var el = document.getElementById('appVersion');
+    if (el) el.textContent = b;
+    var dbEl = document.getElementById('diaryBuild');
+    if (dbEl) dbEl.textContent = 'Build ' + b;
     if (document.title && document.title.indexOf('Build') === -1) document.title = document.title + ' • Build ' + b;
   })();
 </script>
@@ -944,6 +964,75 @@ SOFTWARE.
         </div>
     </div>
 </div>
+
+<!-- Document Viewer Modal -->
+<div class="doc-viewer-overlay" id="docViewerOverlay" style="display: none;" onclick="if(event.target===this)closeDocViewer()">
+    <div class="doc-viewer">
+        <div class="doc-viewer-header">
+            <span class="doc-viewer-title" id="docViewerTitle">Document</span>
+            <button class="export-modal-close" onclick="closeDocViewer()">&times;</button>
+        </div>
+        <div class="doc-viewer-body markdown-body" id="docViewerContent">
+            <p>Loading...</p>
+        </div>
+    </div>
+</div>
+
+<script>
+function openDocViewer(filename, title) {
+    const overlay = document.getElementById('docViewerOverlay');
+    const titleEl = document.getElementById('docViewerTitle');
+    const content = document.getElementById('docViewerContent');
+    if (!overlay || !content) return;
+
+    titleEl.textContent = title || filename;
+    content.innerHTML = '<p style="color: var(--text-secondary);">Loading...</p>';
+    overlay.style.display = 'flex';
+
+    function renderMarkdown(md) {
+        const html = (typeof marked !== 'undefined' && marked.parse)
+            ? marked.parse(md)
+            : md.replace(/</g, '&lt;').replace(/\n/g, '<br>');
+        content.innerHTML = (typeof DOMPurify !== 'undefined')
+            ? DOMPurify.sanitize(html)
+            : html;
+        // Open external links in new tabs
+        content.querySelectorAll('a[href]').forEach(a => {
+            if (a.href && !a.href.startsWith(location.origin)) {
+                a.target = '_blank';
+                a.rel = 'noopener';
+            }
+        });
+    }
+
+    // Use XMLHttpRequest — works on file:// protocol unlike fetch()
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', filename + '?v=' + (window.__ARC_BUILD__ || Date.now()), true);
+    xhr.onload = function() {
+        if (xhr.status === 200 || (xhr.status === 0 && xhr.responseText)) {
+            renderMarkdown(xhr.responseText);
+        } else {
+            content.innerHTML = '<p style="color: var(--red);">Could not load ' + filename + '</p>';
+        }
+    };
+    xhr.onerror = function() {
+        content.innerHTML = '<p style="color: var(--red);">Could not load ' + filename + '. If running from a local file, some browsers block file loading — try opening in Chrome or use a local web server.</p>';
+    };
+    xhr.send();
+}
+
+function closeDocViewer() {
+    const overlay = document.getElementById('docViewerOverlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        const overlay = document.getElementById('docViewerOverlay');
+        if (overlay && overlay.style.display !== 'none') closeDocViewer();
+    }
+});
+</script>
 
 </body>
 </html>

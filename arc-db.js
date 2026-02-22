@@ -959,6 +959,8 @@ async function updateAnalysisDataForDay(dayKey, dayData) {
 
             if (!name) continue;
             const visitTime = item.startDate ? new Date(item.startDate).toTimeString().slice(0, 5) : null;
+            const lat = item.center?.latitude ?? item.place?.center?.latitude ?? null;
+            const lng = item.center?.longitude ?? item.place?.center?.longitude ?? null;
 
             if (locationMap.has(name)) {
                 const existing = locationMap.get(name);
@@ -967,13 +969,16 @@ async function updateAnalysisDataForDay(dayKey, dayData) {
                 if (visitTime && (!existing.firstVisit || visitTime < existing.firstVisit)) {
                     existing.firstVisit = visitTime;
                 }
+                if (!existing.lat && lat) { existing.lat = lat; existing.lng = lng; }
             } else {
                 locationMap.set(name, {
                     dayKey,
                     locationName: name,
                     duration,
                     visitCount: 1,
-                    firstVisit: visitTime
+                    firstVisit: visitTime,
+                    lat: lat,
+                    lng: lng
                 });
             }
         } else {
@@ -1037,6 +1042,7 @@ async function updateAnalysisDataForDay(dayKey, dayData) {
                     existing.totalDuration += visit.duration;
                     if (dayKey > existing.lastVisit) existing.lastVisit = dayKey;
                     if (dayKey < existing.firstVisit) existing.firstVisit = dayKey;
+                    if (!existing.lat && visit.lat) { existing.lat = visit.lat; existing.lng = visit.lng; }
                     locStore.put(existing);
                 } else {
                     locStore.put({
@@ -1044,7 +1050,9 @@ async function updateAnalysisDataForDay(dayKey, dayData) {
                         totalVisits: visit.visitCount,
                         totalDuration: visit.duration,
                         firstVisit: dayKey,
-                        lastVisit: dayKey
+                        lastVisit: dayKey,
+                        lat: visit.lat || null,
+                        lng: visit.lng || null
                     });
                 }
             };
@@ -1329,13 +1337,16 @@ async function rebuildLocationsAggregate() {
                     loc.totalDuration += v.duration;
                     if (v.dayKey < loc.firstVisit) loc.firstVisit = v.dayKey;
                     if (v.dayKey > loc.lastVisit) loc.lastVisit = v.dayKey;
+                    if (!loc.lat && v.lat) { loc.lat = v.lat; loc.lng = v.lng; }
                 } else {
                     locations.set(v.locationName, {
                         name: v.locationName,
                         totalVisits: v.visitCount,
                         totalDuration: v.duration,
                         firstVisit: v.dayKey,
-                        lastVisit: v.dayKey
+                        lastVisit: v.dayKey,
+                        lat: v.lat || null,
+                        lng: v.lng || null
                     });
                 }
                 result.continue();
@@ -1560,18 +1571,23 @@ async function updateAnalysisDataForDaySafe(dayKey, dayData) {
                 
                 const duration = getDurationSecondsForAnalysis(item.startDate, item.endDate);
                 const visitTime = item.startDate ? new Date(item.startDate).toTimeString().slice(0, 5) : null;
-                
+                const lat = item.center?.latitude ?? item.place?.center?.latitude ?? null;
+                const lng = item.center?.longitude ?? item.place?.center?.longitude ?? null;
+
                 if (locationMap.has(name)) {
                     const existing = locationMap.get(name);
                     existing.duration += duration;
                     existing.visitCount++;
+                    if (!existing.lat && lat) { existing.lat = lat; existing.lng = lng; }
                 } else {
                     locationMap.set(name, {
                         dayKey,
                         locationName: name,
                         duration,
                         visitCount: 1,
-                        firstVisit: visitTime
+                        firstVisit: visitTime,
+                        lat: lat,
+                        lng: lng
                     });
                 }
             } else {
@@ -2362,7 +2378,6 @@ async function exportDatabaseToJSON() {
     const eventsData = exportEventsData();
 
     return {
-        version: VERSION,
         build: BUILD,
         exportDate: new Date().toISOString(),
         dayCount: days.length,

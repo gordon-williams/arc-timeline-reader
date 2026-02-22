@@ -1,5 +1,47 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.000 (2026-02-22)
+
+### Feature - AI Chat
+
+Natural language chat interface for exploring your timeline data, powered by Anthropic's Claude API. Open the Analysis page and select the **Chat AI** tab.
+
+- **Ask questions in plain English** — "When did I go to Japan?", "How far did I walk last month?", "Which hotels did I stay at?"
+- **Multiple models** — Choose from Sonnet 4.6, Sonnet 4.5, Haiku 4.5, or Haiku 3, each with different cost/quality trade-offs.
+- **Interactive map** — Claude can display markers and colour-coded GPS routes directly on the map panel. Routes are colour-coded by activity type (walking=green, car=grey, cycling=blue, etc.).
+- **12 query tools** — Activity summaries, daily timelines, location search, date range places, geographic region search (bounding box), top locations, location visit history, and more.
+- **Geographic region search** — "When did I go to Japan?" uses GPS bounding box search instead of text matching, so it finds actual visits rather than Japanese restaurants at home.
+- **Activity type filtering** — Routes can be filtered to specific activities (e.g. only walking, or only car/bus/train).
+- **Cost tracking** — Per-message and session costs displayed, with cumulative totals tracked across sessions. Cost panel with per-model breakdown.
+- **Privacy by design**:
+  - GPS coordinates, street addresses, and raw GPS samples are **never sent** to the API — only place names, durations, and activity types.
+  - Coordinates are cached locally in the browser for map display.
+  - API data is not used for model training and is retained by Anthropic for up to 30 days for safety purposes only.
+  - Privacy notice displayed below the API key input.
+- **Your API key** — stored locally in your browser's localStorage. Never sent anywhere except directly to Anthropic's API.
+
+### Feature - In-App Documentation
+
+- **User Manual**, **Changelog**, and **About** buttons on the start screen open documents in a built-in markdown viewer.
+- Documents rendered using the existing Marked.js library with DOMPurify sanitisation.
+- External links open in new tabs. Modal closes with ×, backdrop click, or Escape key.
+
+### Share Tour - Privacy Warning
+
+- Added a permanent privacy notice to the Create Tour dialog warning that the `.arctrip` file contains precise GPS coordinates, place names, addresses, and visit times.
+- Advises starting and ending the date range at an airport or station rather than at home.
+
+### Privacy Note - API Key Section
+
+- Updated the privacy notice below the API key input to state that API data is not used for model training, is retained for up to 30 days for safety only, and that GPS coordinates and addresses are never sent.
+
+### Data Improvements
+
+- Location coordinates (lat/lng) now stored in `locationVisits` records and `locations` aggregate during import and rebuild, enabling geographic region search.
+- Previously, the `arc-db.js` import/rebuild paths did not persist coordinates in these stores.
+
+---
+
 ## Build 889 (2026-02-20)
 
 ### Security Hardening

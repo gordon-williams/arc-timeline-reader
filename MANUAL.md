@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader - User Manual
 
-**Build 886**
+**Build 02.000**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and [Arc Editor](https://editor.arc.wiki) GPS tracking data. Generates interactive diaries with maps from your location history, stored locally in your browser. No server required.
 
@@ -23,10 +23,12 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and [Arc E
 13. [Location Analysis](#location-analysis)
 14. [Exporting Your Data](#exporting-your-data)
 15. [Share Tour](#share-tour)
-16. [Settings](#settings)
-17. [Database Management](#database-management)
-18. [Keyboard Shortcuts](#keyboard-shortcuts)
-19. [Troubleshooting](#troubleshooting)
+16. [AI Chat](#ai-chat)
+17. [Privacy & Security](#privacy--security)
+18. [Settings](#settings)
+19. [Database Management](#database-management)
+20. [Keyboard Shortcuts](#keyboard-shortcuts)
+21. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -519,9 +521,169 @@ When a tour is open:
 
 Click **Close Tour** to restore your own data. Closing the diary reader window also ends tour mode automatically.
 
-### Security
+### Tour Security
 
 Files received from others are validated before opening: file size limits, format checks, day count and item count caps, and HTML stripping on text fields. No tour data is written to your database.
+
+### Tour Privacy
+
+A privacy warning is displayed in the Create Tour dialog. The `.arctrip` file contains precise GPS coordinates, place names, street addresses, and visit times for every day in the selected range. Consider starting and ending your date range at the airport or train station rather than at home, to avoid sharing your private home or work locations. Once sent, you lose control of this data.
+
+---
+
+## AI Chat
+
+Ask questions about your timeline data in natural language, powered by Anthropic's Claude API. The AI Chat is in the Analysis page under the **Chat AI** tab.
+
+### Getting Started
+
+1. Open the **Analysis** page (click **Analysis** in the diary reader toolbar, or the Analysis button on the start screen).
+2. Select the **Chat AI** tab.
+3. Enter your Anthropic API key in the **API Key** field and click **Save Key**. You can get a key from [console.anthropic.com](https://console.anthropic.com/).
+4. Choose a model from the dropdown.
+5. Type a question and press Enter or click Send.
+
+Your API key is stored locally in your browser's localStorage. It is only sent directly to Anthropic's API endpoint and nowhere else.
+
+### Models
+
+| Model | Input / Output cost (per M tokens) | Best for |
+|-------|-------------------------------------|----------|
+| **Sonnet 4.6** | $3 / $15 | Best quality, most capable reasoning |
+| **Sonnet 4.5** | $3 / $15 | Strong quality, good all-round |
+| **Haiku 4.5** | $1 / $5 | Good quality at lower cost |
+| **Haiku 3** | $0.25 / $1.25 | Cheapest, suitable for simple questions |
+
+Cost per message is displayed after each response, along with a running session total. Click the cost display to expand a breakdown of cumulative costs by model across all sessions.
+
+### What You Can Ask
+
+The AI has access to 12 query tools for extracting data from your timeline database. Example questions:
+
+**Activities and distances:**
+- "How far did I walk last month?"
+- "Compare my cycling distance this year vs last year"
+- "What was my most active day in January?"
+
+**Locations and visits:**
+- "How often did I go to the gym this year?"
+- "What are my top 10 most visited places?"
+- "When was the last time I visited Mum's house?"
+
+**Trips and regions:**
+- "When did I go to Japan?"
+- "Which hotels did I stay at during my 2019 Japan trip?"
+- "What did I do on Miyajima Island?"
+
+**Day details:**
+- "What did I do on 15th March 2024?"
+- "Show me the route I took yesterday"
+
+**Maps:**
+- "Show those locations on the map"
+- "Draw the route for my trip to the coast"
+
+### Map Display
+
+Claude can display results on an interactive map panel that appears alongside the chat:
+
+- **Markers** — Location pins with visit counts, showing where you've been.
+- **Routes** — Colour-coded GPS tracks drawn on the map, matching the main diary reader's colour scheme (walking=green, car=grey, cycling=blue, running=red, etc.).
+- **Activity filtering** — Claude can filter routes to specific activity types (e.g. only walking, or only car/bus/train).
+
+The map panel has controls to clear markers, close the panel, and switch map styles.
+
+### Cost Tracking
+
+Every message displays its token usage and cost. The cost indicator at the top of the chat shows:
+
+- **Session cost** — Total cost since the chat was last cleared.
+- **Cumulative costs** — Click the cost display to expand a per-model breakdown of all-time costs, persisted across sessions in localStorage.
+
+Typical costs are very low — a single question-and-answer exchange costs around $0.001 to $0.01 depending on the model and complexity.
+
+### Tips
+
+- **Be specific with dates** — "How far did I walk in March 2024?" works better than "How far did I walk recently?"
+- **Start broad, then narrow** — Ask about a country first, then drill down to specific cities or days.
+- **Use the map** — Ask Claude to "show that on the map" after any location-based answer.
+- **Clear the chat** to reset the conversation and free up context for new topics. The **Clear Chat** button resets the message history and session cost.
+- **Multi-step queries** — Claude can chain tool calls together, e.g. finding your Japan trip dates, then looking up what you did each day, then showing the route on the map.
+
+---
+
+## Privacy & Security
+
+Arc Diary Reader is designed with privacy as a core principle. Your location data is sensitive personal information, and the application handles it accordingly.
+
+### Local-Only Storage
+
+All your timeline data is stored locally in your browser's IndexedDB. No data is uploaded to any server. The application runs entirely as static files — there is no backend, no account system, and no analytics.
+
+### AI Chat Privacy
+
+When using the AI Chat feature, a subset of your timeline data is sent to Anthropic's Claude API to answer your questions. The following safeguards are in place:
+
+**What is sent to the API:**
+- Place names (e.g. "Keio Plaza Hotel Tokyo")
+- Activity types (e.g. "walking", "car")
+- Durations and distances
+- Dates and times
+- Aggregated statistics
+
+**What is NEVER sent to the API:**
+- GPS coordinates (latitude/longitude)
+- Street addresses
+- Raw GPS track samples
+- Your API key (sent only to Anthropic's endpoint, not to any other service)
+
+Coordinates are stripped from all tool results before they are sent to the API by the `stripCoordsForAPI()` function. Instead, coordinates are cached locally in your browser for map display — the API never sees them.
+
+**Anthropic's data policy for API usage:**
+- API data is **not used for model training**.
+- API data is retained for up to **30 days** for safety and abuse monitoring purposes only, then deleted.
+- These protections apply automatically to all API usage — no opt-out is required.
+
+### Tour Sharing Privacy
+
+When you create a `.arctrip` file to share a trip, the file contains the **complete raw data** for every day in the selected date range, including:
+
+- Precise GPS coordinates (sub-metre accuracy)
+- Place names and street addresses
+- Visit times (arrival and departure)
+- GPS track samples (per-second location breadcrumbs)
+
+**To protect your privacy when sharing:**
+- Start and end your date range at the airport, train station, or other public place — not at your home or workplace.
+- Review the date range carefully before exporting.
+- Remember that once you send the file, you lose control of the data it contains.
+
+A privacy warning is displayed in the Create Tour dialog as a reminder.
+
+### Mapbox and External Services
+
+If you configure a Mapbox token, the following external services are contacted:
+
+| Service | Data Sent | Purpose |
+|---------|-----------|---------|
+| Mapbox Tiles | Map viewport coordinates | Loading map tiles |
+| Mapbox Geocoding | Location coordinates | Reverse geocoding (adding suburb names) |
+| Mapbox Directions | Route start/end coordinates | Route search |
+| CARTO / CyclOSM / Esri | Map viewport coordinates | Alternative map tiles |
+| Nominatim (OSM) | Location coordinates | Fallback geocoding |
+| Open-Elevation | Route coordinates | Elevation profiles |
+| OSRM | Route start/end coordinates | Fallback route search |
+
+These services receive only the coordinates necessary for their function. No place names, visit times, or personal data are sent.
+
+### Browser Storage
+
+| Storage | Contents | Scope |
+|---------|----------|-------|
+| IndexedDB | All timeline data, analysis aggregates | Per-origin, persists until cleared |
+| localStorage | API key, model preference, cost totals, author name, Mapbox token, geocoding cache, event data | Per-origin, persists until cleared |
+
+All data can be cleared using the **Clear** button on the start screen or the browser's site data settings. The standalone `delete-db.html` page can also be used to delete the IndexedDB database.
 
 ---
 

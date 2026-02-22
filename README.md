@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader
 
-**Current Build: 875**
+**Current Build: 02.000**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracking data that generates interactive diaries with maps.
 
@@ -80,6 +80,13 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracki
 - **Multiple Tile Providers** - Mapbox (streets, satellite, outdoors) or CARTO
 - **PNG/PDF Export** - Save maps with markers and routes
 
+### AI Chat
+- **Natural Language Queries** - Ask questions about your timeline in plain English (requires your own Anthropic API key)
+- **Multiple Models** - Sonnet 4.6, Sonnet 4.5, Haiku 4.5, Haiku 3 with per-message cost tracking
+- **Interactive Map** - Claude displays markers and colour-coded GPS routes on an embedded map
+- **Geographic Search** - "When did I go to Japan?" uses GPS bounding box search, not text matching
+- **Privacy First** - GPS coordinates and addresses never leave your browser; only place names sent to the API
+
 ### Activity Analysis
 - **Trend Charts** - Distance, duration, or trip count over time
 - **Activity Filtering** - Walking, cycling, running, driving, etc.
@@ -118,6 +125,7 @@ The **Variable** dropdown controls what the heat intensity represents:
 | `app.js` | Core application (~11,600 lines) |
 | `styles.css` | All styling (~3,500 lines) |
 | `analysis.html` | Standalone analysis tool (~5,600 lines) |
+| `analysis-ai.js` | AI Chat engine — tool definitions, executors, system prompt |
 | `map-tools.js` | Measurement and search tools |
 | `delete-db.html` | Database reset utility |
 | `backup-extractor.html` | Extract date range from backup to mini ZIP |
@@ -186,3 +194,4 @@ Access via gear icon or Settings button:
 - [Mapbox](https://www.mapbox.com/) for tiles and geocoding
 - [CARTO](https://carto.com/) for free map tiles
 - [Nominatim/OpenStreetMap](https://nominatim.org/) for fallback geocoding
+- [Anthropic Claude API](https://www.anthropic.com/) for AI Chat

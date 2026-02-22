@@ -27,15 +27,12 @@ function moveMapSmart(latlng, zoom) {
     window.map.flyTo(latlng, z, { animate: true, duration: 0.8 });
 }
 
-// Version and Build Information
-        const VERSION = "3.0";
+// Build Information — format is VV.BBB (version.build)
+        // VV increments for major feature releases, BBB increments with every code change
+        // Source of truth: index.html window.__ARC_BUILD__
         const BUILD = window.__ARC_BUILD__ || "???";
-        // Build number is set in index.html: window.__ARC_BUILD__
-        // Update VERSION for major feature releases
-        
-        // v3.0 - IndexedDB storage for handling large datasets (175MB+)
-        
-        logInfo(`📔 Arc Timeline Diary Reader v${VERSION} • Build ${BUILD}`);
+
+        logInfo(`📔 Arc Timeline Diary Reader • Build ${BUILD}`);
 
         const fileInput = document.getElementById('fileInput');
 
@@ -66,7 +63,7 @@ function moveMapSmart(latlng, zoom) {
 				return hasPinNotes || hasDayNotes;
 		  }
         // Version info
-        const APP_VERSION = `${VERSION} • Build ${BUILD}`;
+        const APP_VERSION = BUILD;
         
         
         // ========================================
@@ -11492,8 +11489,8 @@ if (typeof toggleAnalysisPanel === 'function') window.toggleAnalysisPanel = togg
                 awaitingAnalysisAck = false;
                 
                 // Check if analysis tab is running an older build
-                const analysisBuild = event.data.build || 0;
-                const currentBuild = window.__ARC_BUILD__ || 0;
+                const analysisBuild = event.data.build || '00.000';
+                const currentBuild = window.__ARC_BUILD__ || '00.000';
                 
                 if (analysisBuild < currentBuild) {
                     // Old version - open new tab with current version
