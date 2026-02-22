@@ -92,7 +92,13 @@
             color: var(--text-primary);
             letter-spacing: -0.3px;
         }
-        
+
+        .header-build {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-variant-numeric: tabular-nums;
+        }
+
         .header-stats {
             flex: 1;
             font-size: 12px;
@@ -1899,10 +1905,10 @@
             display: flex;
             flex: 1;
             min-height: 0;
-            /* Cap at viewport height minus header+tabs so the chat layout
-               never causes page scroll — input stays pinned at the bottom,
-               messages scroll internally, and map panel stays fixed-size. */
-            max-height: calc(100dvh - 76px);
+            /* Cap at viewport height minus header+tabs+bottom margin so the
+               chat layout never causes page scroll — input stays pinned at
+               the bottom, messages scroll internally, map panel stays fixed. */
+            max-height: calc(100dvh - 92px);
             padding: 16px;
             gap: 12px;
             box-sizing: border-box;
@@ -2385,6 +2391,7 @@
     <div class="analysis-container">
         <div class="analysis-header">
             <span class="analysis-title">Arc Timeline Analysis</span>
+            <span class="header-build" id="headerBuild"></span>
             <span class="header-stats" id="headerStats">Loading...</span>
             <button class="btn btn-secondary btn-export" id="themeToggle">Light</button>
             <button class="btn btn-secondary btn-export" id="rebuildBtn">Rebuild</button>
@@ -2641,6 +2648,7 @@
                                     <option value="cycle">Cycle</option>
                                     <option value="satellite">Satellite</option>
                                 </select>
+                                <button class="btn btn-secondary btn-small" id="chatMapSaveBtn">📥 PNG</button>
                                 <button class="btn btn-secondary btn-small" id="chatMapClearBtn">Clear Pins</button>
                             </div>
                             <div class="chat-map" id="chatMap"></div>
@@ -2653,7 +2661,7 @@
 
     <script>
         // Build version
-        const ANALYSIS_BUILD = '02.023';
+        const ANALYSIS_BUILD = '02.041';
         
         // Database and state
         let db = null;
@@ -2844,7 +2852,9 @@
                 document.querySelector('#locationPresets .preset-btn[data-preset="all"]')?.classList.add('active');
             }
             
-            // Set location version number
+            // Set build number in header and location tab
+            const headerBuildEl = document.getElementById('headerBuild');
+            if (headerBuildEl) headerBuildEl.textContent = ANALYSIS_BUILD;
             const locationVersionEl = document.getElementById('locationVersion');
             if (locationVersionEl) {
                 locationVersionEl.textContent = `Arc Timeline Analysis • Build ${ANALYSIS_BUILD}`;

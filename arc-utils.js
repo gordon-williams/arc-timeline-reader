@@ -104,6 +104,25 @@
     const calculateDistanceMeters = calculateDistance;
 
     /**
+     * Check if a GPS sample is bogus (user-confirmed or classifier-marked as bogus,
+     * which is activity type code 0 in LocoKit2).
+     */
+    function isBogousSample(sample) {
+        const ct = sample.confirmedType;
+        if (ct === 0 || ct === '0' || ct === 'bogus') return true;
+        const cl = sample.classifiedType;
+        if (cl === 0 || cl === '0' || cl === 'bogus') return true;
+        return false;
+    }
+
+    /**
+     * Check if coordinates are near null island (0,0) — indicates invalid GPS data.
+     */
+    function isNullIsland(lat, lng) {
+        return Math.abs(lat) < 0.01 && Math.abs(lng) < 0.01;
+    }
+
+    /**
      * Calculate total path distance from an array of GPS samples
      */
     function calculatePathDistance(samples) {
@@ -111,11 +130,12 @@
 
         const validPoints = [];
         for (const sample of samples) {
+            if (isBogousSample(sample)) continue;
             const lat = sample.location?.latitude ?? sample.latitude;
             const lng = sample.location?.longitude ?? sample.longitude;
-            if (lat != null && lng != null) {
-                validPoints.push({ lat, lng });
-            }
+            if (lat == null || lng == null) continue;
+            if (isNullIsland(lat, lng)) continue;
+            validPoints.push({ lat, lng });
         }
 
         if (validPoints.length < 2) return null;
@@ -139,6 +159,7 @@
 
         const altitudes = [];
         for (const sample of samples) {
+            if (isBogousSample(sample)) continue;
             const altitude = sample.location?.altitude || sample.altitude;
             if (altitude != null && !isNaN(altitude)) {
                 altitudes.push(altitude);
@@ -191,6 +212,8 @@
         calculateDistanceMeters,
         calculatePathDistance,
         calculateElevationGain,
+        isBogousSample,
+        isNullIsland,
         decompressFile
     };
 

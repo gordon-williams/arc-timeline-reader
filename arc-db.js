@@ -1426,13 +1426,16 @@ function getDurationSecondsForAnalysis(start, end) {
 
 function calculateDistanceForAnalysis(samples) {
     if (!samples || samples.length < 2) return 0;
-    
-    // Extract valid GPS points (samples use sample.location.latitude/longitude)
+
+    const { isBogousSample, isNullIsland } = window.ArcUtils;
+    // Extract valid GPS points, filtering bogus samples and null island
     const validPoints = [];
     for (const sample of samples) {
-        if (sample.location && 
-            sample.location.latitude != null && 
+        if (isBogousSample(sample)) continue;
+        if (sample.location &&
+            sample.location.latitude != null &&
             sample.location.longitude != null) {
+            if (isNullIsland(sample.location.latitude, sample.location.longitude)) continue;
             validPoints.push(sample.location);
         }
     }

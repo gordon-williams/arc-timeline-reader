@@ -1005,13 +1005,16 @@
                     continue;
                 }
 
+                const { isBogousSample, isNullIsland } = window.ArcUtils;
                 const pts = [];
                 for (const s of item.samples) {
+                    if (isBogousSample(s)) continue;
                     const lat = s?.location?.latitude ?? s?.latitude;
                     const lng = s?.location?.longitude ?? s?.longitude;
                     const alt = s?.location?.altitude ?? s?.altitude;
                     const ts = s?.location?.timestamp || s?.timestamp || s?.date;
                     if (lat == null || lng == null) continue;
+                    if (isNullIsland(lat, lng)) continue;
                     pts.push({
                         lat,
                         lng,

@@ -105,6 +105,29 @@
     let inlineCharts = [];
 
     /**
+     * Haversine distance between two points in metres.
+     */
+    function haversineDist(lat1, lng1, lat2, lng2) {
+        const R = 6371000;
+        const toRad = v => v * Math.PI / 180;
+        const dLat = toRad(lat2 - lat1);
+        const dLng = toRad(lng2 - lng1);
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    /**
+     * Calculate total distance of a track's points array in metres.
+     */
+    function trackDistance(points) {
+        let d = 0;
+        for (let i = 1; i < points.length; i++) {
+            d += haversineDist(points[i - 1].lat, points[i - 1].lng, points[i].lat, points[i].lng);
+        }
+        return d;
+    }
+
+    /**
      * Extract GPS tracks from raw day data — mirrors extractTracksFromData() in arc-data.js.
      * Returns [{activityType, points: [{lat, lng, t}]}]
      */
@@ -116,10 +139,17 @@
             if (!Array.isArray(item.samples) || item.samples.length < 2) continue;
             const pts = [];
             for (const s of item.samples) {
+                // Skip bogus samples (confirmedType/classifiedType 0 = bogus in LocoKit2)
+                const ct = s.confirmedType;
+                if (ct === 0 || ct === '0' || ct === 'bogus') continue;
+                const cl = s.classifiedType;
+                if (cl === 0 || cl === '0' || cl === 'bogus') continue;
                 const lat = s?.location?.latitude ?? s?.latitude;
                 const lng = s?.location?.longitude ?? s?.longitude;
                 const ts = s?.location?.timestamp || s?.timestamp || s?.date;
                 if (lat == null || lng == null) continue;
+                // Skip null island (near 0,0)
+                if (Math.abs(lat) < 0.01 && Math.abs(lng) < 0.01) continue;
                 pts.push({ lat, lng, t: ts ?? null });
             }
             if (pts.length < 2) continue;
@@ -138,7 +168,7 @@
     // --- DOM References (set in init) ---
     let elMessages, elInput, elSendBtn, elModelSelect, elApiKey, elSaveKey, elClearBtn, elWelcome;
     let elMapScopeLabel, elMapScopeCheck;
-    let elMapPanel, elMapContainer, elMapTitle, elMapClearBtn, elMapStyle, elResizeHandle;
+    let elMapPanel, elMapContainer, elMapTitle, elMapClearBtn, elMapSaveBtn, elMapStyle, elResizeHandle;
     let elCostBadge, elCostPanel, elCostPanelBody, elCostReset;
 
     // =========================================================================
@@ -371,6 +401,7 @@
                     north: { type: 'number', description: 'Northern latitude bound.' },
                     west: { type: 'number', description: 'Western longitude bound.' },
                     east: { type: 'number', description: 'Eastern longitude bound.' },
+                    min_distance: { type: 'number', description: 'Minimum track distance in metres. Only draw tracks longer than this (e.g. 100000 for 100 km). Filters individual trip segments, not daily totals.' },
                     title: { type: 'string', description: 'Title for the map panel (optional)' },
                     clear_existing: { type: 'boolean', description: 'Clear previous routes before drawing (default true). Markers are NOT affected.' }
                 }
@@ -441,6 +472,7 @@
                     west: { type: 'number', description: 'Western longitude bound.' },
                     east: { type: 'number', description: 'Eastern longitude bound.' },
                     title: { type: 'string', description: 'Title for the map panel (optional).' },
+                    min_distance: { type: 'number', description: 'Minimum trip distance in metres. Only include trips longer than this (e.g. 50000 for 50 km). Filters individual trip segments.' },
                     radius: { type: 'integer', description: 'Heat point radius in pixels (default 12). Increase for zoomed-out views.' },
                     blur: { type: 'integer', description: 'Heat blur in pixels (default 18). Higher = smoother.' }
                 },
@@ -901,7 +933,7 @@
                 console.log(`[show_map] ${unresolved.length} unresolved:`, unresolved.slice(0, 5));
             }
             if (resolved.length === 0) {
-                return { error: 'No coordinates cached for these locations. Query location data first.', unresolved };
+                return { error: 'No coordinates found for these locations. You must use EXACT place names from query tool results (get_date_range_places, find_location_visits, search_locations, etc.) — do NOT guess or invent location names. Query the data first, then use the returned place names with show_map.', unresolved };
             }
             renderMapMarkers(resolved, title, clear_existing !== false);
             const result = { displayed: resolved.length, title: title || 'Map' };
@@ -909,7 +941,7 @@
             return result;
         },
 
-        async show_route({ dates, start_date, end_date, title, clear_existing, activity_types, south, north, west, east }) {
+        async show_route({ dates, start_date, end_date, title, clear_existing, activity_types, south, north, west, east, min_distance }) {
             // Build date list from either dates[] or start_date/end_date range
             let dateList = dates || [];
             if (start_date && end_date && dateList.length === 0) {
@@ -934,13 +966,30 @@
             const allTracks = [];
             let totalPoints = 0;
             let daysWithData = 0;
-            for (const date of dateList) {
+            for (let di = 0; di < dateList.length; di++) {
+                const date = dateList[di];
+                // Yield to main thread every 100 days to prevent browser freeze
+                if (di > 0 && di % 100 === 0) {
+                    await new Promise(r => setTimeout(r, 0));
+                    if (abortController && abortController.signal.aborted) {
+                        throw new DOMException('The operation was aborted.', 'AbortError');
+                    }
+                }
                 let day;
                 try {
                     const tx = db.transaction(['days'], 'readonly');
                     day = await idbGet(tx.objectStore('days'), date);
                 } catch (e) { continue; }
                 if (!day || !day.data) continue;
+                // Cache visit location coordinates so show_map can resolve them later
+                for (const item of (day.data.timelineItems || [])) {
+                    if (!item.isVisit) continue;
+                    const name = item.place?.name || item.customTitle || '';
+                    if (!name) continue;
+                    const lat = item.center?.latitude ?? item.place?.center?.latitude;
+                    const lng = item.center?.longitude ?? item.place?.center?.longitude;
+                    if (lat && lng) cacheCoords(name, lat, lng);
+                }
                 const tracks = extractTracksFromDay(day.data);
                 let dayHasData = false;
                 for (const track of tracks) {
@@ -952,6 +1001,12 @@
                         );
                         if (track.points.length < 2) continue;
                     }
+                    // Apply minimum distance filter
+                    const dist = track.points.length >= 2 ? trackDistance(track.points) : 0;
+                    if (min_distance && dist < min_distance) continue;
+                    // Attach date and distance for popup display
+                    track.date = date;
+                    track.distanceKm = Math.round(dist / 100) / 10; // 1 decimal place
                     allTracks.push(track);
                     totalPoints += track.points.length;
                     dayHasData = true;
@@ -1027,7 +1082,7 @@
             };
         },
 
-        async show_heatmap({ start_date, end_date, activity_types, mode, title, radius, blur, south, north, west, east }) {
+        async show_heatmap({ start_date, end_date, activity_types, mode, title, radius, blur, south, north, west, east, min_distance }) {
             if (!start_date || !end_date) {
                 return { error: 'Both start_date and end_date are required.' };
             }
@@ -1053,16 +1108,53 @@
             const endMs = new Date(end_date).getTime();
             const dateSpanMs = Math.max(endMs - startMs, 1);
 
-            const points = [];
+            // Use streaming grid aggregation to cap memory — all points are
+            // inserted into a ~30m grid as they are collected, so the array
+            // never grows beyond the number of unique grid cells.
+            const GRID = 0.0003; // ~30m grid cell
+            const grid = new Map();
+            let rawPointCount = 0;
             let daysWithData = 0;
 
-            for (const date of dateList) {
+            /** Insert a point into the grid (or small-range buffer). */
+            function addHeatPoint(lat, lng, weight) {
+                if (hasBBox && (lat < south || lat > north || lng < west || lng > east)) return;
+                rawPointCount++;
+                const key = `${Math.round(lat / GRID)},${Math.round(lng / GRID)}`;
+                if (grid.has(key)) {
+                    const cell = grid.get(key);
+                    cell[2] += weight;
+                    cell[3]++;
+                } else {
+                    grid.set(key, [lat, lng, weight, 1]);
+                }
+            }
+
+            for (let di = 0; di < dateList.length; di++) {
+                const date = dateList[di];
+                // Yield to main thread every 100 days to prevent browser freeze
+                if (di > 0 && di % 100 === 0) {
+                    await new Promise(r => setTimeout(r, 0));
+                    if (abortController && abortController.signal.aborted) {
+                        throw new DOMException('The operation was aborted.', 'AbortError');
+                    }
+                }
                 let day;
                 try {
                     const tx = db.transaction(['days'], 'readonly');
                     day = await idbGet(tx.objectStore('days'), date);
                 } catch (e) { continue; }
                 if (!day || !day.data || !day.data.timelineItems) continue;
+
+                // Cache visit location coordinates so show_map can resolve them later
+                for (const item of day.data.timelineItems) {
+                    if (!item.isVisit) continue;
+                    const vName = item.place?.name || item.customTitle || '';
+                    if (!vName) continue;
+                    const vLat = item.center?.latitude ?? item.place?.center?.latitude;
+                    const vLng = item.center?.longitude ?? item.place?.center?.longitude;
+                    if (vLat && vLng) cacheCoords(vName, vLat, vLng);
+                }
 
                 let dayHasData = false;
                 const dayMs = new Date(date).getTime();
@@ -1082,9 +1174,9 @@
                             const durSec = (item.startDate && item.endDate)
                                 ? Math.max(0, (new Date(item.endDate) - new Date(item.startDate)) / 1000)
                                 : 0;
-                            points.push([lat, lng, Math.min(Math.max(durSec, 1), 28800)]);
+                            addHeatPoint(lat, lng, Math.min(Math.max(durSec, 1), 28800));
                         } else {
-                            points.push([lat, lng, recencyWeight]);
+                            addHeatPoint(lat, lng, recencyWeight);
                         }
                         dayHasData = true;
                         continue;
@@ -1097,12 +1189,21 @@
 
                     const samples = [];
                     for (const s of item.samples) {
+                        // Skip bogus samples
+                        const ct = s.confirmedType;
+                        if (ct === 0 || ct === '0' || ct === 'bogus') continue;
+                        const cl = s.classifiedType;
+                        if (cl === 0 || cl === '0' || cl === 'bogus') continue;
                         const lat = s?.location?.latitude ?? s?.latitude;
                         const lng = s?.location?.longitude ?? s?.longitude;
                         if (lat == null || lng == null) continue;
+                        if (Math.abs(lat) < 0.01 && Math.abs(lng) < 0.01) continue;
                         const ts = s?.location?.timestamp || s?.timestamp || s?.date;
                         samples.push({ lat, lng, t: ts ? new Date(ts).getTime() : null });
                     }
+
+                    // Apply minimum distance filter per trip segment
+                    if (min_distance && samples.length >= 2 && trackDistance(samples) < min_distance) continue;
 
                     if (heatMode === 'time_spent') {
                         for (let j = 0; j < samples.length - 1; j++) {
@@ -1113,16 +1214,16 @@
                                 const gapSec = (next.t - s.t) / 1000;
                                 weight = Math.min(Math.max(gapSec, 1), 300);
                             }
-                            points.push([s.lat, s.lng, weight]);
+                            addHeatPoint(s.lat, s.lng, weight);
                         }
                         if (samples.length > 0) {
                             const last = samples[samples.length - 1];
-                            points.push([last.lat, last.lng, 1]);
+                            addHeatPoint(last.lat, last.lng, 1);
                         }
                     } else {
                         // frequency or recency
                         for (const s of samples) {
-                            points.push([s.lat, s.lng, recencyWeight]);
+                            addHeatPoint(s.lat, s.lng, recencyWeight);
                         }
                     }
                     dayHasData = true;
@@ -1130,41 +1231,13 @@
                 if (dayHasData) daysWithData++;
             }
 
-            // Apply geographic bounding box filter
-            if (hasBBox) {
-                const before = points.length;
-                for (let i = points.length - 1; i >= 0; i--) {
-                    const lat = points[i][0], lng = points[i][1];
-                    if (lat < south || lat > north || lng < west || lng > east) {
-                        points.splice(i, 1);
-                    }
-                }
-                console.log(`[show_heatmap] bbox filter: ${before} → ${points.length} points`);
-            }
-
-            if (points.length < 2) {
+            if (grid.size < 2) {
                 const filterMsg = typeFilter ? ` (filtered to: ${activity_types.join(', ')})` : '';
                 const bboxMsg = hasBBox ? ' within the specified region' : '';
                 return { error: `No GPS data found for ${start_date} to ${end_date}${filterMsg}${bboxMsg}.` };
             }
 
-            // Downsample if very large — grid-based aggregation
-            let finalPoints = points;
-            if (points.length > 150000) {
-                const GRID = 0.0003; // ~30m grid
-                const grid = new Map();
-                for (const p of points) {
-                    const key = `${Math.round(p[0] / GRID)},${Math.round(p[1] / GRID)}`;
-                    if (grid.has(key)) {
-                        const cell = grid.get(key);
-                        cell[2] += p[2]; // sum intensity
-                        cell[3]++;       // count
-                    } else {
-                        grid.set(key, [p[0], p[1], p[2], 1]);
-                    }
-                }
-                finalPoints = Array.from(grid.values()).map(c => [c[0], c[1], c[2]]);
-            }
+            const finalPoints = Array.from(grid.values()).map(c => [c[0], c[1], c[2]]);
 
             // Compute bounds for the result
             let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
@@ -1180,12 +1253,12 @@
             return {
                 displayed: 'heatmap',
                 mode: heatMode,
-                gps_points: points.length,
+                gps_points: rawPointCount,
+                grid_cells: finalPoints.length,
                 days_with_data: daysWithData,
                 date_range: `${start_date} to ${end_date}`,
                 title: title || 'Heatmap',
-                bounds: { south: +minLat.toFixed(4), north: +maxLat.toFixed(4), west: +minLng.toFixed(4), east: +maxLng.toFixed(4) },
-                downsampled: finalPoints.length < points.length ? finalPoints.length : undefined
+                bounds: { south: +minLat.toFixed(4), north: +maxLat.toFixed(4), west: +minLng.toFixed(4), east: +maxLng.toFixed(4) }
             };
         },
 
@@ -1217,7 +1290,15 @@
             // Track top N records (min-heap for highest, max-heap for lowest)
             const records = []; // { alt, date, activityType, placeName }
 
-            for (const date of dayKeys) {
+            for (let di = 0; di < dayKeys.length; di++) {
+                const date = dayKeys[di];
+                // Yield to main thread every 100 days to prevent browser freeze
+                if (di > 0 && di % 100 === 0) {
+                    await new Promise(r => setTimeout(r, 0));
+                    if (abortController && abortController.signal.aborted) {
+                        throw new DOMException('The operation was aborted.', 'AbortError');
+                    }
+                }
                 let day;
                 try {
                     const tx = db.transaction(['days'], 'readonly');
@@ -1236,11 +1317,17 @@
                     const placeName = item.customTitle || '';
 
                     for (const sample of item.samples) {
+                        // Skip bogus samples
+                        const ct = sample.confirmedType;
+                        if (ct === 0 || ct === '0' || ct === 'bogus') continue;
+                        const cl = sample.classifiedType;
+                        if (cl === 0 || cl === '0' || cl === 'bogus') continue;
                         const sLat = sample.location?.latitude ?? sample.latitude;
                         const sLng = sample.location?.longitude ?? sample.longitude;
+                        if (sLat == null || sLng == null) continue;
+                        if (Math.abs(sLat) < 0.01 && Math.abs(sLng) < 0.01) continue;
                         // Apply bounding box filter
                         if (hasBBox) {
-                            if (sLat == null || sLng == null) continue;
                             if (sLat < south || sLat > north || sLng < west || sLng > east) continue;
                         }
                         const alt = sample.location?.altitude ?? sample.altitude;
@@ -1525,6 +1612,17 @@
             // White border underneath (matches main system)
             const border = L.polyline(latlngs, { color: '#ffffff', weight: 10, opacity: 0.8 }).addTo(chatMap);
             const line = L.polyline(latlngs, { color: color, weight: 7, opacity: 1 }).addTo(chatMap);
+            // Bind popup with date, activity type, and distance if available
+            if (track.date) {
+                const activity = track.activityType || 'unknown';
+                const dateStr = track.date; // YYYY-MM-DD
+                const distStr = track.distanceKm != null ? `${track.distanceKm} km` : '';
+                const popupHtml = `<div style="font:13px/1.4 -apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;min-width:100px">`
+                    + `<div style="font-weight:600;margin-bottom:2px">${escapeHtml(dateStr)}</div>`
+                    + `<div style="color:#666">${escapeHtml(activity)}${distStr ? ' · ' + distStr : ''}</div>`
+                    + `</div>`;
+                line.bindPopup(popupHtml, { closeButton: false, offset: [0, -4] });
+            }
             chatMapPolylines.push(border, line);
             bounds.push(...latlngs);
         }
@@ -1736,13 +1834,68 @@
         const chart = new Chart(canvas.getContext('2d'), chartConfig);
         inlineCharts.push(chart);
 
-        // PNG export handler
+        // PNG export handler — renders title + chart + border onto an offscreen canvas
         exportBtn.addEventListener('click', () => {
             const slug = (config.title || 'chart').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-            const link = document.createElement('a');
-            link.download = slug + '.png';
-            link.href = canvas.toDataURL('image/png');
-            link.click();
+            const dpr = window.devicePixelRatio || 1;
+            const chartImg = chart.toBase64Image('image/png', 1);
+
+            const img = new Image();
+            img.onload = () => {
+                const style = getComputedStyle(document.body);
+                const isDarkExport = (style.getPropertyValue('--bg-app') || '').trim().startsWith('#1');
+
+                const pad = 24;           // padding inside border
+                const titleH = config.title ? 28 : 0; // space for title text
+                const titleGap = config.title ? 12 : 0;
+                const borderR = 12;
+                const borderW = 1;
+
+                const imgW = img.naturalWidth;
+                const imgH = img.naturalHeight;
+                const totalW = imgW + pad * 2;
+                const totalH = imgH + pad * 2 + titleH + titleGap;
+
+                const offscreen = document.createElement('canvas');
+                offscreen.width = totalW;
+                offscreen.height = totalH;
+                const ctx = offscreen.getContext('2d');
+
+                // Background fill
+                const bgColor = isDarkExport ? '#1c1c1e' : '#ffffff';
+                const borderColor = isDarkExport ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.12)';
+                const titleColor = isDarkExport ? '#f5f5f7' : '#1d1d1f';
+
+                // Rounded rect background
+                ctx.beginPath();
+                ctx.roundRect(0, 0, totalW, totalH, borderR);
+                ctx.fillStyle = bgColor;
+                ctx.fill();
+
+                // Border
+                ctx.beginPath();
+                ctx.roundRect(borderW / 2, borderW / 2, totalW - borderW, totalH - borderW, borderR);
+                ctx.strokeStyle = borderColor;
+                ctx.lineWidth = borderW;
+                ctx.stroke();
+
+                // Title
+                if (config.title) {
+                    ctx.fillStyle = titleColor;
+                    ctx.font = `600 ${14 * dpr}px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif`;
+                    ctx.textBaseline = 'top';
+                    ctx.fillText(config.title, pad, pad);
+                }
+
+                // Chart image
+                ctx.drawImage(img, pad, pad + titleH + titleGap, imgW, imgH);
+
+                const link = document.createElement('a');
+                link.download = slug + '.png';
+                link.href = offscreen.toDataURL('image/png');
+                link.click();
+            };
+            img.src = chartImg;
         });
     }
 
@@ -1769,18 +1922,14 @@
         const locale = navigator.language || 'en';
         const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
 
-        // Include current map viewport bounds so Claude can reference them for geographic queries
+        // Include current map viewport bounds ONLY when the user has explicitly toggled "Use map area"
         let mapBoundsInfo = '';
-        if (chatMap && elMapPanel && (elMapPanel.classList.contains('visible') || elMapPanel.classList.contains('map-default'))) {
+        if (mapScopeActive && chatMap && elMapPanel && (elMapPanel.classList.contains('visible') || elMapPanel.classList.contains('map-default'))) {
             try {
                 const b = chatMap.getBounds();
                 if (b && b.isValid()) {
                     const boundsStr = `south=${b.getSouth().toFixed(4)}, north=${b.getNorth().toFixed(4)}, west=${b.getWest().toFixed(4)}, east=${b.getEast().toFixed(4)}`;
-                    if (mapScopeActive) {
-                        mapBoundsInfo = `\n**MAP AREA FILTER ACTIVE.** The user has toggled "Map area" ON. You MUST use these bounding box coordinates for ALL show_route, show_heatmap, and find_days_in_region calls: ${boundsStr} (zoom ${chatMap.getZoom()}). Do NOT use wider bounds — restrict results to this exact viewport.`;
-                    } else {
-                        mapBoundsInfo = `\nThe chat map is currently showing: ${boundsStr} (zoom ${chatMap.getZoom()}). You can use these bounds (or a subset) when the user refers to "this area" or "what's on the map", or when they mention a place that's already visible on the map.`;
-                    }
+                    mapBoundsInfo = `\n**MAP AREA FILTER ACTIVE.** The user has toggled "Use map area" ON. You MUST use these bounding box coordinates for ALL show_route, show_heatmap, find_days_in_region, and get_elevation_stats calls: ${boundsStr} (zoom ${chatMap.getZoom()}). Do NOT use wider bounds — restrict results to this exact viewport.`;
                 }
             } catch (e) { /* map not ready */ }
         }
@@ -1793,16 +1942,15 @@ Tool result keys: n=count, dur=duration(s), dist=distance(m), d=date, vis=raw vi
 IMPORTANT for locations: "days" means the number of UNIQUE CALENDAR DAYS the user visited that place — NOT how long they stayed. A ferry terminal with days=2 means visited on 2 separate days, not stayed for 2 days. Use "dur" (total seconds) to describe actual time spent. Say "visited on X days" not "X days". dur values may be incomplete — many visits lack end times so dur=0. If dur seems very low relative to days, note the data is incomplete.
 For multi-month questions use get_monthly_summary. For "how often did I go to X" use find_location_visits.
 For "where did I go" or "show me on a map" over a date range, use get_date_range_places (returns all visited places in one call) then show_map. This is much cheaper than calling get_day_timeline per day.
-For "when did I go to [country/city]?" or "have I been to [region]?", use find_days_in_region with a bounding box. You know common bounding boxes (e.g. Japan: 24-46°N, 122-146°E). For small areas (islands, neighbourhoods), use a GENEROUS bounding box — add at least 0.05° padding on all sides to account for GPS drift and coastal locations. This searches stored location coordinates — much better than text search which matches restaurant names.
-To show locations on a map, use show_map with location names (coordinates are resolved locally). Include count (days count) with each marker when available. Omit label to auto-use the place name. You can proactively show a map when answering location-based questions.
-To draw routes on the map, use show_route for SHORT date ranges (a few days to ~2 weeks). For specific days use dates[] (e.g. dates=["2025-03-15"]). For date ranges use start_date + end_date — the tool will enumerate all days internally. Routes are colour-coded by activity type (walking=green, car=grey, cycling=blue, etc.). Use activity_types to filter (e.g. ["walking"]). When the user mentions a specific city or region, ALWAYS include a bounding box (south/north/west/east) to filter to that area. Combine with show_map markers. Proactively show routes when the user asks about journeys, trips, or commutes.
+For "when did I go to [country/city]?" or "have I been to [region]?", use find_days_in_region with a bounding box. You know common bounding boxes (e.g. Japan: 24-46°N, 122-146°E). For small areas (islands, neighbourhoods), use a GENEROUS bounding box — add at least 0.05° padding on all sides to account for GPS drift and coastal locations. This searches stored location coordinates — much better than text search which matches restaurant names. find_days_in_region only returns dates and place names — it does NOT have GPS tracks. To visualise routes, follow up with show_route or show_heatmap using the dates found.
+To show locations on a map, use show_map with location names (coordinates are resolved locally from cache). CRITICAL: You MUST use exact place names returned by query tools (get_date_range_places, find_location_visits, search_locations, etc.) — NEVER guess or invent location names like "Brisbane" or "Sydney". Always query the data FIRST to get real place names, then pass those names to show_map. Include count (days count) with each marker when available. Omit label to auto-use the place name. You can proactively show a map when answering location-based questions.
+To draw routes on the map, use show_route — this is the ONLY tool that visualises GPS tracks. Use it for SHORT-to-MEDIUM date ranges (a few days to ~4 weeks). For specific days use dates[] (e.g. dates=["2025-03-15"]). For date ranges use start_date + end_date — the tool will enumerate all days internally. Routes are colour-coded by activity type (walking=green, car=grey, cycling=blue, etc.). Use activity_types to filter (e.g. ["walking"] or ["car"]). When the user mentions a specific city or region, ALWAYS include a bounding box (south/north/west/east) to filter to that area. When the user asks to see routes "outside" a region, use a WIDE bounding box covering the wider area (e.g. the state or country) to capture the trips beyond the city. Combine with show_map markers. Use min_distance (in metres) to filter by trip length (e.g. min_distance=100000 for "trips over 100 km"). Proactively show routes when the user asks about journeys, trips, drives, commutes, or route visualisation.
 For LONG date ranges (months or a full year), use show_heatmap instead of show_route — it displays GPS data as a heat map which is much more readable than hundreds of overlapping polylines. Modes: "frequency" (default — more visits = hotter), "recency" (recent routes brighter), "time_spent" (longer stays = hotter). Increase radius for zoomed-out views of large areas. Use show_heatmap when the user asks to see walking/cycling/activity patterns, coverage, or route frequency over extended periods. When the user mentions a specific city or region (e.g. "walking in Brisbane"), ALWAYS include a bounding box (south/north/west/east) to filter GPS data to that area — otherwise data from all locations will appear. You know common city bounding boxes.
 To visualise data as a chart, use show_chart. Supported types: bar (comparisons, histograms), line (time series), pie/doughnut (proportions). You must pre-compute the data values from tool results and provide them as arrays — convert distances to km and durations to hours BEFORE passing to show_chart. Use bar charts for monthly breakdowns, line charts for trends over time, pie/doughnut for activity proportions. Set horizontal=true for ranked lists (e.g. top locations by visits). Proactively offer charts when presenting numerical comparisons or trends. Use activity colours where appropriate: walking=#12A656, cycling=#039FD4, running=#EB781B, car=#4E5268, bus=#4056B5, train=#AA9131, hiking=#0E8444.
 For altitude/elevation questions ("highest point walked", "what elevation did I reach"), use get_elevation_stats — it scans raw GPS samples for altitude extremes. Supports bounding box (south/north/west/east) to filter to a region. Do NOT use get_daily_stats for altitude questions (it has no altitude data).
 NEVER generate code (Python, JavaScript, or any programming language). NEVER suggest the user run a script. Use the available tools to query data and display results visually.
 When presenting numerical data in text, format it as a readable markdown table with headers — NEVER dump raw values as a comma-separated list. Always include context columns (month names, location names, dates) alongside the values. Convert distances from metres to km (divide by 1000, 1 decimal place) and durations from seconds to hours/minutes before displaying.
-Be concise and friendly.
-When the user zooms the map to a specific area and asks about "this area" or a nearby place, use the map viewport bounds as a starting point for your bounding box.`;
+Be concise and friendly.`;
     }
 
     async function callAnthropic(messages) {
@@ -2047,6 +2195,11 @@ When the user zooms the map to a specific area and asks about "this area" or a n
             while (iterations < MAX_TOOL_ITERATIONS) {
                 iterations++;
 
+                // Check if cancelled between iterations
+                if (abortController && abortController.signal.aborted) {
+                    throw new DOMException('The operation was aborted.', 'AbortError');
+                }
+
                 const response = await callAnthropic(messages);
                 queryTokensIn += (response.usage?.input_tokens || 0);
                 queryTokensOut += (response.usage?.output_tokens || 0);
@@ -2066,6 +2219,11 @@ When the user zooms the map to a specific area and asks about "this area" or a n
                     // Execute each tool
                     const toolResults = [];
                     for (const toolBlock of toolUseBlocks) {
+                        // Check if cancelled before each tool execution
+                        if (abortController && abortController.signal.aborted) {
+                            throw new DOMException('The operation was aborted.', 'AbortError');
+                        }
+
                         hideThinking();
                         showToolInfo(toolBlock.name, toolBlock.input);
                         showThinking();
@@ -2297,6 +2455,7 @@ When the user zooms the map to a specific area and asks about "this area" or a n
         elMapTitle = document.getElementById('chatMapTitle');
         elMapStyle = document.getElementById('chatMapStyle');
         elMapClearBtn = document.getElementById('chatMapClearBtn');
+        elMapSaveBtn = document.getElementById('chatMapSaveBtn');
         elResizeHandle = document.getElementById('chatResizeHandle');
 
         // Get DOM references — cost tracking
@@ -2348,6 +2507,128 @@ When the user zooms the map to a specific area and asks about "this area" or a n
         if (elMapClearBtn) {
             elMapClearBtn.addEventListener('click', () => {
                 if (chatMap) clearMapMarkers();
+            });
+        }
+        if (elMapSaveBtn) {
+            elMapSaveBtn.addEventListener('click', async () => {
+                if (!elMapContainer) return;
+                const origText = elMapSaveBtn.textContent;
+                elMapSaveBtn.textContent = '⏳';
+                elMapSaveBtn.disabled = true;
+                try {
+                    // Load dom-to-image (same library used by main map page)
+                    // — handles Leaflet's CSS translate3d correctly via style override
+                    if (typeof window.domtoimage === 'undefined') {
+                        await new Promise((resolve, reject) => {
+                            const s = document.createElement('script');
+                            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js';
+                            s.integrity = 'sha384-zESinL+vR3OR5XGFqKjneclbVKOL8SfP+fKKO3K9BHAaPtboci56Vu3g5flevHk9';
+                            s.crossOrigin = 'anonymous';
+                            s.onload = resolve;
+                            s.onerror = () => reject(new Error('Failed to load dom-to-image'));
+                            document.head.appendChild(s);
+                        });
+                    }
+
+                    const isDark = (getComputedStyle(document.body).getPropertyValue('--bg-app') || '').trim().startsWith('#1');
+
+                    // Hide Leaflet controls for a clean capture
+                    const controls = elMapContainer.querySelector('.leaflet-control-container');
+                    const controlsWasVisible = controls && controls.style.display !== 'none';
+                    if (controls) controls.style.display = 'none';
+
+                    // Wait for any pending tile loads + rendering
+                    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+                    await new Promise(r => setTimeout(r, 300));
+
+                    const w = elMapContainer.clientWidth || elMapContainer.offsetWidth;
+                    const h = elMapContainer.clientHeight || elMapContainer.offsetHeight;
+
+                    // Capture using dom-to-image with transform:none to fix
+                    // Leaflet's translate3d polyline/marker offset issue
+                    const mapDataUrl = await window.domtoimage.toPng(elMapContainer, {
+                        bgcolor: isDark ? '#1c1c1e' : '#f0f0f2',
+                        width: w,
+                        height: h,
+                        style: { transform: 'none' },
+                        filter: (node) => {
+                            if (!(node instanceof Element)) return true;
+                            if (node.classList.contains('leaflet-control-container')) return false;
+                            return true;
+                        }
+                    });
+
+                    // Restore controls
+                    if (controls && controlsWasVisible) controls.style.display = '';
+
+                    // Load captured image to draw onto composition canvas
+                    const mapImg = await new Promise((resolve, reject) => {
+                        const img = new Image();
+                        img.onload = () => resolve(img);
+                        img.onerror = () => reject(new Error('Failed to load captured map image'));
+                        img.src = mapDataUrl;
+                    });
+
+                    // Compose final image: title bar + map with border
+                    const title = (elMapTitle && elMapTitle.textContent) || 'Map';
+                    const dpr = 2;
+                    const pad = 20 * dpr;
+                    const titleH = 24 * dpr;
+                    const titleGap = 8 * dpr;
+                    const borderR = 12 * dpr;
+                    const mapW = mapImg.naturalWidth * dpr;
+                    const mapH = mapImg.naturalHeight * dpr;
+                    const totalW = mapW + pad * 2;
+                    const totalH = mapH + pad * 2 + titleH + titleGap;
+
+                    const offscreen = document.createElement('canvas');
+                    offscreen.width = totalW;
+                    offscreen.height = totalH;
+                    const ctx = offscreen.getContext('2d');
+
+                    const bgColor = isDark ? '#1c1c1e' : '#ffffff';
+                    const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.12)';
+                    const titleColor = isDark ? '#f5f5f7' : '#1d1d1f';
+
+                    // Rounded rect background
+                    ctx.beginPath();
+                    ctx.roundRect(0, 0, totalW, totalH, borderR);
+                    ctx.fillStyle = bgColor;
+                    ctx.fill();
+                    ctx.strokeStyle = borderColor;
+                    ctx.lineWidth = dpr;
+                    ctx.stroke();
+
+                    // Title
+                    ctx.fillStyle = titleColor;
+                    ctx.font = `600 ${14 * dpr}px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif`;
+                    ctx.textBaseline = 'top';
+                    ctx.fillText(title, pad, pad);
+
+                    // Map image (clip to rounded rect)
+                    const mapY = pad + titleH + titleGap;
+                    const mapBorderR = 8 * dpr;
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.roundRect(pad, mapY, mapW, mapH, mapBorderR);
+                    ctx.clip();
+                    ctx.drawImage(mapImg, pad, mapY, mapW, mapH);
+                    ctx.restore();
+
+                    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'map';
+                    const link = document.createElement('a');
+                    link.download = slug + '.png';
+                    link.href = offscreen.toDataURL('image/png');
+                    link.click();
+                } catch (err) {
+                    console.error('Failed to export map:', err);
+                } finally {
+                    // Ensure controls are restored even on error
+                    const controls = elMapContainer.querySelector('.leaflet-control-container');
+                    if (controls) controls.style.display = '';
+                    elMapSaveBtn.textContent = origText;
+                    elMapSaveBtn.disabled = false;
+                }
             });
         }
         // Resize handle — drag to resize chat/map panels

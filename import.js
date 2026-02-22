@@ -1094,7 +1094,7 @@
                 previousItemId: base.previousItemId || null,
                 nextItemId: base.nextItemId || null,
                 lastSaved: visit?.lastSaved || trip?.lastSaved || base.lastSaved || null,
-                deleted: !!base.deleted,
+                deleted: !!(base.deleted || base.disabled),  // disabled = marked as bogus in Arc Editor
                 center
             };
         }
@@ -1164,6 +1164,7 @@
             location,
             date: rawSample.date,
             movingState: rawSample.movingState,
+            confirmedType: rawSample.confirmedType ?? rawSample.confirmedActivityType,
             classifiedType: rawSample.classifiedType ?? rawSample.classifiedActivityType
         };
     }
@@ -1826,6 +1827,7 @@
                                 location: normalizedSample.location,
                                 date: normalizedSample.date,
                                 movingState: normalizedSample.movingState,
+                                confirmedType: normalizedSample.confirmedType,
                                 classifiedType: normalizedSample.classifiedType
                             });
                             sampleCount++;
@@ -1947,6 +1949,7 @@
                             location: s.location || { latitude: s.latitude, longitude: s.longitude, altitude: s.altitude },
                             date: s.date,
                             movingState: s.movingState,
+                            confirmedType: s.confirmedType,
                             classifiedType: s.classifiedType
                         }));
                         item.samples.sort((a, b) => (a.date || '').localeCompare(b.date || ''));

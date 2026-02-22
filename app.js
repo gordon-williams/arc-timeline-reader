@@ -8162,6 +8162,8 @@ scrollToDiaryDay(currentDayKey);
                         if (!(node instanceof Element)) return true;
                         if (node.classList.contains('leaflet-control-container')) return false;
                         if (node.classList.contains('diary-float')) return false;
+                        if (node.classList.contains('map-zoom-float')) return false;
+                        if (node.classList.contains('tile-opacity-float')) return false;
                         return true;
                     }
                 });
