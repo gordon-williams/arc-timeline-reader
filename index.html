@@ -36,7 +36,7 @@ SOFTWARE.
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = '02.002';
+  window.__ARC_BUILD__ = '02.003';
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -996,9 +996,19 @@ function openDocViewer(filename, title) {
         content.innerHTML = (typeof DOMPurify !== 'undefined')
             ? DOMPurify.sanitize(html)
             : html;
-        // Open external links in new tabs
+        // Handle links
         content.querySelectorAll('a[href]').forEach(a => {
-            if (a.href && !a.href.startsWith(location.origin)) {
+            const href = a.getAttribute('href');
+            if (href && href.startsWith('#')) {
+                // Internal anchor — scroll within the doc viewer
+                a.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const targetId = href.slice(1);
+                    const target = content.querySelector('#' + CSS.escape(targetId));
+                    if (target) target.scrollIntoView({ behavior: 'smooth' });
+                });
+            } else if (a.href && !a.href.startsWith(location.origin)) {
+                // External link — open in new tab
                 a.target = '_blank';
                 a.rel = 'noopener';
             }
