@@ -978,12 +978,24 @@
                 // If no coordinates, we can't map it anyway
                 if (!lat || !lng) continue;
 
+                // Extract first note text for map popup display
+                let noteText = null;
+                if (hasNote && item.notes) {
+                    if (typeof item.notes === 'string') {
+                        noteText = item.notes.trim();
+                    } else if (Array.isArray(item.notes) && item.notes.length > 0) {
+                        const first = item.notes[0];
+                        noteText = (first?.body || first || '').toString().trim();
+                    }
+                    if (!noteText) noteText = null;
+                }
                 pins.push({
                     location: locationName,
                     lat: lat,
                     lng: lng,
                     altitude: altitude ?? null, // Store altitude (can be null)
                     hasNote: hasNote,
+                    noteText: noteText,
                     isVisit: true,
                     startDate: item.startDate || null,
                     endDate: item.endDate || null,

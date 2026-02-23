@@ -383,6 +383,7 @@ function moveMapSmart(latlng, zoom) {
                         startDate: p.startDate || null,
                         endDate: p.endDate || null,
                         hasNote: !!p.hasNote,
+                        noteText: p.noteText || null,
                         timelineItemId: p.timelineItemId || uniqueKey
                     });
                 }
@@ -1230,7 +1231,8 @@ function moveMapSmart(latlng, zoom) {
                 pendingPopupTimer = null;
             }
         }
-        
+
+
         // Calculate marker radius based on zoom level (like Arc Timeline)
         function getMarkerRadius(zoom) {
             // REVERSED LOGIC: Smaller when zoomed out (to avoid confusion with cluster markers)
@@ -3317,6 +3319,8 @@ function moveMapSmart(latlng, zoom) {
                     L.DomEvent.disableScrollPropagation(opacityEl);
                 }
 
+                // Note expand/collapse — handled via inline onclick on the <a> expand toggle.
+
                 // Add zoom event listener to dynamically resize markers (like Arc Timeline)
                 map.on('zoomend', function() {
                     const newZoom = map.getZoom();
@@ -4256,12 +4260,11 @@ function moveMapSmart(latlng, zoom) {
             // If we're already showing this day, and the user clicked a specific location again,
             // do NOT rebuild the map or refit bounds (that causes the zoom-out toggle).
             if (mapMode === 'day' && currentDayKey === dayKey && clusterGroup && targetLat !== null) {
-                // Close any open popup and collapse any spiderfied cluster
-                // so they don't interfere with the pan animation
+                // Close any open popup so it doesn't interfere with the pan animation
                 map.closePopup();
-                if (clusterGroup.unspiderfy) clusterGroup.unspiderfy();
 
-                // Find closest marker (same robust matching as slow path)
+                // Find closest marker BEFORE unspiderfying — markers hold their
+                // canonical LatLng even while in spider-leg positions.
                 let targetMarker = null;
                 let bestD2 = Infinity;
                 let markerCount = 0;
@@ -4282,6 +4285,9 @@ function moveMapSmart(latlng, zoom) {
 
                 logDebug(`🔍 Fast path: markers=${markerCount}, bestD2=${bestD2}`);
 
+                // Collapse any spiderfied cluster now that we've found our target
+                if (clusterGroup.unspiderfy) clusterGroup.unspiderfy();
+
                 // Reject match if closest marker is too far (~110m threshold)
                 const MAX_MATCH_D2 = 0.001 * 0.001;
                 if (!targetMarker || bestD2 > MAX_MATCH_D2) {
@@ -4292,27 +4298,34 @@ function moveMapSmart(latlng, zoom) {
 
                 const ll = targetMarker.getLatLng();
 
-                // Check if marker is inside a cluster at current zoom
-                const visibleParent = clusterGroup.getVisibleParent(targetMarker);
-                const isClustered = visibleParent && visibleParent !== targetMarker;
+                // Pan to marker, then handle cluster/popup after animation completes.
+                // Use Leaflet's moveend event instead of fixed timeouts — animation
+                // duration varies (0.4–1.5s) so timeouts often fire too early.
+                const targetZoom = Math.max(15, map.getZoom());
+                panToWithDiaryOffset(ll.lat, ll.lng, targetZoom);
 
-                if (isClustered) {
-                    // Pan to the marker location, then spiderfy the cluster to reveal it
-                    panToWithDiaryOffset(ll.lat, ll.lng, Math.max(15, map.getZoom()));
-                    setTimeout(() => {
-                        if (!clusterGroup) return;
-                        // Re-check visible parent after pan/zoom completes
-                        const vp = clusterGroup.getVisibleParent(targetMarker);
-                        if (vp && vp !== targetMarker && vp.spiderfy) {
-                            vp.spiderfy();
-                        }
-                        openPopupDelayed(targetMarker, 200);
-                    }, 500);
-                } else {
-                    // Already visible — just pan and open popup
-                    panToWithDiaryOffset(ll.lat, ll.lng);
-                    openPopupDelayed(targetMarker, 100);
-                }
+                const revealMarker = () => {
+                    if (!clusterGroup) return;
+                    const vp = clusterGroup.getVisibleParent(targetMarker);
+                    if (vp && vp !== targetMarker && vp.spiderfy) {
+                        vp.spiderfy();
+                        openPopupDelayed(targetMarker, 300);
+                    } else {
+                        openPopupDelayed(targetMarker, 50);
+                    }
+                };
+
+                // Wait for pan/zoom animation to finish before revealing marker.
+                // Use moveend event with a safety timeout in case the event doesn't fire
+                // (e.g., map already at target position, or animation skipped).
+                let revealed = false;
+                const safeReveal = () => {
+                    if (revealed) return;
+                    revealed = true;
+                    revealMarker();
+                };
+                map.once('moveend', safeReveal);
+                setTimeout(safeReveal, 1600);
                 return;
             }
 
@@ -4425,6 +4438,35 @@ function moveMapSmart(latlng, zoom) {
                 if (p.altitude !== null && p.altitude !== undefined) {
                     popupContent += `<div style="color: #666; margin-bottom: 6px; font-size: 13px;">↑ ${Math.round(p.altitude)}m</div>`;
                 }
+
+                // Note text (first note only, truncated with click-to-expand)
+                if (p.noteText) {
+                    const NOTE_TRUNCATE = 120; // characters before truncation
+                    const escaped = escapeHtml(p.noteText);
+                    const needsTruncation = p.noteText.length > NOTE_TRUNCATE;
+                    // Replace newlines with <br> for display
+                    const fullHtml = escaped.replace(/\n/g, '<br>');
+
+                    if (needsTruncation) {
+                        // Truncate at word boundary near the limit
+                        let truncAt = p.noteText.lastIndexOf(' ', NOTE_TRUNCATE);
+                        if (truncAt < NOTE_TRUNCATE * 0.6) truncAt = NOTE_TRUNCATE;
+                        const shortText = escapeHtml(p.noteText.substring(0, truncAt)).replace(/\n/g, '<br>');
+                        popupContent += `
+                            <a href="#" class="popup-note" style="display:block; background: #f8f7f2; border-left: 3px solid #d4a843; padding: 8px 10px; margin-bottom: 10px; border-radius: 0 4px 4px 0; font-size: 12px; line-height: 1.5; color: #555; text-decoration: none; cursor: pointer;"
+                               onclick="var f=this.querySelector('.note-full'),s=this.querySelector('.note-short'),e=this.querySelector('.note-expand');if(f.style.display==='none'){f.style.display='block';s.style.display='none';e.textContent='▲ less';}else{f.style.display='none';s.style.display='block';e.textContent='▼ more…';}return false;">
+                                <span class="note-short">${shortText}…</span>
+                                <span class="note-full" style="display:none">${fullHtml}</span>
+                                <span class="note-expand" style="display:block; font-size: 11px; color: #a08030; margin-top: 4px;">▼ more…</span>
+                            </a>`;
+                    } else {
+                        popupContent += `
+                            <div class="popup-note" style="background: #f8f7f2; border-left: 3px solid #d4a843; padding: 8px 10px; margin-bottom: 10px; border-radius: 0 4px 4px 0; font-size: 12px; line-height: 1.5; color: #555;">
+                                ${fullHtml}
+                            </div>`;
+                    }
+                }
+
                 popupContent += `<div style="font-size: 11px; color: #999; margin-bottom: 10px;">Lat: ${p.lat.toFixed(6)}<br>Lng: ${p.lng.toFixed(6)}</div>`;
 
                 // Street View link
@@ -4445,8 +4487,8 @@ function moveMapSmart(latlng, zoom) {
                         ><span style="font-size: 16px; color: ${safeColor(starColor)};">${starIcon}</span> ${starText}</button>
                     </div>`;
                 
-                mm.bindPopup(popupContent);
-                
+                mm.bindPopup(popupContent, { autoPan: true, maxWidth: 320 });
+
                 // Add click handler to highlight diary entry
                 mm.on('click', function() {
                     // Check if this location has a note
@@ -4503,28 +4545,25 @@ function moveMapSmart(latlng, zoom) {
                 const ll = targetMarker.getLatLng();
                 panToWithDiaryOffset(ll.lat, ll.lng, locationZoom);
 
-                // Ensure it is visible even if inside a cluster, then open the popup
-                // Wait for zoom animation to finish before checking cluster state
-                const zoomDelta = Math.abs(locationZoom - (map.getZoom() || 0));
-                const spiderfyDelay = zoomDelta > 2 ? 1000 : 500;
-                setTimeout(() => {
-                    // Guard against clusterGroup being cleared by rapid navigation
+                // Ensure it is visible even if inside a cluster, then open the popup.
+                // Use moveend event instead of fixed timeout — animation duration varies.
+                let revealedSlow = false;
+                const revealMarkerSlow = () => {
+                    if (revealedSlow) return;
+                    revealedSlow = true;
                     if (!clusterGroup) return;
-
-                    // Check if the marker is inside a cluster
                     const visibleParent = clusterGroup.getVisibleParent(targetMarker);
-
                     if (visibleParent && visibleParent !== targetMarker) {
-                        // Spiderfy the cluster to reveal the marker
                         if (visibleParent.spiderfy) {
                             visibleParent.spiderfy();
                         }
                         openPopupDelayed(targetMarker, 300);
                     } else {
-                        // Marker is already visible (not clustered)
                         openPopupDelayed(targetMarker);
                     }
-                }, spiderfyDelay);
+                };
+                map.once('moveend', revealMarkerSlow);
+                setTimeout(revealMarkerSlow, 1600);
             } else if (!skipFit && bounds.length >= 2) {
                 // Calculate comprehensive bounds including BOTH markers AND polyline points
                 const allBounds = [...bounds]; // Start with marker locations
