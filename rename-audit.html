@@ -1,0 +1,1705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arc Timeline - Rename Audit</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f7;
+            min-height: 100vh;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            max-width: 900px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 { color: #333; margin-bottom: 8px; font-size: 26px; }
+        .subtitle { color: #666; margin-bottom: 24px; font-size: 14px; }
+
+        .instructions {
+            background: #f0f4ff;
+            border: 1px solid #d0d8f0;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #444;
+            line-height: 1.6;
+        }
+        .instructions strong { color: #333; }
+
+        /* Rename pair editor */
+        .pairs-section {
+            margin-bottom: 20px;
+        }
+        .pairs-section h3 {
+            font-size: 14px;
+            color: #555;
+            margin-bottom: 10px;
+        }
+        .pair-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .pair-row input[type="text"] {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #d0d0d0;
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+        .pair-row input:focus {
+            outline: none;
+            border-color: #007AFF;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.12);
+        }
+        .pair-row input[type="date"] {
+            padding: 6px 8px;
+            border: 1px solid #d0d0d0;
+            border-radius: 8px;
+            font-size: 11px;
+            font-family: inherit;
+            color: #555;
+            flex-shrink: 0;
+            width: 130px;
+        }
+        .pair-row .date-label {
+            font-size: 10px;
+            color: #999;
+            flex-shrink: 0;
+        }
+        .pair-row .arrow {
+            color: #999;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        .pair-row .note {
+            font-size: 11px;
+            color: #999;
+            min-width: 80px;
+            text-align: center;
+        }
+        .pair-row .swap-btn {
+            background: none;
+            border: none;
+            color: #007AFF;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 4px;
+            flex-shrink: 0;
+            title: 'Swap direction';
+        }
+        .pair-row .swap-btn:hover { background: #f0f4ff; }
+        .pair-row .remove-btn {
+            background: none;
+            border: none;
+            color: #ff3b30;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+        .pair-row .remove-btn:hover { background: #fff0f0; }
+
+        .add-pair-btn {
+            padding: 8px 16px;
+            background: #f0f0f0;
+            border: 1px dashed #ccc;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            color: #666;
+            margin-top: 4px;
+        }
+        .add-pair-btn:hover { background: #e8e8e8; }
+
+        .pair-row.detected {
+            background: #f0f0ff;
+            border-radius: 6px;
+            padding: 4px 8px;
+            margin-left: -8px;
+            margin-right: -8px;
+        }
+        .pair-row .detected-badge {
+            font-size: 9px;
+            padding: 1px 5px;
+            border-radius: 4px;
+            background: #ede7f6;
+            color: #5856D6;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .run-btn {
+            padding: 14px 24px;
+            background: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0, 122, 255, 0.3);
+            width: 100%;
+        }
+        .run-btn:hover {
+            background: #0066d6;
+            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.4);
+        }
+        .run-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        /* Progress */
+        .progress-section {
+            margin-top: 20px;
+            display: none;
+        }
+        .progress-bar {
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #007AFF;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .progress-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 6px;
+            text-align: center;
+        }
+
+        /* Results */
+        .results { margin-top: 24px; }
+
+        .audit-card {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .audit-card.match { border-color: #34c759; }
+        .audit-card.partial { border-color: #ff9500; }
+        .audit-card.no-match { border-color: #e0e0e0; }
+
+        .audit-header {
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .audit-header .pair-names {
+            font-size: 15px;
+            font-weight: 600;
+            color: #333;
+        }
+        .audit-header .pair-names .old-name { color: #ff3b30; }
+        .audit-header .pair-names .new-name { color: #34c759; }
+        .audit-header .pair-names .arrow { color: #999; margin: 0 6px; }
+        .audit-header .status {
+            margin-left: auto;
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        .status-both { background: #e8f5e9; color: #2e7d32; }
+        .status-old-only { background: #fff3e0; color: #e65100; }
+        .status-new-only { background: #e3f2fd; color: #1565c0; }
+        .status-none { background: #f5f5f5; color: #999; }
+
+        .audit-body {
+            padding: 16px 20px;
+        }
+
+        /* Summary stats row */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .stat-box {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px 14px;
+        }
+        .stat-box .label {
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        .stat-box .value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #333;
+        }
+        .stat-box .detail {
+            font-size: 11px;
+            color: #888;
+            margin-top: 2px;
+        }
+        .stat-box.old { border-left: 3px solid #ff3b30; }
+        .stat-box.new { border-left: 3px solid #34c759; }
+
+        /* Name variants */
+        .variants-section {
+            margin-bottom: 16px;
+        }
+        .variants-section h4 {
+            font-size: 12px;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        .variant-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 0;
+            font-size: 13px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .variant-row:last-child { border-bottom: none; }
+        .variant-row .vname { flex: 1; font-weight: 500; }
+        .variant-row .vsource {
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        .source-place { background: #e8f5e9; color: #2e7d32; }
+        .source-custom { background: #e3f2fd; color: #1565c0; }
+        .source-street { background: #fff3e0; color: #e65100; }
+        .source-none { background: #fce4ec; color: #c62828; }
+        .variant-row .vcount { color: #888; font-size: 12px; }
+        .variant-row .vdates { color: #aaa; font-size: 11px; }
+
+        .variant-days {
+            padding: 4px 0 8px 16px;
+            font-size: 11px;
+            color: #888;
+            line-height: 1.8;
+            display: none;
+        }
+        .variant-days.open { display: block; }
+        .variant-days .day-chip {
+            display: inline-block;
+            background: #f0f0f0;
+            border-radius: 4px;
+            padding: 1px 6px;
+            margin: 1px 3px;
+            font-family: 'SF Mono', Menlo, Monaco, monospace;
+            font-size: 10px;
+        }
+        .variant-row .show-days {
+            background: none;
+            border: none;
+            color: #007AFF;
+            font-size: 11px;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        .variant-row .show-days:hover { background: #f0f4ff; }
+
+        /* Proximity check */
+        .proximity-check {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 12px;
+            color: #555;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .proximity-check .icon { font-size: 16px; }
+        .proximity-check.close { background: #e8f5e9; color: #2e7d32; }
+        .proximity-check.far { background: #fff3e0; color: #e65100; }
+
+        /* Timeline */
+        .timeline-section {
+            margin-top: 12px;
+        }
+        .timeline-section h4 {
+            font-size: 12px;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        .timeline-bar {
+            position: relative;
+            height: 40px;
+            background: #f0f0f0;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 4px;
+        }
+        .timeline-segment {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: 600;
+            color: white;
+            min-width: 2px;
+            overflow: hidden;
+        }
+        .timeline-segment.old-seg { background: rgba(255, 59, 48, 0.7); }
+        .timeline-segment.new-seg { background: rgba(52, 199, 89, 0.7); }
+        .timeline-segment.overlap-seg { background: rgba(255, 149, 0, 0.85); }
+
+        .timeline-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #999;
+            margin-bottom: 8px;
+        }
+
+        .timeline-legend {
+            display: flex;
+            gap: 16px;
+            font-size: 11px;
+            color: #666;
+            margin-top: 6px;
+        }
+        .timeline-legend .swatch {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+        .swatch-old { background: rgba(255, 59, 48, 0.7); }
+        .swatch-new { background: rgba(52, 199, 89, 0.7); }
+        .swatch-overlap { background: rgba(255, 149, 0, 0.85); }
+
+        .changeover-marker {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            width: 2px;
+            background: #333;
+            z-index: 2;
+        }
+        .changeover-marker::after {
+            content: attr(data-label);
+            position: absolute;
+            top: -16px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 9px;
+            color: #333;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .anomaly-alert {
+            background: #fff3e0;
+            border: 1px solid #ffe0b2;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 12px;
+            color: #e65100;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Error/info messages */
+        .msg-error {
+            background: #fff0f0;
+            border: 1px solid #ffcdd2;
+            border-radius: 10px;
+            padding: 14px 16px;
+            color: #c62828;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+
+        .export-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .export-btn {
+            padding: 10px 18px;
+            background: #34c759;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .export-btn:hover { background: #2db84d; }
+        .export-btn.copied { background: #007AFF; }
+
+        /* Detection settings */
+        .detect-settings {
+            background: #f8f8fc;
+            border: 1px solid #e0e0f0;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+        }
+        .detect-settings summary {
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            cursor: pointer;
+            user-select: none;
+        }
+        .detect-settings summary:hover { color: #333; }
+        .detect-settings .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 14px;
+            margin-top: 12px;
+        }
+        .detect-settings .setting-item label {
+            display: block;
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+        .detect-settings .setting-item input[type="range"] {
+            width: 100%;
+            accent-color: #5856D6;
+        }
+        .detect-settings .setting-item .setting-value {
+            font-size: 12px;
+            color: #333;
+            font-weight: 600;
+            text-align: center;
+            margin-top: 2px;
+        }
+        .detect-settings .setting-item .setting-hint {
+            font-size: 10px;
+            color: #aaa;
+            margin-top: 2px;
+        }
+        .detect-settings .presets {
+            margin-top: 10px;
+            display: flex;
+            gap: 8px;
+        }
+        .detect-settings .preset-btn {
+            padding: 4px 10px;
+            border: 1px solid #d0d0e0;
+            border-radius: 6px;
+            background: white;
+            font-size: 11px;
+            cursor: pointer;
+            color: #555;
+        }
+        .detect-settings .preset-btn:hover { background: #f0f0ff; border-color: #5856D6; }
+
+        .footer {
+            margin-top: 24px;
+            text-align: center;
+            font-size: 11px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Rename Audit</h1>
+        <p class="subtitle">Audit known business renamings against your timeline data — find split visit counts from the same physical location</p>
+
+        <div class="instructions">
+            <strong>How it works:</strong> Click <em>Detect Renames</em> to automatically scan your data for locations
+            where the same physical place has been recorded under multiple different names (e.g. a business that was rebranded).
+            The changeover date will be estimated automatically — adjust it if you know the exact date.
+            You can also add pairs manually. Then click <em>Run Audit</em> to see full details — visit counts, date ranges,
+            anomaly detection (old name used after changeover), timeline visualisation, and the specific days each name appeared.
+        </div>
+
+        <details class="detect-settings">
+            <summary>⚙️ Detection Settings</summary>
+            <div class="settings-grid">
+                <div class="setting-item">
+                    <label>Proximity radius</label>
+                    <input type="range" id="settingRadius" min="20" max="300" value="50" step="10" oninput="updateSettingDisplay()">
+                    <div class="setting-value" id="settingRadiusVal">50m</div>
+                    <div class="setting-hint">How close two names must be to be considered the same place</div>
+                </div>
+                <div class="setting-item">
+                    <label>Max overlap</label>
+                    <input type="range" id="settingOverlap" min="0" max="50" value="15" step="5" oninput="updateSettingDisplay()">
+                    <div class="setting-value" id="settingOverlapVal">15%</div>
+                    <div class="setting-hint">Max % of months where both names are active (lower = stricter)</div>
+                </div>
+                <div class="setting-item">
+                    <label>Min visits per name</label>
+                    <input type="range" id="settingMinVisits" min="1" max="20" value="3" step="1" oninput="updateSettingDisplay()">
+                    <div class="setting-value" id="settingMinVisitsVal">3</div>
+                    <div class="setting-hint">Skip pairs where either name has fewer visits than this</div>
+                </div>
+            </div>
+            <div class="presets">
+                <span style="font-size:11px;color:#999;line-height:24px">Presets:</span>
+                <button class="preset-btn" onclick="applyPreset(300, 50, 1)">Loose</button>
+                <button class="preset-btn" onclick="applyPreset(50, 15, 3)">Default</button>
+                <button class="preset-btn" onclick="applyPreset(30, 5, 5)">Strict</button>
+            </div>
+        </details>
+
+        <div class="pairs-section">
+            <h3>Rename Pairs <span id="pairsCount" style="font-weight:400;color:#999;font-size:12px"></span></h3>
+            <div id="pairsContainer"></div>
+            <div style="display:flex;gap:8px;margin-top:4px">
+                <button class="add-pair-btn" onclick="addPairRow()">+ Add pair manually</button>
+                <button class="add-pair-btn" id="clearPairsBtn" onclick="clearPairs()" style="display:none;color:#ff3b30;border-color:#ffcdd2">Clear all</button>
+            </div>
+        </div>
+
+        <div style="display:flex;gap:10px">
+            <button class="run-btn" id="detectBtn" onclick="detectRenames()" style="background:#5856D6;box-shadow:0 2px 8px rgba(88,86,214,0.3);width:auto;flex:1">🔍 Detect Renames</button>
+            <button class="run-btn" id="runBtn" onclick="runAudit()" style="width:auto;flex:1">▶ Run Audit</button>
+        </div>
+
+        <div class="progress-section" id="progressSection">
+            <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+            <div class="progress-text" id="progressText">Starting...</div>
+        </div>
+
+        <div id="errorArea"></div>
+
+        <div class="results" id="results" style="display:none">
+            <div class="export-row">
+                <button class="export-btn" id="copyBtn" onclick="copyResults()">📋 Copy Results to Clipboard</button>
+                <button class="export-btn" id="downloadBtn" onclick="downloadResults()" style="background:#007AFF">💾 Download as Text</button>
+            </div>
+            <div id="auditCards"></div>
+        </div>
+
+        <div class="footer">Arc Timeline — Rename Audit</div>
+    </div>
+
+    <script>
+        // =============================================
+        // State
+        // =============================================
+        let lastAuditResults = null;
+
+        // =============================================
+        // Detection settings
+        // =============================================
+        function getDetectSettings() {
+            return {
+                radius: parseInt(document.getElementById('settingRadius').value),
+                maxOverlap: parseInt(document.getElementById('settingOverlap').value) / 100,
+                minVisits: parseInt(document.getElementById('settingMinVisits').value)
+            };
+        }
+
+        function updateSettingDisplay() {
+            document.getElementById('settingRadiusVal').textContent = document.getElementById('settingRadius').value + 'm';
+            document.getElementById('settingOverlapVal').textContent = document.getElementById('settingOverlap').value + '%';
+            document.getElementById('settingMinVisitsVal').textContent = document.getElementById('settingMinVisits').value;
+        }
+
+        function applyPreset(radius, overlap, minVisits) {
+            document.getElementById('settingRadius').value = radius;
+            document.getElementById('settingOverlap').value = overlap;
+            document.getElementById('settingMinVisits').value = minVisits;
+            updateSettingDisplay();
+        }
+
+        // =============================================
+        // Pair editor
+        // =============================================
+        function addPairRow(oldName = '', newName = '', note = '', detected = false, changeDate = '') {
+            const container = document.getElementById('pairsContainer');
+            const row = document.createElement('div');
+            row.className = 'pair-row' + (detected ? ' detected' : '');
+            row.innerHTML = `
+                <input type="text" class="old-input" placeholder="Old name (e.g. Caltex)" value="${esc(oldName)}">
+                <span class="arrow">→</span>
+                <input type="text" class="new-input" placeholder="New name (e.g. Ampol)" value="${esc(newName)}">
+                <button class="swap-btn" onclick="swapPair(this)" title="Swap direction">⇄</button>
+                <span class="date-label">on</span>
+                <input type="date" class="date-input" value="${changeDate}" title="Changeover date (optional — helps identify anomalies)">
+                ${detected ? '<span class="detected-badge">auto</span>' : ''}
+                ${note ? `<span class="note">${esc(note)}</span>` : ''}
+                <button class="remove-btn" onclick="removePair(this)" title="Remove">×</button>
+            `;
+            container.appendChild(row);
+            updatePairsCount();
+        }
+
+        function swapPair(btn) {
+            const row = btn.parentElement;
+            const oldInput = row.querySelector('.old-input');
+            const newInput = row.querySelector('.new-input');
+            const tmp = oldInput.value;
+            oldInput.value = newInput.value;
+            newInput.value = tmp;
+        }
+
+        function removePair(btn) {
+            btn.parentElement.remove();
+            updatePairsCount();
+        }
+
+        function clearPairs() {
+            document.getElementById('pairsContainer').innerHTML = '';
+            updatePairsCount();
+        }
+
+        function updatePairsCount() {
+            const count = document.querySelectorAll('.pair-row').length;
+            document.getElementById('pairsCount').textContent = count > 0 ? `(${count})` : '';
+            document.getElementById('clearPairsBtn').style.display = count > 0 ? '' : 'none';
+        }
+
+        function getPairs() {
+            const rows = document.querySelectorAll('.pair-row');
+            const pairs = [];
+            for (const row of rows) {
+                const oldName = row.querySelector('.old-input').value.trim();
+                const newName = row.querySelector('.new-input').value.trim();
+                const changeDate = row.querySelector('.date-input')?.value || '';
+                if (oldName && newName) {
+                    pairs.push({ oldName, newName, changeDate });
+                }
+            }
+            return pairs;
+        }
+
+        // =============================================
+        // Grid-based proximity clustering
+        // =============================================
+        function buildClusters(visits, thresholdMetres) {
+            const GRID_DEG = thresholdMetres / 111000;
+            const grid = {};
+            const clusters = [];
+
+            function nearbyClusters(lat, lng) {
+                const gx = Math.floor(lat / GRID_DEG);
+                const gy = Math.floor(lng / GRID_DEG);
+                const result = [];
+                for (let dx = -1; dx <= 1; dx++) {
+                    for (let dy = -1; dy <= 1; dy++) {
+                        const k = `${gx + dx},${gy + dy}`;
+                        if (grid[k]) {
+                            for (const idx of grid[k]) result.push(idx);
+                        }
+                    }
+                }
+                return result;
+            }
+
+            for (const v of visits) {
+                const candidates = nearbyClusters(v.lat, v.lng);
+                let bestIdx = -1, bestDist = Infinity;
+
+                for (const idx of candidates) {
+                    const c = clusters[idx];
+                    const d = haversine(v.lat, v.lng, c.cLat, c.cLng);
+                    if (d < bestDist) { bestDist = d; bestIdx = idx; }
+                }
+
+                const nameKey = v.name || '(unnamed)';
+
+                if (bestIdx >= 0 && bestDist <= thresholdMetres) {
+                    const c = clusters[bestIdx];
+                    c.visits.push(v);
+                    const existing = c.names.get(nameKey);
+                    if (existing) {
+                        existing.count++;
+                    } else {
+                        c.names.set(nameKey, { count: 1, source: v.nameSource });
+                    }
+                    const n = c.visits.length;
+                    c.cLat += (v.lat - c.cLat) / n;
+                    c.cLng += (v.lng - c.cLng) / n;
+                } else {
+                    const idx = clusters.length;
+                    const names = new Map();
+                    names.set(nameKey, { count: 1, source: v.nameSource });
+                    clusters.push({ cLat: v.lat, cLng: v.lng, visits: [v], names });
+                    const gk = `${Math.floor(v.lat / GRID_DEG)},${Math.floor(v.lng / GRID_DEG)}`;
+                    if (!grid[gk]) grid[gk] = [];
+                    grid[gk].push(idx);
+                }
+            }
+            return clusters;
+        }
+
+        // =============================================
+        // Detect renames automatically
+        // =============================================
+        async function detectRenames() {
+            const btn = document.getElementById('detectBtn');
+            btn.disabled = true;
+            btn.textContent = 'Scanning...';
+            document.getElementById('errorArea').innerHTML = '';
+            document.getElementById('results').style.display = 'none';
+            const progSection = document.getElementById('progressSection');
+            progSection.style.display = 'block';
+            setProgress(0, 'Opening database...');
+
+            try {
+                const db = await openDB();
+                if (!db) { btn.disabled = false; btn.textContent = '🔍 Detect Renames'; return; }
+
+                setProgress(5, 'Counting days...');
+                const totalDays = await countStore(db, 'days');
+                if (totalDays === 0) {
+                    showError('No days in database. Import your Arc data first.');
+                    btn.disabled = false; btn.textContent = '🔍 Detect Renames'; return;
+                }
+
+                // Scan all visits for place.name entries with coords
+                setProgress(10, `Scanning ${fmt(totalDays)} days for named places...`);
+                const placeVisits = await scanForPlaceVisits(db, totalDays);
+                db.close();
+
+                setProgress(70, `Clustering ${fmt(placeVisits.length)} named visits...`);
+                await yieldUI();
+
+                // Cluster all place.name visits by proximity
+                const settings = getDetectSettings();
+                const clusters = buildClusters(placeVisits, settings.radius);
+
+                // Find clusters where multiple different place.name values exist
+                // and show a temporal succession pattern (rename) rather than
+                // persistent co-existence (different businesses at same spot)
+                const renameCandidates = [];
+                for (const c of clusters) {
+                    const placeNames = Array.from(c.names.entries())
+                        .filter(([, info]) => info.source === 'place.name')
+                        .sort((a, b) => b[1].count - a[1].count);
+
+                    if (placeNames.length < 2) continue;
+
+                    // Group visits by place.name to get date ranges per name
+                    const nameVisits = {};
+                    for (const v of c.visits) {
+                        if (v.nameSource === 'place.name') {
+                            if (!nameVisits[v.name]) nameVisits[v.name] = [];
+                            nameVisits[v.name].push(v.date || v.dayKey);
+                        }
+                    }
+
+                    // Build date-ranged name entries sorted by first appearance
+                    const namesByFirstDate = placeNames
+                        .map(([name, info]) => {
+                            const dates = (nameVisits[name] || []).slice().sort();
+                            return {
+                                name,
+                                count: info.count,
+                                firstDate: dates[0] || '',
+                                lastDate: dates[dates.length - 1] || '',
+                                months: new Set(dates.map(d => d.slice(0, 7)))
+                            };
+                        })
+                        .sort((a, b) => a.firstDate.localeCompare(b.firstDate));
+
+                    // Check each pair for temporal succession vs co-existence
+                    // A rename: old name dominates early, new name dominates late, limited overlap
+                    // Co-existing: both names active throughout the same period
+                    const newest = namesByFirstDate[namesByFirstDate.length - 1];
+
+                    for (let k = 0; k < namesByFirstDate.length - 1; k++) {
+                        const older = namesByFirstDate[k];
+
+                        // Calculate overlap: months where BOTH names have visits
+                        const overlapMonths = new Set([...older.months].filter(m => newest.months.has(m)));
+                        const totalMonths = new Set([...older.months, ...newest.months]);
+
+                        // Overlap ratio: what fraction of the combined span has both names active
+                        const overlapRatio = totalMonths.size > 0 ? overlapMonths.size / totalMonths.size : 0;
+
+                        // A rename typically has:
+                        // - Low overlap ratio (below user-configured max)
+                        // - OR the old name clearly stops before the new name starts
+                        // - AND both names meet the minimum visit count
+                        const oldEndsBeforeNewStarts = older.lastDate <= newest.firstDate;
+                        const isLikelyRename = overlapRatio < settings.maxOverlap || oldEndsBeforeNewStarts;
+
+                        if (!isLikelyRename) continue;
+                        if (older.count < settings.minVisits || newest.count < settings.minVisits) continue;
+
+                        // Estimate changeover as the first date the new name appeared
+                        const estimatedChange = newest.firstDate ? newest.firstDate.slice(0, 10) : '';
+                        renameCandidates.push({
+                            oldName: older.name,
+                            newName: newest.name,
+                            oldCount: older.count,
+                            newCount: newest.count,
+                            totalVisits: c.visits.length,
+                            estimatedDate: estimatedChange,
+                            overlapRatio: Math.round(overlapRatio * 100)
+                        });
+                    }
+                }
+
+                // Sort by total visits desc
+                renameCandidates.sort((a, b) => (b.oldCount + b.newCount) - (a.oldCount + a.newCount));
+
+                setProgress(90, 'Populating pairs...');
+                await yieldUI();
+
+                // Get existing pairs to avoid duplicates
+                const existing = new Set(getPairs().map(p => `${p.oldName.toLowerCase()}|${p.newName.toLowerCase()}`));
+
+                let added = 0;
+                for (const cand of renameCandidates) {
+                    const key = `${cand.oldName.toLowerCase()}|${cand.newName.toLowerCase()}`;
+                    const reverseKey = `${cand.newName.toLowerCase()}|${cand.oldName.toLowerCase()}`;
+                    if (!existing.has(key) && !existing.has(reverseKey)) {
+                        const overlapNote = cand.overlapRatio > 0 ? ` · ${cand.overlapRatio}% overlap` : '';
+                        addPairRow(cand.oldName, cand.newName, `${cand.oldCount} + ${cand.newCount} visits${overlapNote}`, true, cand.estimatedDate || '');
+                        existing.add(key);
+                        added++;
+                    }
+                }
+
+                const settingsNote = `(${settings.radius}m radius, ${Math.round(settings.maxOverlap * 100)}% overlap, ${settings.minVisits}+ visits)`;
+                setProgress(100, added > 0 ? `Found ${added} rename pair(s) ${settingsNote}` : `No renames detected ${settingsNote}`);
+                btn.textContent = '🔍 Detect Renames';
+                btn.disabled = false;
+
+                if (added === 0 && renameCandidates.length === 0) {
+                    document.getElementById('errorArea').innerHTML =
+                        `<div class="msg-error" style="background:#e3f2fd;border-color:#bbdefb;color:#1565c0">ℹ️ No renamed places detected. All place.name values appear unique per location. You can still add pairs manually if you know of renamings.</div>`;
+                }
+
+            } catch (err) {
+                showError(err.message || String(err));
+                btn.disabled = false;
+                btn.textContent = '🔍 Detect Renames';
+            }
+        }
+
+        // Scan for visits with place.name and usable coordinates
+        function scanForPlaceVisits(db, totalDays) {
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(['days'], 'readonly');
+                const cursorReq = tx.objectStore('days').openCursor();
+                const visits = [];
+                let daysProcessed = 0;
+
+                cursorReq.onsuccess = (event) => {
+                    const cursor = event.target.result;
+                    if (!cursor) { resolve(visits); return; }
+
+                    const dayRecord = cursor.value;
+                    const dayKey = dayRecord.dayKey || '?';
+                    const items = dayRecord.data?.timelineItems || dayRecord.timelineItems || [];
+
+                    for (const item of items) {
+                        if (!item.isVisit || item.deleted) continue;
+
+                        let nameSource, name;
+                        if (item.place?.name) { nameSource = 'place.name'; name = item.place.name; }
+                        else if (item.customTitle) { nameSource = 'customTitle'; name = item.customTitle; }
+                        else if (item.streetAddress) { nameSource = 'streetAddress'; name = item.streetAddress; }
+                        else continue;
+
+                        const lat = item.center?.latitude ?? item.place?.center?.latitude ?? null;
+                        const lng = item.center?.longitude ?? item.place?.center?.longitude ?? null;
+                        if (lat != null && lng != null && !(Math.abs(lat) < 0.01 && Math.abs(lng) < 0.01)) {
+                            visits.push({ lat, lng, name, nameSource, dayKey, date: item.startDate || dayKey });
+                        }
+                    }
+
+                    daysProcessed++;
+                    if (daysProcessed % 100 === 0 || daysProcessed === totalDays) {
+                        setProgress(10 + Math.round((daysProcessed / totalDays) * 60),
+                            `Scanned ${fmt(daysProcessed)} of ${fmt(totalDays)} days — ${fmt(visits.length)} visits`);
+                    }
+                    cursor.continue();
+                };
+                cursorReq.onerror = () => reject(cursorReq.error);
+            });
+        }
+
+        // =============================================
+        // Haversine distance (metres)
+        // =============================================
+        function haversine(lat1, lon1, lat2, lon2) {
+            const R = 6371000;
+            const phi1 = lat1 * Math.PI / 180;
+            const phi2 = lat2 * Math.PI / 180;
+            const dPhi = (lat2 - lat1) * Math.PI / 180;
+            const dLam = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dPhi / 2) ** 2 +
+                      Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLam / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        // =============================================
+        // UI helpers
+        // =============================================
+        function esc(str) {
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+
+        function fmt(n) { return n.toLocaleString(); }
+
+        function setProgress(pct, text) {
+            document.getElementById('progressFill').style.width = pct + '%';
+            document.getElementById('progressText').textContent = text;
+        }
+
+        function showError(msg) {
+            document.getElementById('errorArea').innerHTML =
+                `<div class="msg-error">❌ ${esc(msg)}</div>`;
+        }
+
+        function yieldUI() {
+            return new Promise(r => setTimeout(r, 0));
+        }
+
+        function sourceClass(src) {
+            const map = { 'place.name': 'source-place', 'customTitle': 'source-custom', 'streetAddress': 'source-street', 'none': 'source-none' };
+            return map[src] || '';
+        }
+
+        function toggleDays(id, btn) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const isOpen = el.classList.toggle('open');
+            btn.textContent = btn.textContent.replace(/[▾▸]/, isOpen ? '▸' : '▾');
+        }
+
+        // =============================================
+        // IndexedDB helpers
+        // =============================================
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open('ArcTimelineDiary');
+                req.onsuccess = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('days')) {
+                        showError('Database exists but has no "days" store. Re-import your data.');
+                        db.close();
+                        resolve(null);
+                        return;
+                    }
+                    resolve(db);
+                };
+                req.onerror = () => {
+                    showError('Failed to open database: ' + (req.error || 'Unknown error'));
+                    resolve(null);
+                };
+                req.onupgradeneeded = (e) => {
+                    e.target.transaction.abort();
+                    showError('No database found. Import your Arc data first.');
+                    resolve(null);
+                };
+            });
+        }
+
+        function countStore(db, storeName) {
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction([storeName], 'readonly');
+                const req = tx.objectStore(storeName).count();
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        function loadLocationsStore(db) {
+            return new Promise((resolve, reject) => {
+                if (!db.objectStoreNames.contains('locations')) {
+                    resolve(new Map());
+                    return;
+                }
+                const tx = db.transaction(['locations'], 'readonly');
+                const req = tx.objectStore('locations').getAll();
+                req.onsuccess = () => {
+                    const map = new Map();
+                    for (const loc of req.result) {
+                        map.set(loc.name, {
+                            totalVisits: loc.totalVisits || 0,
+                            totalDuration: loc.totalDuration || 0
+                        });
+                    }
+                    resolve(map);
+                };
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        // =============================================
+        // Main audit
+        // =============================================
+        async function runAudit() {
+            const pairs = getPairs();
+            if (pairs.length === 0) {
+                showError('Add at least one rename pair (old name and new name).');
+                return;
+            }
+
+            const btn = document.getElementById('runBtn');
+            btn.disabled = true;
+            btn.textContent = 'Running...';
+            document.getElementById('errorArea').innerHTML = '';
+            document.getElementById('results').style.display = 'none';
+            const progSection = document.getElementById('progressSection');
+            progSection.style.display = 'block';
+            setProgress(0, 'Opening database...');
+
+            try {
+                const db = await openDB();
+                if (!db) {
+                    btn.disabled = false;
+                    btn.textContent = 'Run Audit';
+                    return;
+                }
+
+                setProgress(5, 'Counting days...');
+                const totalDays = await countStore(db, 'days');
+                if (totalDays === 0) {
+                    showError('No days in database. Import your Arc data first.');
+                    btn.disabled = false;
+                    btn.textContent = 'Run Audit';
+                    return;
+                }
+
+                // Build matchers — substring, case-insensitive
+                const matchers = pairs.map(p => ({
+                    oldName: p.oldName,
+                    newName: p.newName,
+                    changeDate: p.changeDate || '',
+                    oldLower: p.oldName.toLowerCase(),
+                    newLower: p.newName.toLowerCase(),
+                    oldVisits: [],  // { name, nameSource, dayKey, date, lat, lng }
+                    newVisits: []
+                }));
+
+                // Scan all days
+                setProgress(10, `Scanning ${fmt(totalDays)} days...`);
+                await scanDays(db, totalDays, matchers);
+
+                // Load locations store
+                setProgress(75, 'Loading locations store...');
+                const locationsStore = await loadLocationsStore(db);
+                db.close();
+
+                // Analyse each pair
+                setProgress(80, 'Analysing pairs...');
+                await yieldUI();
+                const auditResults = matchers.map(m => analysePair(m, locationsStore));
+
+                // Render
+                setProgress(90, 'Rendering...');
+                await yieldUI();
+                renderAuditCards(auditResults);
+
+                lastAuditResults = { auditResults, totalDays };
+                document.getElementById('results').style.display = 'block';
+                setProgress(100, 'Done!');
+                btn.textContent = 'Run Again';
+                btn.disabled = false;
+
+            } catch (err) {
+                showError(err.message || String(err));
+                btn.disabled = false;
+                btn.textContent = 'Run Audit';
+            }
+        }
+
+        // =============================================
+        // Cursor scan — single pass, match against all pairs
+        // =============================================
+        function scanDays(db, totalDays, matchers) {
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(['days'], 'readonly');
+                const store = tx.objectStore('days');
+                const cursorReq = store.openCursor();
+                let daysProcessed = 0;
+
+                cursorReq.onsuccess = (event) => {
+                    const cursor = event.target.result;
+                    if (!cursor) {
+                        resolve();
+                        return;
+                    }
+
+                    const dayRecord = cursor.value;
+                    const dayKey = dayRecord.dayKey || '?';
+                    const items = dayRecord.data?.timelineItems || dayRecord.timelineItems || [];
+
+                    for (const item of items) {
+                        if (!item.isVisit) continue;
+                        if (item.deleted) continue;
+
+                        // Resolve name and source
+                        let nameSource, name;
+                        if (item.place?.name) {
+                            nameSource = 'place.name';
+                            name = item.place.name;
+                        } else if (item.customTitle) {
+                            nameSource = 'customTitle';
+                            name = item.customTitle;
+                        } else if (item.streetAddress) {
+                            nameSource = 'streetAddress';
+                            name = item.streetAddress;
+                        } else {
+                            continue; // no name, can't match
+                        }
+
+                        const nameLower = name.toLowerCase();
+                        const lat = item.center?.latitude ?? item.place?.center?.latitude ?? null;
+                        const lng = item.center?.longitude ?? item.place?.center?.longitude ?? null;
+                        const date = item.startDate || dayKey;
+
+                        for (const m of matchers) {
+                            // Check old name match (substring)
+                            if (nameLower.includes(m.oldLower)) {
+                                m.oldVisits.push({ name, nameSource, dayKey, date, lat, lng });
+                            }
+                            // Check new name match (substring) — note: a visit can match both if names overlap
+                            if (nameLower.includes(m.newLower)) {
+                                m.newVisits.push({ name, nameSource, dayKey, date, lat, lng });
+                            }
+                        }
+                    }
+
+                    daysProcessed++;
+                    if (daysProcessed % 100 === 0 || daysProcessed === totalDays) {
+                        const p = 10 + Math.round((daysProcessed / totalDays) * 65);
+                        setProgress(p, `Scanned ${fmt(daysProcessed)} of ${fmt(totalDays)} days`);
+                    }
+                    cursor.continue();
+                };
+
+                cursorReq.onerror = () => reject(cursorReq.error);
+            });
+        }
+
+        // =============================================
+        // Analyse a single pair
+        // =============================================
+        function analysePair(m, locationsStore) {
+            const result = {
+                oldName: m.oldName,
+                newName: m.newName,
+                changeDate: m.changeDate,
+                oldVisits: m.oldVisits,
+                newVisits: m.newVisits,
+                oldVariants: buildVariants(m.oldVisits),
+                newVariants: buildVariants(m.newVisits),
+                proximity: null,
+                oldDateRange: getDateRange(m.oldVisits),
+                newDateRange: getDateRange(m.newVisits),
+                oldStoredTotal: 0,
+                newStoredTotal: 0,
+                oldAfterChange: 0,   // visits under old name AFTER changeover (anomalies)
+                newBeforeChange: 0   // visits under new name BEFORE changeover (anomalies)
+            };
+
+            // Count anomalies if changeover date is set
+            if (m.changeDate) {
+                for (const v of m.oldVisits) {
+                    const vDate = (v.date || v.dayKey).slice(0, 10);
+                    if (vDate >= m.changeDate) result.oldAfterChange++;
+                }
+                for (const v of m.newVisits) {
+                    const vDate = (v.date || v.dayKey).slice(0, 10);
+                    if (vDate < m.changeDate) result.newBeforeChange++;
+                }
+            }
+
+            // Get stored visit counts from locations store
+            for (const [name] of result.oldVariants) {
+                const stored = locationsStore.get(name);
+                if (stored) result.oldStoredTotal += stored.totalVisits;
+            }
+            for (const [name] of result.newVariants) {
+                const stored = locationsStore.get(name);
+                if (stored) result.newStoredTotal += stored.totalVisits;
+            }
+
+            // Proximity check — centroid of old vs centroid of new
+            const oldCentroid = centroid(m.oldVisits);
+            const newCentroid = centroid(m.newVisits);
+            if (oldCentroid && newCentroid) {
+                result.proximity = haversine(oldCentroid.lat, oldCentroid.lng, newCentroid.lat, newCentroid.lng);
+            }
+
+            return result;
+        }
+
+        function buildVariants(visits) {
+            const map = new Map(); // name → { count, source, firstDate, lastDate, dayKeys: Set }
+            for (const v of visits) {
+                const existing = map.get(v.name);
+                if (existing) {
+                    existing.count++;
+                    existing.dayKeys.add(v.dayKey);
+                    if (v.date < existing.firstDate) existing.firstDate = v.date;
+                    if (v.date > existing.lastDate) existing.lastDate = v.date;
+                } else {
+                    map.set(v.name, { count: 1, source: v.nameSource, firstDate: v.date, lastDate: v.date, dayKeys: new Set([v.dayKey]) });
+                }
+            }
+            // Sort by count desc
+            return Array.from(map.entries()).sort((a, b) => b[1].count - a[1].count);
+        }
+
+        function getDateRange(visits) {
+            if (visits.length === 0) return null;
+            let min = visits[0].date, max = visits[0].date;
+            for (const v of visits) {
+                if (v.date < min) min = v.date;
+                if (v.date > max) max = v.date;
+            }
+            return { first: min.slice(0, 10), last: max.slice(0, 10) };
+        }
+
+        function centroid(visits) {
+            const valid = visits.filter(v => v.lat != null && v.lng != null);
+            if (valid.length === 0) return null;
+            let sumLat = 0, sumLng = 0;
+            for (const v of valid) { sumLat += v.lat; sumLng += v.lng; }
+            return { lat: sumLat / valid.length, lng: sumLng / valid.length };
+        }
+
+        // =============================================
+        // Render audit cards
+        // =============================================
+        function renderAuditCards(results) {
+            const container = document.getElementById('auditCards');
+            let html = '';
+
+            for (let i = 0; i < results.length; i++) {
+                const r = results[i];
+                const hasOld = r.oldVisits.length > 0;
+                const hasNew = r.newVisits.length > 0;
+                const cardClass = (hasOld && hasNew) ? 'match' : (hasOld || hasNew) ? 'partial' : 'no-match';
+                const statusLabel = (hasOld && hasNew) ? 'Both found' : hasOld ? 'Old name only' : hasNew ? 'New name only' : 'Not found';
+                const statusClass = (hasOld && hasNew) ? 'status-both' : hasOld ? 'status-old-only' : hasNew ? 'status-new-only' : 'status-none';
+
+                html += `<div class="audit-card ${cardClass}">`;
+
+                // Header
+                html += `<div class="audit-header">`;
+                html += `<div class="pair-names">`;
+                html += `<span class="old-name">${esc(r.oldName)}</span>`;
+                html += `<span class="arrow">→</span>`;
+                html += `<span class="new-name">${esc(r.newName)}</span>`;
+                html += `</div>`;
+                html += `<span class="status ${statusClass}">${statusLabel}</span>`;
+                html += `</div>`;
+
+                // Body
+                html += `<div class="audit-body">`;
+
+                if (!hasOld && !hasNew) {
+                    html += `<p style="color:#999;font-size:13px">Neither name was found in your timeline data.</p>`;
+                    html += `</div></div>`;
+                    continue;
+                }
+
+                // Stats grid
+                html += `<div class="stats-grid">`;
+                html += `<div class="stat-box old">`;
+                html += `<div class="label">Old name: "${esc(r.oldName)}"</div>`;
+                html += `<div class="value">${fmt(r.oldVisits.length)}</div>`;
+                html += `<div class="detail">${r.oldVariants.length} variant(s) · ${r.oldDateRange ? r.oldDateRange.first + ' → ' + r.oldDateRange.last : 'none'}</div>`;
+                if (r.oldStoredTotal > 0) {
+                    html += `<div class="detail">${fmt(r.oldStoredTotal)} in Locations tab</div>`;
+                }
+                html += `</div>`;
+
+                html += `<div class="stat-box new">`;
+                html += `<div class="label">New name: "${esc(r.newName)}"</div>`;
+                html += `<div class="value">${fmt(r.newVisits.length)}</div>`;
+                html += `<div class="detail">${r.newVariants.length} variant(s) · ${r.newDateRange ? r.newDateRange.first + ' → ' + r.newDateRange.last : 'none'}</div>`;
+                if (r.newStoredTotal > 0) {
+                    html += `<div class="detail">${fmt(r.newStoredTotal)} in Locations tab</div>`;
+                }
+                html += `</div>`;
+                html += `</div>`;
+
+                // Proximity check
+                if (r.proximity != null) {
+                    const isClose = r.proximity < 500;
+                    const distStr = r.proximity < 1000 ? Math.round(r.proximity) + 'm' : (r.proximity / 1000).toFixed(1) + 'km';
+                    html += `<div class="proximity-check ${isClose ? 'close' : 'far'}">`;
+                    html += `<span class="icon">${isClose ? '✅' : '⚠️'}</span>`;
+                    html += `Centroids are <strong>${distStr}</strong> apart — ${isClose ? 'same physical location' : 'may be different locations (e.g. different branches)'}`;
+                    html += `</div>`;
+                }
+
+                // Combined total
+                if (hasOld && hasNew) {
+                    const combinedRaw = r.oldVisits.length + r.newVisits.length;
+                    const combinedStored = r.oldStoredTotal + r.newStoredTotal;
+                    html += `<div class="proximity-check close" style="background:#f0f4ff;color:#1565c0">`;
+                    html += `<span class="icon">📊</span>`;
+                    html += `Combined: <strong>${fmt(combinedRaw)} visits</strong> from scan`;
+                    if (combinedStored > 0) {
+                        html += ` · <strong>${fmt(combinedStored)}</strong> in Locations tab`;
+                    }
+                    html += `</div>`;
+                }
+
+                // Changeover date and anomalies
+                if (r.changeDate) {
+                    html += `<div class="proximity-check" style="background:#f5f5f5;color:#555">`;
+                    html += `<span class="icon">📅</span>`;
+                    html += `Changeover date: <strong>${r.changeDate}</strong>`;
+                    html += `</div>`;
+
+                    if (r.oldAfterChange > 0) {
+                        html += `<div class="anomaly-alert">`;
+                        html += `<span>⚠️</span>`;
+                        html += `<strong>${fmt(r.oldAfterChange)} visit(s)</strong> still using the old name "${esc(r.oldName)}" <em>after</em> the changeover date — these may need fixing in Arc Editor`;
+                        html += `</div>`;
+                    }
+                    if (r.newBeforeChange > 0) {
+                        html += `<div class="anomaly-alert">`;
+                        html += `<span>⚠️</span>`;
+                        html += `<strong>${fmt(r.newBeforeChange)} visit(s)</strong> using the new name "${esc(r.newName)}" <em>before</em> the changeover date — may indicate early adoption or data issue`;
+                        html += `</div>`;
+                    }
+                    if (r.oldAfterChange === 0 && r.newBeforeChange === 0 && hasOld && hasNew) {
+                        html += `<div class="proximity-check close">`;
+                        html += `<span class="icon">✅</span>`;
+                        html += `Clean changeover — old name stops and new name starts as expected around the date`;
+                        html += `</div>`;
+                    }
+                }
+
+                // Old name variants
+                if (r.oldVariants.length > 0) {
+                    html += `<div class="variants-section">`;
+                    html += `<h4>Old name variants matching "${esc(r.oldName)}"</h4>`;
+                    for (let vi = 0; vi < r.oldVariants.length; vi++) {
+                        const [name, info] = r.oldVariants[vi];
+                        const daysId = `days-${i}-old-${vi}`;
+                        const sortedDays = Array.from(info.dayKeys).sort();
+                        html += `<div class="variant-row">`;
+                        html += `<span class="vname">${esc(name)}</span>`;
+                        html += `<span class="vsource ${sourceClass(info.source)}">${esc(info.source)}</span>`;
+                        html += `<span class="vcount">${fmt(info.count)}</span>`;
+                        html += `<span class="vdates">${info.firstDate.slice(0, 10)} → ${info.lastDate.slice(0, 10)}</span>`;
+                        html += `<button class="show-days" onclick="toggleDays('${daysId}', this)">${sortedDays.length} days ▾</button>`;
+                        html += `</div>`;
+                        html += `<div class="variant-days" id="${daysId}">`;
+                        html += sortedDays.map(d => `<span class="day-chip">${d}</span>`).join(' ');
+                        html += `</div>`;
+                    }
+                    html += `</div>`;
+                }
+
+                // New name variants
+                if (r.newVariants.length > 0) {
+                    html += `<div class="variants-section">`;
+                    html += `<h4>New name variants matching "${esc(r.newName)}"</h4>`;
+                    for (let vi = 0; vi < r.newVariants.length; vi++) {
+                        const [name, info] = r.newVariants[vi];
+                        const daysId = `days-${i}-new-${vi}`;
+                        const sortedDays = Array.from(info.dayKeys).sort();
+                        html += `<div class="variant-row">`;
+                        html += `<span class="vname">${esc(name)}</span>`;
+                        html += `<span class="vsource ${sourceClass(info.source)}">${esc(info.source)}</span>`;
+                        html += `<span class="vcount">${fmt(info.count)}</span>`;
+                        html += `<span class="vdates">${info.firstDate.slice(0, 10)} → ${info.lastDate.slice(0, 10)}</span>`;
+                        html += `<button class="show-days" onclick="toggleDays('${daysId}', this)">${sortedDays.length} days ▾</button>`;
+                        html += `</div>`;
+                        html += `<div class="variant-days" id="${daysId}">`;
+                        html += sortedDays.map(d => `<span class="day-chip">${d}</span>`).join(' ');
+                        html += `</div>`;
+                    }
+                    html += `</div>`;
+                }
+
+                // Timeline bar
+                if (hasOld && hasNew) {
+                    html += renderTimeline(r);
+                }
+
+                html += `</div>`; // audit-body
+                html += `</div>`; // audit-card
+            }
+
+            container.innerHTML = html;
+        }
+
+        // =============================================
+        // Timeline visualisation
+        // =============================================
+        function renderTimeline(r) {
+            // Build monthly buckets
+            const allDates = [
+                ...r.oldVisits.map(v => v.date || v.dayKey),
+                ...r.newVisits.map(v => v.date || v.dayKey)
+            ].map(d => d.slice(0, 7)); // YYYY-MM
+
+            const minMonth = allDates.reduce((a, b) => a < b ? a : b);
+            const maxMonth = allDates.reduce((a, b) => a > b ? a : b);
+
+            // Generate all months between min and max
+            const months = [];
+            let cur = minMonth;
+            while (cur <= maxMonth) {
+                months.push(cur);
+                const [y, m] = cur.split('-').map(Number);
+                const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+                cur = next;
+            }
+
+            if (months.length === 0) return '';
+
+            // Count per month
+            const oldCounts = {};
+            const newCounts = {};
+            for (const v of r.oldVisits) {
+                const m = (v.date || v.dayKey).slice(0, 7);
+                oldCounts[m] = (oldCounts[m] || 0) + 1;
+            }
+            for (const v of r.newVisits) {
+                const m = (v.date || v.dayKey).slice(0, 7);
+                newCounts[m] = (newCounts[m] || 0) + 1;
+            }
+
+            // Build segments: for each month, determine if old, new, both, or neither
+            const totalMonths = months.length;
+            const segWidth = 100 / totalMonths;
+
+            let html = `<div class="timeline-section">`;
+            html += `<h4>Timeline — when each name appeared</h4>`;
+            html += `<div class="timeline-bar">`;
+
+            for (let i = 0; i < months.length; i++) {
+                const m = months[i];
+                const hasO = (oldCounts[m] || 0) > 0;
+                const hasN = (newCounts[m] || 0) > 0;
+                const left = (i / totalMonths) * 100;
+
+                if (hasO && hasN) {
+                    html += `<div class="timeline-segment overlap-seg" style="left:${left}%;width:${segWidth}%" title="${m}: ${oldCounts[m]} old + ${newCounts[m]} new"></div>`;
+                } else if (hasO) {
+                    html += `<div class="timeline-segment old-seg" style="left:${left}%;width:${segWidth}%" title="${m}: ${oldCounts[m]} old name visits"></div>`;
+                } else if (hasN) {
+                    html += `<div class="timeline-segment new-seg" style="left:${left}%;width:${segWidth}%" title="${m}: ${newCounts[m]} new name visits"></div>`;
+                }
+            }
+
+            // Changeover marker
+            if (r.changeDate) {
+                const changeMonth = r.changeDate.slice(0, 7);
+                const changeIdx = months.indexOf(changeMonth);
+                if (changeIdx >= 0) {
+                    const markerLeft = ((changeIdx + 0.5) / totalMonths) * 100;
+                    html += `<div class="changeover-marker" style="left:${markerLeft}%" data-label="${r.changeDate}"></div>`;
+                }
+            }
+
+            html += `</div>`; // timeline-bar
+
+            // Labels
+            html += `<div class="timeline-labels"><span>${months[0]}</span><span>${months[months.length - 1]}</span></div>`;
+
+            // Legend
+            html += `<div class="timeline-legend">`;
+            html += `<span><span class="swatch swatch-old"></span>Old name</span>`;
+            html += `<span><span class="swatch swatch-new"></span>New name</span>`;
+            html += `<span><span class="swatch swatch-overlap"></span>Both (overlap period)</span>`;
+            if (r.changeDate) {
+                html += `<span>┃ Changeover date</span>`;
+            }
+            html += `</div>`;
+
+            html += `</div>`; // timeline-section
+            return html;
+        }
+
+        // =============================================
+        // Text report & export
+        // =============================================
+        function buildTextReport() {
+            if (!lastAuditResults) return '';
+            const { auditResults, totalDays } = lastAuditResults;
+            const lines = [];
+            const pad = (s, w) => String(s).padEnd(w);
+            const rpad = (s, w) => String(s).padStart(w);
+
+            lines.push('=== ARC TIMELINE — RENAME AUDIT ===');
+            lines.push(`Date: ${new Date().toISOString().slice(0, 10)}`);
+            lines.push(`Days scanned: ${fmt(totalDays)}`);
+            lines.push('');
+            lines.push('⚠️  PRIVACY NOTE: GPS coordinates have been excluded from this report.');
+            lines.push('    Location names are included for diagnostic purposes.');
+            lines.push('    Please review before sharing and redact any names you prefer to keep private.');
+            lines.push('');
+
+            for (let i = 0; i < auditResults.length; i++) {
+                const r = auditResults[i];
+                lines.push(`${'='.repeat(60)}`);
+                lines.push(`PAIR ${i + 1}: "${r.oldName}" → "${r.newName}"`);
+                lines.push(`${'='.repeat(60)}`);
+                lines.push('');
+
+                const hasOld = r.oldVisits.length > 0;
+                const hasNew = r.newVisits.length > 0;
+
+                if (!hasOld && !hasNew) {
+                    lines.push('  Neither name found in timeline data.');
+                    lines.push('');
+                    continue;
+                }
+
+                // Summary
+                lines.push(`  Old name visits:  ${rpad(fmt(r.oldVisits.length), 6)}  (${r.oldVariants.length} variant(s))`);
+                if (r.oldDateRange) lines.push(`    Date range: ${r.oldDateRange.first} → ${r.oldDateRange.last}`);
+                if (r.oldStoredTotal > 0) lines.push(`    Locations tab: ${fmt(r.oldStoredTotal)} visits`);
+                lines.push('');
+
+                lines.push(`  New name visits:  ${rpad(fmt(r.newVisits.length), 6)}  (${r.newVariants.length} variant(s))`);
+                if (r.newDateRange) lines.push(`    Date range: ${r.newDateRange.first} → ${r.newDateRange.last}`);
+                if (r.newStoredTotal > 0) lines.push(`    Locations tab: ${fmt(r.newStoredTotal)} visits`);
+                lines.push('');
+
+                if (hasOld && hasNew) {
+                    lines.push(`  Combined total:   ${fmt(r.oldVisits.length + r.newVisits.length)} visits`);
+                    if (r.oldStoredTotal + r.newStoredTotal > 0) {
+                        lines.push(`  Combined stored:  ${fmt(r.oldStoredTotal + r.newStoredTotal)} in Locations tab`);
+                    }
+                }
+
+                if (r.proximity != null) {
+                    const distStr = r.proximity < 1000 ? Math.round(r.proximity) + 'm' : (r.proximity / 1000).toFixed(1) + 'km';
+                    lines.push(`  Proximity:        ${distStr} between centroids${r.proximity < 500 ? ' (same location)' : ' (may be different branches)'}`);
+                }
+
+                if (r.changeDate) {
+                    lines.push(`  Changeover date:  ${r.changeDate}`);
+                    if (r.oldAfterChange > 0) {
+                        lines.push(`  ⚠️  ${fmt(r.oldAfterChange)} visit(s) still using old name AFTER changeover`);
+                    }
+                    if (r.newBeforeChange > 0) {
+                        lines.push(`  ⚠️  ${fmt(r.newBeforeChange)} visit(s) using new name BEFORE changeover`);
+                    }
+                    if (r.oldAfterChange === 0 && r.newBeforeChange === 0 && hasOld && hasNew) {
+                        lines.push(`  ✅  Clean changeover — names switch as expected`);
+                    }
+                }
+                lines.push('');
+
+                // Variants
+                if (r.oldVariants.length > 0) {
+                    lines.push(`  Old name variants matching "${r.oldName}":`);
+                    for (const [name, info] of r.oldVariants) {
+                        const sortedDays = Array.from(info.dayKeys).sort();
+                        lines.push(`    ${rpad(fmt(info.count), 6)} × "${name}" [${info.source}]  ${info.firstDate.slice(0, 10)} → ${info.lastDate.slice(0, 10)}`);
+                        lines.push(`           Days: ${sortedDays.join(', ')}`);
+                    }
+                    lines.push('');
+                }
+
+                if (r.newVariants.length > 0) {
+                    lines.push(`  New name variants matching "${r.newName}":`);
+                    for (const [name, info] of r.newVariants) {
+                        const sortedDays = Array.from(info.dayKeys).sort();
+                        lines.push(`    ${rpad(fmt(info.count), 6)} × "${name}" [${info.source}]  ${info.firstDate.slice(0, 10)} → ${info.lastDate.slice(0, 10)}`);
+                        lines.push(`           Days: ${sortedDays.join(', ')}`);
+                    }
+                    lines.push('');
+                }
+            }
+
+            return lines.join('\n');
+        }
+
+        async function copyResults() {
+            const text = buildTextReport();
+            if (!text) return;
+            try {
+                await navigator.clipboard.writeText(text);
+                const btn = document.getElementById('copyBtn');
+                btn.textContent = '✅ Copied!';
+                btn.className = 'export-btn copied';
+                setTimeout(() => {
+                    btn.textContent = '📋 Copy Results to Clipboard';
+                    btn.className = 'export-btn';
+                }, 2000);
+            } catch (e) {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                const btn = document.getElementById('copyBtn');
+                btn.textContent = '✅ Copied!';
+                btn.className = 'export-btn copied';
+                setTimeout(() => {
+                    btn.textContent = '📋 Copy Results to Clipboard';
+                    btn.className = 'export-btn';
+                }, 2000);
+            }
+        }
+
+        function downloadResults() {
+            const text = buildTextReport();
+            if (!text) return;
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `rename-audit-${new Date().toISOString().slice(0, 10)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
