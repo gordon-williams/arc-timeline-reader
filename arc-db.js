@@ -943,17 +943,25 @@ async function updateAnalysisDataForDay(dayKey, dayData) {
         if (containedItemIds.has(item.itemId || item.startDate)) {
             continue;
         }
-        
+
         if (item.isVisit) {
             // Process location visit
             const name = item.place?.name || item.customTitle || item.streetAddress;
             const duration = getDurationSecondsForAnalysis(item.startDate, item.endDate);
 
+            // Detect spanning visits: if this item started on a previous day,
+            // it's a continuation (e.g. overnight at home). Count duration but
+            // not as a new visit, so visit counts match Arc Editor's model.
+            const itemStartDay = item.startDate ? getLocalDayKey(item.startDate) : dayKey;
+            const isSpanningContinuation = itemStartDay < dayKey;
+
             // Track stationary time in activityStats so it appears in analysis
             if (!summary.activityStats['stationary']) {
                 summary.activityStats['stationary'] = { count: 0, duration: 0, distance: 0 };
             }
-            summary.activityStats['stationary'].count++;
+            if (!isSpanningContinuation) {
+                summary.activityStats['stationary'].count++;
+            }
             summary.activityStats['stationary'].duration += duration;
             summary.totalDuration += duration;
 
@@ -965,7 +973,9 @@ async function updateAnalysisDataForDay(dayKey, dayData) {
             if (locationMap.has(name)) {
                 const existing = locationMap.get(name);
                 existing.duration += duration;
-                existing.visitCount++;
+                if (!isSpanningContinuation) {
+                    existing.visitCount++;
+                }
                 if (visitTime && (!existing.firstVisit || visitTime < existing.firstVisit)) {
                     existing.firstVisit = visitTime;
                 }
@@ -975,7 +985,7 @@ async function updateAnalysisDataForDay(dayKey, dayData) {
                     dayKey,
                     locationName: name,
                     duration,
-                    visitCount: 1,
+                    visitCount: isSpanningContinuation ? 0 : 1,
                     firstVisit: visitTime,
                     lat: lat,
                     lng: lng

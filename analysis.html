@@ -2572,7 +2572,7 @@
                                 <div class="dropdown" id="locationDropdown"></div>
                             </div>
                             <button class="btn btn-secondary btn-small" id="selectAllLocationsBtn" title="Select all matching locations">Select All</button>
-                            <label class="checkbox-label">
+                            <label class="checkbox-label" title="When checked: count one visit per day (like Arc Editor's visitDays). When unchecked: count each arrival separately (e.g. leaving and returning home = 2 visits).">
                                 <input type="checkbox" id="mergeVisits" checked> Merge same-day
                             </label>
                             <button class="btn btn-primary" id="locationAnalyzeBtn">Analyze</button>
@@ -2661,7 +2661,7 @@
 
     <script>
         // Build version
-        const ANALYSIS_BUILD = '02.041';
+        const ANALYSIS_BUILD = '02.042';
         
         // Database and state
         let db = null;
@@ -4009,7 +4009,7 @@
                         dayKey: v.dayKey,
                         duration: v.duration || 0,
                         firstVisit: v.firstVisit,
-                        visitCount: v.visitCount || 1
+                        visitCount: v.visitCount ?? 1
                     });
                 }
             }
@@ -4901,7 +4901,7 @@
 
                     const visitsSpan = document.createElement('span');
                     visitsSpan.className = 'location-visits';
-                    visitsSpan.textContent = `${l.totalVisits || 0} visits`;
+                    visitsSpan.textContent = `${l.totalVisits || 0} visit${(l.totalVisits || 0) === 1 ? '' : 's'}`;
 
                     item.appendChild(nameSpan);
                     item.appendChild(visitsSpan);
@@ -5000,7 +5000,7 @@
                         suburb: suburb,
                         lat: avgLat,
                         lng: avgLng,
-                        totalVisits: clusterVisits.length
+                        totalVisits: clusterVisits.reduce((sum, v) => sum + (v.visitCount ?? 1), 0)
                     });
                 }
             }
@@ -5413,37 +5413,37 @@
                 }
                 processedVisits = Object.values(byDayLocation);
             } else {
-                // Ensure visitCount is set
-                processedVisits = filtered.map(v => ({ ...v, visitCount: v.visitCount || 1, duration: v.duration || 0 }));
+                // Ensure visitCount is set (use ?? to preserve 0 for spanning continuations)
+                processedVisits = filtered.map(v => ({ ...v, visitCount: v.visitCount ?? 1, duration: v.duration || 0 }));
             }
-            
+
             // Calculate statistics
-            const totalVisits = processedVisits.reduce((sum, v) => sum + (v.visitCount || 1), 0);
+            const totalVisits = processedVisits.reduce((sum, v) => sum + (v.visitCount ?? 1), 0);
             const totalDuration = processedVisits.reduce((sum, v) => sum + (v.duration || 0), 0);
             const uniqueDays = new Set(processedVisits.map(v => v.dayKey)).size;
-            
+
             // Year breakdown
             const byYear = {};
             for (const v of processedVisits) {
                 const year = v.dayKey.substring(0, 4);
                 if (!byYear[year]) byYear[year] = 0;
-                byYear[year] += (v.visitCount || 1);
+                byYear[year] += (v.visitCount ?? 1);
             }
-            
+
             // Month breakdown
             const byMonth = {};
             for (const v of processedVisits) {
                 const month = v.dayKey.substring(0, 7);
                 if (!byMonth[month]) byMonth[month] = 0;
-                byMonth[month] += (v.visitCount || 1);
+                byMonth[month] += (v.visitCount ?? 1);
             }
-            
+
             // Day of week breakdown
             const byDayOfWeek = [0, 0, 0, 0, 0, 0, 0];
             const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
             for (const v of processedVisits) {
                 const d = new Date(v.dayKey + 'T00:00:00');
-                byDayOfWeek[d.getDay()] += (v.visitCount || 1);
+                byDayOfWeek[d.getDay()] += (v.visitCount ?? 1);
             }
             
             // Time of day breakdown
@@ -5655,15 +5655,15 @@
                     
                     <!-- Headline Stat -->
                     <div class="headline-stat">
-                        <span class="headline-number">${totalVisits}</span> visits • <span class="headline-number">${formatCompactDuration(totalDuration)}</span> total
+                        <span class="headline-number">${totalVisits}</span> ${mergeVisits ? 'visit days' : 'visits'} • <span class="headline-number">${formatCompactDuration(totalDuration)}</span> total
                     </div>
-                    
+
                     <!-- KPI Pills -->
                     <div class="kpi-pills">
-                        <div class="kpi-pill">
+                        <div class="kpi-pill" title="${mergeVisits ? 'Days you visited this location (multiple visits on the same day count as 1)' : 'Individual arrivals at this location (leaving and returning the same day counts separately)'}">
                             <span class="kpi-pill-icon">${icons.mapPin}</span>
                             <span class="kpi-pill-value">${totalVisits}</span>
-                            <span class="kpi-pill-label">Total visits</span>
+                            <span class="kpi-pill-label">${mergeVisits ? 'Visit days' : 'Total visits'}</span>
                         </div>
                         <div class="kpi-pill">
                             <span class="kpi-pill-icon">${icons.stopwatch}</span>
@@ -6450,7 +6450,9 @@
                 : `in ${years[0]}`;
             
             // Build prose paragraphs
-            let prose = `You visited <strong>${locationNames}</strong> a total of <strong>${totalVisits} times</strong> across <strong>${uniqueDays} days</strong> ${yearRange}. `;
+            let prose = mergeVisits
+                ? `You visited <strong>${locationNames}</strong> on <strong>${totalVisits} days</strong> ${yearRange}. `
+                : `You visited <strong>${locationNames}</strong> a total of <strong>${totalVisits} times</strong> across <strong>${uniqueDays} days</strong> ${yearRange}. `;
             
             // First and last visit in selected time period
             prose += `Your first visit in the selected time period was on <strong>${formatDateNice(stats.firstVisitDate)}</strong> and your most recent was <strong>${formatDateNice(stats.lastVisitDate)}</strong>. `;
@@ -6646,21 +6648,29 @@
                 if (item.isVisit) {
                     const name = item.place?.name || item.customTitle || item.streetAddress;
                     if (!name) continue;
-                    
+
                     const duration = getDuration(item.startDate, item.endDate);
                     const visitTime = item.startDate ? new Date(item.startDate).toTimeString().slice(0, 5) : null;
                     const startTimestamp = item.startDate ? new Date(item.startDate).getTime() : null;
                     const endTimestamp = item.endDate ? new Date(item.endDate).getTime() : null;
-                    
+
+                    // Detect spanning visits: if this item started on a previous day,
+                    // it's a continuation (e.g. overnight at home, multi-day camping).
+                    // Count duration but not as a new visit.
+                    const itemStartDay = item.startDate ? getLocalDayKey(item.startDate) : dayKey;
+                    const isSpanningContinuation = itemStartDay < dayKey;
+
                     // Get coordinates
                     let lat = item.center?.latitude ?? item.place?.center?.latitude ?? null;
                     let lng = item.center?.longitude ?? item.place?.center?.longitude ?? null;
-                    
+
                     // Aggregate by NAME within the same day (not by coords)
                     if (locationMap.has(name)) {
                         const existing = locationMap.get(name);
                         existing.duration += duration;
-                        existing.visitCount++;
+                        if (!isSpanningContinuation) {
+                            existing.visitCount++;
+                        }
                         // Track earliest start and latest end for span calculation
                         if (startTimestamp && (!existing.startTimestamp || startTimestamp < existing.startTimestamp)) {
                             existing.startTimestamp = startTimestamp;
@@ -6674,13 +6684,13 @@
                             existing.lng = lng;
                         }
                     } else {
-                        locationMap.set(name, { 
-                            dayKey, 
-                            locationName: name, 
+                        locationMap.set(name, {
+                            dayKey,
+                            locationName: name,
                             lat: lat,
                             lng: lng,
-                            duration, 
-                            visitCount: 1, 
+                            duration,
+                            visitCount: isSpanningContinuation ? 0 : 1,
                             firstVisit: visitTime,
                             startTimestamp: startTimestamp,
                             endTimestamp: endTimestamp
@@ -6799,7 +6809,16 @@
             if (!start || !end) return 0;
             return Math.max(0, (new Date(end) - new Date(start)) / 1000);
         }
-        
+
+        // Convert UTC date string to local day key (YYYY-MM-DD)
+        function getLocalDayKey(dateStr) {
+            if (!dateStr) return null;
+            const d = new Date(dateStr);
+            return d.getFullYear() + '-' +
+                String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                String(d.getDate()).padStart(2, '0');
+        }
+
         function normalizeType(type) {
             if (!type) return 'unknown';
             const t = type.toLowerCase();
