@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arc Timeline - Location Name Diagnostic</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f7;
+            min-height: 100vh;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 { color: #333; margin-bottom: 8px; font-size: 26px; }
+        .subtitle { color: #666; margin-bottom: 24px; font-size: 14px; }
+
+        .instructions {
+            background: #f0f4ff;
+            border: 1px solid #d0d8f0;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #444;
+            line-height: 1.6;
+        }
+        .instructions strong { color: #333; }
+        .instructions ul { margin: 6px 0 0 18px; }
+        .instructions li { margin-bottom: 3px; }
+
+        .run-btn {
+            padding: 14px 24px;
+            background: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0, 122, 255, 0.3);
+            width: 100%;
+        }
+        .run-btn:hover {
+            background: #0066d6;
+            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.4);
+        }
+        .run-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Progress */
+        .progress-section {
+            margin-top: 20px;
+            display: none;
+        }
+        .progress-bar {
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #007AFF;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .progress-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 6px;
+            text-align: center;
+        }
+
+        /* Result sections */
+        .results { margin-top: 24px; }
+
+        details.result-section {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+        details.result-section[open] {
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+
+        details.result-section summary {
+            padding: 14px 20px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #f8f9fa;
+            border-bottom: 1px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            user-select: none;
+            list-style: none;
+        }
+        details.result-section summary::-webkit-details-marker { display: none; }
+        details.result-section summary::before {
+            content: '▶';
+            font-size: 10px;
+            color: #999;
+            transition: transform 0.2s;
+        }
+        details.result-section[open] summary::before {
+            transform: rotate(90deg);
+        }
+        details.result-section[open] summary {
+            border-bottom-color: #e0e0e0;
+        }
+
+        .badge {
+            background: #007AFF;
+            color: white;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 500;
+            margin-left: auto;
+        }
+        .badge.warn { background: #ff9500; }
+        .badge.danger { background: #ff3b30; }
+        .badge.good { background: #34c759; }
+
+        .section-body {
+            padding: 16px 20px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        th {
+            text-align: left;
+            padding: 8px 10px;
+            border-bottom: 2px solid #e0e0e0;
+            font-weight: 600;
+            color: #555;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        td {
+            padding: 7px 10px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #333;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr.highlight-warn td { background: #fff8e1; }
+        tr.highlight-danger td { background: #fff0f0; }
+        tr.total td { font-weight: 600; border-top: 2px solid #e0e0e0; }
+
+        .mono { font-family: 'SF Mono', Menlo, Monaco, monospace; font-size: 12px; }
+        .muted { color: #999; }
+        .truncate { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* Cluster cards */
+        .cluster-card {
+            background: #f8f9fa;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+        }
+        .cluster-header {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .cluster-header .count {
+            font-weight: 600;
+            color: #333;
+            font-size: 13px;
+        }
+        .cluster-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+            font-size: 13px;
+        }
+        .cluster-name .name { font-weight: 500; }
+        .cluster-name .name.dominant { font-weight: 700; color: #333; }
+        .cluster-name .source {
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        .source-place { background: #e8f5e9; color: #2e7d32; }
+        .source-custom { background: #e3f2fd; color: #1565c0; }
+        .source-street { background: #fff3e0; color: #e65100; }
+        .source-none { background: #fce4ec; color: #c62828; }
+        .cluster-name .visits { color: #888; font-size: 12px; margin-left: auto; white-space: nowrap; }
+        .cluster-name .stored-count { color: #aaa; font-size: 11px; margin-left: 4px; }
+        .cluster-total {
+            border-top: 1px solid #ddd;
+            margin-top: 6px;
+            padding-top: 6px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            color: #555;
+        }
+        .cluster-total strong { color: #333; }
+
+        /* Error/info messages */
+        .msg-error {
+            background: #fff0f0;
+            border: 1px solid #ffcdd2;
+            border-radius: 10px;
+            padding: 14px 16px;
+            color: #c62828;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .msg-info {
+            background: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 10px;
+            padding: 14px 16px;
+            color: #1565c0;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+
+        .export-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .export-btn {
+            padding: 10px 18px;
+            background: #34c759;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .export-btn:hover { background: #2db84d; }
+        .export-btn.copied {
+            background: #007AFF;
+        }
+
+        .footer {
+            margin-top: 24px;
+            text-align: center;
+            font-size: 11px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Location Name Diagnostic</h1>
+        <p class="subtitle">Analyse how visit names are resolved across your timeline data and identify fragmented locations</p>
+
+        <div class="instructions">
+            <strong>How it works:</strong> This tool scans every visit in your imported timeline data and checks how each location name was resolved.
+            <ul>
+                <li><strong>place.name</strong> — Visit matched a Place object via its placeId (ideal)</li>
+                <li><strong>customTitle</strong> — User-assigned title in Arc Editor</li>
+                <li><strong>streetAddress</strong> — Fallback to street address (can vary by GPS position, causing fragmentation)</li>
+            </ul>
+            It then clusters visits by proximity (150m) to find locations where the same physical place has ended up with multiple different names.
+        </div>
+
+        <button class="run-btn" id="runBtn" onclick="runDiagnostic()">Run Diagnostic</button>
+
+        <div class="progress-section" id="progressSection">
+            <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+            <div class="progress-text" id="progressText">Starting...</div>
+        </div>
+
+        <div id="errorArea"></div>
+
+        <div class="results" id="results" style="display:none">
+            <div class="export-row">
+                <button class="export-btn" id="copyBtn" onclick="copyResults()">📋 Copy Results to Clipboard</button>
+                <button class="export-btn" id="downloadBtn" onclick="downloadResults()" style="background:#007AFF">💾 Download as Text</button>
+            </div>
+            <details class="result-section" id="section1" open>
+                <summary>Name Source Breakdown <span class="badge" id="badge1"></span></summary>
+                <div class="section-body" id="body1"></div>
+            </details>
+
+            <details class="result-section" id="section2">
+                <summary>PlaceId Analysis <span class="badge" id="badge2"></span></summary>
+                <div class="section-body" id="body2"></div>
+            </details>
+
+            <details class="result-section" id="section3">
+                <summary>Proximity Clusters with Name Fragmentation <span class="badge warn" id="badge3"></span></summary>
+                <div class="section-body" id="body3"></div>
+            </details>
+
+            <details class="result-section" id="section4">
+                <summary>Street Address Fragmentation <span class="badge warn" id="badge4"></span></summary>
+                <div class="section-body" id="body4"></div>
+            </details>
+
+            <details class="result-section" id="section5">
+                <summary>Renamed Places (same location, different place.name) <span class="badge warn" id="badge5"></span></summary>
+                <div class="section-body" id="body5"></div>
+            </details>
+        </div>
+
+        <div class="footer">Arc Timeline — Location Name Diagnostic</div>
+    </div>
+
+    <script>
+        // Last diagnostic results (for export)
+        let lastResults = null;
+
+        // =============================================
+        // Haversine distance (metres)
+        // =============================================
+        function haversine(lat1, lon1, lat2, lon2) {
+            const R = 6371000;
+            const phi1 = lat1 * Math.PI / 180;
+            const phi2 = lat2 * Math.PI / 180;
+            const dPhi = (lat2 - lat1) * Math.PI / 180;
+            const dLam = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dPhi / 2) ** 2 +
+                      Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLam / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        // =============================================
+        // Grid-based proximity clustering
+        // =============================================
+        function buildClusters(visits, thresholdMetres) {
+            const GRID_DEG = thresholdMetres / 111000; // rough degrees per threshold
+            const grid = {};   // "gx,gy" → [cluster indices]
+            const clusters = []; // { cLat, cLng, visits[], names: Map<name, {count, source}> }
+
+            function gridKey(lat, lng) {
+                return `${Math.floor(lat / GRID_DEG)},${Math.floor(lng / GRID_DEG)}`;
+            }
+
+            function nearbyClusters(lat, lng) {
+                const gx = Math.floor(lat / GRID_DEG);
+                const gy = Math.floor(lng / GRID_DEG);
+                const result = [];
+                for (let dx = -1; dx <= 1; dx++) {
+                    for (let dy = -1; dy <= 1; dy++) {
+                        const k = `${gx + dx},${gy + dy}`;
+                        if (grid[k]) {
+                            for (const idx of grid[k]) result.push(idx);
+                        }
+                    }
+                }
+                return result;
+            }
+
+            for (const v of visits) {
+                const candidates = nearbyClusters(v.lat, v.lng);
+                let bestIdx = -1, bestDist = Infinity;
+
+                for (const idx of candidates) {
+                    const c = clusters[idx];
+                    const d = haversine(v.lat, v.lng, c.cLat, c.cLng);
+                    if (d < bestDist) { bestDist = d; bestIdx = idx; }
+                }
+
+                const nameKey = v.name || '(unnamed)';
+
+                if (bestIdx >= 0 && bestDist <= thresholdMetres) {
+                    const c = clusters[bestIdx];
+                    c.visits.push(v);
+                    const existing = c.names.get(nameKey);
+                    if (existing) {
+                        existing.count++;
+                    } else {
+                        c.names.set(nameKey, { count: 1, source: v.nameSource });
+                    }
+                    // Running average centroid
+                    const n = c.visits.length;
+                    c.cLat += (v.lat - c.cLat) / n;
+                    c.cLng += (v.lng - c.cLng) / n;
+                } else {
+                    const idx = clusters.length;
+                    const names = new Map();
+                    names.set(nameKey, { count: 1, source: v.nameSource });
+                    clusters.push({ cLat: v.lat, cLng: v.lng, visits: [v], names });
+                    const gk = gridKey(v.lat, v.lng);
+                    if (!grid[gk]) grid[gk] = [];
+                    grid[gk].push(idx);
+                }
+            }
+            return clusters;
+        }
+
+        // =============================================
+        // UI helpers
+        // =============================================
+        function esc(str) {
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+
+        function pct(n, total) {
+            return total > 0 ? (n / total * 100).toFixed(1) + '%' : '0%';
+        }
+
+        function fmt(n) {
+            return n.toLocaleString();
+        }
+
+        function sourceLabel(src) {
+            const map = {
+                'place.name': ['place.name', 'source-place'],
+                'customTitle': ['customTitle', 'source-custom'],
+                'streetAddress': ['streetAddress', 'source-street'],
+                'none': ['none', 'source-none']
+            };
+            const [label, cls] = map[src] || [src, ''];
+            return `<span class="source ${cls}">${esc(label)}</span>`;
+        }
+
+        function setProgress(pct, text) {
+            document.getElementById('progressFill').style.width = pct + '%';
+            document.getElementById('progressText').textContent = text;
+        }
+
+        function showError(msg) {
+            document.getElementById('errorArea').innerHTML =
+                `<div class="msg-error">❌ ${esc(msg)}</div>`;
+        }
+
+        // =============================================
+        // Main diagnostic
+        // =============================================
+        async function runDiagnostic() {
+            const btn = document.getElementById('runBtn');
+            btn.disabled = true;
+            btn.textContent = 'Running...';
+            document.getElementById('errorArea').innerHTML = '';
+            document.getElementById('results').style.display = 'none';
+            const progSection = document.getElementById('progressSection');
+            progSection.style.display = 'block';
+            setProgress(0, 'Opening database...');
+
+            try {
+                const db = await openDB();
+                if (!db) {
+                    btn.disabled = false;
+                    btn.textContent = 'Run Diagnostic';
+                    return;
+                }
+
+                // Phase 1: Count days
+                setProgress(5, 'Counting days...');
+                const totalDays = await countStore(db, 'days');
+                if (totalDays === 0) {
+                    showError('No days in database. Import your Arc data first.');
+                    btn.disabled = false;
+                    btn.textContent = 'Run Diagnostic';
+                    return;
+                }
+
+                // Phase 2: Cursor scan
+                setProgress(10, `Scanning ${fmt(totalDays)} days...`);
+                const data = await scanDays(db, totalDays);
+
+                // Phase 2b: Load locations store for count comparison
+                setProgress(63, 'Loading locations store...');
+                const locationsStore = await loadLocationsStore(db);
+                db.close();
+
+                // Phase 3: Cluster
+                setProgress(65, 'Building proximity clusters...');
+                await yieldUI();
+                const allClusters = buildClusters(data.allVisits, 150);
+                const fragClusters = allClusters
+                    .filter(c => c.names.size > 1)
+                    .sort((a, b) => b.visits.length - a.visits.length)
+                    .slice(0, 50);
+
+                setProgress(80, 'Clustering street-address visits...');
+                await yieldUI();
+                const streetVisits = data.allVisits.filter(v => v.nameSource === 'streetAddress');
+                const streetClusters = buildClusters(streetVisits, 150);
+                const streetFragClusters = streetClusters
+                    .filter(c => c.names.size > 1)
+                    .sort((a, b) => b.visits.length - a.visits.length)
+                    .slice(0, 50);
+
+                // Phase 3c: Find renamed places (same spot, multiple place.name entries)
+                const renamedPlaces = fragClusters.filter(c => {
+                    const placeNames = Array.from(c.names.entries())
+                        .filter(([, info]) => info.source === 'place.name');
+                    return placeNames.length > 1;
+                });
+
+                // Phase 4: Render
+                setProgress(90, 'Rendering results...');
+                await yieldUI();
+                renderSection1(data);
+                renderSection2(data);
+                renderSection3(fragClusters, data, locationsStore);
+                renderSection4(streetFragClusters, data);
+                renderSection5(renamedPlaces, data);
+
+                // Store for export
+                lastResults = { data, fragClusters, streetFragClusters, renamedPlaces, totalDays, locationsStore };
+
+                document.getElementById('results').style.display = 'block';
+                setProgress(100, 'Done!');
+                btn.textContent = 'Run Again';
+                btn.disabled = false;
+
+            } catch (err) {
+                showError(err.message || String(err));
+                btn.disabled = false;
+                btn.textContent = 'Run Diagnostic';
+            }
+        }
+
+        function yieldUI() {
+            return new Promise(r => setTimeout(r, 0));
+        }
+
+        // =============================================
+        // IndexedDB helpers
+        // =============================================
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open('ArcTimelineDiary');
+                req.onsuccess = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('days')) {
+                        showError('Database exists but has no "days" store. Re-import your data.');
+                        db.close();
+                        resolve(null);
+                        return;
+                    }
+                    resolve(db);
+                };
+                req.onerror = () => {
+                    showError('Failed to open database: ' + (req.error || 'Unknown error'));
+                    resolve(null);
+                };
+                req.onupgradeneeded = (e) => {
+                    e.target.transaction.abort();
+                    showError('No database found. Import your Arc data first.');
+                    resolve(null);
+                };
+            });
+        }
+
+        function countStore(db, storeName) {
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction([storeName], 'readonly');
+                const req = tx.objectStore(storeName).count();
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        // Load the locations store into a Map (name → {totalVisits, totalDuration})
+        function loadLocationsStore(db) {
+            return new Promise((resolve, reject) => {
+                if (!db.objectStoreNames.contains('locations')) {
+                    resolve(new Map());
+                    return;
+                }
+                const tx = db.transaction(['locations'], 'readonly');
+                const store = tx.objectStore('locations');
+                const req = store.getAll();
+                req.onsuccess = () => {
+                    const map = new Map();
+                    for (const loc of req.result) {
+                        map.set(loc.name, {
+                            totalVisits: loc.totalVisits || 0,
+                            totalDuration: loc.totalDuration || 0
+                        });
+                    }
+                    resolve(map);
+                };
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        // =============================================
+        // Cursor scan — single pass through all days
+        // =============================================
+        function scanDays(db, totalDays) {
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(['days'], 'readonly');
+                const store = tx.objectStore('days');
+                const cursorReq = store.openCursor();
+
+                // Accumulators
+                let totalVisits = 0;
+                let src_placeName = 0;
+                let src_customTitle = 0;
+                let src_streetAddress = 0;
+                let src_none = 0;
+                let noCoords = 0;
+
+                let pid_resolved = 0;
+                let pid_unresolved = 0;
+                let pid_absent = 0;
+                const unresolvedPids = {};  // placeId → count
+
+                const allVisits = [];  // { lat, lng, name, nameSource, dayKey }
+
+                let daysProcessed = 0;
+
+                cursorReq.onsuccess = (event) => {
+                    const cursor = event.target.result;
+                    if (!cursor) {
+                        // Done
+                        resolve({
+                            totalVisits, src_placeName, src_customTitle, src_streetAddress, src_none, noCoords,
+                            pid_resolved, pid_unresolved, pid_absent, unresolvedPids,
+                            allVisits
+                        });
+                        return;
+                    }
+
+                    const dayRecord = cursor.value;
+                    const dayKey = dayRecord.dayKey || '?';
+                    const items = dayRecord.data?.timelineItems || dayRecord.timelineItems || [];
+
+                    for (const item of items) {
+                        if (!item.isVisit) continue;
+                        if (item.deleted) continue;
+                        totalVisits++;
+
+                        // --- Section 1: Name source ---
+                        let nameSource, name;
+                        if (item.place?.name) {
+                            nameSource = 'place.name';
+                            name = item.place.name;
+                            src_placeName++;
+                        } else if (item.customTitle) {
+                            nameSource = 'customTitle';
+                            name = item.customTitle;
+                            src_customTitle++;
+                        } else if (item.streetAddress) {
+                            nameSource = 'streetAddress';
+                            name = item.streetAddress;
+                            src_streetAddress++;
+                        } else {
+                            nameSource = 'none';
+                            name = null;
+                            src_none++;
+                        }
+
+                        // --- Section 2: PlaceId status ---
+                        if (item.placeId) {
+                            if (item.place) {
+                                pid_resolved++;
+                            } else {
+                                pid_unresolved++;
+                                unresolvedPids[item.placeId] = (unresolvedPids[item.placeId] || 0) + 1;
+                            }
+                        } else {
+                            pid_absent++;
+                        }
+
+                        // --- Collect for clustering ---
+                        const lat = item.center?.latitude ?? item.place?.center?.latitude ?? null;
+                        const lng = item.center?.longitude ?? item.place?.center?.longitude ?? null;
+                        if (lat != null && lng != null && !(Math.abs(lat) < 0.01 && Math.abs(lng) < 0.01)) {
+                            allVisits.push({ lat, lng, name, nameSource, dayKey });
+                        } else {
+                            noCoords++;
+                        }
+                    }
+
+                    daysProcessed++;
+                    // Update progress text (will render after tx completes)
+                    if (daysProcessed % 100 === 0 || daysProcessed === totalDays) {
+                        const p = 10 + Math.round((daysProcessed / totalDays) * 55);
+                        setProgress(p, `Scanned ${fmt(daysProcessed)} of ${fmt(totalDays)} days — ${fmt(totalVisits)} visits found`);
+                    }
+
+                    cursor.continue();
+                };
+
+                cursorReq.onerror = () => reject(cursorReq.error);
+            });
+        }
+
+        // =============================================
+        // Render: Section 1 — Name Source Breakdown
+        // =============================================
+        function renderSection1(d) {
+            const total = d.totalVisits;
+            document.getElementById('badge1').textContent = `${fmt(total)} visits`;
+
+            let html = '<table><thead><tr><th>Name Source</th><th style="text-align:right">Count</th><th style="text-align:right">%</th></tr></thead><tbody>';
+
+            const rows = [
+                { label: 'place.name (resolved place)', count: d.src_placeName, cls: '' },
+                { label: 'customTitle (user title)', count: d.src_customTitle, cls: '' },
+                { label: 'streetAddress (fallback)', count: d.src_streetAddress, cls: 'highlight-warn' },
+                { label: 'No name at all', count: d.src_none, cls: 'highlight-danger' }
+            ];
+
+            for (const r of rows) {
+                html += `<tr class="${r.cls}"><td>${esc(r.label)}</td><td style="text-align:right">${fmt(r.count)}</td><td style="text-align:right">${pct(r.count, total)}</td></tr>`;
+            }
+
+            html += `<tr class="total"><td>Total visits</td><td style="text-align:right">${fmt(total)}</td><td style="text-align:right">100%</td></tr>`;
+            html += '</tbody></table>';
+
+            if (d.noCoords > 0) {
+                html += `<p style="margin-top:10px;font-size:12px;color:#888">ℹ️ ${fmt(d.noCoords)} visit(s) had no usable coordinates and were excluded from proximity clustering.</p>`;
+            }
+
+            document.getElementById('body1').innerHTML = html;
+        }
+
+        // =============================================
+        // Render: Section 2 — PlaceId Analysis
+        // =============================================
+        function renderSection2(d) {
+            const total = d.totalVisits;
+            const unresolvedCount = d.pid_unresolved;
+            const badge = document.getElementById('badge2');
+            if (unresolvedCount > 0) {
+                badge.textContent = `${fmt(unresolvedCount)} unresolved`;
+                badge.className = 'badge warn';
+            } else {
+                badge.textContent = 'All resolved';
+                badge.className = 'badge good';
+            }
+
+            let html = '<table><thead><tr><th>PlaceId Status</th><th style="text-align:right">Count</th><th style="text-align:right">%</th></tr></thead><tbody>';
+
+            html += `<tr><td>Has placeId + resolved (place object exists)</td><td style="text-align:right">${fmt(d.pid_resolved)}</td><td style="text-align:right">${pct(d.pid_resolved, total)}</td></tr>`;
+            html += `<tr class="${unresolvedCount > 0 ? 'highlight-warn' : ''}"><td>Has placeId but UNRESOLVED (no place object)</td><td style="text-align:right">${fmt(d.pid_unresolved)}</td><td style="text-align:right">${pct(d.pid_unresolved, total)}</td></tr>`;
+            html += `<tr><td>No placeId at all</td><td style="text-align:right">${fmt(d.pid_absent)}</td><td style="text-align:right">${pct(d.pid_absent, total)}</td></tr>`;
+            html += `<tr class="total"><td>Total</td><td style="text-align:right">${fmt(total)}</td><td style="text-align:right">100%</td></tr>`;
+            html += '</tbody></table>';
+
+            // Top unresolved placeIds
+            const entries = Object.entries(d.unresolvedPids).sort((a, b) => b[1] - a[1]);
+            if (entries.length > 0) {
+                const show = entries.slice(0, 20);
+                html += `<h4 style="margin:16px 0 8px;font-size:13px;color:#555">Top ${show.length} Unresolved PlaceIds</h4>`;
+                html += '<table><thead><tr><th>PlaceId</th><th style="text-align:right">Visits</th></tr></thead><tbody>';
+                for (const [pid, count] of show) {
+                    const short = pid.length > 36 ? pid.slice(0, 16) + '…' + pid.slice(-16) : pid;
+                    html += `<tr><td class="mono truncate" title="${esc(pid)}">${esc(short)}</td><td style="text-align:right">${fmt(count)}</td></tr>`;
+                }
+                if (entries.length > 20) {
+                    html += `<tr><td class="muted" colspan="2">...and ${fmt(entries.length - 20)} more</td></tr>`;
+                }
+                html += '</tbody></table>';
+            }
+
+            document.getElementById('body2').innerHTML = html;
+        }
+
+        // =============================================
+        // Render: Section 3 — Proximity Clusters with Name Fragmentation
+        // =============================================
+        function renderSection3(fragClusters, d, locationsStore) {
+            const badge = document.getElementById('badge3');
+            badge.textContent = `${fmt(fragClusters.length)} fragmented`;
+            if (fragClusters.length === 0) {
+                badge.className = 'badge good';
+                badge.textContent = 'None found';
+                document.getElementById('body3').innerHTML = '<p style="color:#666;font-size:13px">No proximity clusters with multiple different names were found. Your location names appear consistent.</p>';
+                return;
+            }
+
+            let html = `<p style="font-size:12px;color:#888;margin-bottom:12px">Clusters within 150m where visits have different names. Showing top ${fragClusters.length} by visit count. "Locations tab" shows the count currently displayed in the app; "combined" is what it should be if merged.</p>`;
+
+            for (const c of fragClusters) {
+                html += '<div class="cluster-card">';
+                html += `<div class="cluster-header"><span class="muted">${c.cLat.toFixed(4)}, ${c.cLng.toFixed(4)}</span><span class="count">${fmt(c.visits.length)} visits</span></div>`;
+
+                // Sort names by count descending
+                const nameEntries = Array.from(c.names.entries()).sort((a, b) => b[1].count - a[1].count);
+                const maxCount = nameEntries[0][1].count;
+                let combinedStored = 0;
+
+                for (const [name, info] of nameEntries) {
+                    const isDominant = info.count === maxCount;
+                    const stored = locationsStore.get(name);
+                    const storedVisits = stored ? stored.totalVisits : 0;
+                    combinedStored += storedVisits;
+                    html += `<div class="cluster-name">`;
+                    html += `<span class="name ${isDominant ? 'dominant' : ''}">${esc(name)}</span>`;
+                    html += sourceLabel(info.source);
+                    html += `<span class="visits">${fmt(info.count)}`;
+                    if (storedVisits > 0) {
+                        html += `<span class="stored-count">(${fmt(storedVisits)} in Locations tab)</span>`;
+                    }
+                    html += `</span></div>`;
+                }
+
+                // Combined total row
+                html += `<div class="cluster-total">`;
+                html += `<span>Combined total if merged</span>`;
+                html += `<strong>${fmt(combinedStored)} visits</strong>`;
+                html += `</div>`;
+
+                html += '</div>';
+            }
+
+            document.getElementById('body3').innerHTML = html;
+        }
+
+        // =============================================
+        // Render: Section 4 — Street Address Fragmentation
+        // =============================================
+        function renderSection4(streetFragClusters, d) {
+            const badge = document.getElementById('badge4');
+            const streetTotal = d.src_streetAddress;
+
+            if (streetFragClusters.length === 0) {
+                badge.className = 'badge good';
+                badge.textContent = 'None found';
+                document.getElementById('body4').innerHTML = `<p style="color:#666;font-size:13px">No street-address clusters with multiple different addresses found (${fmt(streetTotal)} street-address visits total).</p>`;
+                return;
+            }
+
+            badge.textContent = `${fmt(streetFragClusters.length)} fragmented`;
+
+            let html = `<p style="font-size:12px;color:#888;margin-bottom:12px">${fmt(streetTotal)} visits resolved via streetAddress. Showing ${streetFragClusters.length} location(s) where multiple different street addresses point to the same physical location.</p>`;
+
+            for (const c of streetFragClusters) {
+                html += '<div class="cluster-card">';
+                html += `<div class="cluster-header"><span class="muted">${c.cLat.toFixed(4)}, ${c.cLng.toFixed(4)}</span><span class="count">${fmt(c.visits.length)} visits</span></div>`;
+
+                const nameEntries = Array.from(c.names.entries()).sort((a, b) => b[1].count - a[1].count);
+                const maxCount = nameEntries[0][1].count;
+
+                for (const [name, info] of nameEntries) {
+                    const isDominant = info.count === maxCount;
+                    html += `<div class="cluster-name">`;
+                    html += `<span class="name ${isDominant ? 'dominant' : ''}">${esc(name)}</span>`;
+                    html += sourceLabel(info.source);
+                    html += `<span class="visits">${fmt(info.count)}</span>`;
+                    html += `</div>`;
+                }
+                html += '</div>';
+            }
+
+            document.getElementById('body4').innerHTML = html;
+        }
+
+        // =============================================
+        // Render: Section 5 — Renamed Places
+        // =============================================
+        function renderSection5(renamedPlaces, d) {
+            const badge = document.getElementById('badge5');
+
+            if (renamedPlaces.length === 0) {
+                badge.className = 'badge good';
+                badge.textContent = 'None found';
+                document.getElementById('body5').innerHTML = '<p style="color:#666;font-size:13px">No locations found where multiple different place.name values resolve to the same spot. All place names appear unique per location.</p>';
+                return;
+            }
+
+            badge.textContent = `${fmt(renamedPlaces.length)} renamed`;
+
+            let html = '<p style="font-size:12px;color:#888;margin-bottom:12px">Locations where multiple different Place objects (with different names) map to the same physical spot. These may be venues that were renamed, or duplicate Place entries in Arc Editor.</p>';
+
+            for (const c of renamedPlaces) {
+                html += '<div class="cluster-card">';
+                html += `<div class="cluster-header"><span class="muted">${c.cLat.toFixed(4)}, ${c.cLng.toFixed(4)}</span><span class="count">${fmt(c.visits.length)} visits</span></div>`;
+
+                const nameEntries = Array.from(c.names.entries()).sort((a, b) => b[1].count - a[1].count);
+                const maxCount = nameEntries[0][1].count;
+
+                for (const [name, info] of nameEntries) {
+                    const isDominant = info.count === maxCount;
+                    html += `<div class="cluster-name">`;
+                    html += `<span class="name ${isDominant ? 'dominant' : ''}">${esc(name)}</span>`;
+                    html += sourceLabel(info.source);
+                    html += `<span class="visits">${fmt(info.count)}</span>`;
+                    html += `</div>`;
+                }
+                html += '</div>';
+            }
+
+            document.getElementById('body5').innerHTML = html;
+        }
+
+        // =============================================
+        // Text report generation & export
+        // =============================================
+        function buildTextReport() {
+            if (!lastResults) return '';
+            const { data: d, fragClusters, streetFragClusters, renamedPlaces, totalDays, locationsStore } = lastResults;
+            const lines = [];
+            const pad = (s, w) => String(s).padEnd(w);
+            const rpad = (s, w) => String(s).padStart(w);
+
+            lines.push('=== ARC TIMELINE — LOCATION NAME DIAGNOSTIC ===');
+            lines.push(`Date: ${new Date().toISOString().slice(0, 10)}`);
+            lines.push(`Days scanned: ${fmt(totalDays)}`);
+            lines.push('');
+            lines.push('⚠️  PRIVACY NOTE: GPS coordinates have been removed from this report.');
+            lines.push('    Location names (including street addresses) are included because');
+            lines.push('    they are essential for diagnosing the fragmentation issue.');
+            lines.push('    Please review this report before sharing and redact any location');
+            lines.push('    names you prefer to keep private.');
+            lines.push('');
+
+            // Section 1
+            lines.push('--- 1. NAME SOURCE BREAKDOWN ---');
+            lines.push('');
+            lines.push(`  ${pad('Source', 30)} ${rpad('Count', 8)} ${rpad('%', 8)}`);
+            lines.push(`  ${'-'.repeat(46)}`);
+            const rows = [
+                ['place.name (resolved place)', d.src_placeName],
+                ['customTitle (user title)', d.src_customTitle],
+                ['streetAddress (fallback)', d.src_streetAddress],
+                ['No name at all', d.src_none]
+            ];
+            for (const [label, count] of rows) {
+                lines.push(`  ${pad(label, 30)} ${rpad(fmt(count), 8)} ${rpad(pct(count, d.totalVisits), 8)}`);
+            }
+            lines.push(`  ${'-'.repeat(46)}`);
+            lines.push(`  ${pad('Total visits', 30)} ${rpad(fmt(d.totalVisits), 8)}`);
+            if (d.noCoords > 0) {
+                lines.push(`  (${fmt(d.noCoords)} visits had no usable coordinates)`);
+            }
+            lines.push('');
+
+            // Section 2
+            lines.push('--- 2. PLACEID ANALYSIS ---');
+            lines.push('');
+            lines.push(`  ${pad('Status', 45)} ${rpad('Count', 8)} ${rpad('%', 8)}`);
+            lines.push(`  ${'-'.repeat(61)}`);
+            lines.push(`  ${pad('Has placeId + resolved (place object exists)', 45)} ${rpad(fmt(d.pid_resolved), 8)} ${rpad(pct(d.pid_resolved, d.totalVisits), 8)}`);
+            lines.push(`  ${pad('Has placeId but UNRESOLVED (no place object)', 45)} ${rpad(fmt(d.pid_unresolved), 8)} ${rpad(pct(d.pid_unresolved, d.totalVisits), 8)}`);
+            lines.push(`  ${pad('No placeId at all', 45)} ${rpad(fmt(d.pid_absent), 8)} ${rpad(pct(d.pid_absent, d.totalVisits), 8)}`);
+
+            const unresolvedEntries = Object.entries(d.unresolvedPids).sort((a, b) => b[1] - a[1]);
+            if (unresolvedEntries.length > 0) {
+                lines.push('');
+                lines.push(`  Top unresolved placeIds (${unresolvedEntries.length} total):`);
+                for (const [pid, count] of unresolvedEntries.slice(0, 20)) {
+                    lines.push(`    ${pid}  (${count} visits)`);
+                }
+                if (unresolvedEntries.length > 20) {
+                    lines.push(`    ...and ${unresolvedEntries.length - 20} more`);
+                }
+            }
+            lines.push('');
+
+            // Section 3
+            lines.push('--- 3. PROXIMITY CLUSTERS WITH NAME FRAGMENTATION ---');
+            lines.push(`  (${fmt(fragClusters.length)} clusters where visits within 150m have different names)`);
+            lines.push('');
+            for (let i = 0; i < fragClusters.length; i++) {
+                const c = fragClusters[i];
+                lines.push(`  Cluster ${i + 1}: ${fmt(c.visits.length)} visits`);
+                const nameEntries = Array.from(c.names.entries()).sort((a, b) => b[1].count - a[1].count);
+                let combinedStored = 0;
+                for (const [name, info] of nameEntries) {
+                    const stored = locationsStore ? locationsStore.get(name) : null;
+                    const sv = stored ? stored.totalVisits : 0;
+                    combinedStored += sv;
+                    const storedStr = sv > 0 ? ` (${fmt(sv)} in Locations tab)` : '';
+                    lines.push(`    ${rpad(fmt(info.count), 6)} × "${name}" [${info.source}]${storedStr}`);
+                }
+                if (combinedStored > 0) {
+                    lines.push(`    → Combined if merged: ${fmt(combinedStored)} visits`);
+                }
+                lines.push('');
+            }
+
+            // Section 4
+            lines.push('--- 4. STREET ADDRESS FRAGMENTATION ---');
+            lines.push(`  (${fmt(streetFragClusters.length)} locations where multiple street addresses map to the same spot)`);
+            lines.push('');
+            for (let i = 0; i < streetFragClusters.length; i++) {
+                const c = streetFragClusters[i];
+                lines.push(`  Cluster ${i + 1}: ${fmt(c.visits.length)} visits`);
+                const nameEntries = Array.from(c.names.entries()).sort((a, b) => b[1].count - a[1].count);
+                for (const [name, info] of nameEntries) {
+                    lines.push(`    ${rpad(fmt(info.count), 6)} × "${name}"`);
+                }
+                lines.push('');
+            }
+
+            // Section 5
+            lines.push('--- 5. RENAMED PLACES (same location, different place.name) ---');
+            lines.push(`  (${fmt(renamedPlaces.length)} locations with multiple Place objects at the same spot)`);
+            lines.push('');
+            for (let i = 0; i < renamedPlaces.length; i++) {
+                const c = renamedPlaces[i];
+                lines.push(`  Cluster ${i + 1}: ${fmt(c.visits.length)} visits`);
+                const nameEntries = Array.from(c.names.entries()).sort((a, b) => b[1].count - a[1].count);
+                for (const [name, info] of nameEntries) {
+                    lines.push(`    ${rpad(fmt(info.count), 6)} × "${name}" [${info.source}]`);
+                }
+                lines.push('');
+            }
+
+            return lines.join('\n');
+        }
+
+        async function copyResults() {
+            const text = buildTextReport();
+            if (!text) return;
+            try {
+                await navigator.clipboard.writeText(text);
+                const btn = document.getElementById('copyBtn');
+                btn.textContent = '✅ Copied!';
+                btn.className = 'export-btn copied';
+                setTimeout(() => {
+                    btn.textContent = '📋 Copy Results to Clipboard';
+                    btn.className = 'export-btn';
+                }, 2000);
+            } catch (e) {
+                // Fallback for file:// protocol where clipboard API may not work
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                const btn = document.getElementById('copyBtn');
+                btn.textContent = '✅ Copied!';
+                btn.className = 'export-btn copied';
+                setTimeout(() => {
+                    btn.textContent = '📋 Copy Results to Clipboard';
+                    btn.className = 'export-btn';
+                }, 2000);
+            }
+        }
+
+        function downloadResults() {
+            const text = buildTextReport();
+            if (!text) return;
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `location-diagnostic-${new Date().toISOString().slice(0, 10)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
