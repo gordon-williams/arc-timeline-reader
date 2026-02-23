@@ -225,6 +225,15 @@
         } catch (e) { return null; }
     }
 
+    /** Convert a UTC/ISO timestamp to a local YYYY-MM-DD day key. */
+    function getLocalDayKey(isoStr) {
+        if (!isoStr) return null;
+        const d = new Date(isoStr);
+        return d.getFullYear() + '-' +
+            String(d.getMonth() + 1).padStart(2, '0') + '-' +
+            String(d.getDate()).padStart(2, '0');
+    }
+
     // =========================================================================
     // Tool Definitions (Anthropic format)
     // =========================================================================
@@ -659,7 +668,11 @@
                     if (!name || !name.toLowerCase().includes(q)) continue;
                     if (!matchedPlaces[name]) matchedPlaces[name] = { daysSet: new Set(), dur: 0, visitCount: 0 };
                     matchedPlaces[name].daysSet.add(dayKey);
-                    matchedPlaces[name].visitCount++;
+                    // Don't count spanning continuations (visit started on a previous day)
+                    const itemDay = getLocalDayKey(item.startDate);
+                    if (!itemDay || itemDay >= dayKey) {
+                        matchedPlaces[name].visitCount++;
+                    }
                     if (item.startDate && item.endDate) {
                         const dur = (new Date(item.endDate) - new Date(item.startDate)) / 1000;
                         if (dur > 0) matchedPlaces[name].dur += dur;
