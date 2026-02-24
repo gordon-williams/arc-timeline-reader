@@ -1,5 +1,23 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.045 (2026-02-24)
+
+### Map Popup Redesign
+- **Notes in popups** — Visit notes now appear in map marker popups with a gold accent bar. Long notes are truncated with a click-to-expand/collapse toggle.
+- **Redesigned popup layout** — Cleaner visual hierarchy with compact subtitle line (altitude + note indicator), coordinates and Street View on a single row, and subtle dividers between sections.
+- **Note-aware markers** — Visits with notes display a lighter blue marker to distinguish them from regular visits.
+- **Smart auto-pan** — Map automatically pans to keep popups fully visible on open and when expanding notes, replacing Leaflet's unreliable built-in autoPan.
+
+### Diary Panel Toggle
+- **Re-opening the diary** now scrolls to the currently highlighted entry and pans the map to that location, preserving any open popup.
+
+### Visit Click Reliability (02.044)
+- Fixed visit markers requiring multiple clicks to show popup. Replaced fixed-delay timeouts with Leaflet `moveend` events for reliable post-animation callbacks.
+- Fixed race condition where markers were searched after unspiderfying clusters.
+
+### AI Chat Fix (02.043)
+- Fixed `find_location_visits` tool double-counting spanning visits that started on a previous day.
+
 ## Build 02.000 (2026-02-22)
 
 ### Feature - AI Chat

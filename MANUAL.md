@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader - User Manual
 
-**Build 02.000**
+**Build 02.045**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and [Arc Editor](https://editor.arc.wiki) GPS tracking data. Generates interactive diaries with maps from your location history, stored locally in your browser. No server required.
 
@@ -192,12 +192,14 @@ Each route segment has a white border underneath for visibility against any map 
 
 ### Location Markers
 
-Visits are shown as blue circle markers that cluster together at low zoom levels. Click a marker to see:
+Visits are shown as blue circle markers that cluster together at low zoom levels. Markers for visits that have notes use a lighter blue to distinguish them at a glance. Click a marker to see:
 - Location name
-- Altitude (if recorded)
-- Coordinates
-- A link to Google Street View
+- Altitude and note indicator (if applicable)
+- Note text (for visits with notes, with expand/collapse for longer notes)
+- Coordinates and a link to Google Street View
 - A star button to add/remove from Favourites
+
+The map automatically pans to keep popups fully visible, including when expanding a long note.
 
 ### Right-Click Context Menu
 

@@ -3319,7 +3319,41 @@ function moveMapSmart(latlng, zoom) {
                     L.DomEvent.disableScrollPropagation(opacityEl);
                 }
 
-                // Note expand/collapse — handled via inline onclick on the <a> expand toggle.
+                // Pan the map if the current open popup extends beyond the viewport.
+                // Called on popupopen and after note expand/collapse toggle.
+                function panToFitPopup() {
+                    if (!map) return;
+                    const openPopup = map._popup || (map._layers && Object.values(map._layers).find(l => l._popup && l._popup.isOpen && l._popup.isOpen()));
+                    // Find the open popup element directly from the DOM
+                    const container = map.getContainer()?.querySelector('.leaflet-popup');
+                    if (!container) return;
+                    const popupRect = container.getBoundingClientRect();
+                    const mapRect = map.getContainer().getBoundingClientRect();
+                    let dx = 0, dy = 0;
+                    const pad = 20;
+                    if (popupRect.top < mapRect.top + pad) {
+                        dy = popupRect.top - (mapRect.top + pad);
+                    }
+                    if (popupRect.bottom > mapRect.bottom - pad) {
+                        dy = popupRect.bottom - (mapRect.bottom - pad);
+                    }
+                    if (popupRect.left < mapRect.left + pad) {
+                        dx = popupRect.left - (mapRect.left + pad);
+                    }
+                    if (popupRect.right > mapRect.right - pad) {
+                        dx = popupRect.right - (mapRect.right - pad);
+                    }
+                    if (dx !== 0 || dy !== 0) {
+                        map.panBy([dx, dy], { animate: true, duration: 0.3 });
+                    }
+                }
+                window._arcPanToFitPopup = panToFitPopup;
+
+                // Ensure popup is fully visible after opening — Leaflet's built-in
+                // autoPan doesn't always work with marker clusters.
+                map.on('popupopen', function() {
+                    setTimeout(panToFitPopup, 50);
+                });
 
                 // Add zoom event listener to dynamically resize markers (like Arc Timeline)
                 map.on('zoomend', function() {
@@ -3485,17 +3519,43 @@ function moveMapSmart(latlng, zoom) {
                 const newWidth = diaryFloat.offsetWidth || 0;
                 const delta = newWidth - oldWidth;
                 
-                // Update margin tracking only (no automatic refit)
+                // Update margin tracking
                 NavigationController.updateViewportMargins({ left: newWidth }, { noRefit: true });
-                
-                // Pan map to keep visible content stable
+
+                // Scroll diary to the highlighted entry and pan map to it
+                // Use direct panTo with diary offset instead of panToWithDiaryOffset
+                // to preserve any open popup
+                const highlighted = document.querySelector('li.diary-highlight');
+                if (highlighted) {
+                    highlighted.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    const locData = highlighted.querySelector('.location-data');
+                    if (locData) {
+                        const lat = parseFloat(locData.dataset.lat);
+                        const lng = parseFloat(locData.dataset.lng);
+                        if (!isNaN(lat) && !isNaN(lng)) {
+                            setTimeout(() => {
+                                // Pan with diary offset but don't close popup
+                                const m = NavigationController.margins;
+                                const hOffset = ((m.left + m.sliderLeft) - m.right) / 2;
+                                const vOffset = (m.top - m.bottom) / 2;
+                                const zoom = map.getZoom();
+                                const target = map.project([lat, lng], zoom);
+                                const shifted = L.point(target.x - hOffset, target.y - vOffset);
+                                map.panTo(map.unproject(shifted, zoom), { animate: true, duration: 0.3 });
+                            }, 50);
+                            return;
+                        }
+                    }
+                }
+
+                // No highlighted entry — pan to keep visible content stable
                 if (delta !== 0) {
                     const center = map.getCenter();
                     const zoom = map.getZoom();
                     const centerPoint = map.project(center, zoom);
                     const newCenterPoint = L.point(centerPoint.x - delta / 2, centerPoint.y);
                     const newCenter = map.unproject(newCenterPoint, zoom);
-                    
+
                     setTimeout(() => {
                         map.panTo(newCenter, { animate: true, duration: 0.3 });
                     }, 50);
@@ -4410,89 +4470,101 @@ function moveMapSmart(latlng, zoom) {
                 const label = p.location || 'Unknown Location';
                 
                 // Arc Timeline style: blue circle marker with white border
-                // Size dynamically based on zoom level
+                // Note markers get a gold border as a subtle visual hint
+                const hasNote = !!p.hasNote;
                 const mm = L.circleMarker([p.lat, p.lng], {
                     radius: getMarkerRadius(currentZoom),
-                    fillColor: '#4285F4',  // Arc Timeline blue
-                    color: '#FFFFFF',      // White border
-                    weight: 3,             // Border width (thicker for better visibility)
+                    fillColor: hasNote ? '#93b8f4' : '#4285F4',  // Lighter blue for notes, signature blue for others
+                    color: '#FFFFFF',
+                    weight: 3,
                     opacity: 1,
                     fillOpacity: 1,
-                    pane: 'circleMarkerPane',  // Custom pane to render above polylines
-                    _hasNote: !!p.hasNote
+                    pane: 'circleMarkerPane',
+                    _hasNote: hasNote
                 });
                 
                 // Track marker for zoom updates
                 allCircleMarkers.push(mm);
                 
-                // Create popup with altitude and star button
+                // Create popup content
                 const isFav = isFavorite(p.lat, p.lng);
                 const starIcon = isFav ? '★' : '☆';
                 const starColor = isFav ? '#FFD700' : '#ccc';
                 const starText = isFav ? 'Favorited' : 'Add to Favorites';
-                
-                let popupContent = `
-                    <div style="min-width: 200px; max-width: 300px;">
-                        <b style="display: block; margin-bottom: 8px; word-wrap: break-word; line-height: 1.4; font-size: 14px;">${escapeHtml(label)}</b>`;
-                
+
+                // --- Popup layout ---
+                // Title
+                let popupContent = `<div class="arc-popup" style="min-width: 200px; max-width: 300px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">`;
+                popupContent += `<div style="font-weight: 600; font-size: 14px; line-height: 1.35; color: #1a1a1a; margin-bottom: 4px; word-wrap: break-word;">${escapeHtml(label)}</div>`;
+
+                // Subtitle line: altitude + note indicator
+                const subtitleParts = [];
                 if (p.altitude !== null && p.altitude !== undefined) {
-                    popupContent += `<div style="color: #666; margin-bottom: 6px; font-size: 13px;">↑ ${Math.round(p.altitude)}m</div>`;
+                    subtitleParts.push(`↑ ${Math.round(p.altitude)}m`);
+                }
+                if (hasNote) {
+                    subtitleParts.push('✎ note');
+                }
+                if (subtitleParts.length) {
+                    popupContent += `<div style="font-size: 12px; color: #888; margin-bottom: 8px;">${subtitleParts.join(' · ')}</div>`;
+                } else {
+                    popupContent += `<div style="margin-bottom: 6px;"></div>`;
                 }
 
-                // Note text (first note only, truncated with click-to-expand)
+                // Note text — both truncated and full versions included;
+                // popupopen handler toggles based on diary panel state
                 if (p.noteText) {
-                    const NOTE_TRUNCATE = 120; // characters before truncation
+                    const NOTE_TRUNCATE = 120;
                     const escaped = escapeHtml(p.noteText);
                     const needsTruncation = p.noteText.length > NOTE_TRUNCATE;
-                    // Replace newlines with <br> for display
                     const fullHtml = escaped.replace(/\n/g, '<br>');
 
                     if (needsTruncation) {
-                        // Truncate at word boundary near the limit
                         let truncAt = p.noteText.lastIndexOf(' ', NOTE_TRUNCATE);
                         if (truncAt < NOTE_TRUNCATE * 0.6) truncAt = NOTE_TRUNCATE;
                         const shortText = escapeHtml(p.noteText.substring(0, truncAt)).replace(/\n/g, '<br>');
                         popupContent += `
-                            <a href="#" class="popup-note" style="display:block; background: #f8f7f2; border-left: 3px solid #d4a843; padding: 8px 10px; margin-bottom: 10px; border-radius: 0 4px 4px 0; font-size: 12px; line-height: 1.5; color: #555; text-decoration: none; cursor: pointer;"
-                               onclick="var f=this.querySelector('.note-full'),s=this.querySelector('.note-short'),e=this.querySelector('.note-expand');if(f.style.display==='none'){f.style.display='block';s.style.display='none';e.textContent='▲ less';}else{f.style.display='none';s.style.display='block';e.textContent='▼ more…';}return false;">
+                            <a href="#" class="popup-note" style="display:block; background: #fafaf6; border-left: 3px solid #c9a84c; padding: 7px 10px; margin-bottom: 8px; border-radius: 0 4px 4px 0; font-size: 12px; line-height: 1.5; color: #555; text-decoration: none; cursor: pointer;"
+                               onclick="var f=this.querySelector('.note-full'),s=this.querySelector('.note-short'),e=this.querySelector('.note-expand');if(f.style.display==='none'){f.style.display='block';s.style.display='none';e.textContent='▲ less';}else{f.style.display='none';s.style.display='block';e.textContent='▼ more…';}if(window._arcPanToFitPopup)setTimeout(window._arcPanToFitPopup,50);return false;">
                                 <span class="note-short">${shortText}…</span>
                                 <span class="note-full" style="display:none">${fullHtml}</span>
-                                <span class="note-expand" style="display:block; font-size: 11px; color: #a08030; margin-top: 4px;">▼ more…</span>
+                                <span class="note-expand" style="display:block; font-size: 11px; color: #a08030; margin-top: 3px;">▼ more…</span>
                             </a>`;
                     } else {
                         popupContent += `
-                            <div class="popup-note" style="background: #f8f7f2; border-left: 3px solid #d4a843; padding: 8px 10px; margin-bottom: 10px; border-radius: 0 4px 4px 0; font-size: 12px; line-height: 1.5; color: #555;">
+                            <div class="popup-note" style="background: #fafaf6; border-left: 3px solid #c9a84c; padding: 7px 10px; margin-bottom: 8px; border-radius: 0 4px 4px 0; font-size: 12px; line-height: 1.5; color: #555;">
                                 ${fullHtml}
                             </div>`;
                     }
                 }
 
-                popupContent += `<div style="font-size: 11px; color: #999; margin-bottom: 10px;">Lat: ${p.lat.toFixed(6)}<br>Lng: ${p.lng.toFixed(6)}</div>`;
+                // Divider before meta
+                popupContent += `<div style="border-top: 1px solid #eee; margin: 0 -2px 8px;"></div>`;
 
-                // Street View link
+                // Coordinates + Street View in a compact row
                 const streetViewUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${p.lat},${p.lng}`;
-                popupContent += `<a href="${streetViewUrl}" target="_blank" style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #4285F4; text-decoration: none; margin-bottom: 10px; padding: 4px 8px; background: #f0f7ff; border-radius: 4px;">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="12" cy="8" r="4"/><path d="M12 14c-4 0-6 2-6 4v2h12v-2c0-2-2-4-6-4z"/></svg>
-                    Street View
-                </a>`;
+                popupContent += `<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">`;
+                popupContent += `<span style="font-size: 10px; color: #aaa; letter-spacing: 0.02em;">${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</span>`;
+                popupContent += `<a href="${streetViewUrl}" target="_blank" style="display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #4285F4; text-decoration: none; padding: 2px 7px; background: #f0f7ff; border-radius: 3px;">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><circle cx="12" cy="8" r="4"/><path d="M12 14c-4 0-6 2-6 4v2h12v-2c0-2-2-4-6-4z"/></svg>
+                    Street View</a>`;
+                popupContent += `</div>`;
 
-                // Star button at bottom — use data attributes for safe label passing
+                // Star button
                 popupContent += `
-                        <button class="popup-fav-btn"
-                            data-fav-label="${escapeHtml(label)}" data-fav-lat="${p.lat}" data-fav-lng="${p.lng}" data-fav-alt="${p.altitude}"
-                            style="width: 100%; padding: 6px 12px; background: ${isFav ? '#FFF9E6' : '#f5f5f5'}; border: 1px solid ${isFav ? '#FFD700' : '#ddd'}; border-radius: 6px; cursor: pointer; font-size: 13px; color: #333; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s;"
-                            onmouseover="this.style.background='${isFav ? '#FFF3CC' : '#e8e8e8'}'"
-                            onmouseout="this.style.background='${isFav ? '#FFF9E6' : '#f5f5f5'}'"
-                            title="${isFav ? 'Remove from favorites' : 'Add to favorites'}"
-                        ><span style="font-size: 16px; color: ${safeColor(starColor)};">${starIcon}</span> ${starText}</button>
-                    </div>`;
-                
-                mm.bindPopup(popupContent, { autoPan: true, maxWidth: 320 });
+                    <button class="popup-fav-btn"
+                        data-fav-label="${escapeHtml(label)}" data-fav-lat="${p.lat}" data-fav-lng="${p.lng}" data-fav-alt="${p.altitude}"
+                        style="width: 100%; padding: 5px 10px; background: ${isFav ? '#FFF9E6' : '#f7f7f7'}; border: 1px solid ${isFav ? '#FFD700' : '#e0e0e0'}; border-radius: 5px; cursor: pointer; font-size: 12px; color: #444; display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.2s;"
+                        onmouseover="this.style.background='${isFav ? '#FFF3CC' : '#eee'}'"
+                        onmouseout="this.style.background='${isFav ? '#FFF9E6' : '#f7f7f7'}'"
+                        title="${isFav ? 'Remove from favorites' : 'Add to favorites'}"
+                    ><span style="font-size: 15px; color: ${safeColor(starColor)};">${starIcon}</span> ${starText}</button>
+                </div>`;
+
+                mm.bindPopup(popupContent, { autoPan: false, maxWidth: 320, className: 'arc-popup-wrap' });
 
                 // Add click handler to highlight diary entry
                 mm.on('click', function() {
-                    // Check if this location has a note
-                    const hasNote = !!p.hasNote;
                     const notesOnlyCheckbox = document.getElementById('notesOnly');
                     
                     // If location has no note and "Notes only" is checked, auto-uncheck it to show all
