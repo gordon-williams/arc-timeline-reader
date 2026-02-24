@@ -2665,7 +2665,7 @@
 
     <script>
         // Build version
-        const ANALYSIS_BUILD = '02.046';
+        const ANALYSIS_BUILD = '02.047';
         
         // Database and state
         let db = null;
@@ -2752,6 +2752,8 @@
             }
             // Update heat map tiles on theme change
             updateHeatTileLayer();
+            // Update AI chat inline charts with new theme colours
+            if (window._updateChatChartTheme) window._updateChatChartTheme();
         };
         
         // Activity colours — matches app.js getActivityColor() palette.

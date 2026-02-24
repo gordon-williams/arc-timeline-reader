@@ -2861,6 +2861,43 @@ Be concise and friendly.`;
         });
     }
 
+    // Expose theme update for inline charts so analysis.html toggleTheme can call it
+    window._updateChatChartTheme = function() {
+        if (inlineCharts.length === 0) return;
+        const style = getComputedStyle(document.body);
+        const isDark = (style.getPropertyValue('--bg-app') || '').trim().startsWith('#1');
+        const axisColor = isDark ? 'rgba(255,255,255,0.8)' : '#1d1d1f';
+        const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+        const tooltipBg = isDark ? 'rgba(44,44,46,0.95)' : 'rgba(255,255,255,0.95)';
+
+        for (const chart of inlineCharts) {
+            try {
+                const opts = chart.options;
+                // Update tooltip
+                if (opts.plugins?.tooltip) {
+                    opts.plugins.tooltip.backgroundColor = tooltipBg;
+                    opts.plugins.tooltip.titleColor = axisColor;
+                    opts.plugins.tooltip.bodyColor = axisColor;
+                    opts.plugins.tooltip.borderColor = gridColor;
+                }
+                // Update legend
+                if (opts.plugins?.legend?.labels) {
+                    opts.plugins.legend.labels.color = axisColor;
+                }
+                // Update axes
+                if (opts.scales) {
+                    for (const scaleKey of Object.keys(opts.scales)) {
+                        const scale = opts.scales[scaleKey];
+                        if (scale.title) scale.title.color = axisColor;
+                        if (scale.ticks) scale.ticks.color = axisColor;
+                        if (scale.grid) scale.grid.color = gridColor;
+                    }
+                }
+                chart.update('none'); // 'none' = no animation for instant redraw
+            } catch (e) { /* chart may be destroyed */ }
+        }
+    };
+
     // Wait for DOM ready then initialize
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
