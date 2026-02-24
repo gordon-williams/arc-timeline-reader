@@ -1,5 +1,18 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.046 (2026-02-25)
+
+### Activities Tab — New Metrics
+- **Elevation Gain (m)** — Cumulative metres of climbing, computed from GPS altitude samples. Available per activity type in the Metrics dropdown.
+- **Elevation Density (m/km)** — Terrain steepness, calculated as elevation gain divided by distance. Higher values indicate hillier routes.
+- **Avg Speed (km/h)** — Average speed for each period, from distance and duration.
+- **Est. VO₂ (ml/kg/min)** — Estimated oxygen cost using the ACSM walking equation (3.5 + 0.1×speed + 1.8×speed×grade). Bars are colour-coded by intensity zone: green (light, <14), orange (moderate, 14–24), red (vigorous, >24).
+
+### AI Chat Enhancements
+- **Elevation gain in data tools** — `get_activity_summary`, `get_monthly_summary`, and `get_daily_stats` now return cumulative elevation gain (`elev` field). Claude can answer questions like "What was my monthly walking elevation gain?" and compute derived metrics (elevation density, speed, VO₂).
+- **Chart y-axis control** — `show_chart` now supports `y_min` and `y_max` to zoom into narrow data ranges, making small trends visible.
+- **Dual y-axes** — Charts can display two independent y-axes for comparing metrics with different units (e.g. distance on the left, elevation gain on the right). Claude uses this proactively when overlaying metrics with different scales.
+
 ## Build 02.045 (2026-02-24)
 
 ### Map Popup Redesign

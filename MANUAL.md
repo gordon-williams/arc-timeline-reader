@@ -352,7 +352,7 @@ Open the Analysis page by clicking **Analysis** in the diary header. This opens 
 
 The trend view shows a chart and table of your activity over time.
 
-- **Metric** -- Distance (km) or Duration (hrs).
+- **Metric** -- Distance (km), Duration (hrs), Elevation Gain (m), Elevation Density (m/km), Avg Speed (km/h), or Est. VO₂ (ml/kg/min).
 - **Group** -- aggregate by Day, Week, or Month.
 - **Chart type** -- Line, Bar, or Stacked Area.
 - **Smoothing** -- applies a bidirectional moving average (0-5) to smooth noisy data.
@@ -560,12 +560,14 @@ Cost per message is displayed after each response, along with a running session 
 
 ### What You Can Ask
 
-The AI has access to 12 query tools for extracting data from your timeline database. Example questions:
+The AI has access to 15 query tools for extracting data from your timeline database, plus display tools for maps, routes, heat maps, and charts. Example questions:
 
 **Activities and distances:**
 - "How far did I walk last month?"
 - "Compare my cycling distance this year vs last year"
 - "What was my most active day in January?"
+- "Show me my monthly walking elevation gain for the last 8 months as a bar chart"
+- "Plot my walking distance and elevation gain together on the same chart"
 
 **Locations and visits:**
 - "How often did I go to the gym this year?"
@@ -591,9 +593,19 @@ Claude can display results on an interactive map panel that appears alongside th
 
 - **Markers** — Location pins with visit counts, showing where you've been.
 - **Routes** — Colour-coded GPS tracks drawn on the map, matching the main diary reader's colour scheme (walking=green, car=grey, cycling=blue, running=red, etc.).
+- **Heat maps** — GPS density overlays for long date ranges, with frequency, recency, or time-spent modes.
 - **Activity filtering** — Claude can filter routes to specific activity types (e.g. only walking, or only car/bus/train).
 
 The map panel has controls to clear markers, close the panel, and switch map styles.
+
+### Charts
+
+Claude can render charts inline in the chat to visualise trends and comparisons:
+
+- **Chart types** — Bar, line, pie, and doughnut charts.
+- **Dual y-axes** — Compare two metrics with different units on the same chart (e.g. distance on the left axis, elevation gain on the right).
+- **Custom axis ranges** — Claude can zoom into narrow data ranges to make trends more visible.
+- **Export** — Each chart includes a download button to save as PNG.
 
 ### Cost Tracking
 
@@ -629,7 +641,7 @@ When using the AI Chat feature, a subset of your timeline data is sent to Anthro
 **What is sent to the API:**
 - Place names (e.g. "Keio Plaza Hotel Tokyo")
 - Activity types (e.g. "walking", "car")
-- Durations and distances
+- Durations, distances, and elevation gain
 - Dates and times
 - Aggregated statistics
 
