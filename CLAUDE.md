@@ -139,3 +139,22 @@ Format: **`VV.BBB`** (e.g. `02.000`, `02.001`, `02.015`)
 - Documentation (README.md, MANUAL.md, CHANGELOG.md) — update on release
 
 **IMPORTANT:** When making any code change, increment the build number in both `index.html` (`__ARC_BUILD__`) and `analysis.html` (`ANALYSIS_BUILD`). The diary header and footer are populated dynamically and do not need manual updates.
+
+### GitHub Releases
+
+Create a GitHub Release at the end of each coding session when there are user-facing changes worth announcing. Bundle all builds from the session into one release.
+
+**Do release when:**
+- New features land (e.g. notes in popups, new AI chat tools)
+- Bug fixes that affect users (e.g. visit counting, click reliability)
+- Changes relevant to open issues or watchers
+
+**Don't release for:**
+- Individual build bumps mid-session
+- Internal-only changes (refactoring, diagnostics, dev tooling)
+- Bug fixes for unreleased code
+
+**Format:**
+- Tag: `vVV.BBB` matching the final build of the session (e.g. `v02.045`)
+- Title: `Build VV.BBB — Short Feature Summary`
+- Notes: grouped by feature/fix, same style as CHANGELOG.md
