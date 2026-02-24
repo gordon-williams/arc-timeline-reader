@@ -352,7 +352,15 @@ Open the Analysis page by clicking **Analysis** in the diary header. This opens 
 
 The trend view shows a chart and table of your activity over time.
 
-- **Metric** -- Distance (km), Duration (hrs), Elevation Gain (m), Elevation Density (m/km), Avg Speed (km/h), or Est. VO₂ (ml/kg/min).
+- **Metric** -- Choose what to plot from the dropdown:
+  - **Distance (km)** -- Total distance covered.
+  - **Duration (hrs)** -- Total active time.
+  - **Elevation Gain (m)** -- Cumulative metres of climbing, computed from GPS altitude samples. Only positive altitude changes are counted.
+  - **Elev. Density (m/km)** -- Terrain steepness: elevation gain divided by distance. Higher values indicate hillier routes (e.g. 20 m/km = gentle, 50+ m/km = steep hill walks).
+  - **Avg Speed (km/h)** -- Average speed from distance and duration.
+  - **Est. VO₂ (ml/kg/min)** -- Estimated oxygen cost using the ACSM walking equation: VO₂ = 3.5 + (0.1 × speed) + (1.8 × speed × grade). Bars are colour-coded by intensity zone: green (light, <14 ml/kg/min), orange (moderate, 14–24), red (vigorous, >24).
+  - **METs (intensity)** -- Metabolic Equivalent of Task. METs = VO₂ ÷ 3.5. A MET of 1.0 is resting; ~3.0 is normal walking; 4+ is brisk or uphill walking. Useful for comparing exercise intensity independent of body weight.
+  - **MET-hours (training load)** -- Cumulative training volume: METs × hours for each activity segment, summed per period. Unlike VO₂ or METs (which measure intensity), MET-hours captures both how hard *and* how long you exercised. A 2-hour gentle walk (3 METs × 2 hrs = 6 MET-hours) and a 1-hour brisk hill walk (6 METs × 1 hr = 6 MET-hours) produce the same training load. Computed per-segment for accuracy, not from period averages.
 - **Group** -- aggregate by Day, Week, or Month.
 - **Chart type** -- Line, Bar, or Stacked Area.
 - **Smoothing** -- applies a bidirectional moving average (0-5) to smooth noisy data.

@@ -2449,6 +2449,8 @@
                                         <option value="elevationDensity">Elev. Density (m/km)</option>
                                         <option value="speed">Avg Speed (km/h)</option>
                                         <option value="vo2">Est. VO₂ (ml/kg/min)</option>
+                                        <option value="mets">METs (intensity)</option>
+                                        <option value="metHours">MET-hours (training load)</option>
                                     </select>
                                 </div>
                                 <div class="option-group">
@@ -2665,7 +2667,7 @@
 
     <script>
         // Build version
-        const ANALYSIS_BUILD = '02.047';
+        const ANALYSIS_BUILD = '02.048';
         
         // Database and state
         let db = null;
@@ -2760,6 +2762,9 @@
         // Top 10 by frequency in real Arc data (56k+ entries):
         // stationary 48%, car 26%, walking 20%, cycling 3%, motorcycle 1%,
         // bus, train, boat, airplane, running (all <1%).
+        // Activities where the ACSM walking/running VO₂ equation is valid
+        const ACSM_TYPES = new Set(['walking', 'hiking', 'running']);
+
         // After import LocoKit2 codes are mapped to display names, so
         // scooter→motorcycle, tram/metro→train, taxi→car, etc.
         const activityColors = {
@@ -3384,7 +3389,12 @@
         }
         
         // Extract a chart-ready value from activity stats for the given metric
-        function getMetricValue(stats, metric) {
+        function getMetricValue(stats, metric, activityType) {
+            // VO₂-derived metrics only apply to walking/hiking/running
+            if ((metric === 'vo2' || metric === 'mets' || metric === 'metHours') &&
+                activityType && !ACSM_TYPES.has(activityType)) {
+                return 0;
+            }
             switch (metric) {
                 case 'distance': return (stats.distance || 0) / 1000;
                 case 'duration': return (stats.duration || 0) / 3600;
@@ -3409,6 +3419,21 @@
                     const grade = dist > 0 ? elev / dist : 0;
                     const vo2 = 3.5 + (0.1 * speedMPerMin) + (1.8 * speedMPerMin * grade);
                     return Math.round(vo2 * 10) / 10;
+                }
+                case 'mets': {
+                    // METs = VO₂ / 3.5
+                    const dist = stats.distance || 0;
+                    const dur = stats.duration || 0;
+                    const elev = stats.elevationGain || 0;
+                    if (dur < 60 || dist < 10) return 0;
+                    const speedMPerMin = dist / (dur / 60);
+                    const grade = dist > 0 ? elev / dist : 0;
+                    const vo2 = 3.5 + (0.1 * speedMPerMin) + (1.8 * speedMPerMin * grade);
+                    return Math.round((vo2 / 3.5) * 10) / 10;
+                }
+                case 'metHours': {
+                    // MET-hours: pre-computed per-segment in processDay, summed in daily stats
+                    return Math.round((stats.metHours || 0) * 10) / 10;
                 }
                 default: return 0;
             }
@@ -3448,7 +3473,7 @@
                     return selected.some(activity => {
                         const stats = g.activityStats?.[activity];
                         if (!stats) return false;
-                        const value = getMetricValue(stats, metric);
+                        const value = getMetricValue(stats, metric, activity);
                         return value > 0;
                     });
                 });
@@ -3475,7 +3500,7 @@
                 let data = finalGrouped.map(g => {
                     const stats = g.activityStats?.[activity];
                     if (!stats) return 0;
-                    return getMetricValue(stats, metric);
+                    return getMetricValue(stats, metric, activity);
                 });
                 
                 // Apply smoothing filter (moving average)
@@ -3525,7 +3550,9 @@
                 elevationGain: 'Elevation Gain (m)',
                 elevationDensity: 'Elevation Density (m/km)',
                 speed: 'Avg Speed (km/h)',
-                vo2: 'Est. VO₂ (ml/kg/min)'
+                vo2: 'Est. VO₂ (ml/kg/min)',
+                mets: 'METs',
+                metHours: 'MET-hours'
             };
             const yAxisLabel = yAxisLabels[metric] || 'Value';
             
@@ -3658,22 +3685,27 @@
                 }
             });
             
-            // VO₂ intensity zone legend
+            // Metric info legend (zone colours for VO₂, applicability note for ACSM-derived metrics)
+            const isAcsmMetric = metric === 'vo2' || metric === 'mets' || metric === 'metHours';
             let zoneLegend = document.getElementById('vo2ZoneLegend');
-            if (metric === 'vo2') {
+            if (isAcsmMetric) {
                 if (!zoneLegend) {
                     zoneLegend = document.createElement('div');
                     zoneLegend.id = 'vo2ZoneLegend';
-                    zoneLegend.style.cssText = 'display:flex; gap:16px; justify-content:center; padding:6px 0 2px; font-size:11px;';
+                    zoneLegend.style.cssText = 'display:flex; gap:16px; justify-content:center; flex-wrap:wrap; padding:6px 0 2px; font-size:11px;';
                     const chartContainer = document.getElementById('chartContainer');
                     if (chartContainer) chartContainer.parentNode.insertBefore(zoneLegend, chartContainer.nextSibling);
                 }
                 const textColor = isLightMode ? '#333' : '#ccc';
-                zoneLegend.innerHTML = `
-                    <span style="color:${textColor}"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#4CAF50;margin-right:4px;vertical-align:middle;"></span>Light &lt;14</span>
-                    <span style="color:${textColor}"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#FF9800;margin-right:4px;vertical-align:middle;"></span>Moderate 14–24</span>
-                    <span style="color:${textColor}"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#F44336;margin-right:4px;vertical-align:middle;"></span>Vigorous &gt;24</span>
-                    <span style="color:${textColor}; opacity:0.6">(ml/kg/min)</span>`;
+                if (metric === 'vo2') {
+                    zoneLegend.innerHTML = `
+                        <span style="color:${textColor}"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#4CAF50;margin-right:4px;vertical-align:middle;"></span>Light &lt;14</span>
+                        <span style="color:${textColor}"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#FF9800;margin-right:4px;vertical-align:middle;"></span>Moderate 14–24</span>
+                        <span style="color:${textColor}"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#F44336;margin-right:4px;vertical-align:middle;"></span>Vigorous &gt;24</span>
+                        <span style="color:${textColor}; opacity:0.6">(ml/kg/min — walking, hiking, running only)</span>`;
+                } else {
+                    zoneLegend.innerHTML = `<span style="color:${textColor}; opacity:0.6">ACSM walking equation — applies to walking, hiking, running only</span>`;
+                }
                 zoneLegend.style.display = 'flex';
             } else if (zoneLegend) {
                 zoneLegend.style.display = 'none';
@@ -6786,13 +6818,25 @@
                     const distance = item.samples ? calcDistance(item.samples) : 0;
                     const elevGain = item.samples ? calcElevationGain(item.samples) : 0;
 
+                    // Compute MET-hours for foot-based activities only (ACSM walking equation)
+                    // ACSM: VO₂ = 3.5 + (0.1 × speed_m/min) + (1.8 × speed_m/min × grade)
+                    // METs = VO₂ / 3.5, MET-hours = METs × hours
+                    let segMetHours = 0;
+                    if (ACSM_TYPES.has(type) && duration >= 60 && distance >= 10) {
+                        const speedMPerMin = distance / (duration / 60);
+                        const grade = distance > 0 ? elevGain / distance : 0;
+                        const vo2 = 3.5 + (0.1 * speedMPerMin) + (1.8 * speedMPerMin * grade);
+                        segMetHours = (vo2 / 3.5) * (duration / 3600);
+                    }
+
                     if (!summary.activityStats[type]) {
-                        summary.activityStats[type] = { count: 0, duration: 0, distance: 0, elevationGain: 0 };
+                        summary.activityStats[type] = { count: 0, duration: 0, distance: 0, elevationGain: 0, metHours: 0 };
                     }
                     summary.activityStats[type].count++;
                     summary.activityStats[type].duration += duration;
                     summary.activityStats[type].distance += distance;
                     summary.activityStats[type].elevationGain += elevGain;
+                    summary.activityStats[type].metHours += segMetHours;
                     summary.totalDistance += distance;
                     summary.totalDuration += duration;
                 }

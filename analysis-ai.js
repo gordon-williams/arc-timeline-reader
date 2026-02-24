@@ -241,7 +241,7 @@
     const toolDefinitions = [
         {
             name: 'get_activity_summary',
-            description: 'Get total distance (m), duration (s), elevation gain (m), and count for activity types in a date range. Returns "elev" = cumulative elevation gain (sum of positive altitude changes). Optionally filter to specific activities.',
+            description: 'Get total distance (m), duration (s), elevation gain (m), MET-hours, and count for activity types in a date range. Returns "elev" = cumulative elevation gain, "metH" = MET-hours (training load, computed per-segment from ACSM VO₂ then summed). Optionally filter to specific activities.',
             input_schema: {
                 type: 'object',
                 properties: {
@@ -254,7 +254,7 @@
         },
         {
             name: 'get_monthly_summary',
-            description: 'Get per-month activity totals across a date range. Returns one row per month with distance/duration/elevation gain/count by activity type. Includes "elev" = cumulative elevation gain (m). PREFERRED for multi-month questions — avoids needing multiple get_activity_summary calls.',
+            description: 'Get per-month activity totals across a date range. Returns one row per month with distance/duration/elevation gain/MET-hours/count by activity type. Includes "elev" = cumulative elevation gain (m), "metH" = MET-hours (training load). PREFERRED for multi-month questions — avoids needing multiple get_activity_summary calls.',
             input_schema: {
                 type: 'object',
                 properties: {
@@ -267,7 +267,7 @@
         },
         {
             name: 'get_daily_stats',
-            description: 'Get day-by-day activity stats for a date range (max 90 days). Includes distance, duration, elevation gain ("elev" in metres), and count per activity type per day.',
+            description: 'Get day-by-day activity stats for a date range (max 90 days). Includes distance, duration, elevation gain ("elev" in metres), MET-hours ("metH"), and count per activity type per day.',
             input_schema: {
                 type: 'object',
                 properties: {
@@ -564,11 +564,12 @@
             if (!day.activityStats) continue;
             for (const [type, stats] of Object.entries(day.activityStats)) {
                 if (typeFilter && !typeFilter.has(type.toLowerCase())) continue;
-                if (!totals[type]) totals[type] = { n: 0, dur: 0, dist: 0, elev: 0 };
+                if (!totals[type]) totals[type] = { n: 0, dur: 0, dist: 0, elev: 0, metH: 0 };
                 totals[type].n += stats.count || 0;
                 totals[type].dur += stats.duration || 0;
                 totals[type].dist += stats.distance || 0;
                 totals[type].elev += stats.elevationGain || 0;
+                totals[type].metH += stats.metHours || 0;
             }
         }
         // Strip zero-value fields to save tokens
@@ -577,6 +578,7 @@
             if (!t.dur) delete t.dur;
             if (!t.dist) delete t.dist;
             if (!t.elev) delete t.elev; else t.elev = Math.round(t.elev);
+            if (!t.metH) delete t.metH; else t.metH = Math.round(t.metH * 10) / 10;
         }
         return totals;
     }
@@ -632,6 +634,7 @@
                             if (s.duration) entry.dur = s.duration;
                             if (s.distance) entry.dist = s.distance;
                             if (s.elevationGain) entry.elev = Math.round(s.elevationGain);
+                            if (s.metHours) entry.metH = Math.round(s.metHours * 10) / 10;
                             if (Object.keys(entry).length) stats[type] = entry;
                         }
                     }
@@ -2003,7 +2006,7 @@ To draw routes on the map, use show_route — this is the ONLY tool that visuali
 For LONG date ranges (months or a full year), use show_heatmap instead of show_route — it displays GPS data as a heat map which is much more readable than hundreds of overlapping polylines. Modes: "frequency" (default — more visits = hotter), "recency" (recent routes brighter), "time_spent" (longer stays = hotter). Increase radius for zoomed-out views of large areas. Use show_heatmap when the user asks to see walking/cycling/activity patterns, coverage, or route frequency over extended periods. When the user mentions a specific city or region (e.g. "walking in Brisbane"), ALWAYS include a bounding box (south/north/west/east) to filter GPS data to that area — otherwise data from all locations will appear. You know common city bounding boxes.
 To visualise data as a chart, use show_chart. Supported types: bar (comparisons, histograms), line (time series), pie/doughnut (proportions). You must pre-compute the data values from tool results and provide them as arrays — convert distances to km and durations to hours BEFORE passing to show_chart. Use bar charts for monthly breakdowns, line charts for trends over time, pie/doughnut for activity proportions. Set horizontal=true for ranked lists (e.g. top locations by visits). Use y_min and y_max to zoom into narrow data ranges and enhance visible trends (e.g. VO₂ values ranging 10-14 — set y_min=8, y_max=16 to make differences clear). Proactively use y_min/y_max when the data range is small relative to the baseline. For comparing two metrics with different units (e.g. distance vs elevation gain, speed vs VO₂), use DUAL Y-AXES: set y_axis="y2" on the second dataset to assign it to the right-hand axis, and set y2_label for its unit. You can also set y2_min/y2_max to zoom the right axis. The left axis (y) and right axis (y2) scale independently, making trends in both metrics clearly visible. Proactively use dual axes when the user asks to compare or overlay metrics that have different units or very different value ranges. Use activity colours where appropriate: walking=#12A656, cycling=#039FD4, running=#EB781B, car=#4E5268, bus=#4056B5, train=#AA9131, hiking=#0E8444.
 For altitude/elevation questions ("highest point walked", "what elevation did I reach"), use get_elevation_stats — it scans raw GPS samples for altitude extremes. Supports bounding box (south/north/west/east) to filter to a region.
-For cumulative elevation gain questions ("how much climbing did I do", "elevation gain per month", "total ascent"), use get_activity_summary or get_monthly_summary — activity stats include an "elev" field (metres of cumulative elevation gain, sum of all positive altitude changes). get_daily_stats also includes "elev" per activity per day. Use these for trends, charts, and comparisons — they are pre-aggregated and fast. Do NOT use get_elevation_stats for cumulative gain (it only finds altitude extremes). You can also compute derived metrics from the raw data: elevation density (elev ÷ dist×1000 = m/km, terrain steepness), average speed (dist÷1000 ÷ dur÷3600 = km/h), and estimated VO₂ using the ACSM walking equation: VO₂ = 3.5 + (0.1 × speed_m_per_min) + (1.8 × speed_m_per_min × grade), where speed_m_per_min = dist ÷ (dur/60) and grade = elev/dist. Result is ml/kg/min. Intensity zones: light <14, moderate 14–24, vigorous >24.
+For cumulative elevation gain questions ("how much climbing did I do", "elevation gain per month", "total ascent"), use get_activity_summary or get_monthly_summary — activity stats include an "elev" field (metres of cumulative elevation gain, sum of all positive altitude changes). get_daily_stats also includes "elev" per activity per day. Use these for trends, charts, and comparisons — they are pre-aggregated and fast. Do NOT use get_elevation_stats for cumulative gain (it only finds altitude extremes). You can also compute derived metrics from the raw data: elevation density (elev ÷ dist×1000 = m/km, terrain steepness), average speed (dist÷1000 ÷ dur÷3600 = km/h), and estimated VO₂ using the ACSM walking equation: VO₂ = 3.5 + (0.1 × speed_m_per_min) + (1.8 × speed_m_per_min × grade), where speed_m_per_min = dist ÷ (dur/60) and grade = elev/dist. Result is ml/kg/min. Intensity zones: light <14, moderate 14–24, vigorous >24. METs = VO₂ / 3.5 (metabolic equivalent — 1 MET = resting, ~3 METs = normal walking, 4+ = brisk). IMPORTANT: VO₂, METs, and MET-hours are computed using the ACSM walking equation and ONLY apply to walking, hiking, and running. They are zero for cycling, car, bus, train, and other non-foot activities — do not try to compute or display them for those. For training load questions ("how hard am I training", "monthly training load", "exercise volume"), use the pre-computed "metH" field (MET-hours) from activity summaries — this is computed per-segment then summed, not from averages, so it accurately reflects cumulative training load. MET-hours = METs × hours for each walk. Higher values = more training stimulus.
 NEVER generate code (Python, JavaScript, or any programming language). NEVER suggest the user run a script. Use the available tools to query data and display results visually.
 When presenting numerical data in text, format it as a readable markdown table with headers — NEVER dump raw values as a comma-separated list. Always include context columns (month names, location names, dates) alongside the values. Convert distances from metres to km (divide by 1000, 1 decimal place) and durations from seconds to hours/minutes before displaying.
 Be concise and friendly.`;

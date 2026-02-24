@@ -1,5 +1,19 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.048 (2026-02-25)
+
+### Activities Tab — METs & MET-hours
+- **METs (intensity)** — Metabolic Equivalent of Task (VO₂ ÷ 3.5). Measures exercise intensity: 1 MET = resting, ~3 = normal walking, 4+ = brisk/uphill.
+- **MET-hours (training load)** — Cumulative training volume: METs × hours for each activity segment, summed per period. Captures both intensity and duration — the gold standard for exercise dose. Computed per-segment from the ACSM equation for accuracy.
+- VO₂, METs, and MET-hours now correctly restricted to walking, hiking, and running (ACSM walking equation is invalid for cycling, driving, etc.). A note below the chart indicates this.
+
+### AI Chat — MET-hours Support
+- Activity summaries, monthly summaries, and daily stats now include `metH` (MET-hours) pre-computed per-segment. Claude can answer training load questions like "What was my monthly training load?"
+- System prompt updated with METs/MET-hours guidance and activity-type restrictions.
+
+### Bug Fix — Chart Theme Toggle (02.047)
+- AI chat inline charts now update their colours when switching between light and dark mode.
+
 ## Build 02.046 (2026-02-25)
 
 ### Activities Tab — New Metrics
