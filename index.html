@@ -36,7 +36,7 @@ SOFTWARE.
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = '02.048';
+  window.__ARC_BUILD__ = '02.056';
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -59,9 +59,28 @@ SOFTWARE.
       var a = document.createElement('script');
       a.src = 'arc-state.js?v=' + b;
       a.async = false;
-      a.onload = function() { loadArcUtils(); };
-      a.onerror = function() { loadArcUtils(); };
+      a.onload = function() { loadArcSprites(); };
+      a.onerror = function() { loadArcSprites(); };
       document.body.appendChild(a);
+    }
+
+    function loadArcSprites() {
+      // Load external sprite data first (JS file works on file:// protocol)
+      var sd = document.createElement('script');
+      sd.src = 'arc-sprites-data.js?v=' + b;
+      sd.async = false;
+      sd.onload = function() { loadArcSpritesCore(); };
+      sd.onerror = function() { loadArcSpritesCore(); }; // Continue without data
+      document.body.appendChild(sd);
+    }
+
+    function loadArcSpritesCore() {
+      var sp = document.createElement('script');
+      sp.src = 'arc-sprites.js?v=' + b;
+      sp.async = false;
+      sp.onload = function() { loadArcUtils(); };
+      sp.onerror = function() { loadArcUtils(); }; // Continue without sprites
+      document.body.appendChild(sp);
     }
 
     function loadArcUtils() {

@@ -93,6 +93,12 @@
         horseback: '#8B408C', surfing: '#D85582', tractor: '#2D2F3E',
         tuktuk: '#B4831D', unknown: '#808080'
     };
+    // Overlay from external sprite file if available
+    if (window.ArcSprites) {
+        for (const [k, v] of Object.entries(window.ArcSprites.all())) {
+            if (v.routeColour) ACTIVITY_COLORS[k.toLowerCase()] = v.routeColour;
+        }
+    }
     function getActivityColor(type) {
         return ACTIVITY_COLORS[(type || '').toLowerCase()] || '#808080';
     }

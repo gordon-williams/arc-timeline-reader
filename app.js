@@ -5515,9 +5515,12 @@ scrollToDiaryDay(currentDayKey);
                 'unknown': '#808080'
             };
             
+            if (window.ArcSprites && window.ArcSprites.get(activityType)) {
+                return window.ArcSprites.getRouteColour(activityType);
+            }
             return colors[activityType] || '#808080';
         }
-        
+
         function lightenColor(hexColor, percent) {
             // Convert hex to RGB
             const hex = hexColor.replace('#', '');
@@ -5590,9 +5593,12 @@ scrollToDiaryDay(currentDayKey);
                 'unknown': '❓'
             };
             
+            if (window.ArcSprites && window.ArcSprites.get(activityType)) {
+                return window.ArcSprites.getEmoji(activityType);
+            }
             return icons[activityType] || '';
         }
-        
+
         function getUniqueActivitiesFromRoutes(routeData) {
             const activitySet = new Set();
             

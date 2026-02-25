@@ -2665,9 +2665,11 @@
         </div>
     </div>
 
+    <script src="arc-sprites-data.js"></script>
+    <script src="arc-sprites.js"></script>
     <script>
         // Build version
-        const ANALYSIS_BUILD = '02.048';
+        const ANALYSIS_BUILD = '02.056';
         
         // Database and state
         let db = null;
@@ -2789,7 +2791,13 @@
             tuktuk: '#B4831D',        // Brown
             unknown: '#808080'        // Gray
         };
-        
+        // Overlay from external sprite file if available
+        if (window.ArcSprites) {
+            for (const [k, v] of Object.entries(window.ArcSprites.all())) {
+                if (v.routeColour) activityColors[k] = v.routeColour;
+            }
+        }
+
         const defaultColor = '#636366'; // Neutral gray for unknown activities
         
         // Initialize

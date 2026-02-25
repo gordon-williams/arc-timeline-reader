@@ -1,5 +1,54 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.056 (2026-02-25)
+
+### External Sprites — Single-File System
+- **`arc-sprites.json` removed** — The app now uses only `arc-sprites-data.js`, a JS file loaded via `<script>` tag. This is the only loading mechanism that works on `file://` protocol, where both `fetch()` and `XMLHttpRequest` fail silently.
+- **`arc-sprites.js` simplified** — Reads synchronously from `window.__ARC_SPRITES_DATA__` (set by the data file) instead of any network request. Cleaner, faster, and protocol-agnostic.
+- **Sprite Editor single-file export** — Export now downloads one file: `arc-sprites-data.js`. Drop it into the app folder and reload.
+- **Sprite Editor imports both formats** — Import accepts either the JS data file or legacy JSON. Drag-and-drop works for both `.js` and `.json` files. Paste works for either format.
+
+## Build 02.053 (2026-02-25)
+
+### Sprite Editor — SVG Import Fixes
+- **Zoom baked into applied SVG** — The staging zoom slider/number input now scales the SVG content within the 64×64 viewBox when applied. Previously the zoom was visual-only and didn't affect the final SVG code. A `<g transform="matrix(...)">` wrapper scales and centres the pictogram at the chosen size.
+- **Uniform SVG scaling** — Imported SVGs now preserve their original aspect ratio. Previously, non-square viewBoxes were stretched independently on X/Y axes; now uses uniform scale (`Math.min`) and centres the result within the 64×64 coordinate space.
+- **Editable staging code** — The Raw Import and Auto-fixed code areas are now editable. An "Apply Edited Code" button appears when you modify the textarea, letting you tweak SVG code manually before applying.
+
+## Build 02.051 (2026-02-25)
+
+### Sprite Editor — UX Improvements
+- **Fast SVG zoom** — Staging area zoom slider now updates SVG dimensions directly via DOM manipulation instead of full re-render, eliminating sluggishness.
+- **Numeric zoom input** — Editable number field alongside the zoom slider for precise px entry.
+- **Larger code boxes** — SVG paste area (120px min) and staging code area (160px min) now show more lines by default.
+- **Preview BG colour picker** — Colour picker in the preview canvas corner lets you test markers against any background colour.
+
+## Build 02.050 (2026-02-25)
+
+### Sprite Editor — Complete Visual Makeover
+- **New tile catalogue layout** — Replaced flat data table with a responsive grid of activity tile cards. Each tile shows a large SVG marker, emoji, name, and colour bars for replay/route colours. Coloured top accent stripe per activity.
+- **Right sidebar editor** — Replaced bottom drawer with a 420px slide-in sidebar. Clearly sectioned: identity, preview canvas (hero 128px + 6-size scale), colour pickers, SVG editor, and staging area.
+- **Light/dark theme toggle** — New theme switcher matching the analysis page's dual-theme system. Full CSS variable overrides for both modes.
+- **Search filter** — New text input filters activities by name in real-time.
+- **Brand integration** — Header uses the Arc Reader brand gradient accent bar and logo. Glassmorphism on header. Custom scrollbars. Staggered tile entrance animations.
+- **Compact stat chips** — Summary pills replaced with inline chips showing activity counts, missing SVGs, and modification count.
+- **Responsive** — Sidebar overlays on narrow screens, shifts catalogue on wide screens (>1200px). Full-width sidebar on mobile.
+
+## Build 02.049 (2026-02-25)
+
+### External Sprite File System
+- **`arc-sprites.json`** — New external data file containing all activity SVGs, emoji, route colours, and replay colours. Editable without touching source code.
+- **`arc-sprites.js`** — New loader module exposing `window.ArcSprites` API. Fetches `arc-sprites.json` at startup, falls back to hardcoded defaults if missing. Injects dynamic CSS for replay marker colours.
+- All consumers (`replay.js`, `app.js`, `analysis.html`, `analysis-ai.js`) now read from ArcSprites first, with inline fallbacks for zero-risk operation without the JSON file.
+
+### Sprite Viewer — Import/Export Editor
+- **Import JSON** — Load `arc-sprites.json` from file or paste JSON directly. Drag-and-drop JSON files onto the viewer.
+- **Import SVG** — Per-activity SVG import via file picker or paste. Drag-and-drop SVG files onto an inspected activity.
+- **Colour pickers** — Click to edit replay and route colours for each activity inline.
+- **Export JSON** — Download current sprite data as `arc-sprites.json` for replacing the app's data file.
+- **Reset** — One-click reset to hardcoded defaults.
+- **Modification tracking** — Modified activities show an orange "modified" badge in the viewer.
+
 ## Build 02.048 (2026-02-25)
 
 ### Activities Tab — METs & MET-hours

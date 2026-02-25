@@ -680,10 +680,17 @@ class ReplayController {
     // ===== Marker Icon =====
 
     createMarkerIcon(activity) {
-        const svg = this.activityIcons[activity] || this.activityIcons.unknown;
+        // Prefer ArcSprites external data, fall back to hardcoded activityIcons
+        const svg = (window.ArcSprites && window.ArcSprites.getSvg(activity))
+            || this.activityIcons[activity]
+            || (window.ArcSprites && window.ArcSprites.getSvg('unknown'))
+            || this.activityIcons.unknown;
+        // Inline background from ArcSprites so icon works even without the CSS class
+        const bg = window.ArcSprites ? window.ArcSprites.getReplayColour(activity) : '';
+        const bgStyle = bg ? ` style="background:${bg}"` : '';
         return L.divIcon({
             className: 'replay-marker',
-            html: `<div class="replay-marker-icon activity-${activity}"><svg viewBox="0 0 64 64" fill="white">${svg}</svg></div>`,
+            html: `<div class="replay-marker-icon activity-${activity}"${bgStyle}><svg viewBox="0 0 64 64" fill="white">${svg}</svg></div>`,
             iconSize: [36, 36],
             iconAnchor: [18, 18]
         });
