@@ -919,10 +919,11 @@
             border-bottom: none;
         }
         
-        .dropdown-item:hover {
+        .dropdown-item:hover,
+        .dropdown-item.kb-active {
             background: var(--bg-hover);
         }
-        
+
         .dropdown-item.selected {
             background: var(--accent);
             color: white;
@@ -1289,7 +1290,188 @@
             margin-bottom: 12px;
             flex-shrink: 0;
         }
-        
+
+        /* Attendance Chart Layout */
+        .attendance-layout {
+            display: flex;
+            gap: 16px;
+            min-height: 500px;
+            flex: 1;
+        }
+
+        .attendance-chart-panel {
+            flex: 7;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-surface);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            min-width: 0;
+        }
+
+        .attendance-chart-container {
+            height: 400px;
+            min-height: 100px;
+            max-height: 900px;
+            padding: 16px;
+            background: var(--bg-surface);
+            flex: 1;
+        }
+
+        .attendance-chart-container canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .attendance-stats-panel {
+            flex: 3;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 250px;
+            max-width: 340px;
+            overflow-y: auto;
+        }
+
+        .attendance-stat-card {
+            background: var(--bg-surface);
+            border-radius: 12px;
+            padding: 14px 18px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .attendance-stat-card .stat-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .attendance-stat-card .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1.2;
+        }
+
+        .attendance-stat-card .stat-detail {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .attendance-histogram-container {
+            height: 140px;
+        }
+
+        .attendance-selection-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            padding: 8px 12px;
+            background: var(--bg-surface);
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .attendance-selection-label.has-selection {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .attendance-selection-label .clear-selection {
+            cursor: pointer;
+            color: var(--text-muted);
+            font-weight: 400;
+            margin-left: 6px;
+        }
+
+        .attendance-selection-label .clear-selection:hover {
+            color: var(--text-primary);
+        }
+
+        .attendance-controls {
+            display: contents;
+        }
+
+        .attendance-controls .option-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .attendance-controls .option-group label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        .attendance-controls .option-select {
+            padding: 5px 8px;
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            background: var(--bg-input);
+            color: var(--text-primary);
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        .preset-btn.attendance-zoom-preset.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .preset-btn.attendance-zoom-preset.active:hover {
+            background: var(--accent-hover);
+        }
+
+        .attendance-title-bar {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 10px 16px 0;
+        }
+
+        .attendance-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-align: center;
+        }
+
+        .attendance-date-range {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--accent);
+            white-space: nowrap;
+            padding: 2px 10px;
+            background: var(--accent-dim);
+            border-radius: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .attendance-layout {
+                flex-direction: column;
+            }
+            .attendance-stats-panel {
+                max-width: none;
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+            .attendance-stat-card {
+                flex: 1;
+                min-width: 140px;
+            }
+        }
+
         /* Histogram content wrapper */
         .histogram-content {
             display: flex;
@@ -2587,6 +2769,28 @@
                             <div class="selected-locations" id="selectedLocations"></div>
                             <button class="btn btn-secondary btn-small" id="clearLocationsBtn">Clear All</button>
                         </div>
+                        <div class="control-row" id="locationViewRow" style="display: none;">
+                            <div class="view-toggle" id="locationViewToggle">
+                                <button class="view-toggle-btn active" data-locview="infographic">Infographic</button>
+                                <button class="view-toggle-btn" data-locview="attendance">Attendance Chart</button>
+                            </div>
+                            <div class="attendance-controls" id="attendanceControls" style="display: none;">
+                                <div class="option-group">
+                                    <label>Group</label>
+                                    <select id="attendanceGroupBy" class="option-select">
+                                        <option value="day">Day</option>
+                                        <option value="week">Week</option>
+                                        <option value="fortnight">Fortnight</option>
+                                        <option value="month">Month</option>
+                                    </select>
+                                </div>
+                                <div class="option-group">
+                                    <label for="attendancePctMode" class="checkbox-label">
+                                        <input type="checkbox" id="attendancePctMode"> Percentage
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="placeholder">
                         <p>Search for locations to see visit history</p>
@@ -2669,7 +2873,7 @@
     <script src="arc-sprites.js"></script>
     <script>
         // Build version
-        const ANALYSIS_BUILD = '02.056';
+        const ANALYSIS_BUILD = '02.080';
         
         // Database and state
         let db = null;
@@ -2682,6 +2886,28 @@
         let selectedTableRows = new Set(); // For multi-select table rows
         let currentTableData = []; // Store table data for highlighting
         let topActivities = []; // Top activities for table columns
+
+        // Attendance chart state
+        let currentLocationView = localStorage.getItem('arc-location-view') || 'infographic';
+        let attendanceChart = null;              // Chart.js instance
+        let attendanceHistogram = null;          // Chart.js instance for distribution
+        let attendanceProcessedVisits = null;    // Cached processedVisits
+        let attendanceDateRange = { start: null, end: null };
+        let attendanceSelection = null;          // { startIdx, endIdx } for drag-select
+        let savedAttendanceState = null;         // { xMin, xMax, selection, groupBy } — persists across view switches
+
+        // Multi-location colour palette — shared between chips and chart datasets.
+        // Single location keeps the default accent colour; 2+ get distinct colours.
+        const MULTI_LOC_COLORS = [
+            '#4a90d9', // blue (same as default)
+            '#e06c47', // warm red-orange
+            '#50b88e', // teal green
+            '#c678dd', // soft purple
+            '#e5a336', // amber
+            '#5bbcd6', // sky blue
+            '#f06292', // pink
+            '#8d6e63', // brown
+        ];
 
         // Heat map state
         let heatMap = null;             // Leaflet map instance for heat-map
@@ -2758,6 +2984,10 @@
             updateHeatTileLayer();
             // Update AI chat inline charts with new theme colours
             if (window._updateChatChartTheme) window._updateChatChartTheme();
+            // Update attendance chart if visible
+            if (attendanceChart && currentLocationView === 'attendance' && attendanceProcessedVisits) {
+                renderAttendanceChart(attendanceProcessedVisits, attendanceDateRange.start, attendanceDateRange.end);
+            }
         };
         
         // Activity colours — matches app.js getActivityColor() palette.
@@ -3077,6 +3307,39 @@
             searchInput?.addEventListener('focus', () => {
                 if (searchInput.value.length >= 2) searchLocations();
             });
+            // Keyboard navigation for dropdown (arrow keys, enter, space, escape)
+            searchInput?.addEventListener('keydown', (e) => {
+                const dropdown = document.getElementById('locationDropdown');
+                if (!dropdown?.classList.contains('show')) return;
+                const items = dropdown.querySelectorAll('.dropdown-item[data-id]');
+                if (items.length === 0) return;
+
+                const current = dropdown.querySelector('.dropdown-item.kb-active');
+                let idx = current ? Array.from(items).indexOf(current) : -1;
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    idx = Math.min(idx + 1, items.length - 1);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    idx = Math.max(idx - 1, 0);
+                } else if (e.key === 'Enter' || e.key === ' ') {
+                    if (current) {
+                        e.preventDefault();
+                        current.click();
+                    }
+                    return;
+                } else if (e.key === 'Escape') {
+                    dropdown.classList.remove('show');
+                    return;
+                } else {
+                    return;
+                }
+                // Update highlight
+                if (current) current.classList.remove('kb-active');
+                items[idx]?.classList.add('kb-active');
+                items[idx]?.scrollIntoView({ block: 'nearest' });
+            });
             document.addEventListener('click', (e) => {
                 if (!e.target.closest('.search-wrapper')) {
                     document.getElementById('locationDropdown')?.classList.remove('show');
@@ -3091,12 +3354,52 @@
                     runLocationAnalysis();
                 }
             });
-            
+
+            // Location view toggle (Infographic / Attendance Chart)
+            // Restore persisted view preference on the toggle buttons
+            document.querySelectorAll('#locationViewToggle .view-toggle-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.locview === currentLocationView);
+            });
+            if (currentLocationView === 'attendance') {
+                const attCtrl = document.getElementById('attendanceControls');
+                if (attCtrl) attCtrl.style.display = 'contents';
+            }
+
+            document.querySelectorAll('#locationViewToggle .view-toggle-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const view = btn.dataset.locview;
+                    if (view === currentLocationView) return;
+                    currentLocationView = view;
+                    localStorage.setItem('arc-location-view', view);
+                    document.querySelectorAll('#locationViewToggle .view-toggle-btn').forEach(b => {
+                        b.classList.toggle('active', b.dataset.locview === view);
+                    });
+                    const attCtrl = document.getElementById('attendanceControls');
+                    if (attCtrl) attCtrl.style.display = view === 'attendance' ? 'contents' : 'none';
+                    if (selectedLocations.size > 0) runLocationAnalysis();
+                });
+            });
+
+            // Attendance grouping/chart type changes
+            document.getElementById('attendanceGroupBy')?.addEventListener('change', () => {
+                if (currentLocationView === 'attendance' && attendanceProcessedVisits) {
+                    renderAttendanceChart(attendanceProcessedVisits, attendanceDateRange.start, attendanceDateRange.end);
+                }
+            });
+            document.getElementById('attendancePctMode')?.addEventListener('change', () => {
+                if (currentLocationView === 'attendance' && attendanceProcessedVisits) {
+                    renderAttendanceChart(attendanceProcessedVisits, attendanceDateRange.start, attendanceDateRange.end);
+                }
+            });
+
             // Clear all locations button
             document.getElementById('clearLocationsBtn')?.addEventListener('click', () => {
                 selectedLocations.clear();
+                selectedLocationDisplayNames.clear();
+                selectedLocationVisits.clear();
                 updateSelectedLocationsUI();
                 document.getElementById('locationSearch').value = '';
+                resetAttendanceView();
             });
             
             // Select all matching locations button
@@ -5302,10 +5605,12 @@
             selectedLocationDisplayNames.delete(id);
             selectedLocationVisits.delete(id);
             updateSelectedLocationsUI();
-            
-            // Re-run analysis if locations remain
+
+            // Re-run analysis if locations remain, otherwise reset
             if (selectedLocations.size > 0) {
                 runLocationAnalysis();
+            } else {
+                resetAttendanceView();
             }
         }
         
@@ -5321,13 +5626,18 @@
             
             row.style.display = 'flex';
             container.replaceChildren();
-            Array.from(selectedLocations).forEach((id) => {
+            const locArray = Array.from(selectedLocations);
+            const useColors = locArray.length > 1;
+            locArray.forEach((id, idx) => {
                 const displayName = selectedLocationDisplayNames.get(id) || id.split('|')[0];
                 const visits = selectedLocationVisits.get(id) || 0;
                 const visitStr = visits > 0 ? ` (${visits})` : '';
                 const pill = document.createElement('span');
                 pill.className = 'location-pill';
                 pill.title = id;
+                if (useColors) {
+                    pill.style.backgroundColor = MULTI_LOC_COLORS[idx % MULTI_LOC_COLORS.length];
+                }
                 pill.appendChild(document.createTextNode(`${displayName}${visitStr}`));
 
                 const removeBtn = document.createElement('span');
@@ -5391,21 +5701,22 @@
             }
             
             // Filter visits to only those near selected physical locations
+            // Tag each visit with its owning location ID for multi-location charting
             let filtered = allVisits.filter(v => {
                 // Find which selected location this visit belongs to
                 for (const loc of selectedPhysicalLocs) {
                     if (v.locationName !== loc.name) continue;
-                    
+
                     // If no coords in selection, include all visits for this name
                     // (location was selected without coordinate data)
-                    if (!loc.lat || !loc.lng) return true;
-                    
+                    if (!loc.lat || !loc.lng) { v._locId = loc.id; return true; }
+
                     // If visit has no coords, include it (we can't filter by distance)
-                    if (!v.lat || !v.lng) return true;
-                    
+                    if (!v.lat || !v.lng) { v._locId = loc.id; return true; }
+
                     // Check if visit is within 500m of the selected location centroid
                     const dist = haversineDistanceGlobal(loc.lat, loc.lng, v.lat, v.lng);
-                    if (dist <= 500) return true;
+                    if (dist <= 500) { v._locId = loc.id; return true; }
                 }
                 return false;
             });
@@ -5517,20 +5828,8 @@
                         if (v.endTimestamp && (!existing.endTimestamp || v.endTimestamp > existing.endTimestamp)) {
                             existing.endTimestamp = v.endTimestamp;
                         }
-                        // Sum durations as fallback
+                        // Sum actual visit durations (not span — excludes time away e.g. lunch, errands)
                         existing.duration += (v.duration || 0);
-                    }
-                }
-                // Calculate span duration where timestamps are available
-                for (const key in byDayLocation) {
-                    const v = byDayLocation[key];
-                    if (v.startTimestamp && v.endTimestamp) {
-                        // Cap end time at midnight of the day
-                        const dayStart = new Date(v.dayKey + 'T00:00:00').getTime();
-                        const dayEnd = dayStart + (24 * 60 * 60 * 1000) - 1; // 23:59:59.999
-                        const cappedEnd = Math.min(v.endTimestamp, dayEnd);
-                        // Use span: end of last visit minus start of first visit (capped at midnight)
-                        v.duration = Math.round((cappedEnd - v.startTimestamp) / 1000);
                     }
                 }
                 processedVisits = Object.values(byDayLocation);
@@ -5538,6 +5837,56 @@
                 // Ensure visitCount is set (use ?? to preserve 0 for spanning continuations)
                 processedVisits = filtered.map(v => ({ ...v, visitCount: v.visitCount ?? 1, duration: v.duration || 0 }));
             }
+
+            // Show view toggle row now that we have data
+            const viewRow = document.getElementById('locationViewRow');
+            if (viewRow) viewRow.style.display = '';
+
+            // Cache for attendance chart reuse
+            attendanceProcessedVisits = processedVisits;
+            const allDayKeys = processedVisits.map(v => v.dayKey).sort();
+            attendanceDateRange = {
+                start: startDate || allDayKeys[0],
+                end: endDate || allDayKeys[allDayKeys.length - 1]
+            };
+
+            // Branch: attendance chart view
+            if (currentLocationView === 'attendance') {
+                const resultsArea = document.getElementById('locationResults');
+                const controlsTile = resultsArea.querySelector('.controls-tile');
+                resultsArea.replaceChildren();
+                if (controlsTile) resultsArea.appendChild(controlsTile);
+
+                renderAttendanceChart(processedVisits, attendanceDateRange.start, attendanceDateRange.end);
+
+                // Store data for "View in Diary" feature
+                window._pendingLocationVisits = processedVisits;
+                window._pendingLocationCoords = locationCoords;
+
+                // Hide print/save buttons (not applicable for attendance view)
+                document.getElementById('printReportBtn').style.display = 'none';
+                document.getElementById('saveReportBtn').style.display = 'none';
+                return;
+            }
+
+            // Destroy attendance chart if switching to infographic
+            // (State was already saved by renderAttendanceChart's preamble or will be saved if chart exists)
+            if (attendanceChart) {
+                try {
+                    const xScale = attendanceChart.scales.x;
+                    savedAttendanceState = {
+                        xMin: xScale.min,
+                        xMax: xScale.max,
+                        selection: attendanceSelection ? { ...attendanceSelection } : null,
+                        groupBy: document.getElementById('attendanceGroupBy')?.value || 'day',
+                        pctMode: document.getElementById('attendancePctMode')?.checked || false
+                    };
+                } catch (e) {
+                    savedAttendanceState = null;
+                }
+                attendanceChart.destroy(); attendanceChart = null;
+            }
+            if (attendanceHistogram) { attendanceHistogram.destroy(); attendanceHistogram = null; }
 
             // Calculate statistics
             const totalVisits = processedVisits.reduce((sum, v) => sum + (v.visitCount ?? 1), 0);
@@ -5881,7 +6230,1225 @@
             // Initialize Leaflet map after DOM is ready
             setTimeout(initLocationMap, 50);
         }
-        
+
+        // =====================================================================
+        // Attendance Chart — Interactive daily/weekly/monthly hours view
+        // =====================================================================
+
+        function renderAttendanceChart(processedVisits, rangeStart, rangeEnd) {
+            // Save current chart state before destroying (zoom, selection, grouping)
+            // This ensures state is preserved for ALL callers: view toggle, theme toggle, groupBy change
+            if (attendanceChart) {
+                try {
+                    const xScale = attendanceChart.scales.x;
+                    savedAttendanceState = {
+                        xMin: xScale.min,
+                        xMax: xScale.max,
+                        selection: attendanceSelection ? { ...attendanceSelection } : null,
+                        groupBy: document.getElementById('attendanceGroupBy')?.value || 'day',
+                        pctMode: document.getElementById('attendancePctMode')?.checked || false
+                    };
+                } catch (e) {
+                    savedAttendanceState = null;
+                }
+            }
+
+            // Destroy previous instances
+            if (attendanceChart) { attendanceChart.destroy(); attendanceChart = null; }
+            if (attendanceHistogram) { attendanceHistogram.destroy(); attendanceHistogram = null; }
+
+            // Remove previous layout DOM if re-rendering (e.g. group/chart type change)
+            const oldLayout = document.getElementById('attendanceLayout');
+            if (oldLayout) oldLayout.remove();
+
+            const groupBy = document.getElementById('attendanceGroupBy')?.value || 'day';
+
+            // Determine unique location IDs from the data (preserving selection order)
+            const locIds = Array.from(selectedLocations).filter(id =>
+                processedVisits.some(v => v._locId === id)
+            );
+            const isMultiLoc = locIds.length > 1;
+
+            // 1. Aggregate visits by day, split per location when multi-location
+            const byDayTotal = {};          // dayKey → total hours (for allDays series)
+            const byDayPerLoc = {};         // locId → { dayKey → hours }
+            if (isMultiLoc) {
+                for (const id of locIds) byDayPerLoc[id] = {};
+            }
+            for (const v of processedVisits) {
+                const dk = v.dayKey;
+                if (!byDayTotal[dk]) byDayTotal[dk] = 0;
+                byDayTotal[dk] += (v.duration || 0) / 3600;
+                if (isMultiLoc && v._locId) {
+                    const bucket = byDayPerLoc[v._locId] || (byDayPerLoc[v._locId] = {});
+                    if (!bucket[dk]) bucket[dk] = 0;
+                    bucket[dk] += (v.duration || 0) / 3600;
+                }
+            }
+            // Cap totals at 24h
+            for (const key in byDayTotal) {
+                if (byDayTotal[key] > 24) byDayTotal[key] = 24;
+            }
+
+            // 2. Build complete day series (fill zeros for no-visit days)
+            const allDays = [];
+            const startD = new Date(rangeStart + 'T00:00:00');
+            const endD = new Date(rangeEnd + 'T00:00:00');
+            for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+                const key = d.toISOString().slice(0, 10);
+                allDays.push({ dayKey: key, hours: byDayTotal[key] || 0 });
+            }
+
+            // Build per-location day series (parallel arrays, same length as allDays)
+            const perLocDays = {};   // locId → array of { dayKey, hours }
+            if (isMultiLoc) {
+                for (const id of locIds) {
+                    const locBucket = byDayPerLoc[id] || {};
+                    perLocDays[id] = allDays.map(d => ({
+                        dayKey: d.dayKey,
+                        hours: locBucket[d.dayKey] || 0
+                    }));
+                }
+            }
+
+            // 3. Group by selected interval
+            const grouped = groupAttendanceData(allDays, groupBy);
+            // Group per-location series in parallel
+            const groupedPerLoc = {};
+            if (isMultiLoc) {
+                for (const id of locIds) {
+                    groupedPerLoc[id] = groupAttendanceData(perLocDays[id], groupBy);
+                }
+            }
+
+            // 4. Build DOM
+            const resultsArea = document.getElementById('locationResults');
+
+            const layout = document.createElement('div');
+            layout.className = 'attendance-layout';
+            layout.id = 'attendanceLayout';
+
+            // --- Chart panel (left, ~70%) ---
+            const chartPanel = document.createElement('div');
+            chartPanel.className = 'attendance-chart-panel';
+
+            // Title bar with location name and visible date range
+            const titleBar = document.createElement('div');
+            titleBar.className = 'attendance-title-bar';
+            const titleSpan = document.createElement('span');
+            titleSpan.className = 'attendance-title';
+            // Build title from selected locations
+            const locNames = Array.from(selectedLocations).map(id => {
+                const dn = selectedLocationDisplayNames.get(id) || id.split('|')[0];
+                return dn.split(',')[0]; // name only, drop suburb
+            });
+            titleSpan.textContent = locNames.length <= 2 ? locNames.join(' & ') : `${locNames[0]} + ${locNames.length - 1} others`;
+            titleBar.appendChild(titleSpan);
+
+            const dateRangeSpan = document.createElement('span');
+            dateRangeSpan.className = 'attendance-date-range';
+            dateRangeSpan.id = 'attendanceDateRangeLabel';
+            dateRangeSpan.textContent = `${formatDateShort(rangeStart)} \u2013 ${formatDateShort(rangeEnd)}`;
+            titleBar.appendChild(dateRangeSpan);
+
+            // Toolbar (appended before title bar)
+            const toolbar = document.createElement('div');
+            toolbar.className = 'chart-toolbar';
+
+            const zoomInBtn = document.createElement('button');
+            zoomInBtn.className = 'chart-tool-btn';
+            zoomInBtn.title = 'Zoom In';
+            zoomInBtn.textContent = '+';
+            zoomInBtn.addEventListener('click', () => { if (attendanceChart) attendanceChart.zoom(1.2); });
+
+            const zoomOutBtn = document.createElement('button');
+            zoomOutBtn.className = 'chart-tool-btn';
+            zoomOutBtn.title = 'Zoom Out';
+            zoomOutBtn.textContent = '\u2212';
+            zoomOutBtn.addEventListener('click', () => { if (attendanceChart) attendanceChart.zoom(0.8); });
+
+            const resetBtn = document.createElement('button');
+            resetBtn.className = 'chart-tool-btn';
+            resetBtn.title = 'Reset Zoom';
+            resetBtn.textContent = '\u2299';
+            resetBtn.addEventListener('click', () => {
+                if (attendanceChart) attendanceChart.resetZoom();
+                clearAttendanceZoomPresetHighlight();
+            });
+
+            const sep1 = document.createElement('div');
+            sep1.className = 'chart-tool-sep';
+
+            // Zoom presets: 6M, 1Y, 2Y — zoom to that span centred on current view
+            const presetData = [
+                { label: '6M', days: 183 },
+                { label: '1Y', days: 365 },
+                { label: '2Y', days: 730 }
+            ];
+            const presetBtns = presetData.map(p => {
+                const btn = document.createElement('button');
+                btn.className = 'preset-btn attendance-zoom-preset';
+                btn.dataset.zoomDays = p.days;
+                btn.title = `Zoom to ${p.label}`;
+                btn.textContent = p.label;
+                btn.addEventListener('click', () => {
+                    // Toggle: if already active, reset zoom
+                    if (btn.classList.contains('active')) {
+                        btn.classList.remove('active');
+                        if (attendanceChart) attendanceChart.resetZoom();
+                        return;
+                    }
+                    // Clear all preset highlights, activate this one
+                    document.querySelectorAll('.attendance-zoom-preset').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    zoomAttendanceToPreset(grouped, p.days);
+                });
+                return btn;
+            });
+
+            const sep2 = document.createElement('div');
+            sep2.className = 'chart-tool-sep';
+
+            const exportBtn = document.createElement('button');
+            exportBtn.className = 'chart-tool-btn';
+            exportBtn.title = 'Export PNG';
+            exportBtn.textContent = '\u2913';
+            exportBtn.addEventListener('click', exportAttendanceChart);
+
+            const hint = document.createElement('span');
+            hint.className = 'chart-hint';
+            hint.textContent = 'Scroll to zoom \u2022 Space+drag to pan \u2022 Drag to select \u2022 Double-click to open day';
+
+            toolbar.appendChild(zoomInBtn);
+            toolbar.appendChild(zoomOutBtn);
+            toolbar.appendChild(resetBtn);
+            toolbar.appendChild(sep1);
+            presetBtns.forEach(b => toolbar.appendChild(b));
+            toolbar.appendChild(sep2);
+            toolbar.appendChild(exportBtn);
+            toolbar.appendChild(hint);
+            chartPanel.appendChild(toolbar);
+            chartPanel.appendChild(titleBar);
+
+            // Chart container
+            const chartContainer = document.createElement('div');
+            chartContainer.className = 'attendance-chart-container';
+            chartContainer.id = 'attendanceChartContainer';
+            const canvas = document.createElement('canvas');
+            canvas.id = 'attendanceCanvas';
+            chartContainer.appendChild(canvas);
+            chartPanel.appendChild(chartContainer);
+
+            // Resize handle
+            const resizeHandle = document.createElement('div');
+            resizeHandle.className = 'chart-resize-handle';
+            resizeHandle.title = 'Drag to resize';
+            chartPanel.appendChild(resizeHandle);
+
+            layout.appendChild(chartPanel);
+
+            // --- Stats panel (right, ~30%) ---
+            const statsPanel = document.createElement('div');
+            statsPanel.className = 'attendance-stats-panel';
+            statsPanel.id = 'attendanceStatsPanel';
+            layout.appendChild(statsPanel);
+
+            resultsArea.appendChild(layout);
+
+            // 5. Create Chart.js instance (pass per-location data for stacked colouring)
+            // Restore pctMode checkbox before reading it (state saved across view/theme switches)
+            if (savedAttendanceState && savedAttendanceState.pctMode !== undefined) {
+                const pctEl = document.getElementById('attendancePctMode');
+                if (pctEl) pctEl.checked = savedAttendanceState.pctMode;
+            }
+            const pctMode = document.getElementById('attendancePctMode')?.checked || false;
+            const locMeta = isMultiLoc ? { locIds, groupedPerLoc, colors: MULTI_LOC_COLORS } : null;
+            createAttendanceChartInstance(canvas, grouped, locMeta, pctMode);
+
+            // 6. Restore saved state (zoom, selection) if grouping matches
+            // Deferred to requestAnimationFrame so the chart's initial layout pass completes first;
+            // without this, zoomScale sets internal limits but the canvas still shows full range
+            // until the next user interaction triggers a redraw.
+            const pendingRestore = savedAttendanceState;
+            savedAttendanceState = null; // consumed
+            if (pendingRestore && pendingRestore.groupBy === groupBy) {
+                requestAnimationFrame(() => {
+                    if (!attendanceChart) return; // chart was destroyed in the meantime
+                    const totalLabels = grouped.length;
+                    const sMin = Math.max(0, Math.min(pendingRestore.xMin, totalLabels - 1));
+                    const sMax = Math.max(sMin, Math.min(pendingRestore.xMax, totalLabels - 1));
+                    if (sMin !== 0 || sMax !== totalLabels - 1) {
+                        attendanceChart.zoomScale('x', { min: sMin, max: sMax }, 'none');
+                    }
+                    // Restore selection
+                    if (pendingRestore.selection) {
+                        const sel = pendingRestore.selection;
+                        if (sel.startIdx < totalLabels && sel.endIdx < totalLabels) {
+                            attendanceSelection = { startIdx: sel.startIdx, endIdx: sel.endIdx };
+                        }
+                    }
+                    attendanceChart.update('none');
+                    updateAttendanceDateRangeLabel(grouped);
+                    updateAttendanceStats(grouped);
+                });
+            } else {
+                attendanceSelection = null;
+            }
+
+            // Show stats immediately (full range); deferred restore will re-run with selection if needed
+            updateAttendanceStats(grouped);
+
+            // 7. Setup resize handle
+            setupAttendanceResize();
+
+            // 8. Setup drag-to-select and keyboard/scroll handlers
+            setupAttendanceDragSelect(canvas, grouped);
+
+            // 9. Double-click to navigate to diary
+            canvas.addEventListener('dblclick', (e) => {
+                if (!attendanceChart) return;
+                const points = attendanceChart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, false);
+                if (points.length > 0) {
+                    navigateAttendanceToDiary(grouped, points[0].index, groupBy);
+                }
+            });
+        }
+
+        function groupAttendanceData(allDays, groupBy) {
+            if (groupBy === 'day') {
+                return allDays.map(d => ({
+                    label: d.dayKey,
+                    hours: Math.round(d.hours * 100) / 100,
+                    days: [d]
+                }));
+            }
+
+            const groups = {};
+            for (const d of allDays) {
+                let key;
+                const date = new Date(d.dayKey + 'T00:00:00');
+
+                if (groupBy === 'week') {
+                    const mon = new Date(date);
+                    mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+                    key = mon.toISOString().slice(0, 10);
+                } else if (groupBy === 'fortnight') {
+                    const daysSinceStart = Math.floor((date - new Date(allDays[0].dayKey + 'T00:00:00')) / 86400000);
+                    const fnIdx = Math.floor(daysSinceStart / 14);
+                    const fnStart = new Date(allDays[0].dayKey + 'T00:00:00');
+                    fnStart.setDate(fnStart.getDate() + fnIdx * 14);
+                    key = fnStart.toISOString().slice(0, 10);
+                } else if (groupBy === 'month') {
+                    key = d.dayKey.substring(0, 7);
+                }
+
+                if (!groups[key]) groups[key] = { label: key, hours: 0, days: [] };
+                groups[key].hours += d.hours;
+                groups[key].days.push(d);
+            }
+
+            // Round hours
+            const result = Object.values(groups).sort((a, b) => a.label.localeCompare(b.label));
+            for (const g of result) g.hours = Math.round(g.hours * 100) / 100;
+            return result;
+        }
+
+        // Custom tooltip positioner: pin to top of chart, follow x only
+        if (Chart.Tooltip.positioners && !Chart.Tooltip.positioners.topOfChart) {
+            Chart.Tooltip.positioners.topOfChart = function(elements, eventPosition) {
+                return { x: eventPosition.x, y: this.chart.chartArea.top + 8 };
+            };
+        }
+
+        function createAttendanceChartInstance(canvas, grouped, locMeta, pctMode) {
+            if (attendanceChart) { attendanceChart.destroy(); attendanceChart = null; }
+
+            const axisColor = isLightMode ? '#1d1d1f' : 'rgba(255,255,255,0.8)';
+            const gridColor = isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+            const tooltipBg = isLightMode ? 'rgba(255,255,255,0.95)' : 'rgba(44,44,46,0.95)';
+            const tooltipBorder = isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+            const defaultBarColor = '#4a90d9';
+
+            const labels = grouped.map(g => {
+                // Format labels based on grouping — use locale-aware formatting
+                if (g.label.length === 7) {
+                    // Month: YYYY-MM → locale month + year
+                    const d = new Date(g.label + '-01T00:00:00');
+                    return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+                }
+                if (g.label.length === 10) {
+                    // Date: YYYY-MM-DD → locale short date
+                    const d = new Date(g.label + 'T00:00:00');
+                    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' });
+                }
+                return g.label;
+            });
+
+            const groupBy = document.getElementById('attendanceGroupBy')?.value || 'day';
+            const xTitle = groupBy === 'month' ? 'Month' : groupBy === 'week' ? 'Week' : groupBy === 'fortnight' ? 'Fortnight' : 'Date';
+            const yTitle = pctMode ? '%' : (groupBy === 'day' ? 'Hours' : 'Total Hours');
+
+            // Precompute totals per bar for percentage mode
+            const barTotals = grouped.map(g => g.hours);
+
+            // Build datasets: single location → one dataset; multi → stacked per location
+            let datasets;
+            // Store raw hours for tooltip display in pct mode
+            let rawDatasets;
+            if (locMeta) {
+                rawDatasets = locMeta.locIds.map(id => locMeta.groupedPerLoc[id].map(g => g.hours));
+                datasets = locMeta.locIds.map((id, i) => {
+                    const color = locMeta.colors[i % locMeta.colors.length];
+                    const locGrouped = locMeta.groupedPerLoc[id];
+                    const dn = selectedLocationDisplayNames.get(id) || id.split('|')[0];
+                    const shortName = dn.split(',')[0];
+                    let data;
+                    if (pctMode) {
+                        data = locGrouped.map((g, j) => barTotals[j] > 0 ? Math.round(g.hours / barTotals[j] * 1000) / 10 : 0);
+                    } else {
+                        data = locGrouped.map(g => g.hours);
+                    }
+                    return {
+                        label: shortName,
+                        data,
+                        backgroundColor: color + 'cc',
+                        borderColor: color,
+                        borderWidth: 0,
+                        hoverBackgroundColor: color,
+                        hoverBorderColor: color,
+                        borderRadius: i === locMeta.locIds.length - 1 ? 2 : 0,
+                    };
+                });
+            } else {
+                rawDatasets = [grouped.map(g => g.hours)];
+                let data;
+                if (pctMode) {
+                    data = grouped.map(g => g.hours > 0 ? 100 : 0);
+                } else {
+                    data = grouped.map(g => g.hours);
+                }
+                datasets = [{
+                    label: 'Hours',
+                    data,
+                    backgroundColor: defaultBarColor + 'cc',
+                    borderColor: defaultBarColor,
+                    borderWidth: 0,
+                    hoverBackgroundColor: '#34a853cc',
+                    hoverBorderColor: '#34a853',
+                    borderRadius: 2,
+                }];
+            }
+
+            // Selection band colour
+            const selBandColor = isLightMode ? 'rgba(0, 122, 255, 0.15)' : 'rgba(10, 132, 255, 0.25)';
+
+            // Custom inline plugin: draws selection band on the canvas in the same
+            // render frame as the bars, so it never lags during pan/zoom.
+            const selectionPlugin = {
+                id: 'attendanceSelectionBand',
+                beforeDatasetsDraw(chart) {
+                    if (!attendanceSelection) return;
+                    const { ctx, chartArea, scales: { x } } = chart;
+                    const xStart = x.getPixelForValue(attendanceSelection.startIdx - 0.5);
+                    const xEnd   = x.getPixelForValue(attendanceSelection.endIdx + 0.5);
+                    // Clamp to chart area
+                    const left  = Math.max(chartArea.left, Math.min(xStart, xEnd));
+                    const right = Math.min(chartArea.right, Math.max(xStart, xEnd));
+                    if (right <= left) return;
+                    ctx.save();
+                    ctx.fillStyle = selBandColor;
+                    ctx.fillRect(left, chartArea.top, right - left, chartArea.bottom - chartArea.top);
+                    ctx.restore();
+                }
+            };
+
+            // Enforce minimum 1px bar width at render time only.
+            // With 12+ years of daily data, bars can be sub-pixel and disappear.
+            // This forces each bar to at least 1px wide just before drawing,
+            // so navigation/zoom/selection logic is completely unaffected.
+            // When zoomed out far, bars overlap slightly creating a dense filled look.
+            const minBarWidthPlugin = {
+                id: 'minBarWidth',
+                beforeDatasetsDraw(chart) {
+                    for (let i = 0; i < chart.data.datasets.length; i++) {
+                        const meta = chart.getDatasetMeta(i);
+                        if (meta.type !== 'bar') continue;
+                        for (const el of meta.data) {
+                            if (el.width < 1) el.width = 1;
+                        }
+                    }
+                }
+            };
+
+            attendanceChart = new Chart(canvas, {
+                type: 'bar',
+                data: { labels, datasets },
+                plugins: [selectionPlugin, minBarWidthPlugin],
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 300 },
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: false }, // we use our own legend
+                        tooltip: {
+                            backgroundColor: tooltipBg,
+                            titleColor: axisColor,
+                            bodyColor: axisColor,
+                            borderColor: tooltipBorder,
+                            borderWidth: 1,
+                            padding: 8,
+                            // Pin tooltip to top of chart area so it doesn't bounce
+                            position: 'topOfChart',
+                            yAlign: 'top',
+                            callbacks: {
+                                label: (ctx) => {
+                                    const val = ctx.parsed.y;
+                                    if (!val || val === 0) return null;
+                                    if (pctMode) {
+                                        // Show percentage + raw hours from rawDatasets
+                                        const rawH = rawDatasets[ctx.datasetIndex]?.[ctx.dataIndex] || 0;
+                                        const prefix = locMeta ? `${ctx.dataset.label}: ` : '';
+                                        return `${prefix}${val.toFixed(1)}% (${rawH.toFixed(1)}h)`;
+                                    }
+                                    return locMeta
+                                        ? `${ctx.dataset.label}: ${val.toFixed(1)}h`
+                                        : `${val.toFixed(1)} hours`;
+                                },
+                                afterBody: locMeta
+                                    ? (items) => {
+                                        const nonZero = items.filter(i => (i.parsed?.y || 0) > 0);
+                                        if (nonZero.length < 2) return '';
+                                        if (pctMode) {
+                                            const totalH = rawDatasets.reduce((s, ds, di) => s + (ds[items[0]?.dataIndex] || 0), 0);
+                                            return `Total: ${totalH.toFixed(1)}h`;
+                                        }
+                                        const total = nonZero.reduce((s, i) => s + i.parsed.y, 0);
+                                        return `Total: ${total.toFixed(1)}h`;
+                                    }
+                                    : undefined
+                            }
+                        },
+                        zoom: {
+                            pan: {
+                                enabled: false, mode: 'x'
+                            },
+                            zoom: {
+                                wheel: { enabled: true },
+                                pinch: { enabled: true },
+                                mode: 'x',
+                                onZoomComplete: () => { clearAttendanceZoomPresetHighlight(); updateAttendanceDateRangeLabel(grouped); }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            stacked: !!locMeta,
+                            max: pctMode ? 100 : undefined,
+                            title: {
+                                display: true,
+                                text: yTitle,
+                                font: { family: "-apple-system, BlinkMacSystemFont, sans-serif", size: 12, weight: 'bold' },
+                                color: axisColor
+                            },
+                            grid: { color: gridColor, lineWidth: 0.5 },
+                            ticks: {
+                                font: { family: "-apple-system, BlinkMacSystemFont, sans-serif", size: 10 },
+                                color: axisColor, padding: 6
+                            },
+                            border: { color: axisColor, width: 1 }
+                        },
+                        x: {
+                            stacked: !!locMeta,
+                            title: {
+                                display: true,
+                                text: xTitle,
+                                font: { family: "-apple-system, BlinkMacSystemFont, sans-serif", size: 12, weight: 'bold' },
+                                color: axisColor
+                            },
+                            grid: { color: gridColor, lineWidth: 0.5 },
+                            ticks: {
+                                font: { family: "-apple-system, BlinkMacSystemFont, sans-serif", size: 9 },
+                                color: axisColor,
+                                maxRotation: 45, minRotation: 45,
+                                autoSkip: true, maxTicksLimit: 50
+                            },
+                            border: { color: axisColor, width: 1 }
+                        }
+                    }
+                }
+            });
+        }
+
+        function setupAttendanceDragSelect(canvas, grouped) {
+            let isDragging = false;
+            let suppressNextClick = false; // suppress click after a drag
+            let startX = null; // pixel X relative to canvas
+            let selectionOverlay = null;
+
+            const container = canvas.parentElement;
+            container.style.position = 'relative';
+
+            // Canvas offset within the container (accounts for container padding)
+            const canvasOffsetX = canvas.offsetLeft;
+
+            selectionOverlay = document.createElement('div');
+            selectionOverlay.style.cssText = `
+                position: absolute; top: 0; height: 100%;
+                background: ${isLightMode ? 'rgba(0,122,255,0.12)' : 'rgba(10,132,255,0.2)'};
+                border-left: 2px solid var(--accent);
+                border-right: 2px solid var(--accent);
+                pointer-events: none; display: none; z-index: 5;
+            `;
+            container.appendChild(selectionOverlay);
+
+            // Helper: clamp pixel X to chart area boundaries (canvas-relative pixels)
+            function clampToChartArea(pixelX) {
+                if (!attendanceChart) return pixelX;
+                const area = attendanceChart.chartArea;
+                return Math.max(area.left, Math.min(area.right, pixelX));
+            }
+
+            // Click+hold+drag to select (no modifier key needed)
+            canvas.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return; // left button only
+                const rect = canvas.getBoundingClientRect();
+                startX = clampToChartArea(e.clientX - rect.left);
+                isDragging = false;
+                suppressNextClick = false;
+            });
+
+            canvas.addEventListener('mousemove', (e) => {
+                if (startX === null) return;
+                const rect = canvas.getBoundingClientRect();
+                const currentX = clampToChartArea(e.clientX - rect.left);
+
+                if (!isDragging && Math.abs(currentX - startX) > 5) {
+                    isDragging = true;
+                    suppressNextClick = true;
+                }
+
+                if (isDragging) {
+                    // Position overlay: canvas-relative coords + canvas offset within container
+                    const left = Math.min(startX, currentX);
+                    const width = Math.abs(currentX - startX);
+                    selectionOverlay.style.left = (left + canvasOffsetX) + 'px';
+                    selectionOverlay.style.width = width + 'px';
+                    selectionOverlay.style.display = '';
+                }
+            });
+
+            canvas.addEventListener('mouseup', (e) => {
+                if (isDragging && attendanceChart) {
+                    const rect = canvas.getBoundingClientRect();
+                    const endX = clampToChartArea(e.clientX - rect.left);
+
+                    // Use exact pixel positions for precise index mapping
+                    const xScale = attendanceChart.scales.x;
+                    const rawStart = xScale.getValueForPixel(Math.min(startX, endX));
+                    const rawEnd = xScale.getValueForPixel(Math.max(startX, endX));
+                    const startIdx = Math.max(0, Math.round(rawStart));
+                    const endIdx = Math.min(grouped.length - 1, Math.round(rawEnd));
+
+                    if (startIdx <= endIdx) {
+                        attendanceSelection = { startIdx, endIdx };
+                        updateAttendanceSelectionHighlight(grouped);
+                        updateAttendanceStats(grouped);
+                    }
+                }
+
+                // Hide drag overlay (custom plugin provides persistent highlight)
+                selectionOverlay.style.display = 'none';
+                startX = null;
+                isDragging = false;
+            });
+
+            // Single click: clear selection (suppressed after a drag)
+            canvas.addEventListener('click', (e) => {
+                if (suppressNextClick) {
+                    suppressNextClick = false;
+                    return;
+                }
+                if (attendanceSelection) {
+                    clearAttendanceSelection(grouped);
+                }
+            });
+
+            // Store grouped reference for clear function
+            window._attendanceGrouped = grouped;
+
+            // === Spacebar + drag to pan (grab hand cursor) ===
+            let spaceDown = false;
+            let isPanning = false;
+            let panLastX = null;
+
+            const onSpaceKeyDown = (e) => {
+                if (e.key === ' ' && !e.repeat && !spaceDown) {
+                    // Only activate if focus is not in an input/select
+                    const tag = document.activeElement?.tagName;
+                    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+                    e.preventDefault();
+                    spaceDown = true;
+                    canvas.style.cursor = 'grab';
+                }
+
+                // Escape clears selection
+                if (e.key === 'Escape' && attendanceSelection) {
+                    clearAttendanceSelection(grouped);
+                    return;
+                }
+
+                // L/R arrow keys pan when zoomed
+                if (!attendanceChart) return;
+                const xScale = attendanceChart.scales.x;
+                const isZoomed = (xScale.max - xScale.min) < (grouped.length - 1);
+                if (!isZoomed) return;
+
+                if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    const step = e.shiftKey ? 200 : 60;
+                    const panAmount = e.key === 'ArrowLeft' ? step : -step;
+                    attendanceChart.pan({ x: panAmount }, undefined, 'default');
+                    updateAttendanceDateRangeLabel(grouped);
+                }
+            };
+
+            const onSpaceKeyUp = (e) => {
+                if (e.key === ' ') {
+                    spaceDown = false;
+                    isPanning = false;
+                    panLastX = null;
+                    canvas.style.cursor = '';
+                }
+            };
+
+            // Space+mousedown starts pan
+            canvas.addEventListener('mousedown', (e) => {
+                if (spaceDown && e.button === 0) {
+                    isPanning = true;
+                    panLastX = e.clientX;
+                    canvas.style.cursor = 'grabbing';
+                    e.preventDefault();
+                    e.stopImmediatePropagation(); // prevent selection drag from starting
+                }
+            }, { capture: true });
+
+            canvas.addEventListener('mousemove', (e) => {
+                if (isPanning && attendanceChart && panLastX !== null) {
+                    const dx = e.clientX - panLastX;
+                    if (dx !== 0) {
+                        attendanceChart.pan({ x: dx }, undefined, 'none');
+                        updateAttendanceDateRangeLabel(grouped);
+                        panLastX = e.clientX;
+                    }
+                }
+            });
+
+            canvas.addEventListener('mouseup', (e) => {
+                if (isPanning) {
+                    isPanning = false;
+                    panLastX = null;
+                    canvas.style.cursor = spaceDown ? 'grab' : '';
+                    suppressNextClick = true; // don't clear selection after a pan
+                }
+            });
+
+            document.addEventListener('keydown', onSpaceKeyDown);
+            document.addEventListener('keyup', onSpaceKeyUp);
+
+            // Store handlers for cleanup
+            canvas._attendanceKeyHandler = onSpaceKeyDown;
+            canvas._attendanceKeyUpHandler = onSpaceKeyUp;
+
+            // Shift+scroll wheel → horizontal pan (capture phase to intercept before zoom plugin)
+            canvas.addEventListener('wheel', (e) => {
+                if (!e.shiftKey || !attendanceChart) return;
+                e.preventDefault();
+                e.stopImmediatePropagation(); // prevent zoom plugin from handling this
+                const delta = e.deltaY !== 0 ? e.deltaY : e.deltaX;
+                const panAmount = delta > 0 ? -80 : 80; // pixels, reversed for natural scroll direction
+                attendanceChart.pan({ x: panAmount }, undefined, 'default');
+                updateAttendanceDateRangeLabel(grouped);
+            }, { passive: false, capture: true });
+        }
+
+        function resetAttendanceView() {
+            // Destroy chart instances
+            if (attendanceChart) { attendanceChart.destroy(); attendanceChart = null; }
+            if (attendanceHistogram) { attendanceHistogram.destroy(); attendanceHistogram = null; }
+            attendanceSelection = null;
+            attendanceProcessedVisits = null;
+            attendanceDateRange = { start: null, end: null };
+
+            // Remove attendance layout DOM
+            const layout = document.getElementById('attendanceLayout');
+            if (layout) layout.remove();
+
+            // Clear results area
+            const resultsArea = document.getElementById('locationResults');
+            if (resultsArea) {
+                const controlsTile = resultsArea.querySelector('.controls-tile');
+                resultsArea.replaceChildren();
+                if (controlsTile) resultsArea.appendChild(controlsTile);
+            }
+
+            // Hide view toggle row and attendance controls
+            const viewRow = document.getElementById('locationViewRow');
+            if (viewRow) viewRow.style.display = 'none';
+            const attControls = document.getElementById('attendanceControls');
+            if (attControls) attControls.style.display = 'none';
+
+            // Remove keyboard handlers if any
+            const c = document.getElementById('attendanceCanvas');
+            if (c?._attendanceKeyHandler) {
+                document.removeEventListener('keydown', c._attendanceKeyHandler);
+                c._attendanceKeyHandler = null;
+            }
+            if (c?._attendanceKeyUpHandler) {
+                document.removeEventListener('keyup', c._attendanceKeyUpHandler);
+                c._attendanceKeyUpHandler = null;
+            }
+        }
+
+        function clearAttendanceSelection(grouped) {
+            attendanceSelection = null;
+            if (attendanceChart) {
+                attendanceChart.draw(); // redraw immediately — custom plugin reads attendanceSelection
+            }
+            updateAttendanceStats(grouped || window._attendanceGrouped);
+        }
+
+        function updateAttendanceSelectionHighlight(grouped) {
+            if (!attendanceChart || !attendanceSelection) return;
+            attendanceChart.draw(); // redraw immediately — custom plugin reads attendanceSelection
+        }
+
+        function updateAttendanceStats(grouped) {
+            const panel = document.getElementById('attendanceStatsPanel');
+            if (!panel) return;
+
+            // Determine data range
+            let dataSlice;
+            let isSelection = false;
+            if (attendanceSelection) {
+                dataSlice = grouped.slice(attendanceSelection.startIdx, attendanceSelection.endIdx + 1);
+                isSelection = true;
+            } else {
+                dataSlice = grouped;
+            }
+
+            // Flatten to individual days for per-day stats
+            const allDays = dataSlice.flatMap(g => g.days);
+            const daysWithVisits = allDays.filter(d => d.hours > 0);
+            const hoursArray = daysWithVisits.map(d => d.hours).sort((a, b) => a - b);
+
+            // Total hours
+            const totalHours = allDays.reduce((s, d) => s + d.hours, 0);
+
+            // Average daily hours (across days with visits)
+            const avgDaily = daysWithVisits.length > 0 ? totalHours / daysWithVisits.length : 0;
+
+            // Median
+            let median = 0;
+            if (hoursArray.length > 0) {
+                const mid = Math.floor(hoursArray.length / 2);
+                median = hoursArray.length % 2 !== 0
+                    ? hoursArray[mid]
+                    : (hoursArray[mid - 1] + hoursArray[mid]) / 2;
+            }
+
+            // Max and min (non-zero)
+            let maxHours = 0, maxDate = '';
+            let minHours = Infinity, minDate = '';
+            for (const d of daysWithVisits) {
+                if (d.hours > maxHours) { maxHours = d.hours; maxDate = d.dayKey; }
+                if (d.hours < minHours) { minHours = d.hours; minDate = d.dayKey; }
+            }
+            if (minHours === Infinity) { minHours = 0; minDate = ''; }
+
+            const formatH = h => {
+                if (h === 0) return '0h';
+                if (h < 1) return `${Math.round(h * 60)}m`;
+                const hrs = Math.floor(h);
+                const mins = Math.round((h - hrs) * 60);
+                return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
+            };
+
+            // Selection header — format dates for readability
+            let selLabel;
+            if (isSelection) {
+                const firstDay = allDays[0]?.dayKey || dataSlice[0].label;
+                const lastDay = allDays[allDays.length - 1]?.dayKey || dataSlice[dataSlice.length - 1].label;
+                const rangeText = `${formatDateShort(firstDay)} \u2013 ${formatDateShort(lastDay)}`;
+                selLabel = `<div class="attendance-selection-label has-selection">
+                    \u25C9 Selected: ${escapeHtml(rangeText)}
+                    <span class="clear-selection" onclick="clearAttendanceSelection()">\u00d7 Clear</span>
+                </div>`;
+            } else {
+                selLabel = `<div class="attendance-selection-label">
+                    Full range \u2022 Shift+drag chart to select subset
+                </div>`;
+            }
+
+            // Duration tile — always show the span of the range/selection
+            const groupBy = document.getElementById('attendanceGroupBy')?.value || 'day';
+            let durationText = '';
+            const totalCalendarDays = allDays.length;
+            if (groupBy === 'month') {
+                const months = dataSlice.length;
+                durationText = months === 1 ? '1 month' : `${months} months`;
+            } else if (groupBy === 'week' || groupBy === 'fortnight') {
+                const unit = groupBy === 'week' ? 'week' : 'fortnight';
+                const count = dataSlice.length;
+                durationText = count === 1 ? `1 ${unit}` : `${count} ${unit}s`;
+                durationText += ` (${totalCalendarDays} days)`;
+            } else {
+                // day grouping
+                if (totalCalendarDays >= 365) {
+                    const years = (totalCalendarDays / 365.25).toFixed(1);
+                    durationText = `${totalCalendarDays} days (~${years} years)`;
+                } else if (totalCalendarDays >= 30) {
+                    const months = (totalCalendarDays / 30.44).toFixed(1);
+                    durationText = `${totalCalendarDays} days (~${months} months)`;
+                } else {
+                    durationText = totalCalendarDays === 1 ? '1 day' : `${totalCalendarDays} days`;
+                }
+            }
+
+            // Date range tile — show start–end dates
+            const firstDay = allDays[0]?.dayKey || dataSlice[0]?.label;
+            const lastDay = allDays[allDays.length - 1]?.dayKey || dataSlice[dataSlice.length - 1]?.label;
+            const dateRangeTileText = firstDay === lastDay
+                ? formatDateShort(firstDay)
+                : `${formatDateShort(firstDay)} – ${formatDateShort(lastDay)}`;
+
+            panel.innerHTML = `
+                ${selLabel}
+                <div class="attendance-stat-card">
+                    <div class="stat-label">${isSelection ? 'Selected Range' : 'Date Range'}</div>
+                    <div class="stat-value">${dateRangeTileText}</div>
+                </div>
+                <div class="attendance-stat-card">
+                    <div class="stat-label">${isSelection ? 'Selection Span' : 'Total Span'}</div>
+                    <div class="stat-value">${durationText}</div>
+                </div>
+                <div class="attendance-stat-card">
+                    <div class="stat-label">Total Hours</div>
+                    <div class="stat-value">${formatH(totalHours)}</div>
+                    <div class="stat-detail">${daysWithVisits.length} days with visits / ${allDays.length} total days</div>
+                </div>
+                <div class="attendance-stat-card">
+                    <div class="stat-label">Average Daily Hours</div>
+                    <div class="stat-value">${formatH(avgDaily)}</div>
+                </div>
+                <div class="attendance-stat-card">
+                    <div class="stat-label">Median Daily Hours</div>
+                    <div class="stat-value">${formatH(median)}</div>
+                </div>
+                <div class="attendance-stat-card">
+                    <div class="stat-label">Maximum (Single Day)</div>
+                    <div class="stat-value">${formatH(maxHours)}</div>
+                    ${maxDate ? `<div class="stat-detail">${formatDateShort(maxDate)}</div>` : ''}
+                </div>
+                <div class="attendance-stat-card">
+                    <div class="stat-label">Minimum (Non-Zero)</div>
+                    <div class="stat-value">${formatH(minHours)}</div>
+                    ${minDate ? `<div class="stat-detail">${formatDateShort(minDate)}</div>` : ''}
+                </div>
+                <div class="attendance-stat-card">
+                    <div class="stat-label">Duration Distribution</div>
+                    <div class="attendance-histogram-container">
+                        <canvas id="attendanceHistogramCanvas"></canvas>
+                    </div>
+                </div>
+            `;
+
+            renderAttendanceHistogram(hoursArray);
+        }
+
+        function renderAttendanceHistogram(hoursArray) {
+            if (attendanceHistogram) { attendanceHistogram.destroy(); attendanceHistogram = null; }
+
+            const canvas = document.getElementById('attendanceHistogramCanvas');
+            if (!canvas) return;
+
+            // 1-hour buckets: 0–1, 1–2, … 11–12, 12+
+            const bucketCount = 13;
+            const buckets = new Array(bucketCount).fill(0);
+            const bucketLabels = [];
+            for (let i = 0; i < bucketCount - 1; i++) bucketLabels.push(`${i}–${i + 1}h`);
+            bucketLabels.push('12+h');
+
+            for (const h of hoursArray) {
+                const idx = Math.min(Math.floor(h), bucketCount - 1);
+                buckets[idx]++;
+            }
+
+            // Trim trailing zero buckets (but keep at least up to the last non-zero + 1)
+            let lastNonZero = buckets.length - 1;
+            while (lastNonZero > 0 && buckets[lastNonZero] === 0) lastNonZero--;
+            const trimmedLen = Math.min(lastNonZero + 2, buckets.length); // one extra for context
+            const trimmedBuckets = buckets.slice(0, trimmedLen);
+            const trimmedLabels = bucketLabels.slice(0, trimmedLen);
+
+            const axisColor = isLightMode ? '#1d1d1f' : 'rgba(255,255,255,0.6)';
+            const lineColor = '#4a90d9';
+            const fillColor = isLightMode ? 'rgba(74,144,217,0.15)' : 'rgba(74,144,217,0.25)';
+
+            attendanceHistogram = new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: trimmedLabels,
+                    datasets: [{
+                        data: trimmedBuckets,
+                        borderColor: lineColor,
+                        backgroundColor: fillColor,
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,          // smooth curve
+                        pointRadius: 3,
+                        pointBackgroundColor: lineColor,
+                        pointHoverRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 200 },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            yAlign: 'bottom',   // anchor below tooltip box → renders above the point
+                            caretPadding: 8,     // extra gap between caret and data point
+                            callbacks: {
+                                label: ctx => `${ctx.parsed.y} day${ctx.parsed.y !== 1 ? 's' : ''}`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: isLightMode ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' },
+                            ticks: {
+                                font: { size: 9 },
+                                color: axisColor,
+                                precision: 0
+                            },
+                            border: { display: false }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: {
+                                font: { size: 8 },
+                                color: axisColor,
+                                maxRotation: 45,
+                                minRotation: 45
+                            },
+                            border: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function setupAttendanceResize() {
+            const handle = document.querySelector('.attendance-chart-panel .chart-resize-handle');
+            const container = document.getElementById('attendanceChartContainer');
+            if (!handle || !container) return;
+
+            let startY, startHeight;
+
+            handle.addEventListener('mousedown', (e) => {
+                startY = e.clientY;
+                startHeight = container.offsetHeight;
+                document.body.style.cursor = 'ns-resize';
+                document.body.style.userSelect = 'none';
+                document.addEventListener('mousemove', onDrag);
+                document.addEventListener('mouseup', onDragEnd);
+                e.preventDefault();
+            });
+
+            function onDrag(e) {
+                const delta = e.clientY - startY;
+                const newHeight = Math.max(100, Math.min(900, startHeight + delta));
+                container.style.height = newHeight + 'px';
+                if (attendanceChart) attendanceChart.resize();
+            }
+
+            function onDragEnd() {
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                document.removeEventListener('mousemove', onDrag);
+                document.removeEventListener('mouseup', onDragEnd);
+            }
+        }
+
+        function updateAttendanceDateRangeLabel(grouped) {
+            const label = document.getElementById('attendanceDateRangeLabel');
+            if (!label || !attendanceChart || !grouped.length) return;
+            const xScale = attendanceChart.scales.x;
+            const minIdx = Math.max(0, Math.round(xScale.min));
+            const maxIdx = Math.min(grouped.length - 1, Math.round(xScale.max));
+            const startLabel = grouped[minIdx]?.label || '';
+            const endLabel = grouped[maxIdx]?.label || '';
+            // Use raw dayKeys from the group's days for proper formatting
+            const startDay = grouped[minIdx]?.days?.[0]?.dayKey || startLabel;
+            const endDays = grouped[maxIdx]?.days;
+            const endDay = endDays?.[endDays.length - 1]?.dayKey || endLabel;
+            label.textContent = `${formatDateShort(startDay)} \u2013 ${formatDateShort(endDay)}`;
+        }
+
+        let _attendancePresetZooming = false; // Flag to prevent onZoomComplete clearing preset highlight
+
+        function clearAttendanceZoomPresetHighlight() {
+            if (_attendancePresetZooming) return; // Ignore zoom events triggered by preset clicks
+            document.querySelectorAll('.attendance-zoom-preset').forEach(b => b.classList.remove('active'));
+        }
+
+        function zoomAttendanceToPreset(grouped, targetDays) {
+            if (!attendanceChart || grouped.length === 0) return;
+
+            const xScale = attendanceChart.scales.x;
+            const totalLabels = grouped.length;
+
+            // Work out how many data points correspond to targetDays
+            // depending on grouping: day=1, week=7, fortnight=14, month≈30
+            const groupBy = document.getElementById('attendanceGroupBy')?.value || 'day';
+            let daysPerPoint = 1;
+            if (groupBy === 'week') daysPerPoint = 7;
+            else if (groupBy === 'fortnight') daysPerPoint = 14;
+            else if (groupBy === 'month') daysPerPoint = 30;
+
+            const pointsToShow = Math.max(2, Math.round(targetDays / daysPerPoint));
+
+            if (pointsToShow >= totalLabels) {
+                // Preset covers entire range — reset zoom, clear highlight
+                _attendancePresetZooming = true;
+                attendanceChart.resetZoom();
+                _attendancePresetZooming = false;
+                clearAttendanceZoomPresetHighlight();
+                return;
+            }
+
+            // Find the centre of the current visible range
+            const curMin = xScale.min;
+            const curMax = xScale.max;
+            const centre = (curMin + curMax) / 2;
+
+            // Calculate new min/max centred on current view
+            const halfSpan = pointsToShow / 2;
+            let newMin = Math.round(centre - halfSpan);
+            let newMax = Math.round(centre + halfSpan);
+
+            // Clamp to data bounds
+            if (newMin < 0) { newMax += -newMin; newMin = 0; }
+            if (newMax >= totalLabels) { newMin -= (newMax - totalLabels + 1); newMax = totalLabels - 1; }
+            newMin = Math.max(0, newMin);
+
+            _attendancePresetZooming = true;
+            attendanceChart.zoomScale('x', { min: newMin, max: newMax }, 'default');
+            _attendancePresetZooming = false;
+        }
+
+        function exportAttendanceChart() {
+            if (!attendanceChart) return;
+
+            const chartPanel = document.querySelector('.attendance-chart-panel');
+            if (!chartPanel) return;
+
+            // Gather elements to render: title bar, chart canvas
+            const titleBar = chartPanel.querySelector('.attendance-title-bar');
+            const chartCanvas = attendanceChart.canvas;
+            const chartImg = attendanceChart.toBase64Image('image/png', 1);
+
+            // Theme colours
+            const bgColor = isLightMode ? '#ffffff' : '#1c1c1e';
+            const textColor = isLightMode ? '#1d1d1f' : '#ffffff';
+            const subtitleColor = isLightMode ? '#007aff' : '#0a84ff';
+            const badgeBg = isLightMode ? 'rgba(0,122,255,0.15)' : 'rgba(10,132,255,0.3)';
+
+            // Read title and date range from DOM
+            const titleText = titleBar?.querySelector('.attendance-title')?.textContent || '';
+            const dateRangeText = titleBar?.querySelector('.attendance-date-range')?.textContent || '';
+
+            // Create offscreen canvas
+            const padding = 24;
+            const titleHeight = 50; // space for title + date range
+            const img = new Image();
+            img.onload = () => {
+                const w = img.width + padding * 2;
+                const h = img.height + titleHeight + padding * 2;
+                const offscreen = document.createElement('canvas');
+                offscreen.width = w;
+                offscreen.height = h;
+                const ctx = offscreen.getContext('2d');
+
+                // Background
+                ctx.fillStyle = bgColor;
+                ctx.fillRect(0, 0, w, h);
+
+                // Title
+                ctx.fillStyle = textColor;
+                ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(titleText, w / 2, padding + 18);
+
+                // Date range badge
+                if (dateRangeText) {
+                    ctx.font = '500 12px -apple-system, BlinkMacSystemFont, sans-serif';
+                    const textWidth = ctx.measureText(dateRangeText).width;
+                    const badgeW = textWidth + 16;
+                    const badgeH = 20;
+                    const badgeX = (w - badgeW) / 2;
+                    const badgeY = padding + 26;
+
+                    // Badge background
+                    ctx.fillStyle = badgeBg;
+                    ctx.beginPath();
+                    ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 10);
+                    ctx.fill();
+
+                    // Badge text
+                    ctx.fillStyle = subtitleColor;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(dateRangeText, w / 2, badgeY + badgeH / 2);
+                }
+
+                // Chart image (includes axes, gridlines, bars)
+                ctx.drawImage(img, padding, titleHeight + padding);
+
+                // Export
+                const link = document.createElement('a');
+                link.download = 'attendance-chart.png';
+                link.href = offscreen.toDataURL('image/png');
+                link.click();
+            };
+            img.src = chartImg;
+        }
+
+        function navigateAttendanceToDiary(grouped, idx, groupBy) {
+            if (!grouped[idx]) return;
+            const group = grouped[idx];
+
+            // Always navigate to a specific date — use the first day with visits,
+            // or the first day in the group. This avoids the month-routes flash.
+            let targetDate;
+            const daysWithVisits = group.days.filter(d => d.hours > 0);
+            if (daysWithVisits.length > 0) {
+                targetDate = daysWithVisits[0].dayKey;
+            } else {
+                targetDate = group.days[0]?.dayKey || group.label;
+            }
+
+            // MUST call window.open synchronously from the user gesture (double-click)
+            // so the browser allows tab focus. Uses hash-based navigation to avoid reload.
+            // app.js listens for hashchange with #nav=YYYY-MM-DD and navigates to that date.
+            // If no diary window is open, this opens a new one (index.html handles ?date= on load).
+            window.open(`index.html#nav=${targetDate}`, 'arc-diary-reader');
+        }
+
         function renderHeatStrip(byHour, peakStart, peakEnd) {
             const maxVal = Math.max(...byHour);
             
@@ -6622,7 +8189,7 @@
         
         function formatDateShort(dateStr) {
             const d = new Date(dateStr + 'T00:00:00');
-            return d.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
+            return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
         }
         
         // Rebuild function
@@ -6768,8 +8335,7 @@
                 // Skip contained items
                 if (containedItemIds.has(item.itemId || item.startDate)) continue;
                 if (item.isVisit) {
-                    const name = item.place?.name || item.customTitle || item.streetAddress;
-                    if (!name) continue;
+                    const name = item.place?.name || item.customTitle || item.streetAddress || 'Unnamed Location';
 
                     const duration = getDuration(item.startDate, item.endDate);
                     const visitTime = item.startDate ? new Date(item.startDate).toTimeString().slice(0, 5) : null;
@@ -6819,9 +8385,39 @@
                         });
                     }
                 } else {
+                    // Data Gap: non-visit item with no GPS samples and no manual activity type
+                    // Store as a pseudo-location so it's searchable in the attendance chart
+                    const hasNoGpsSamples = !Array.isArray(item.samples) || item.samples.length === 0;
+                    if (hasNoGpsSamples && !item.manualActivityType) {
+                        const gapName = 'Data Gap';
+                        const duration = getDuration(item.startDate, item.endDate);
+                        const visitTime = item.startDate ? new Date(item.startDate).toTimeString().slice(0, 5) : null;
+                        summary.totalDuration += duration;
+
+                        if (locationMap.has(gapName)) {
+                            const existing = locationMap.get(gapName);
+                            existing.duration += duration;
+                            existing.visitCount++;
+                            if (visitTime && (!existing.firstVisit || visitTime < existing.firstVisit)) {
+                                existing.firstVisit = visitTime;
+                            }
+                        } else {
+                            locationMap.set(gapName, {
+                                dayKey,
+                                locationName: gapName,
+                                duration,
+                                visitCount: 1,
+                                firstVisit: visitTime,
+                                lat: null,
+                                lng: null
+                            });
+                        }
+                        continue;
+                    }
+
                     const type = normalizeType(item.activityType);
                     if (type === 'stationary' || type === 'unknown') continue;
-                    
+
                     const duration = getDuration(item.startDate, item.endDate);
                     const distance = item.samples ? calcDistance(item.samples) : 0;
                     const elevGain = item.samples ? calcElevationGain(item.samples) : 0;

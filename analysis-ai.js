@@ -525,6 +525,24 @@
                     east: { type: 'number', description: 'Eastern longitude bound.' }
                 }
             }
+        },
+        {
+            name: 'get_location_attendance',
+            description: 'Get attendance data for a location grouped by month or week — hours spent, days visited, averages. Use for "how often did I go to work", "graph my hours at [place]", sick leave analysis, or any attendance/regularity question. Returns pre-structured arrays for show_chart.',
+            input_schema: {
+                type: 'object',
+                properties: {
+                    query: { type: 'string', description: 'Substring search for location name (e.g. "office", "work").' },
+                    start_date: { type: 'string', description: 'Start of date range (YYYY-MM-DD). Defaults to first visit.' },
+                    end_date: { type: 'string', description: 'End of date range (YYYY-MM-DD). Defaults to last visit.' },
+                    group_by: {
+                        type: 'string',
+                        enum: ['month', 'week'],
+                        description: 'Group results by month (default) or week.'
+                    }
+                },
+                required: ['query']
+            }
         }
     ];
 
@@ -1464,6 +1482,139 @@
                 } catch (e) { /* coords optional */ }
             }
             return result;
+        },
+
+        async get_location_attendance({ query, start_date, end_date, group_by }) {
+            group_by = group_by || 'month';
+            const q = query.toLowerCase();
+
+            // Find best matching location by substring search
+            const txLoc = db.transaction(['locations'], 'readonly');
+            const allLocs = await idbGetAll(txLoc.objectStore('locations'));
+            const matches = allLocs
+                .filter(loc => loc.name && loc.name.toLowerCase().includes(q))
+                .sort((a, b) => (b.totalDuration || 0) - (a.totalDuration || 0));
+            if (matches.length === 0) {
+                return { error: `No locations found matching "${query}". Use search_locations to find the exact name.` };
+            }
+            const best = matches[0];
+
+            // Get all visits for this location via index
+            const txVisits = db.transaction(['locationVisits'], 'readonly');
+            const index = txVisits.objectStore('locationVisits').index('locationName');
+            let visits = await idbGetAll(index, best.name);
+
+            // Filter by date range
+            if (start_date) visits = visits.filter(v => v.dayKey >= start_date);
+            if (end_date) visits = visits.filter(v => v.dayKey <= end_date);
+
+            if (visits.length === 0) {
+                return { location: best.name, error: 'No visits found in the specified date range.' };
+            }
+
+            // Determine actual date range from visits
+            visits.sort((a, b) => a.dayKey.localeCompare(b.dayKey));
+            const firstDay = start_date || visits[0].dayKey;
+            const lastDay = end_date || visits[visits.length - 1].dayKey;
+
+            // Bucket visits by period
+            const buckets = {}; // periodKey → { hours, daysSet }
+            for (const v of visits) {
+                let periodKey;
+                if (group_by === 'week') {
+                    // ISO week: Monday-based
+                    const d = new Date(v.dayKey + 'T00:00:00');
+                    const day = d.getDay() || 7; // Monday=1, Sunday=7
+                    d.setDate(d.getDate() - day + 1); // Back to Monday
+                    periodKey = d.toISOString().slice(0, 10);
+                } else {
+                    periodKey = v.dayKey.slice(0, 7); // YYYY-MM
+                }
+                if (!buckets[periodKey]) buckets[periodKey] = { hours: 0, daysSet: new Set() };
+                buckets[periodKey].daysSet.add(v.dayKey);
+                if (v.duration) buckets[periodKey].hours += v.duration / 3600;
+            }
+
+            // Generate continuous period keys to fill gaps with zeroes
+            const allPeriods = [];
+            if (group_by === 'week') {
+                const cur = new Date(firstDay + 'T00:00:00');
+                const day = cur.getDay() || 7;
+                cur.setDate(cur.getDate() - day + 1); // Back to Monday
+                const endD = new Date(lastDay + 'T00:00:00');
+                while (cur <= endD) {
+                    allPeriods.push(cur.toISOString().slice(0, 10));
+                    cur.setDate(cur.getDate() + 7);
+                }
+            } else {
+                const [sy, sm] = firstDay.split('-').map(Number);
+                const [ey, em] = lastDay.split('-').map(Number);
+                let y = sy, m = sm;
+                while (y < ey || (y === ey && m <= em)) {
+                    allPeriods.push(`${y}-${String(m).padStart(2, '0')}`);
+                    m++;
+                    if (m > 12) { m = 1; y++; }
+                }
+            }
+
+            // Build output arrays
+            const periods = [];
+            const hours = [];
+            const days = [];
+            const avgHoursPerDay = [];
+            let totalHours = 0;
+            let totalDays = 0;
+
+            for (const pk of allPeriods) {
+                const b = buckets[pk];
+                const h = b ? Math.round(b.hours * 10) / 10 : 0;
+                const d = b ? b.daysSet.size : 0;
+                const avg = d > 0 ? Math.round((h / d) * 10) / 10 : 0;
+
+                // Format label
+                let label;
+                if (group_by === 'week') {
+                    label = 'w/c ' + pk; // week commencing
+                } else {
+                    const [yr, mo] = pk.split('-');
+                    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                    label = monthNames[parseInt(mo, 10) - 1] + ' ' + yr;
+                }
+
+                periods.push(label);
+                hours.push(h);
+                days.push(d);
+                avgHoursPerDay.push(avg);
+                totalHours += h;
+                totalDays += d;
+            }
+
+            // Cache coords
+            if (best.lat && best.lng) {
+                cacheCoords(best.name, best.lat, best.lng);
+            }
+
+            const result = {
+                location: best.name,
+                range: [firstDay, lastDay],
+                group_by,
+                periods,
+                hours,
+                days,
+                avg_hours_per_day: avgHoursPerDay,
+                summary: {
+                    total_hours: Math.round(totalHours * 10) / 10,
+                    total_days: totalDays,
+                    periods_with_visits: periods.filter((_, i) => days[i] > 0).length,
+                    periods_total: periods.length
+                }
+            };
+
+            if (matches.length > 1) {
+                result.also_matched = matches.slice(1, 5).map(loc => loc.name);
+            }
+
+            return result;
         }
     };
 
@@ -2012,6 +2163,7 @@ To draw routes on the map, use show_route — this is the ONLY tool that visuali
 For LONG date ranges (months or a full year), use show_heatmap instead of show_route — it displays GPS data as a heat map which is much more readable than hundreds of overlapping polylines. Modes: "frequency" (default — more visits = hotter), "recency" (recent routes brighter), "time_spent" (longer stays = hotter). Increase radius for zoomed-out views of large areas. Use show_heatmap when the user asks to see walking/cycling/activity patterns, coverage, or route frequency over extended periods. When the user mentions a specific city or region (e.g. "walking in Brisbane"), ALWAYS include a bounding box (south/north/west/east) to filter GPS data to that area — otherwise data from all locations will appear. You know common city bounding boxes.
 To visualise data as a chart, use show_chart. Supported types: bar (comparisons, histograms), line (time series), pie/doughnut (proportions). You must pre-compute the data values from tool results and provide them as arrays — convert distances to km and durations to hours BEFORE passing to show_chart. Use bar charts for monthly breakdowns, line charts for trends over time, pie/doughnut for activity proportions. Set horizontal=true for ranked lists (e.g. top locations by visits). Use y_min and y_max to zoom into narrow data ranges and enhance visible trends (e.g. VO₂ values ranging 10-14 — set y_min=8, y_max=16 to make differences clear). Proactively use y_min/y_max when the data range is small relative to the baseline. For comparing two metrics with different units (e.g. distance vs elevation gain, speed vs VO₂), use DUAL Y-AXES: set y_axis="y2" on the second dataset to assign it to the right-hand axis, and set y2_label for its unit. You can also set y2_min/y2_max to zoom the right axis. The left axis (y) and right axis (y2) scale independently, making trends in both metrics clearly visible. Proactively use dual axes when the user asks to compare or overlay metrics that have different units or very different value ranges. Use activity colours where appropriate: walking=#12A656, cycling=#039FD4, running=#EB781B, car=#4E5268, bus=#4056B5, train=#AA9131, hiking=#0E8444.
 For altitude/elevation questions ("highest point walked", "what elevation did I reach"), use get_elevation_stats — it scans raw GPS samples for altitude extremes. Supports bounding box (south/north/west/east) to filter to a region.
+For attendance tracking, sick leave analysis, or graphing hours/days at a location over time, use get_location_attendance. It returns pre-structured arrays (periods, hours, days, avg_hours_per_day) ready for show_chart. Follow up with show_chart using periods as labels and hours or days as datasets. Months with zero visits (e.g. sick leave) appear as gaps in the chart. Use group_by="week" for finer granularity.
 For cumulative elevation gain questions ("how much climbing did I do", "elevation gain per month", "total ascent"), use get_activity_summary or get_monthly_summary — activity stats include an "elev" field (metres of cumulative elevation gain, sum of all positive altitude changes). get_daily_stats also includes "elev" per activity per day. Use these for trends, charts, and comparisons — they are pre-aggregated and fast. Do NOT use get_elevation_stats for cumulative gain (it only finds altitude extremes). You can also compute derived metrics from the raw data: elevation density (elev ÷ dist×1000 = m/km, terrain steepness), average speed (dist÷1000 ÷ dur÷3600 = km/h), and estimated VO₂ using the ACSM walking equation: VO₂ = 3.5 + (0.1 × speed_m_per_min) + (1.8 × speed_m_per_min × grade), where speed_m_per_min = dist ÷ (dur/60) and grade = elev/dist. Result is ml/kg/min. Intensity zones: light <14, moderate 14–24, vigorous >24. METs = VO₂ / 3.5 (metabolic equivalent — 1 MET = resting, ~3 METs = normal walking, 4+ = brisk). IMPORTANT: VO₂, METs, and MET-hours are computed using the ACSM walking equation and ONLY apply to walking, hiking, and running. They are zero for cycling, car, bus, train, and other non-foot activities — do not try to compute or display them for those. For training load questions ("how hard am I training", "monthly training load", "exercise volume"), use the pre-computed "metH" field (MET-hours) from activity summaries — this is computed per-segment then summed, not from averages, so it accurately reflects cumulative training load. MET-hours = METs × hours for each walk. Higher values = more training stimulus.
 NEVER generate code (Python, JavaScript, or any programming language). NEVER suggest the user run a script. Use the available tools to query data and display results visually.
 When presenting numerical data in text, format it as a readable markdown table with headers — NEVER dump raw values as a comma-separated list. Always include context columns (month names, location names, dates) alongside the values. Convert distances from metres to km (divide by 1000, 1 decimal place) and durations from seconds to hours/minutes before displaying.

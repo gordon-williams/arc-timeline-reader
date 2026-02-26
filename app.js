@@ -4,7 +4,8 @@ logInfo(`📦 Loaded app.js • Build ${window.__ARC_BUILD__ || '???'}`);
 // Handle both direct load and dynamic load (DOMContentLoaded may have already fired)
 function initApp() {
 
-
+// Allow analysis page to bring this window to front via window.open('', name)
+window.name = 'arc-diary-reader';
 
 // === Smart map movement: animate short hops, jump long distances ===
 function moveMapSmart(latlng, zoom) {
@@ -9579,6 +9580,25 @@ scrollToDiaryDay(currentDayKey);
         });
 
 
+        // Handle hash-based navigation from analysis page (e.g. #nav=2024-01-15)
+        // This is triggered by window.open from a user gesture, which brings this tab to front
+        function handleNavHash() {
+            const hash = location.hash;
+            if (hash.startsWith('#nav=')) {
+                const date = hash.substring(5); // YYYY-MM-DD
+                if (date.length === 10) {
+                    const monthKey = date.substring(0, 7);
+                    navigateToDate(monthKey, date);
+                }
+                history.replaceState(null, '', location.pathname + location.search);
+            } else if (hash === '#_focus') {
+                history.replaceState(null, '', location.pathname + location.search);
+            }
+        }
+        window.addEventListener('hashchange', handleNavHash);
+        // Also check on load (in case window.open navigated here with a hash)
+        if (location.hash.startsWith('#nav=')) handleNavHash();
+
         // Listen for navigation messages from analysis page via BroadcastChannel
         // This allows communication between independent browser windows/tabs
         const navChannel = new BroadcastChannel('arc-diary-nav');
@@ -9594,9 +9614,9 @@ scrollToDiaryDay(currentDayKey);
                 const date = event.data.date; // YYYY-MM-DD format
                 const monthKey = date.substring(0, 7); // YYYY-MM
                 
-                // Send acknowledgment back
-                navChannel.postMessage({ type: 'navigateAck', date: date });
-                
+                // Send acknowledgment with base URL so analysis page can focus this window
+                navChannel.postMessage({ type: 'navigateAck', date: date, href: location.href.split('#')[0] });
+
                 await navigateToDate(monthKey, date);
                 window.focus(); // Bring diary window to front
             } else if (event.data?.type === 'navigateToMonth' && event.data?.month) {

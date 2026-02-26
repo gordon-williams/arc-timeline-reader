@@ -946,7 +946,7 @@ async function updateAnalysisDataForDay(dayKey, dayData) {
 
         if (item.isVisit) {
             // Process location visit
-            const name = item.place?.name || item.customTitle || item.streetAddress;
+            const name = item.place?.name || item.customTitle || item.streetAddress || 'Unnamed Location';
             const duration = getDurationSecondsForAnalysis(item.startDate, item.endDate);
 
             // Detect spanning visits: if this item started on a previous day,
@@ -964,8 +964,6 @@ async function updateAnalysisDataForDay(dayKey, dayData) {
             }
             summary.activityStats['stationary'].duration += duration;
             summary.totalDuration += duration;
-
-            if (!name) continue;
             const visitTime = item.startDate ? new Date(item.startDate).toTimeString().slice(0, 5) : null;
             const lat = item.center?.latitude ?? item.place?.center?.latitude ?? null;
             const lng = item.center?.longitude ?? item.place?.center?.longitude ?? null;
@@ -992,22 +990,52 @@ async function updateAnalysisDataForDay(dayKey, dayData) {
                 });
             }
         } else {
+            // Data Gap: non-visit item with no GPS samples and no manual activity type
+            // Store as a pseudo-location so it's searchable in the attendance chart
+            const hasNoGpsSamples = !Array.isArray(item.samples) || item.samples.length === 0;
+            if (hasNoGpsSamples && !item.manualActivityType) {
+                const gapName = 'Data Gap';
+                const duration = getDurationSecondsForAnalysis(item.startDate, item.endDate);
+                const visitTime = item.startDate ? new Date(item.startDate).toTimeString().slice(0, 5) : null;
+                summary.totalDuration += duration;
+
+                if (locationMap.has(gapName)) {
+                    const existing = locationMap.get(gapName);
+                    existing.duration += duration;
+                    existing.visitCount++;
+                    if (visitTime && (!existing.firstVisit || visitTime < existing.firstVisit)) {
+                        existing.firstVisit = visitTime;
+                    }
+                } else {
+                    locationMap.set(gapName, {
+                        dayKey,
+                        locationName: gapName,
+                        duration,
+                        visitCount: 1,
+                        firstVisit: visitTime,
+                        lat: null,
+                        lng: null
+                    });
+                }
+                continue;
+            }
+
             // Process activity
             const activityType = normalizeActivityTypeForAnalysis(item.activityType);
             if (activityType === 'unknown') continue;
-            
+
             const duration = getDurationSecondsForAnalysis(item.startDate, item.endDate);
             // Calculate distance from samples (Arc doesn't store distance directly on items)
             const distance = item.samples ? calculateDistanceForAnalysis(item.samples) : 0;
-            
+
             if (!summary.activityStats[activityType]) {
                 summary.activityStats[activityType] = { count: 0, duration: 0, distance: 0 };
             }
-            
+
             summary.activityStats[activityType].count++;
             summary.activityStats[activityType].duration += duration;
             summary.activityStats[activityType].distance += distance;
-            
+
             summary.totalDistance += distance;
             summary.totalDuration += duration;
         }

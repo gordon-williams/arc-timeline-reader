@@ -968,14 +968,31 @@
                     lng = item.place.center.longitude;
                     altitude = item.place.center.altitude ?? altitude;
                 }
-                
-                // If no altitude in center, try to get from samples (first sample)
-                if ((altitude === null || altitude === undefined) && item.samples && item.samples.length > 0) {
-                    const firstSample = item.samples[0];
-                    altitude = firstSample?.location?.altitude || firstSample?.altitude;
+
+                // Fall back to first GPS sample with valid coordinates
+                if ((lat == null || lng == null) && item.samples?.length > 0) {
+                    const validSample = item.samples.find(s =>
+                        (s.location && s.location.latitude != null && s.location.longitude != null) ||
+                        (s.latitude != null && s.longitude != null)
+                    );
+                    if (validSample) {
+                        lat = validSample.location?.latitude ?? validSample.latitude;
+                        lng = validSample.location?.longitude ?? validSample.longitude;
+                        altitude = validSample.location?.altitude ?? validSample.altitude ?? altitude;
+                    }
                 }
-                
-                // If no coordinates, we can't map it anyway
+
+                // If no altitude in center or place, try to get from samples
+                if ((altitude === null || altitude === undefined) && item.samples && item.samples.length > 0) {
+                    const sampleWithAlt = item.samples.find(s =>
+                        s.location?.altitude != null || s.altitude != null
+                    );
+                    if (sampleWithAlt) {
+                        altitude = sampleWithAlt.location?.altitude ?? sampleWithAlt.altitude;
+                    }
+                }
+
+                // If no coordinates from any source, we can't map it
                 if (!lat || !lng) continue;
 
                 // Extract first note text for map popup display
