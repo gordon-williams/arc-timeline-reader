@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader - User Manual
 
-**Build 02.045**
+**Build 02.080**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and [Arc Editor](https://editor.arc.wiki) GPS tracking data. Generates interactive diaries with maps from your location history, stored locally in your browser. No server required.
 
@@ -21,14 +21,15 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and [Arc E
 11. [Activity Analysis](#activity-analysis)
 12. [Heat Map](#heat-map)
 13. [Location Analysis](#location-analysis)
-14. [Exporting Your Data](#exporting-your-data)
-15. [Share Tour](#share-tour)
-16. [AI Chat](#ai-chat)
-17. [Privacy & Security](#privacy--security)
-18. [Settings](#settings)
-19. [Database Management](#database-management)
-20. [Keyboard Shortcuts](#keyboard-shortcuts)
-21. [Troubleshooting](#troubleshooting)
+14. [Attendance Chart](#attendance-chart)
+15. [Exporting Your Data](#exporting-your-data)
+16. [Share Tour](#share-tour)
+17. [AI Chat](#ai-chat)
+18. [Privacy & Security](#privacy--security)
+19. [Settings](#settings)
+20. [Database Management](#database-management)
+21. [Keyboard Shortcuts](#keyboard-shortcuts)
+22. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -470,6 +471,66 @@ Location data can be sent to the diary tab to enter **Location View Mode**, show
 
 ---
 
+## Attendance Chart
+
+The Attendance Chart is an alternative view in the Locations tab that shows a daily bar chart of hours spent at your selected locations. Switch between the Infographic report and Attendance Chart using the **View** toggle in the controls row.
+
+### Setting Up
+
+Use the same workflow as Location Analysis: search and select locations, set a date range, toggle merge same-day if desired, then click **Analyze**. The attendance chart renders automatically when the view is set to Attendance Chart.
+
+### Searching for Special Locations
+
+In addition to named places, you can search for:
+
+- **Unnamed Location** -- visits where Arc recorded a stay but had no place name, custom title, or street address. These are common in areas with poor GPS or places you have not named in Arc.
+- **Data Gap** -- periods where Arc was running but recorded no GPS samples and no manual activity type. Useful for identifying when your phone was off, in airplane mode, or Arc was backgrounded.
+
+Both require a **Rebuild** after updating to make them appear in the database.
+
+### Reading the Chart
+
+Each bar represents one time period (day, week, fortnight, or month, set by the **Group** dropdown). The height of the bar shows the total hours at the selected location(s) during that period. Days with no visits have no bar, creating visible gaps.
+
+When multiple locations are selected, bars are **stacked** with a distinct colour per location. The selection chips above the chart are colour-coded to match, serving as the legend.
+
+### Percentage Mode
+
+Tick the **Percentage** checkbox to normalise all bars to 100%. In this mode, every bar with any data reaches the same height, and each colour segment shows its proportional share. This is designed for finding gaps -- holidays, sick leave, weekends, or other absences stand out as missing bars against a uniform ceiling.
+
+### Interacting with the Chart
+
+| Action | Effect |
+|--------|--------|
+| **Scroll wheel** | Zoom in/out on the time axis |
+| **Drag** | Select a date range (highlighted in blue) |
+| **Click** a bar | Select a single day/period |
+| **Click** outside bars | Clear selection |
+| **Escape** | Clear selection |
+| **Zoom presets** (6M, 1Y, 2Y, All) | Jump to predefined time windows |
+| **Reset Zoom** | Return to the full date range |
+| **View in Diary** | Open the diary tab at the start of the selected range |
+
+### Stats Panel
+
+The right-hand panel updates in real-time as you zoom or select:
+
+- **Selected Range** -- the date span currently visible or selected, with total days count.
+- **Total Visits / Total Duration** -- aggregate counts within the visible or selected range.
+- **Average Duration** -- mean hours per visit.
+- **Peak Day / Peak Period** -- the single day and grouped period with the most hours.
+- **Duration Distribution** -- a smoothed line chart showing how visit durations are spread across 1-hour buckets (e.g., how many visits were 2-3 hours vs 6-7 hours).
+
+### Minimum Bar Width
+
+With 12+ years of daily data, bars can become sub-pixel and invisible when fully zoomed out. The chart enforces a minimum 1px bar width at render time, so the overall attendance pattern remains visible even at maximum zoom-out. Bars overlap slightly at this scale, creating a dense filled appearance. Zooming in reveals individual bars as normal.
+
+### State Persistence
+
+Your zoom level, selection, group-by setting, and percentage mode are preserved when switching between views or toggling themes. Returning to the attendance chart restores exactly where you left off.
+
+---
+
 ## Exporting Your Data
 
 ### From the Landing Page
@@ -774,6 +835,14 @@ In the Analysis page, click the **Rebuild** button to reconstruct analysis data 
 | Home / End | First / Last location |
 | Enter / Space | Expand or collapse visits |
 | PageUp / PageDown | Scroll list |
+
+### Location Search (Analysis Page)
+
+| Key | Action |
+|-----|--------|
+| Up / Down | Navigate dropdown matches |
+| Enter / Space | Select highlighted match |
+| Escape | Close dropdown |
 
 ---
 

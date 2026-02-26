@@ -1,5 +1,40 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.080 (2026-02-26)
+
+### Attendance Chart (Locations Tab)
+- **New view mode** — Switch between Infographic and Attendance Chart using the View toggle. Attendance Chart shows a daily bar chart of hours spent at selected locations, with visible gaps revealing absences.
+- **Multi-location stacked bars** — When multiple locations are selected, bars are stacked with distinct colours per location. The selection chips are colour-coded to match, serving as the chart legend.
+- **Percentage mode** — Tick "Percentage" to normalise bars to 100%. Every bar with data reaches the same height; gaps (holidays, sick leave, weekends) stand out as missing bars.
+- **Interactive zoom and selection** — Scroll to zoom, drag to select a date range, click bars to select single periods. Zoom presets (6M, 1Y, 2Y, All) and Reset Zoom for quick navigation.
+- **Stats panel** — Real-time statistics panel showing selected range, total visits/duration, average duration, peak day/period, and a smoothed Duration Distribution line chart.
+- **Minimum 1px bar width** — Custom Chart.js plugin ensures bars remain visible even with 12+ years of daily data. At maximum zoom-out, overlapping 1px bars create a dense filled appearance.
+- **State persistence** — Zoom level, selection, group-by, and percentage mode are preserved across view switches and theme toggles.
+- **Group by** — Day, Week, Fortnight, or Month grouping.
+- **View in Diary** — Navigate the diary tab to the start of a selected date range.
+
+### Location Search Improvements
+- **Keyboard navigation** — Arrow keys to navigate the dropdown, Enter/Space to select, Escape to close.
+- **Unnamed Location** — Visits without a place name are now stored as "Unnamed Location" instead of being silently skipped. Searchable in the Locations tab.
+- **Data Gap** — Non-visit items with no GPS samples and no manual activity type are stored as searchable "Data Gap" pseudo-locations. Useful for finding periods when Arc had no data.
+- Both require a Rebuild to populate from existing data.
+
+### AI Chat
+- **`get_location_attendance` tool** — New tool for attendance tracking, sick leave analysis, and graphing hours/days at a location over time. Returns pre-structured arrays ready for `show_chart`.
+
+### Map & Data Fixes
+- **Missing location markers** — `extractPinsFromData()` now falls back to GPS samples when `item.center` and `item.place.center` are both missing. Fixes markers not appearing for visits with place names but no explicit coordinates.
+- **Improved altitude resolution** — Searches through samples for valid altitude values instead of relying only on the first sample.
+- **Merge same-day uses sum** — Daily total at a location is the sum of individual visit durations, not the span from earliest start to latest end. Excludes time away (lunch, errands) from the total.
+
+### Activity Icons
+- Updated SVGs for motorcycle, scooter, boat, skateboarding, inline skating, snowboarding, horseback riding, surfing, and tuk-tuk.
+- Added SVGs for previously missing icons (inline skating, snowboarding, horseback, surfing, tuk-tuk).
+
+### Cross-Tab Navigation
+- **Hash-based routing** — Analysis page can deep-link the diary tab to a specific date via `#nav=YYYY-MM-DD`.
+- **BroadcastChannel enhancements** — Analysis page focuses the diary window when navigating.
+
 ## Build 02.056 (2026-02-25)
 
 ### External Sprites — Single-File System
