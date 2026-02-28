@@ -2361,6 +2361,18 @@
             color: #ff6b6b;
             border-bottom-left-radius: 4px;
         }
+        .chat-retry-btn {
+            display: inline-block;
+            margin-top: 6px;
+            padding: 3px 12px;
+            font-size: 12px;
+            border: 1px solid #ff6b6b;
+            border-radius: 4px;
+            background: transparent;
+            color: #ff6b6b;
+            cursor: pointer;
+        }
+        .chat-retry-btn:hover { background: rgba(255, 107, 107, 0.15); }
         .chat-message.tool-info {
             align-self: center;
             background: var(--bg-elevated);
@@ -2875,8 +2887,7 @@
     <script src="arc-sprites.js"></script>
     <script>
         // Build version
-        const ANALYSIS_BUILD = '02.082';
-        const ANALYSIS_BUILD = '02.081';
+        const ANALYSIS_BUILD = '02.089';
         
         // Database and state
         let db = null;

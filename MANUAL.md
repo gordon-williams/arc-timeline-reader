@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader - User Manual
 
-**Build 02.080**
+**Build 02.089**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and [Arc Editor](https://editor.arc.wiki) GPS tracking data. Generates interactive diaries with maps from your location history, stored locally in your browser. No server required.
 
@@ -604,19 +604,24 @@ A privacy warning is displayed in the Create Tour dialog. The `.arctrip` file co
 
 ## AI Chat
 
-Ask questions about your timeline data in natural language, powered by Anthropic's Claude API. The AI Chat is in the Analysis page under the **Chat AI** tab.
+Ask questions about your timeline data in natural language, powered by Anthropic's Claude API or Google's Gemini API. The AI Chat is in the Analysis page under the **Chat AI** tab.
 
 ### Getting Started
 
 1. Open the **Analysis** page (click **Analysis** in the diary reader toolbar, or the Analysis button on the start screen).
 2. Select the **Chat AI** tab.
-3. Enter your Anthropic API key in the **API Key** field and click **Save Key**. You can get a key from [console.anthropic.com](https://console.anthropic.com/).
-4. Choose a model from the dropdown.
-5. Type a question and press Enter or click Send.
+3. Choose a provider from the **Provider** dropdown: **Anthropic** or **Gemini**.
+4. Enter your API key for the chosen provider and click **Save Key**.
+   - Anthropic: Get a key from [console.anthropic.com](https://console.anthropic.com/)
+   - Gemini: Get a key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+5. Choose a model from the dropdown.
+6. Type a question and press Enter or click Send.
 
-Your API key is stored locally in your browser's localStorage. It is only sent directly to Anthropic's API endpoint and nowhere else.
+API keys are stored locally in your browser's localStorage. They are only sent directly to their respective API endpoints and nowhere else.
 
 ### Models
+
+**Anthropic:**
 
 | Model | Input / Output cost (per M tokens) | Best for |
 |-------|-------------------------------------|----------|
@@ -624,6 +629,13 @@ Your API key is stored locally in your browser's localStorage. It is only sent d
 | **Sonnet 4.5** | $3 / $15 | Strong quality, good all-round |
 | **Haiku 4.5** | $1 / $5 | Good quality at lower cost |
 | **Haiku 3** | $0.25 / $1.25 | Cheapest, suitable for simple questions |
+
+**Google Gemini:**
+
+| Model | Input / Output cost (per M tokens) | Best for |
+|-------|-------------------------------------|----------|
+| **Gemini 2.0 Flash** | $0.10 / $0.40 | Very low cost, fast responses |
+| **Gemini 2.5 Pro** | $1.25 / $10 | Strong reasoning at moderate cost |
 
 Cost per message is displayed after each response, along with a running session total. Click the cost display to expand a breakdown of cumulative costs by model across all sessions.
 
@@ -642,6 +654,12 @@ The AI has access to 15 query tools for extracting data from your timeline datab
 - "How often did I go to the gym this year?"
 - "What are my top 10 most visited places?"
 - "When was the last time I visited Mum's house?"
+
+**Attendance and absences:**
+- "List my absences from Queensland Children's Hospital in 2025"
+- "Graph my hours at work by week for the last 6 months"
+- "When was I off sick?" (detects single days, partial weeks, and multi-week spans)
+- Works with fuzzy name matching — typos and partial names are handled automatically
 
 **Trips and regions:**
 - "When did I go to Japan?"
@@ -692,6 +710,8 @@ Typical costs are very low — a single question-and-answer exchange costs aroun
 - **Use the map** — Ask Claude to "show that on the map" after any location-based answer.
 - **Clear the chat** to reset the conversation and free up context for new topics. The **Clear Chat** button resets the message history and session cost.
 - **Multi-step queries** — Claude can chain tool calls together, e.g. finding your Japan trip dates, then looking up what you did each day, then showing the route on the map.
+- **Retry on errors** — If a request fails, click the **Retry** button on the error message to re-send without retyping.
+- **Gemini for cost savings** — Use Gemini Flash for simple queries at a fraction of the cost. Switch to Anthropic Sonnet for complex multi-step reasoning or chart generation.
 
 ---
 
@@ -705,7 +725,7 @@ All your timeline data is stored locally in your browser's IndexedDB. No data is
 
 ### AI Chat Privacy
 
-When using the AI Chat feature, a subset of your timeline data is sent to Anthropic's Claude API to answer your questions. The following safeguards are in place:
+When using the AI Chat feature, a subset of your timeline data is sent to the chosen AI provider (Anthropic Claude API or Google Gemini API) to answer your questions. The following safeguards are in place:
 
 **What is sent to the API:**
 - Place names (e.g. "Keio Plaza Hotel Tokyo")

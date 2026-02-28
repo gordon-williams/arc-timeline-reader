@@ -1,5 +1,30 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.089 (2026-02-28)
+
+### Google Gemini Support
+- **New AI provider** — Choose between Anthropic Claude and Google Gemini from the provider dropdown. Gemini models (Flash 2.0, Pro 2.5) offer lower-cost alternatives for simpler queries.
+- **Separate API key storage** — Gemini API key stored independently in localStorage; enter it in the Gemini API Key field.
+- **Gemini-optimised tool schemas** — Complex nested schemas (e.g. `show_chart` datasets) are automatically flattened for Gemini compatibility. The executor handles both Anthropic and Gemini formats transparently.
+- **Gemini error handling** — Surfaces specific block reasons (safety, recitation, blocklist, prohibited content, SPII) with clear messages. Malformed tool calls show the Gemini hint text alongside a Retry button.
+
+### Absence Detection (AI Chat)
+- **Day-level absence analysis** — `get_location_attendance` now walks every workday in the date range and identifies missing days. Consecutive absent workdays are coalesced into absence ranges, bridging weekends/off-days between them.
+- **Single-day, partial-week, and multi-week spans** — Catches all absence granularities: a single sick day, a few days within a week, or extended leave spanning multiple weeks.
+- **Custom workweek** — New `work_days` parameter accepts an array of JS day numbers (0=Sun…6=Sat). Supports non-standard schedules like Tue–Sat. Defaults to Mon–Fri.
+- **Timezone fix** — Replaced `toISOString().slice(0,10)` with local date key helper to avoid UTC date shift in positive-offset timezones (e.g. Brisbane UTC+10).
+
+### Fuzzy Location Matching (AI Chat)
+- **Levenshtein fuzzy search** — Location queries now use word-level fuzzy matching with Levenshtein distance scoring. Handles typos, partial names, and apostrophe variations.
+- **Applied to all location lookups** — `search_locations`, `get_date_range_places`, and `get_location_attendance` all use fuzzy matching. Results sorted by match quality then total duration.
+- **Threshold filtering** — Locations scoring below 0.4 similarity are excluded, preventing false positives from nearby similarly-named places.
+
+### AI Chat UX Improvements
+- **Retry button on errors** — Error messages now include a Retry button that removes the failed exchange and re-sends the last user message. No need to retype.
+- **Empty response handling** — Detects and surfaces empty AI responses with the finish reason, instead of silently showing nothing.
+- **Cache-busted script loading** — `analysis-ai.js` now loads with a version parameter, preventing stale cached versions after updates.
+- **API field sanitisation** — `sanitiseMessages()` strips extra fields (like `_toolName`) from content blocks before sending to Anthropic's API, preventing 400 errors.
+
 ## Build 02.080 (2026-02-26)
 
 ### Attendance Chart (Locations Tab)

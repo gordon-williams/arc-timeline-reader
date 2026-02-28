@@ -543,7 +543,7 @@
         },
         {
             name: 'get_location_attendance',
-            description: 'Get attendance data for a location grouped by month or week — hours spent, days visited, averages. Use for "how often did I go to work", "graph my hours at [place]", sick leave analysis, or any attendance/regularity question. Returns pre-structured arrays for show_chart.',
+            description: 'Get attendance data for a location grouped by month or week — hours spent, days visited, averages. Use for "how often did I go to work", "graph my hours at [place]", sick leave analysis, or any attendance/regularity question. Returns pre-structured arrays for show_chart. Also returns absence_ranges with day-level absence detection.',
             input_schema: {
                 type: 'object',
                 properties: {
@@ -554,6 +554,11 @@
                         type: 'string',
                         enum: ['month', 'week'],
                         description: 'Group results by month (default) or week.'
+                    },
+                    work_days: {
+                        type: 'array',
+                        items: { type: 'integer', minimum: 0, maximum: 6 },
+                        description: 'Which days of the week are workdays, as JS day numbers: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat. Defaults to [1,2,3,4,5] (Mon-Fri). Use when the user specifies a non-standard workweek.'
                     }
                 },
                 required: ['query']
@@ -564,6 +569,90 @@
     // =========================================================================
     // Tool Execution Functions
     // =========================================================================
+
+    // Levenshtein distance (compact DP implementation) — shared by fuzzy matchers
+    function levenshtein(a, b) {
+        if (a.length === 0) return b.length;
+        if (b.length === 0) return a.length;
+        const m = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+        for (let j = 0; j <= b.length; j++) m[0][j] = j;
+        for (let i = 1; i <= a.length; i++) {
+            for (let j = 1; j <= b.length; j++) {
+                m[i][j] = a[i - 1] === b[j - 1]
+                    ? m[i - 1][j - 1]
+                    : 1 + Math.min(m[i - 1][j], m[i][j - 1], m[i - 1][j - 1]);
+            }
+        }
+        return m[a.length][b.length];
+    }
+
+    // Fuzzy location matching — handles typos and partial names.
+    // Returns locations sorted by match quality (best first).
+    // 1. Exact substring → highest priority (sorted by total duration)
+    // 2. Fuzzy word match → scored by Levenshtein similarity per query word
+    function fuzzyMatchLocations(allLocs, query) {
+        const q = query.toLowerCase().replace(/['']/g, '');
+        const qWords = q.split(/\s+/).filter(w => w.length > 0);
+
+        // Score a location name against the query (0–1, higher = better)
+        function score(name) {
+            const n = name.toLowerCase().replace(/['']/g, '');
+            // Exact substring gets top score
+            if (n.includes(q)) return 1;
+            // Word-level fuzzy: for each query word, find best matching word
+            const nWords = n.split(/\s+/).filter(w => w.length > 0);
+            let total = 0;
+            for (const qw of qWords) {
+                let bestSim = 0;
+                for (const nw of nWords) {
+                    // Also check if query word is a substring of location word
+                    if (nw.includes(qw) || qw.includes(nw)) {
+                        const sim = Math.min(qw.length, nw.length) / Math.max(qw.length, nw.length);
+                        bestSim = Math.max(bestSim, sim);
+                    } else {
+                        const d = levenshtein(qw, nw);
+                        const maxLen = Math.max(qw.length, nw.length);
+                        const sim = 1 - d / maxLen;
+                        bestSim = Math.max(bestSim, sim);
+                    }
+                }
+                total += bestSim;
+            }
+            return qWords.length > 0 ? total / qWords.length : 0;
+        }
+
+        // Score all locations, filter those above threshold
+        const scored = allLocs
+            .filter(loc => loc.name)
+            .map(loc => ({ loc, score: score(loc.name) }))
+            .filter(s => s.score >= 0.4)
+            .sort((a, b) => b.score - a.score || (b.loc.totalDuration || 0) - (a.loc.totalDuration || 0));
+
+        return scored.map(s => s.loc);
+    }
+
+    // Simple fuzzy check for a single name against a query (for inline filtering)
+    function fuzzyNameMatch(name, query) {
+        const n = name.toLowerCase().replace(/['']/g, '');
+        const q = query.toLowerCase().replace(/['']/g, '');
+        if (n.includes(q)) return true;
+        // Word-level: each query word must match some location word at ≥60% similarity
+        const qWords = q.split(/\s+/).filter(w => w.length > 0);
+        const nWords = n.split(/\s+/).filter(w => w.length > 0);
+        if (qWords.length === 0) return false;
+        let matched = 0;
+        for (const qw of qWords) {
+            for (const nw of nWords) {
+                if (nw.includes(qw) || qw.includes(nw)) { matched++; break; }
+                const maxLen = Math.max(qw.length, nw.length);
+                // Quick reject: if lengths differ too much, skip Levenshtein
+                if (Math.abs(qw.length - nw.length) > maxLen * 0.5) continue;
+                const d = levenshtein(qw, nw);
+                if (1 - d / maxLen >= 0.6) { matched++; break; }
+            }
+        }
+        return matched >= qWords.length * 0.6;
+    }
 
     // Helper: look up coordinates for a location name from the days store
     // Scans timeline items for visits matching the location name and returns first valid center
@@ -716,7 +805,7 @@
                 for (const item of day.data.timelineItems) {
                     if (!item.isVisit) continue;
                     const name = item.place?.name || item.customTitle || '';
-                    if (!name || !name.toLowerCase().includes(q)) continue;
+                    if (!name || !fuzzyNameMatch(name, q)) continue;
                     if (!matchedPlaces[name]) matchedPlaces[name] = { daysSet: new Set(), dur: 0, visitCount: 0 };
                     matchedPlaces[name].daysSet.add(dayKey);
                     // Don't count spanning continuations (visit started on a previous day)
@@ -768,10 +857,7 @@
         async search_locations({ query }) {
             const tx = db.transaction(['locations'], 'readonly');
             const all = await idbGetAll(tx.objectStore('locations'));
-            const q = query.toLowerCase();
-            const filtered = all
-                .filter(loc => loc.name && loc.name.toLowerCase().includes(q))
-                .slice(0, 20);
+            const filtered = fuzzyMatchLocations(all, query).slice(0, 20);
             // Cache coordinates locally (never sent to API)
             const matches = [];
             for (const loc of filtered) {
@@ -1089,7 +1175,17 @@
             return result;
         },
 
-        async show_chart({ chart_type, title, labels, datasets, x_label, y_label, y2_label, stacked, horizontal, y_min, y_max, y2_min, y2_max }) {
+        async show_chart(args) {
+            let { chart_type, title, labels, datasets, x_label, y_label, y2_label, stacked, horizontal, y_min, y_max, y2_min, y2_max } = args;
+
+            // Support flat Gemini format: data/data_label/data_color → datasets
+            if (!datasets && args.data) {
+                datasets = [{ label: args.data_label || 'Value', data: args.data, color: args.data_color }];
+                if (args.data2 && args.data2.length > 0) {
+                    datasets.push({ label: args.data2_label || 'Value 2', data: args.data2, color: args.data2_color, y_axis: args.data2_y_axis });
+                }
+            }
+
             if (!labels || labels.length === 0) {
                 return { error: 'No labels provided.' };
             }
@@ -1499,16 +1595,13 @@
             return result;
         },
 
-        async get_location_attendance({ query, start_date, end_date, group_by }) {
+        async get_location_attendance({ query, start_date, end_date, group_by, work_days }) {
             group_by = group_by || 'month';
-            const q = query.toLowerCase();
-
-            // Find best matching location by substring search
+            const workDaySet = new Set(work_days && work_days.length > 0 ? work_days : [1, 2, 3, 4, 5]);
+            // Find best matching location by fuzzy search
             const txLoc = db.transaction(['locations'], 'readonly');
             const allLocs = await idbGetAll(txLoc.objectStore('locations'));
-            const matches = allLocs
-                .filter(loc => loc.name && loc.name.toLowerCase().includes(q))
-                .sort((a, b) => (b.totalDuration || 0) - (a.totalDuration || 0));
+            const matches = fuzzyMatchLocations(allLocs, query);
             if (matches.length === 0) {
                 return { error: `No locations found matching "${query}". Use search_locations to find the exact name.` };
             }
@@ -1534,6 +1627,13 @@
 
             // Bucket visits by period
             const buckets = {}; // periodKey → { hours, daysSet }
+            // Local date key helper (avoids toISOString UTC shift in positive-offset timezones)
+            function localKey(d) {
+                return d.getFullYear() + '-' +
+                    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                    String(d.getDate()).padStart(2, '0');
+            }
+
             for (const v of visits) {
                 let periodKey;
                 if (group_by === 'week') {
@@ -1541,7 +1641,7 @@
                     const d = new Date(v.dayKey + 'T00:00:00');
                     const day = d.getDay() || 7; // Monday=1, Sunday=7
                     d.setDate(d.getDate() - day + 1); // Back to Monday
-                    periodKey = d.toISOString().slice(0, 10);
+                    periodKey = localKey(d);
                 } else {
                     periodKey = v.dayKey.slice(0, 7); // YYYY-MM
                 }
@@ -1558,7 +1658,7 @@
                 cur.setDate(cur.getDate() - day + 1); // Back to Monday
                 const endD = new Date(lastDay + 'T00:00:00');
                 while (cur <= endD) {
-                    allPeriods.push(cur.toISOString().slice(0, 10));
+                    allPeriods.push(localKey(cur));
                     cur.setDate(cur.getDate() + 7);
                 }
             } else {
@@ -1604,6 +1704,50 @@
                 totalDays += d;
             }
 
+            // Build day-level absence ranges — find every missing workday,
+            // coalesce consecutive ones (bridging off-days between absent workdays)
+            const absenceRanges = [];
+            const visitedDays = new Set();
+            for (const v of visits) visitedDays.add(v.dayKey);
+
+            // Walk every workday in the date range
+            const absentWorkdays = [];
+            const rangeStart = new Date(firstDay + 'T00:00:00');
+            const rangeEnd = new Date(lastDay + 'T00:00:00');
+            for (let d = new Date(rangeStart); d <= rangeEnd; d.setDate(d.getDate() + 1)) {
+                if (!workDaySet.has(d.getDay())) continue; // skip off-days
+                const key = localKey(d);
+                if (!visitedDays.has(key)) absentWorkdays.push(key);
+            }
+
+            // Compute max gap between consecutive workdays (off-days to bridge).
+            // For a standard Mon-Fri week this is 3 (Fri→Mon). For other schedules
+            // it's 7 minus the number of workdays (e.g. Tue-Sat with Sun-Mon off = 2).
+            const maxOffDayGap = 7 - workDaySet.size + 1;
+
+            // Coalesce: consecutive absent workdays separated only by off-days
+            let i = 0;
+            while (i < absentWorkdays.length) {
+                const from = absentWorkdays[i];
+                let to = from;
+                let wkDays = 1;
+                while (i + 1 < absentWorkdays.length) {
+                    const cur = new Date(absentWorkdays[i] + 'T00:00:00');
+                    const next = new Date(absentWorkdays[i + 1] + 'T00:00:00');
+                    const gap = Math.round((next - cur) / 86400000);
+                    if (gap <= maxOffDayGap) {
+                        i++;
+                        to = absentWorkdays[i];
+                        wkDays++;
+                    } else break;
+                }
+                const fromDate = new Date(from + 'T00:00:00');
+                const toDate = new Date(to + 'T00:00:00');
+                const calDays = Math.round((toDate - fromDate) / 86400000) + 1;
+                absenceRanges.push({ from, to, workdays: wkDays, calendar_days: calDays });
+                i++;
+            }
+
             // Cache coords
             if (best.lat && best.lng) {
                 cacheCoords(best.name, best.lat, best.lng);
@@ -1617,11 +1761,13 @@
                 hours,
                 days,
                 avg_hours_per_day: avgHoursPerDay,
+                absence_ranges: absenceRanges,
                 summary: {
                     total_hours: Math.round(totalHours * 10) / 10,
                     total_days: totalDays,
                     periods_with_visits: periods.filter((_, i) => days[i] > 0).length,
-                    periods_total: periods.length
+                    periods_total: periods.length,
+                    periods_absent: absenceRanges.length
                 }
             };
 
@@ -2179,7 +2325,7 @@ For LONG date ranges (months or a full year), use show_heatmap instead of show_r
 To visualise data as a chart, use show_chart. Supported types: bar (comparisons, histograms), line (time series), pie/doughnut (proportions). You must pre-compute the data values from tool results and provide them as arrays — convert distances to km and durations to hours BEFORE passing to show_chart. Use bar charts for monthly breakdowns, line charts for trends over time, pie/doughnut for activity proportions. Set horizontal=true for ranked lists (e.g. top locations by visits). Use y_min and y_max to zoom into narrow data ranges and enhance visible trends (e.g. VO₂ values ranging 10-14 — set y_min=8, y_max=16 to make differences clear). Proactively use y_min/y_max when the data range is small relative to the baseline. For comparing two metrics with different units (e.g. distance vs elevation gain, speed vs VO₂), use DUAL Y-AXES: set y_axis="y2" on the second dataset to assign it to the right-hand axis, and set y2_label for its unit. You can also set y2_min/y2_max to zoom the right axis. The left axis (y) and right axis (y2) scale independently, making trends in both metrics clearly visible. Proactively use dual axes when the user asks to compare or overlay metrics that have different units or very different value ranges. Use activity colours where appropriate: walking=#12A656, cycling=#039FD4, running=#EB781B, car=#4E5268, bus=#4056B5, train=#AA9131, hiking=#0E8444.
 For altitude/elevation questions ("highest point walked", "what elevation did I reach"), use get_elevation_stats — it scans raw GPS samples for altitude extremes. Supports bounding box (south/north/west/east) to filter to a region.
 For attendance tracking, sick leave analysis, or graphing hours/days at a location over time, use get_location_attendance. It returns pre-structured arrays (periods, hours, days, avg_hours_per_day) ready for show_chart. Follow up with show_chart using periods as labels and hours or days as datasets. Months with zero visits (e.g. sick leave) appear as gaps in the chart. Use group_by="week" for finer granularity.
-When the user asks about ABSENCES, gaps, time off, sick leave, or periods NOT at a location, use get_location_attendance and examine the results — periods with days=0 represent full absences, periods with fewer days than expected represent partial absences. For weekday-only analysis ("exclude weekends", "working days only"), a full week has 5 weekdays, so any week with days < 5 has absent weekdays. List the zero-visit or low-visit periods as the answer. You CAN and SHOULD answer absence questions by inverting the attendance data — do NOT say the data only shows when the user WAS somewhere.
+When the user asks about ABSENCES, gaps, time off, sick leave, or periods NOT at a location, use get_location_attendance. The result includes an absence_ranges array built from day-level analysis: every missing workday is detected and consecutive absent days are coalesced into ranges (off-days between absent workdays are bridged). Each range has: from, to, workdays (absent workdays), and calendar_days (including bridged off-days). This catches single-day absences, partial-week absences, and multi-week spans. Present these ranges as a concise table. If the user specifies a non-standard workweek (e.g. "I work Tuesday to Saturday"), pass work_days with the appropriate day numbers (0=Sun..6=Sat). Default is Mon-Fri [1,2,3,4,5]. You CAN and SHOULD answer absence questions using this data — do NOT say the data only shows when the user WAS somewhere.
 For cumulative elevation gain questions ("how much climbing did I do", "elevation gain per month", "total ascent"), use get_activity_summary or get_monthly_summary — activity stats include an "elev" field (metres of cumulative elevation gain, sum of all positive altitude changes). get_daily_stats also includes "elev" per activity per day. Use these for trends, charts, and comparisons — they are pre-aggregated and fast. Do NOT use get_elevation_stats for cumulative gain (it only finds altitude extremes). You can also compute derived metrics from the raw data: elevation density (elev ÷ dist×1000 = m/km, terrain steepness), average speed (dist÷1000 ÷ dur÷3600 = km/h), and estimated VO₂ using the ACSM walking equation: VO₂ = 3.5 + (0.1 × speed_m_per_min) + (1.8 × speed_m_per_min × grade), where speed_m_per_min = dist ÷ (dur/60) and grade = elev/dist. Result is ml/kg/min. Intensity zones: light <14, moderate 14–24, vigorous >24. METs = VO₂ / 3.5 (metabolic equivalent — 1 MET = resting, ~3 METs = normal walking, 4+ = brisk). IMPORTANT: VO₂, METs, and MET-hours are computed using the ACSM walking equation and ONLY apply to walking, hiking, and running. They are zero for cycling, car, bus, train, and other non-foot activities — do not try to compute or display them for those. For training load questions ("how hard am I training", "monthly training load", "exercise volume"), use the pre-computed "metH" field (MET-hours) from activity summaries — this is computed per-segment then summed, not from averages, so it accurately reflects cumulative training load. MET-hours = METs × hours for each walk. Higher values = more training stimulus.
 NEVER generate code (Python, JavaScript, or any programming language). NEVER suggest the user run a script. Use the available tools to query data and display results visually.
 When presenting numerical data in text, format it as a readable markdown table with headers — NEVER dump raw values as a comma-separated list. Always include context columns (month names, location names, dates) alongside the values. Convert distances from metres to km (divide by 1000, 1 decimal place) and durations from seconds to hours/minutes before displaying.
@@ -2304,16 +2450,69 @@ Be concise and friendly.`;
 
     // --- Gemini Adapter ---
 
-    // Convert Anthropic tool definitions to Gemini format (cached since tools don't change)
+    // Convert Anthropic tool definitions to Gemini format.
+    // Gemini struggles with deeply nested object-array schemas (like show_chart
+    // datasets), so we flatten show_chart into simple top-level arrays.
     let _geminiToolsCache = null;
     function getGeminiTools() {
         if (_geminiToolsCache) return _geminiToolsCache;
         _geminiToolsCache = [{
-            functionDeclarations: toolDefinitions.map(tool => ({
-                name: tool.name,
-                description: tool.description,
-                parameters: tool.input_schema
-            }))
+            functionDeclarations: toolDefinitions.map(tool => {
+                let schema = tool.input_schema;
+
+                // Flatten show_chart for Gemini — replace nested datasets array
+                // with simple top-level parameters for up to 2 datasets
+                if (tool.name === 'show_chart') {
+                    schema = {
+                        type: 'object',
+                        properties: {
+                            chart_type: { type: 'string', enum: ['bar', 'line', 'pie', 'doughnut'], description: 'Chart type.' },
+                            title: { type: 'string', description: 'Chart title.' },
+                            labels: { type: 'array', items: { type: 'string' }, description: 'X-axis labels array. E.g. ["Jan","Feb","Mar"].' },
+                            data: { type: 'array', items: { type: 'number' }, description: 'Data values for the first dataset. One number per label.' },
+                            data_label: { type: 'string', description: 'Legend label for the first dataset.' },
+                            data_color: { type: 'string', description: 'CSS colour for the first dataset (e.g. "#12A656").' },
+                            data2: { type: 'array', items: { type: 'number' }, description: 'Data values for optional second dataset.' },
+                            data2_label: { type: 'string', description: 'Legend label for the second dataset.' },
+                            data2_color: { type: 'string', description: 'CSS colour for the second dataset.' },
+                            data2_y_axis: { type: 'string', enum: ['y', 'y2'], description: 'Y-axis for second dataset. "y2" = right axis for dual-axis charts.' },
+                            x_label: { type: 'string', description: 'X-axis label.' },
+                            y_label: { type: 'string', description: 'Left y-axis label.' },
+                            y2_label: { type: 'string', description: 'Right y-axis label (dual-axis charts).' },
+                            stacked: { type: 'boolean', description: 'Stack bars/lines.' },
+                            horizontal: { type: 'boolean', description: 'Horizontal bar chart.' },
+                            y_min: { type: 'number', description: 'Left y-axis minimum.' },
+                            y_max: { type: 'number', description: 'Left y-axis maximum.' },
+                            y2_min: { type: 'number', description: 'Right y-axis minimum.' },
+                            y2_max: { type: 'number', description: 'Right y-axis maximum.' }
+                        },
+                        required: ['chart_type', 'labels', 'data', 'data_label']
+                    };
+                }
+
+                // Strip nested 'required' from all schemas — Gemini handles them poorly
+                function stripNestedRequired(obj) {
+                    if (!obj || typeof obj !== 'object') return obj;
+                    const clone = Array.isArray(obj) ? [...obj] : { ...obj };
+                    if (clone.items && typeof clone.items === 'object' && clone.items.required) {
+                        clone.items = { ...clone.items };
+                        delete clone.items.required;
+                    }
+                    if (clone.properties) {
+                        clone.properties = { ...clone.properties };
+                        for (const [k, v] of Object.entries(clone.properties)) {
+                            clone.properties[k] = stripNestedRequired(v);
+                        }
+                    }
+                    return clone;
+                }
+
+                return {
+                    name: tool.name,
+                    description: tool.description,
+                    parameters: stripNestedRequired(schema)
+                };
+            })
         }];
         return _geminiToolsCache;
     }
@@ -2365,11 +2564,26 @@ Be concise and friendly.`;
         const candidate = data.candidates?.[0];
         if (!candidate) throw new Error('No response from Gemini API.');
 
-        if (candidate.finishReason === 'SAFETY') {
-            throw new Error('Gemini blocked this response due to safety filters. Try rephrasing your question.');
+        const blockedReasons = {
+            'SAFETY': 'safety filters',
+            'RECITATION': 'recitation filters',
+            'BLOCKLIST': 'blocklist filters',
+            'PROHIBITED_CONTENT': 'prohibited content',
+            'SPII': 'sensitive personal information filters',
+        };
+        if (blockedReasons[candidate.finishReason]) {
+            throw new Error(`Gemini blocked this response due to ${blockedReasons[candidate.finishReason]}. Try rephrasing your question.`);
         }
-        if (candidate.finishReason === 'RECITATION') {
-            throw new Error('Gemini blocked this response due to recitation filters.');
+
+        // MALFORMED_FUNCTION_CALL: Gemini generated invalid tool arguments.
+        // This often happens with complex schemas (nested objects, arrays).
+        // Throw a helpful error so the Retry button appears.
+        if (candidate.finishReason === 'MALFORMED_FUNCTION_CALL') {
+            const hint = (candidate.content?.parts || [])
+                .filter(p => p.text).map(p => p.text).join(' ').trim();
+            throw new Error('Gemini generated a malformed tool call'
+                + (hint ? ` — ${hint}` : '')
+                + '. Try Anthropic Sonnet for complex chart requests, or rephrase with simpler terms.');
         }
 
         const parts = candidate.content?.parts || [];
@@ -2388,6 +2602,12 @@ Be concise and friendly.`;
             } else if (part.text) {
                 contentBlocks.push({ type: 'text', text: part.text });
             }
+        }
+
+        // Empty response — surface the finish reason so the user knows why
+        if (contentBlocks.length === 0) {
+            const reason = candidate.finishReason || 'unknown';
+            throw new Error(`Gemini returned an empty response (finishReason: ${reason}). Try a different model or rephrase your question.`);
         }
 
         const usage = data.usageMetadata || {};
@@ -2715,6 +2935,12 @@ Be concise and friendly.`;
                     addMessage('assistant', textContent);
                     // Save to chat history (only text, not tool calls)
                     chatHistory.push({ role: 'assistant', content: textContent });
+                } else {
+                    // Model returned no text — show error with retry
+                    const msg = iterations > 1
+                        ? 'The model returned no response after running the tool. Try a different model or rephrase your question.'
+                        : 'The model returned an empty response. Try a different model or rephrase your question.';
+                    addMessage('error', msg);
                 }
                 showUsage({ input_tokens: queryTokensIn, output_tokens: queryTokensOut });
                 break;
@@ -2732,7 +2958,24 @@ Be concise and friendly.`;
                     chatHistory.pop();
                 }
             } else {
-                addMessage('error', `Error: ${err.message}`);
+                const errDiv = addMessage('error', `Error: ${err.message}`);
+                // Add retry button — remove failed exchange and re-send
+                const retryBtn = document.createElement('button');
+                retryBtn.className = 'chat-retry-btn';
+                retryBtn.textContent = 'Retry';
+                retryBtn.addEventListener('click', () => {
+                    // Pop the failed user message from history
+                    const lastMsg = chatHistory.length > 0 && chatHistory[chatHistory.length - 1];
+                    const retryText = lastMsg && lastMsg.role === 'user' ? chatHistory.pop().content : null;
+                    // Remove everything from the last user message div onwards
+                    const allDivs = Array.from(elMessages.querySelectorAll('.chat-message'));
+                    const lastUserIdx = allDivs.findLastIndex(d => d.classList.contains('user'));
+                    if (lastUserIdx >= 0) {
+                        for (let i = allDivs.length - 1; i >= lastUserIdx; i--) allDivs[i].remove();
+                    }
+                    if (retryText) sendChatMessage(retryText);
+                });
+                errDiv.appendChild(retryBtn);
             }
             console.error('AI Chat error:', err);
         } finally {

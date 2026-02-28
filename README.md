@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader
 
-**Current Build: 02.048**
+**Current Build: 02.089**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracking data that generates interactive diaries with maps.
 
@@ -81,10 +81,12 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracki
 - **PNG/PDF Export** - Save maps with markers and routes
 
 ### AI Chat
-- **Natural Language Queries** - Ask questions about your timeline in plain English (requires your own Anthropic API key)
-- **Multiple Models** - Sonnet 4.6, Sonnet 4.5, Haiku 4.5, Haiku 3 with per-message cost tracking
-- **Interactive Map** - Claude displays markers and colour-coded GPS routes on an embedded map
+- **Natural Language Queries** - Ask questions about your timeline in plain English (requires your own API key)
+- **Dual Provider Support** - Anthropic Claude (Sonnet/Haiku) or Google Gemini (Flash/Pro) with per-message cost tracking
+- **Interactive Map** - AI displays markers and colour-coded GPS routes on an embedded map
 - **Geographic Search** - "When did I go to Japan?" uses GPS bounding box search, not text matching
+- **Absence Detection** - Day-level analysis finds sick days, partial weeks, and extended leave with custom workweek support
+- **Fuzzy Location Matching** - Handles typos and partial names when querying locations
 - **Privacy First** - GPS coordinates and addresses never leave your browser; only place names sent to the API
 
 ### Activity Analysis
@@ -195,3 +197,4 @@ Access via gear icon or Settings button:
 - [CARTO](https://carto.com/) for free map tiles
 - [Nominatim/OpenStreetMap](https://nominatim.org/) for fallback geocoding
 - [Anthropic Claude API](https://www.anthropic.com/) for AI Chat
+- [Google Gemini API](https://ai.google.dev/) for AI Chat (alternative provider)
