@@ -10940,7 +10940,7 @@ scrollToDiaryDay(currentDayKey);
             
             // Sort activities
             const sortedActivities = Object.keys(stats).sort((a, b) => {
-                const order = ['walking', 'cycling', 'car', 'automotive', 'airplane', 'boat', 'train', 'bus'];
+                const order = ['walking', 'cycling', 'car', 'automotive', 'motorcycle', 'scooter', 'airplane', 'boat', 'train', 'bus'];
                 const indexA = order.indexOf(a);
                 const indexB = order.indexOf(b);
                 if (indexA !== -1 && indexB !== -1) return indexA - indexB;
