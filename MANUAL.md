@@ -656,7 +656,7 @@ The AI has access to 15 query tools for extracting data from your timeline datab
 - "When was the last time I visited Mum's house?"
 
 **Attendance and absences:**
-- "List my absences from Queensland Children's Hospital in 2025"
+- "List my absences from work in 2025"
 - "Graph my hours at work by week for the last 6 months"
 - "When was I off sick?" (detects single days, partial weeks, and multi-week spans)
 - Works with fuzzy name matching — typos and partial names are handled automatically
