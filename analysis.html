@@ -2876,6 +2876,7 @@
     <script>
         // Build version
         const ANALYSIS_BUILD = '02.082';
+        const ANALYSIS_BUILD = '02.081';
         
         // Database and state
         let db = null;
@@ -9195,6 +9196,13 @@
             }
         };
     </script>
-    <script src="analysis-ai.js"></script>
+    <script>
+    // Load analysis-ai.js with cache-busting version parameter
+    (function() {
+        var s = document.createElement('script');
+        s.src = 'analysis-ai.js?v=' + (typeof ANALYSIS_BUILD !== 'undefined' ? ANALYSIS_BUILD : Date.now());
+        document.body.appendChild(s);
+    })();
+    </script>
 </body>
 </html>

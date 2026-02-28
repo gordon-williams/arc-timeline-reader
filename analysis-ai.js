@@ -2186,6 +2186,32 @@ When presenting numerical data in text, format it as a readable markdown table w
 Be concise and friendly.`;
     }
 
+    // Sanitise messages before sending to API — strip any extra fields the
+    // API may have returned on content blocks (e.g. _toolName) that it then
+    // rejects on the next request.
+    function sanitiseMessages(msgs) {
+        return msgs.map(m => {
+            if (!Array.isArray(m.content)) return m;
+            return {
+                ...m,
+                content: m.content.map(block => {
+                    if (block.type === 'tool_use') {
+                        return { type: 'tool_use', id: block.id, name: block.name, input: block.input };
+                    }
+                    if (block.type === 'tool_result') {
+                        const clean = { type: 'tool_result', tool_use_id: block.tool_use_id, content: block.content };
+                        if (block.is_error) clean.is_error = true;
+                        return clean;
+                    }
+                    if (block.type === 'text') {
+                        return { type: 'text', text: block.text };
+                    }
+                    return block;
+                })
+            };
+        });
+    }
+
     async function callAnthropic(messages) {
         const apiKey = localStorage.getItem(LS_KEY_API);
         if (!apiKey) throw new Error('No API key set. Please enter your Anthropic API key and click Save Key.');
@@ -2199,7 +2225,7 @@ Be concise and friendly.`;
             model: model,
             max_tokens: MODELS[model]?.maxTokens || 4096,
             system: [{ type: 'text', text: buildSystemPrompt(), cache_control: { type: 'ephemeral' } }],
-            messages: messages,
+            messages: sanitiseMessages(messages),
             tools: toolDefinitions.map((tool, i) =>
                 i === toolDefinitions.length - 1
                     ? { ...tool, cache_control: { type: 'ephemeral' } }
