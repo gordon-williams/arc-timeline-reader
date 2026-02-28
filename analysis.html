@@ -2887,7 +2887,7 @@
     <script src="arc-sprites.js"></script>
     <script>
         // Build version
-        const ANALYSIS_BUILD = '02.089';
+        const ANALYSIS_BUILD = '02.090';
         
         // Database and state
         let db = null;
@@ -3012,7 +3012,7 @@
         const ACSM_TYPES = new Set(['walking', 'hiking', 'running']);
 
         // After import LocoKit2 codes are mapped to display names, so
-        // scooter→motorcycle, tram/metro→train, taxi→car, etc.
+        // tram/metro→train, taxi→car, etc.
         const activityColors = {
             stationary: '#7A3CFC',    // Purple
             walking: '#12A656',       // Green
@@ -3022,6 +3022,7 @@
             car: '#4E5268',           // Gray-Blue
             bus: '#4056B5',           // Blue
             motorcycle: '#E35641',    // Red-Orange
+            scooter: '#E07B67',       // Light Red-Orange
             airplane: '#8E1DD2',      // Purple
             boat: '#3B71F6',          // Bright Blue
             train: '#AA9131',         // Gold

@@ -5502,6 +5502,7 @@ scrollToDiaryDay(currentDayKey);
                 'car': '#4E5268',
                 'bus': '#4056B5',
                 'motorcycle': '#E35641',
+                'scooter': '#E07B67',
                 'airplane': '#8E1DD2',
                 'boat': '#3B71F6',
                 'train': '#AA9131',
@@ -5552,7 +5553,8 @@ scrollToDiaryDay(currentDayKey);
                 'cycling': 'Cycling/Water',
                 'car': 'Car/Taxi',
                 'bus': 'Bus',
-                'motorcycle': 'Motorcycle/Scooter',
+                'motorcycle': 'Motorcycle',
+                'scooter': 'Scooter',
                 'airplane': 'Airplane',
                 'boat': 'Boat',
                 'train': 'Rail Transport',
@@ -5580,6 +5582,7 @@ scrollToDiaryDay(currentDayKey);
                 'car': '🚗',
                 'bus': '🚌',
                 'motorcycle': '🏍️',
+                'scooter': '🛵',
                 'airplane': '✈️',
                 'boat': '⛴️',
                 'train': '🚆',
@@ -11227,7 +11230,7 @@ scrollToDiaryDay(currentDayKey);
 
                         // Never suppress motorized/long-distance trips by visit radius.
                         const activityType = getActivityFilterType(note.activityType || '');
-                        if (['car', 'bus', 'train', 'motorcycle', 'boat', 'airplane'].includes(activityType)) {
+                        if (['car', 'bus', 'train', 'motorcycle', 'scooter', 'boat', 'airplane'].includes(activityType)) {
                             return true;
                         }
                         

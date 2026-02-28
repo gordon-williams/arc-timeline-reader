@@ -32,7 +32,8 @@
                 activity.includes('swimming') || activity.includes('kayaking')) return 'cycling';
             if (activity.includes('car') || activity.includes('automotive') || activity.includes('taxi')) return 'car';
             if (activity.includes('bus')) return 'bus';
-            if (activity.includes('motorcycle') || activity.includes('scooter')) return 'motorcycle';
+            if (activity.includes('motorcycle')) return 'motorcycle';
+            if (activity.includes('scooter')) return 'scooter';
             if (activity.includes('airplane') || activity.includes('aircraft') || activity.includes('flight') || 
                 activity.includes('hotairballoon')) return 'airplane';
             if (activity.includes('boat') || activity.includes('ferry')) return 'boat';

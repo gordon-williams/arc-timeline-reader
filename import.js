@@ -1043,7 +1043,7 @@
             25: 'tractor',
             26: 'tuktuk',
             27: 'tuktuk',       // songthaew → tuktuk
-            28: 'motorcycle',   // scooter → motorcycle
+            28: 'scooter',
             29: 'train',        // metro → train
             30: 'train',        // cableCar → train
             31: 'train',        // funicular → train

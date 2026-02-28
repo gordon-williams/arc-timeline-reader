@@ -141,7 +141,7 @@ Items form a **doubly-linked list** via `previousItemId`/`nextItemId`.
 
 Notes link to items via `timelineItemId` (newer notes, source: LocoKit2) or by time-range overlap (older notes, source: LocoKit).
 
-ActivityType enum (key values): unknown=-1, bogus=0, stationary=1, walking=2, running=3, cycling=4, car=5, airplane=6, train=20, bus=21, motorcycle=22, boat=23, scooter=28, hiking=61. Full mapping in `mapArcEditorActivityType()`.
+ActivityType enum (key values): unknown=-1, bogus=0, stationary=1, walking=2, running=3, cycling=4, car=5, airplane=6, train=20, bus=21, motorcycle=22, boat=23, scooter=28, hiking=61. Full mapping in `mapArcEditorActivityType()`. Scooter is preserved as its own activity type (not merged into motorcycle).
 
 `confirmedActivityType` = user-confirmed → sets `manualActivityType: true`.
 
