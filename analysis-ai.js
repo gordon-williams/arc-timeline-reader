@@ -33,6 +33,20 @@
         'claude-3-haiku-20240307': { input: 0.25, output: 1.25 }
     };
 
+    // --- Gemini Constants ---
+    const GEMINI_MODELS = {
+        'gemini-2.5-flash':      { name: 'Gemini 2.5 Flash',      maxTokens: 8192 },
+        'gemini-2.5-flash-lite': { name: 'Gemini 2.5 Flash Lite', maxTokens: 8192 },
+        'gemini-2.5-pro':        { name: 'Gemini 2.5 Pro',        maxTokens: 8192 }
+    };
+    const GEMINI_MODEL_COSTS = {
+        'gemini-2.5-flash':      { input: 0.30, output: 2.50 },
+        'gemini-2.5-flash-lite': { input: 0.10, output: 0.40 },
+        'gemini-2.5-pro':        { input: 1.25, output: 10.00 }
+    };
+    const LS_KEY_GEMINI_API = 'arc_chat_gemini_key';
+    const LS_KEY_PROVIDER = 'arc_chat_provider';
+
     // --- Map State ---
     let chatMap = null;
     let chatMapMarkers = [];
@@ -174,6 +188,7 @@
     // --- DOM References (set in init) ---
     let elMessages, elInput, elSendBtn, elModelSelect, elApiKey, elSaveKey, elClearBtn, elWelcome;
     let elMapScopeLabel, elMapScopeCheck;
+    let elProviderSelect, elPrivacy;
     let elMapPanel, elMapContainer, elMapTitle, elMapClearBtn, elMapSaveBtn, elMapStyle, elResizeHandle;
     let elCostBadge, elCostPanel, elCostPanelBody, elCostReset;
 
@@ -2164,6 +2179,7 @@ For LONG date ranges (months or a full year), use show_heatmap instead of show_r
 To visualise data as a chart, use show_chart. Supported types: bar (comparisons, histograms), line (time series), pie/doughnut (proportions). You must pre-compute the data values from tool results and provide them as arrays — convert distances to km and durations to hours BEFORE passing to show_chart. Use bar charts for monthly breakdowns, line charts for trends over time, pie/doughnut for activity proportions. Set horizontal=true for ranked lists (e.g. top locations by visits). Use y_min and y_max to zoom into narrow data ranges and enhance visible trends (e.g. VO₂ values ranging 10-14 — set y_min=8, y_max=16 to make differences clear). Proactively use y_min/y_max when the data range is small relative to the baseline. For comparing two metrics with different units (e.g. distance vs elevation gain, speed vs VO₂), use DUAL Y-AXES: set y_axis="y2" on the second dataset to assign it to the right-hand axis, and set y2_label for its unit. You can also set y2_min/y2_max to zoom the right axis. The left axis (y) and right axis (y2) scale independently, making trends in both metrics clearly visible. Proactively use dual axes when the user asks to compare or overlay metrics that have different units or very different value ranges. Use activity colours where appropriate: walking=#12A656, cycling=#039FD4, running=#EB781B, car=#4E5268, bus=#4056B5, train=#AA9131, hiking=#0E8444.
 For altitude/elevation questions ("highest point walked", "what elevation did I reach"), use get_elevation_stats — it scans raw GPS samples for altitude extremes. Supports bounding box (south/north/west/east) to filter to a region.
 For attendance tracking, sick leave analysis, or graphing hours/days at a location over time, use get_location_attendance. It returns pre-structured arrays (periods, hours, days, avg_hours_per_day) ready for show_chart. Follow up with show_chart using periods as labels and hours or days as datasets. Months with zero visits (e.g. sick leave) appear as gaps in the chart. Use group_by="week" for finer granularity.
+When the user asks about ABSENCES, gaps, time off, sick leave, or periods NOT at a location, use get_location_attendance and examine the results — periods with days=0 represent full absences, periods with fewer days than expected represent partial absences. For weekday-only analysis ("exclude weekends", "working days only"), a full week has 5 weekdays, so any week with days < 5 has absent weekdays. List the zero-visit or low-visit periods as the answer. You CAN and SHOULD answer absence questions by inverting the attendance data — do NOT say the data only shows when the user WAS somewhere.
 For cumulative elevation gain questions ("how much climbing did I do", "elevation gain per month", "total ascent"), use get_activity_summary or get_monthly_summary — activity stats include an "elev" field (metres of cumulative elevation gain, sum of all positive altitude changes). get_daily_stats also includes "elev" per activity per day. Use these for trends, charts, and comparisons — they are pre-aggregated and fast. Do NOT use get_elevation_stats for cumulative gain (it only finds altitude extremes). You can also compute derived metrics from the raw data: elevation density (elev ÷ dist×1000 = m/km, terrain steepness), average speed (dist÷1000 ÷ dur÷3600 = km/h), and estimated VO₂ using the ACSM walking equation: VO₂ = 3.5 + (0.1 × speed_m_per_min) + (1.8 × speed_m_per_min × grade), where speed_m_per_min = dist ÷ (dur/60) and grade = elev/dist. Result is ml/kg/min. Intensity zones: light <14, moderate 14–24, vigorous >24. METs = VO₂ / 3.5 (metabolic equivalent — 1 MET = resting, ~3 METs = normal walking, 4+ = brisk). IMPORTANT: VO₂, METs, and MET-hours are computed using the ACSM walking equation and ONLY apply to walking, hiking, and running. They are zero for cycling, car, bus, train, and other non-foot activities — do not try to compute or display them for those. For training load questions ("how hard am I training", "monthly training load", "exercise volume"), use the pre-computed "metH" field (MET-hours) from activity summaries — this is computed per-segment then summed, not from averages, so it accurately reflects cumulative training load. MET-hours = METs × hours for each walk. Higher values = more training stimulus.
 NEVER generate code (Python, JavaScript, or any programming language). NEVER suggest the user run a script. Use the available tools to query data and display results visually.
 When presenting numerical data in text, format it as a readable markdown table with headers — NEVER dump raw values as a comma-separated list. Always include context columns (month names, location names, dates) alongside the values. Convert distances from metres to km (divide by 1000, 1 decimal place) and durations from seconds to hours/minutes before displaying.
@@ -2218,6 +2234,190 @@ Be concise and friendly.`;
         }
 
         return response.json();
+    }
+
+    // --- Provider Abstraction ---
+
+    function getProvider() {
+        return elProviderSelect ? elProviderSelect.value : 'anthropic';
+    }
+
+    function updateProviderUI() {
+        const provider = getProvider();
+
+        // Update model dropdown
+        const models = provider === 'gemini' ? GEMINI_MODELS : MODELS;
+        const costTable = provider === 'gemini' ? GEMINI_MODEL_COSTS : MODEL_COSTS;
+        const savedModel = localStorage.getItem(LS_KEY_MODEL);
+        elModelSelect.innerHTML = '';
+        for (const [id, m] of Object.entries(models)) {
+            const costs = costTable[id];
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = `${m.name} ($${costs.input}/$${costs.output})`;
+            elModelSelect.appendChild(opt);
+        }
+        if (savedModel && models[savedModel]) {
+            elModelSelect.value = savedModel;
+        }
+
+        // Update API key input
+        const lsKey = provider === 'gemini' ? LS_KEY_GEMINI_API : LS_KEY_API;
+        const savedKey = localStorage.getItem(lsKey);
+        elApiKey.value = savedKey || '';
+        elApiKey.type = savedKey ? 'password' : 'text';
+        elApiKey.placeholder = provider === 'gemini' ? 'AIza...' : 'sk-ant-...';
+
+        // Update privacy notice
+        if (elPrivacy) {
+            elPrivacy.textContent = provider === 'gemini'
+                ? 'Your timeline data is sent to Google\'s Gemini API for processing. GPS coordinates and addresses are never sent \u2014 only place names. Your API key is stored locally in your browser.'
+                : 'Your timeline data is sent to Anthropic\'s API for processing. API data is not used for model training and is retained for up to 30 days for safety purposes only. GPS coordinates and addresses are never sent \u2014 only place names. Your API key is stored locally in your browser.';
+        }
+    }
+
+    // --- Gemini Adapter ---
+
+    // Convert Anthropic tool definitions to Gemini format (cached since tools don't change)
+    let _geminiToolsCache = null;
+    function getGeminiTools() {
+        if (_geminiToolsCache) return _geminiToolsCache;
+        _geminiToolsCache = [{
+            functionDeclarations: toolDefinitions.map(tool => ({
+                name: tool.name,
+                description: tool.description,
+                parameters: tool.input_schema
+            }))
+        }];
+        return _geminiToolsCache;
+    }
+
+    // Convert Anthropic-shaped messages array to Gemini contents format
+    function convertMessagesForGemini(messages) {
+        const contents = [];
+        for (const msg of messages) {
+            if (msg.role === 'user') {
+                if (typeof msg.content === 'string') {
+                    contents.push({ role: 'user', parts: [{ text: msg.content }] });
+                } else if (Array.isArray(msg.content)) {
+                    // Tool results → functionResponse parts
+                    const parts = msg.content.map(block => {
+                        if (block.type === 'tool_result') {
+                            let response;
+                            try { response = JSON.parse(block.content); }
+                            catch (e) { response = { result: block.content }; }
+                            return {
+                                functionResponse: {
+                                    name: block._toolName || '',
+                                    response: response
+                                }
+                            };
+                        }
+                        return { text: block.content || '' };
+                    });
+                    contents.push({ role: 'user', parts });
+                }
+            } else if (msg.role === 'assistant') {
+                if (typeof msg.content === 'string') {
+                    contents.push({ role: 'model', parts: [{ text: msg.content }] });
+                } else if (Array.isArray(msg.content)) {
+                    const parts = msg.content.map(block => {
+                        if (block.type === 'tool_use') {
+                            return { functionCall: { name: block.name, args: block.input } };
+                        }
+                        return { text: block.text || '' };
+                    });
+                    contents.push({ role: 'model', parts });
+                }
+            }
+        }
+        return contents;
+    }
+
+    // Normalise Gemini response to Anthropic shape so sendChatMessage loop works unchanged
+    function normalizeGeminiResponse(data) {
+        const candidate = data.candidates?.[0];
+        if (!candidate) throw new Error('No response from Gemini API.');
+
+        if (candidate.finishReason === 'SAFETY') {
+            throw new Error('Gemini blocked this response due to safety filters. Try rephrasing your question.');
+        }
+        if (candidate.finishReason === 'RECITATION') {
+            throw new Error('Gemini blocked this response due to recitation filters.');
+        }
+
+        const parts = candidate.content?.parts || [];
+        const contentBlocks = [];
+        let hasToolUse = false;
+
+        for (const part of parts) {
+            if (part.functionCall) {
+                hasToolUse = true;
+                contentBlocks.push({
+                    type: 'tool_use',
+                    id: `gemini_${part.functionCall.name}_${Date.now()}`,
+                    name: part.functionCall.name,
+                    input: part.functionCall.args || {}
+                });
+            } else if (part.text) {
+                contentBlocks.push({ type: 'text', text: part.text });
+            }
+        }
+
+        const usage = data.usageMetadata || {};
+        return {
+            content: contentBlocks,
+            stop_reason: hasToolUse ? 'tool_use' : 'end_turn',
+            usage: {
+                input_tokens: usage.promptTokenCount || 0,
+                output_tokens: usage.candidatesTokenCount || 0,
+                cache_read_input_tokens: usage.cachedContentTokenCount || 0,
+                cache_creation_input_tokens: 0
+            }
+        };
+    }
+
+    async function callGemini(messages) {
+        const apiKey = localStorage.getItem(LS_KEY_GEMINI_API);
+        if (!apiKey) throw new Error('No API key set. Please enter your Google Gemini API key and click Save Key.');
+
+        const model = elModelSelect.value || 'gemini-2.5-flash';
+
+        const body = {
+            systemInstruction: { parts: [{ text: buildSystemPrompt() }] },
+            contents: convertMessagesForGemini(messages),
+            tools: getGeminiTools(),
+            generationConfig: {
+                maxOutputTokens: GEMINI_MODELS[model]?.maxTokens || 8192
+            }
+        };
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': apiKey
+            },
+            body: JSON.stringify(body),
+            signal: abortController ? abortController.signal : undefined
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            const errMsg = errData.error?.message || response.statusText;
+            if (response.status === 429) {
+                throw new Error('Rate limit reached. Please wait a minute before sending another message.');
+            }
+            if (response.status === 503) {
+                throw new Error('Gemini API is temporarily overloaded. Please wait a moment and try again.');
+            }
+            throw new Error(`API error (${response.status}): ${errMsg}`);
+        }
+
+        const data = await response.json();
+        return normalizeGeminiResponse(data);
     }
 
     // =========================================================================
@@ -2347,15 +2547,24 @@ Be concise and friendly.`;
         // Non-cached input tokens = total input minus any cached tokens
         const uncachedInput = input - cacheRead - cacheCreate;
 
-        const model = elModelSelect.value || 'claude-sonnet-4-6';
-        const costs = MODEL_COSTS[model] || MODEL_COSTS['claude-sonnet-4-6'];
-        // Cached reads cost 90% less, cache writes cost 25% more
-        const queryCost = (
-            uncachedInput * costs.input +
-            cacheRead * costs.input * 0.1 +
-            cacheCreate * costs.input * 1.25 +
-            output * costs.output
-        ) / 1_000_000;
+        const provider = getProvider();
+        const model = elModelSelect.value || (provider === 'gemini' ? 'gemini-2.5-flash' : 'claude-sonnet-4-6');
+        let queryCost;
+
+        if (provider === 'gemini') {
+            const costs = GEMINI_MODEL_COSTS[model] || GEMINI_MODEL_COSTS['gemini-2.5-flash'];
+            // Gemini implicit caching: cached tokens are free
+            queryCost = (uncachedInput * costs.input + output * costs.output) / 1_000_000;
+        } else {
+            const costs = MODEL_COSTS[model] || MODEL_COSTS['claude-sonnet-4-6'];
+            // Cached reads cost 90% less, cache writes cost 25% more
+            queryCost = (
+                uncachedInput * costs.input +
+                cacheRead * costs.input * 0.1 +
+                cacheCreate * costs.input * 1.25 +
+                output * costs.output
+            ) / 1_000_000;
+        }
         sessionCost += queryCost;
         addToCostTotals(model, input, output, queryCost);
 
@@ -2417,7 +2626,9 @@ Be concise and friendly.`;
                     throw new DOMException('The operation was aborted.', 'AbortError');
                 }
 
-                const response = await callAnthropic(messages);
+                const response = getProvider() === 'gemini'
+                    ? await callGemini(messages)
+                    : await callAnthropic(messages);
                 queryTokensIn += (response.usage?.input_tokens || 0);
                 queryTokensOut += (response.usage?.output_tokens || 0);
 
@@ -2457,6 +2668,7 @@ Be concise and friendly.`;
                         toolResults.push({
                             type: 'tool_result',
                             tool_use_id: toolBlock.id,
+                            _toolName: toolBlock.name, // Used by Gemini adapter (matches by name, not ID)
                             // Strip coords/addresses before sending to API (privacy)
                             content: JSON.stringify(stripCoordsForAPI(result))
                         });
@@ -2552,11 +2764,16 @@ Be concise and friendly.`;
     // =========================================================================
 
     function loadSettings() {
-        const savedKey = localStorage.getItem(LS_KEY_API);
-        if (savedKey && elApiKey) {
-            elApiKey.value = savedKey;
-            elApiKey.type = 'password';
+        // Restore provider selection first
+        const savedProvider = localStorage.getItem(LS_KEY_PROVIDER);
+        if (savedProvider && elProviderSelect) {
+            elProviderSelect.value = savedProvider;
         }
+
+        // Populate model dropdown and load provider-specific API key
+        updateProviderUI();
+
+        // Restore saved model (after updateProviderUI has populated the options)
         const savedModel = localStorage.getItem(LS_KEY_MODEL);
         if (savedModel && elModelSelect) {
             elModelSelect.value = savedModel;
@@ -2566,7 +2783,8 @@ Be concise and friendly.`;
     function saveApiKey() {
         const key = elApiKey.value.trim();
         if (key) {
-            localStorage.setItem(LS_KEY_API, key);
+            const lsKey = getProvider() === 'gemini' ? LS_KEY_GEMINI_API : LS_KEY_API;
+            localStorage.setItem(lsKey, key);
             elApiKey.type = 'password';
             // Brief visual feedback
             elSaveKey.textContent = 'Saved!';
@@ -2631,7 +2849,7 @@ Be concise and friendly.`;
         let html = '';
         let grandCost = 0, grandQueries = 0;
         for (const [modelId, data] of models) {
-            const name = MODELS[modelId]?.name || modelId;
+            const name = MODELS[modelId]?.name || GEMINI_MODELS[modelId]?.name || modelId;
             grandCost += data.cost;
             grandQueries += data.queries;
             html += `<div class="chat-cost-row">
@@ -2661,6 +2879,10 @@ Be concise and friendly.`;
         elSaveKey = document.getElementById('chatSaveKey');
         elClearBtn = document.getElementById('chatClearBtn');
         elWelcome = document.getElementById('chatWelcome');
+
+        // Get DOM references — provider
+        elProviderSelect = document.getElementById('chatProviderSelect');
+        elPrivacy = document.getElementById('chatPrivacy');
 
         // Get DOM references — map scope checkbox
         elMapScopeLabel = document.getElementById('chatMapScopeLabel');
@@ -2710,6 +2932,17 @@ Be concise and friendly.`;
         elModelSelect.addEventListener('change', () => {
             localStorage.setItem(LS_KEY_MODEL, elModelSelect.value);
         });
+
+        // Event listener — provider selector
+        if (elProviderSelect) {
+            elProviderSelect.addEventListener('change', () => {
+                localStorage.setItem(LS_KEY_PROVIDER, elProviderSelect.value);
+                updateProviderUI();
+                // Clear chat — message formats are incompatible between providers
+                clearChat();
+                if (elWelcome) elWelcome.style.display = '';
+            });
+        }
 
         elClearBtn.addEventListener('click', clearChat);
 
