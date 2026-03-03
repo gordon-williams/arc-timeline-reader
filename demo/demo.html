@@ -1,0 +1,3152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demo — Arc Diary Reader</title>
+  <meta name="description" content="Try Arc Diary Reader with a sample tour — browse a 16-day Japanese vacation diary with interactive maps.">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <style>
+    /* ── CSS Variables ──────────────────────────── */
+    :root {
+      --bg:           #f5f5f7;
+      --bg-surface:   #ffffff;
+      --text:         #1d1d1f;
+      --text-secondary: #6e6e73;
+      --border-card:  rgba(0,0,0,0.08);
+      --shadow-card:  0 2px 12px rgba(0,0,0,0.06);
+      --accent:       #667eea;
+      --accent-2:     #764ba2;
+      --gradient:     linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --accent-tint:  rgba(102, 126, 234, 0.08);
+    }
+
+    /* ── Reset & Base ──────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Loading Screen ────────────────────────── */
+    .loading-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--gradient);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      transition: opacity 0.4s;
+    }
+    .loading-screen.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .loading-content {
+      text-align: center;
+      color: #fff;
+    }
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 20px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-content h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .loading-content p {
+      font-size: 14px;
+      opacity: 0.8;
+    }
+
+
+    /* ── Header Bar ────────────────────────────── */
+    .header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-card);
+      flex-shrink: 0;
+      gap: 16px;
+    }
+    .header-info h1 {
+      font-size: 17px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .header-info .subtitle {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* ── Buttons ────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 18px;
+      border-radius: 10px;
+      border: none;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: var(--gradient);
+      color: #fff;
+    }
+    .btn-primary:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+
+    /* ── Tile Switcher ─────────────────────────── */
+    .tile-btn {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      border: 1px solid var(--border-card);
+      background: var(--bg-surface);
+      color: var(--text);
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    .tile-btn.active {
+      background: var(--accent-tint);
+      border-color: var(--accent);
+    }
+    .tile-btn:hover {
+      background: var(--accent-tint);
+    }
+    /* Reduce sub-pixel gaps between map tiles */
+    .leaflet-tile {
+      outline: 1px solid transparent;
+    }
+    .leaflet-tile-pane.satellite-boost .leaflet-tile {
+      filter: brightness(1.3) saturate(1.15);
+    }
+
+    /* ── App Container ─────────────────────────── */
+    .app {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    /* ── Viewer Body (diary + map) ──────────────── */
+    .viewer-body {
+      flex: 1;
+      position: relative;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* ── Diary Panel (floating glass) ─────────── */
+    .diary-panel {
+      --diary-font-scale: 1;
+      position: absolute;
+      left: 15px;
+      top: 15px;
+      bottom: 15px;
+      width: 380px;
+      min-width: 300px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 20px;
+      box-shadow: 0 12px 48px rgba(0, 0, 0, 0.25);
+      display: flex;
+      flex-direction: column;
+      z-index: 5;
+      overflow: hidden;
+    }
+
+    /* ── Item List (scrollable diary) ─────────── */
+    .item-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px 16px;
+      margin-right: 8px;      /* keep scrollbar clear of resize handle */
+    }
+    .item-list::-webkit-scrollbar { width: 4px; }
+    .item-list::-webkit-scrollbar-thumb {
+      background: var(--text-secondary);
+      border-radius: 2px;
+    }
+
+    /* ── Day Header ────────────────────────────── */
+    .day-header {
+      font-size: calc(15px * var(--diary-font-scale));
+      font-weight: 600;
+      margin: 16px 0 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--border-card);
+      color: #7A3CFC;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .day-header:hover { color: #5c1fcc; }
+    .day-header.active {
+      color: #5c1fcc;
+      background: rgba(122, 60, 252, 0.08);
+      margin-left: -6px;
+      margin-right: -6px;
+      padding: 2px 6px 4px;
+      border-radius: 6px;
+      border-bottom-color: transparent;
+    }
+    .day-header:first-child { margin-top: 0; }
+
+    /* ── Day Entries (bullet list) ─────────────── */
+    .day-entries {
+      list-style: disc;
+      padding-left: 1.3em;
+      margin: 0 0 4px;
+    }
+    .day-entries li {
+      font-size: calc(12px * var(--diary-font-scale));
+      line-height: 1.5;
+      margin-bottom: 6px;
+      cursor: pointer;
+      padding: 2px 4px 2px 2px;
+      border-radius: 4px;
+      transition: background 0.15s;
+    }
+    .day-entries li:hover {
+      background: var(--accent-tint);
+    }
+    .day-entries li.selected {
+      background: rgba(102, 126, 234, 0.14);
+      border-left: 3px solid #667eea;
+      padding-left: 6px;
+      margin-left: -7px;
+    }
+    .day-entries li.selected:hover {
+      background: rgba(102, 126, 234, 0.18);
+    }
+    .day-entries li::marker {
+      color: var(--text-secondary);
+    }
+
+    /* ── Entry Pieces ──────────────────────────── */
+    .entry-meta {
+      color: var(--text-secondary);
+      font-size: calc(11px * var(--diary-font-scale));
+    }
+    .entry-note {
+      font-size: calc(11px * var(--diary-font-scale));
+      color: var(--text-secondary);
+      line-height: 1.4;
+      margin-top: 2px;
+    }
+    .entry-note p {
+      margin: 0 0 0.4em;
+      white-space: pre-wrap;
+    }
+    .entry-note p:last-child { margin-bottom: 0; }
+    .entry-note ul, .entry-note ol {
+      margin: 0 0 0.4em;
+      padding-left: 1.2em;
+    }
+    .entry-note strong { font-weight: 600; }
+    .entry-note a { color: var(--accent); }
+
+    /* ── Panel Resize Handle (right edge) ─────── */
+    .diary-resize {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 8px;
+      cursor: col-resize;
+      z-index: 6;
+    }
+    .diary-resize::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      right: 2px;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 32px;
+      background: rgba(0,0,0,0.12);
+      border-radius: 2px;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .diary-resize:hover::after,
+    .diary-resize.dragging::after {
+      opacity: 1;
+    }
+
+    /* ── Month Nav Bar ─────────────────────────── */
+    .month-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-card);
+      flex-shrink: 0;
+    }
+    .month-nav-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: #4056B5;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .month-nav-title:hover { color: #2c3d8f; }
+    .month-nav-btn {
+      background: none;
+      border: 1px solid var(--border-card);
+      border-radius: 8px;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    .month-nav-btn:hover {
+      background: var(--accent-tint);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .month-nav-btn:disabled {
+      opacity: 0.3;
+      cursor: default;
+      background: none;
+      border-color: var(--border-card);
+      color: var(--text-secondary);
+    }
+
+    /* ── Filter Bar ────────────────────────────── */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 14px;
+      border-bottom: 1px solid var(--border-card);
+      flex-shrink: 0;
+    }
+    .filter-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .filter-label input[type="checkbox"] {
+      accent-color: var(--accent);
+      width: 14px;
+      height: 14px;
+      cursor: pointer;
+    }
+    .search-wrap {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .search-icon {
+      position: absolute;
+      left: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      pointer-events: none;
+    }
+    .search-input {
+      width: 100%;
+      padding: 5px 8px 5px 26px;
+      border: 1px solid var(--border-card);
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 12px;
+      color: var(--text);
+      background: transparent;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .search-input::placeholder {
+      color: var(--text-secondary);
+      opacity: 0.7;
+    }
+    .search-input:focus {
+      border-color: var(--accent);
+    }
+    .search-nav {
+      display: none;
+      align-items: center;
+      gap: 2px;
+      margin-left: 6px;
+      flex-shrink: 0;
+    }
+    .search-wrap.has-query .search-nav { display: flex; }
+    .search-count {
+      font-size: 11px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      min-width: 44px;
+      text-align: center;
+    }
+    .search-nav-btn {
+      background: none;
+      border: 1px solid var(--border-card);
+      border-radius: 6px;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text);
+      transition: all 0.15s;
+      padding: 0;
+    }
+    .search-nav-btn:hover {
+      background: var(--accent-tint);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .search-nav-btn:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
+    .search-close {
+      background: none;
+      border: none;
+      font-size: 16px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 0 2px;
+      line-height: 1;
+      margin-left: 2px;
+    }
+    .search-close:hover { color: var(--text); }
+
+    /* ── Map Panel ─────────────────────────────── */
+    .map-panel {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+    }
+    #map-container {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ── Stats Panel (floating right) ─────────── */
+    .stats-float {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      width: 220px;
+      max-height: calc(100% - 30px);
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 20px;
+      box-shadow: 0 12px 48px rgba(0, 0, 0, 0.25);
+      z-index: 5;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .stats-header {
+      padding: 14px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 1px solid var(--border-card);
+      flex-shrink: 0;
+    }
+    .stats-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.3;
+    }
+    .stats-close {
+      background: none;
+      border: none;
+      font-size: 20px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 0 2px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .stats-close:hover { color: var(--text); }
+    .stats-tiles {
+      padding: 12px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .stats-tile {
+      border-radius: 16px;
+      padding: 14px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    .stats-tile-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .stats-tile-icon {
+      font-size: 18px;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+    }
+    .stats-tile-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+    .stats-tile-distance {
+      font-size: 28px;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.1;
+      margin-bottom: 2px;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      font-feature-settings: "tnum";
+    }
+    .stats-tile-meta {
+      font-size: 14px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.85);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      font-feature-settings: "tnum";
+    }
+    .stats-tile-elevation {
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.9);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      margin-top: 2px;
+      font-feature-settings: "tnum";
+    }
+    .stats-empty {
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-align: center;
+      padding: 16px 8px;
+    }
+
+    /* ── Elevation Panel ───────────────────────── */
+    .elevation-float {
+      position: absolute;
+      bottom: 15px;
+      /* left/right set dynamically by positionElevationPanel() */
+      min-width: 300px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+      z-index: 5;
+      display: none;
+      flex-direction: column;
+      overflow: visible;
+    }
+    [data-theme="dark"] .elevation-float {
+      background: rgba(44, 44, 46, 0.95);
+    }
+    .elevation-header {
+      padding: 10px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-card);
+      flex-shrink: 0;
+    }
+    .elevation-title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .elevation-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .elevation-stats {
+      flex: 1;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 6px;
+      margin-right: 8px;
+    }
+    .elevation-stat-tag {
+      font-size: 11px;
+      color: var(--text-secondary);
+      background: var(--accent-tint);
+      border: 1px solid var(--border-card);
+      padding: 0 8px;
+      border-radius: 6px;
+      height: 22px;
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+      font-feature-settings: "tnum";
+      font-weight: 600;
+    }
+    .elevation-body {
+      padding: 8px 12px 12px;
+      position: relative;
+    }
+    #elevation-canvas {
+      width: 100%;
+      height: 140px;
+      display: block;
+      cursor: crosshair;
+    }
+    .elevation-tooltip {
+      position: absolute;
+      background: rgba(30, 30, 30, 0.9);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 6px;
+      pointer-events: none;
+      white-space: nowrap;
+      display: none;
+      z-index: 10;
+      font-feature-settings: "tnum";
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .elevation-empty {
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-align: center;
+      padding: 20px 8px;
+    }
+    .elevation-hover-marker {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #E74C3C;
+      border: 3px solid #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+
+    /* ── Leaflet Overrides ──────────────────────── */
+    .leaflet-popup-content-wrapper {
+      border-radius: 10px;
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    }
+    .leaflet-popup-content {
+      margin: 10px 14px;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .leaflet-popup-content strong {
+      font-weight: 600;
+      display: block;
+      margin-bottom: 2px;
+    }
+    .leaflet-popup-content .popup-time {
+      font-size: 11px;
+      color: #6e6e73;
+    }
+    .leaflet-popup-content .popup-note {
+      font-size: 11px;
+      color: #6e6e73;
+      margin-top: 4px;
+      font-style: italic;
+    }
+    .leaflet-control-attribution {
+      font-size: 10px !important;
+    }
+
+    /* ── CTA Banner ────────────────────────────── */
+    .cta-banner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 10px 20px;
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-card);
+      font-size: 13px;
+      color: var(--text-secondary);
+      flex-shrink: 0;
+    }
+    .cta-banner a {
+      color: var(--accent);
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .cta-banner a:hover {
+      text-decoration: underline;
+    }
+    .cta-close {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0 4px;
+      line-height: 1;
+    }
+    .cta-close:hover {
+      color: var(--text);
+    }
+    .cta-banner.hidden {
+      display: none;
+    }
+
+    /* ── Replay Controller ─────────────────────── */
+    .replay-controller {
+      position: absolute;
+      bottom: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(30, 30, 30, 0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 16px;
+      padding: 10px 16px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      z-index: 10;
+      min-width: 420px;
+      color: #fff;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .replay-controller.active {
+      display: flex;
+    }
+    .replay-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      flex-shrink: 0;
+      padding: 0;
+    }
+    .replay-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+    .replay-play {
+      width: 36px;
+      height: 36px;
+      background: #4ECDC4;
+      font-size: 16px;
+    }
+    .replay-play:hover {
+      background: #3dbdb5;
+    }
+    .replay-play.playing {
+      background: #FF6B6B;
+    }
+    .replay-play.playing:hover {
+      background: #e55a5a;
+    }
+    .replay-progress-wrap {
+      flex: 1;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+      overflow: hidden;
+      min-width: 80px;
+      cursor: pointer;
+    }
+    .replay-progress {
+      height: 100%;
+      width: 0%;
+      background: #4ECDC4;
+      border-radius: 3px;
+      transition: width 0.1s linear;
+    }
+    .replay-speed {
+      font-size: 13px;
+      font-weight: 700;
+      color: #4ECDC4;
+      min-width: 30px;
+      text-align: center;
+      font-feature-settings: "tnum";
+    }
+    .replay-slider {
+      width: 70px;
+      height: 4px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    .replay-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #4ECDC4;
+      cursor: pointer;
+    }
+    .replay-info {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.7);
+      white-space: nowrap;
+      min-width: 60px;
+    }
+    .replay-info .replay-activity {
+      color: #FFD700;
+      font-weight: 600;
+    }
+    .replay-info .replay-time {
+      color: #4ECDC4;
+    }
+    .replay-close {
+      font-size: 16px;
+    }
+    .btn-replay {
+      background: rgba(78, 205, 196, 0.15);
+      color: #4ECDC4;
+      border: 1px solid rgba(78, 205, 196, 0.3);
+    }
+    .btn-replay:hover {
+      background: rgba(78, 205, 196, 0.25);
+    }
+    .btn-replay.active {
+      background: #4ECDC4;
+      color: #1e1e1e;
+      border-color: #4ECDC4;
+    }
+
+    /* ── Replay Marker ────────────────────────── */
+    .replay-marker-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 3px solid white;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+    .replay-marker-icon.activity-walking       { background: #2ECC71; }
+    .replay-marker-icon.activity-running       { background: #F1C40F; }
+    .replay-marker-icon.activity-hiking        { background: #347441; }
+    .replay-marker-icon.activity-cycling       { background: #00B4D8; }
+    .replay-marker-icon.activity-car           { background: #5D6B7A; }
+    .replay-marker-icon.activity-bus           { background: #E67E22; }
+    .replay-marker-icon.activity-train         { background: #3498DB; }
+    .replay-marker-icon.activity-metro         { background: #3498DB; }
+    .replay-marker-icon.activity-tram          { background: #9B8B4E; }
+    .replay-marker-icon.activity-airplane      { background: #9B59B6; }
+    .replay-marker-icon.activity-boat          { background: #1ABC9C; }
+    .replay-marker-icon.activity-ferry         { background: #1ABC9C; }
+    .replay-marker-icon.activity-motorcycle    { background: #E74C3C; }
+    .replay-marker-icon.activity-scooter       { background: #E07B67; }
+    .replay-marker-icon.activity-taxi          { background: #5D6B7A; }
+    .replay-marker-icon.activity-skateboarding { background: #808080; }
+    .replay-marker-icon.activity-inlineskating { background: #808080; }
+    .replay-marker-icon.activity-snowboarding  { background: #808080; }
+    .replay-marker-icon.activity-skiing        { background: #808080; }
+    .replay-marker-icon.activity-horseback     { background: #808080; }
+    .replay-marker-icon.activity-surfing       { background: #808080; }
+    .replay-marker-icon.activity-tractor       { background: #808080; }
+    .replay-marker-icon.activity-tuktuk        { background: #808080; }
+    .replay-marker-icon.activity-stationary    { background: #808080; }
+    .replay-marker-icon.activity-unknown       { background: #000000; }
+    .replay-marker-icon.activity-finished      { background: #000000; }
+
+    /* ── Replay Location Popup ────────────────── */
+    .replay-location-popup .leaflet-popup-content-wrapper {
+      background: #006B3F;
+      color: #fff;
+      border-radius: 10px;
+    }
+    .replay-location-popup .leaflet-popup-tip {
+      background: #006B3F;
+    }
+    .replay-location-popup .leaflet-popup-content {
+      margin: 10px 14px;
+    }
+    .replay-popup-name {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .replay-popup-time {
+      font-size: 11px;
+      opacity: 0.85;
+    }
+
+    /* ── Highlight pulse on marker ──────────────── */
+    @keyframes marker-pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.3); }
+      100% { transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Loading Screen -->
+  <div class="loading-screen" id="loading-screen">
+    <div class="loading-content">
+      <div class="loading-spinner"></div>
+      <h2>Loading Demo Tour</h2>
+      <p id="loading-status">Fetching tour data...</p>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div class="app" id="app" style="display:none">
+
+    <!-- Header -->
+    <div class="header-bar">
+      <div class="header-info">
+        <h1 id="tour-title">Tour Demo</h1>
+        <div class="subtitle" id="tour-subtitle"></div>
+      </div>
+      <div class="header-actions">
+        <button class="tile-btn" id="font-down" title="Decrease diary font size" style="font-size:13px;font-weight:700">A−</button>
+        <button class="tile-btn" id="font-up" title="Increase diary font size" style="font-size:13px;font-weight:700">A+</button>
+        <button class="tile-btn active" id="tile-street" title="Street map">🗺️</button>
+        <button class="tile-btn" id="tile-cycle" title="Cycle map">🚴</button>
+        <button class="tile-btn" id="tile-satellite" title="Satellite">🛰️</button>
+        <button class="tile-btn" id="elevation-btn" title="Elevation profile">⛰️</button>
+        <button class="btn btn-replay" id="replay-btn" title="Replay this day">▶ Replay</button>
+        <a class="btn btn-primary" href="../index.html">Try the Full App</a>
+      </div>
+    </div>
+
+    <!-- Viewer Body -->
+    <div class="viewer-body" id="viewer-body">
+      <!-- Map (full area, underneath) -->
+      <div class="map-panel" id="map-panel">
+        <div id="map-container"></div>
+      </div>
+
+      <!-- Floating Diary Panel -->
+      <div class="diary-panel" id="diary-panel">
+        <div class="month-nav" id="month-nav">
+          <button class="month-nav-btn" id="month-prev" title="Previous month">&#8249;</button>
+          <span class="month-nav-title" id="month-nav-title" title="Click to show all routes for this month"></span>
+          <button class="month-nav-btn" id="month-next" title="Next month">&#8250;</button>
+        </div>
+        <div class="filter-bar">
+          <div class="search-wrap" id="search-wrap">
+            <span class="search-icon">&#128269;</span>
+            <input type="text" class="search-input" id="search-input" placeholder="Find...">
+            <div class="search-nav">
+              <span class="search-count" id="search-count"></span>
+              <button class="search-nav-btn" id="search-prev" title="Previous match (Shift+Enter)">&#8249;</button>
+              <button class="search-nav-btn" id="search-next" title="Next match (Enter)">&#8250;</button>
+              <button class="search-close" id="search-close" title="Clear">&times;</button>
+            </div>
+          </div>
+          <label class="filter-label">
+            <input type="checkbox" id="filter-notes-only">
+            Notes only
+          </label>
+        </div>
+        <div class="item-list" id="item-list"></div>
+        <div class="diary-resize" id="diary-resize"></div>
+      </div>
+
+      <!-- Floating Stats Panel -->
+      <div class="stats-float" id="stats-float">
+        <div class="stats-header">
+          <span class="stats-title" id="stats-title">Statistics</span>
+          <button class="stats-close" id="stats-close">&times;</button>
+        </div>
+        <div class="stats-tiles" id="stats-tiles"></div>
+      </div>
+
+      <!-- Floating Elevation Panel (bottom, between diary & stats) -->
+      <div class="elevation-float" id="elevation-float">
+        <div class="elevation-header">
+          <div class="elevation-title-group">
+            <span class="elevation-title">Elevation</span>
+          </div>
+          <div class="elevation-stats" id="elevation-stats"></div>
+          <button class="stats-close" id="elevation-close">&times;</button>
+        </div>
+        <div class="elevation-body">
+          <canvas id="elevation-canvas"></canvas>
+          <div class="elevation-tooltip" id="elevation-tooltip"></div>
+        </div>
+        <div class="elevation-empty" id="elevation-empty" style="display:none;">No elevation data for this day</div>
+      </div>
+
+      <!-- Replay Controller -->
+      <div class="replay-controller" id="replay-controller">
+        <button class="replay-btn" id="replay-restart" title="Restart">⟲</button>
+        <button class="replay-btn replay-play" id="replay-play" title="Play / Pause">▶</button>
+        <div class="replay-progress-wrap" id="replay-progress-wrap">
+          <div class="replay-progress" id="replay-progress"></div>
+        </div>
+        <span class="replay-speed" id="replay-speed">5×</span>
+        <input type="range" class="replay-slider" id="replay-slider" min="1" max="100" value="10">
+        <div class="replay-info" id="replay-info"></div>
+        <button class="replay-btn replay-close" id="replay-close" title="Close replay">✕</button>
+      </div>
+    </div>
+
+    <!-- CTA Banner -->
+    <div class="cta-banner" id="cta-banner">
+      <span>This is a demo of Arc Diary Reader</span>
+      <a href="../index.html">Get the full app &nearr;</a>
+      <button class="cta-close" id="cta-close" title="Dismiss">&times;</button>
+    </div>
+
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js"></script>
+  <script>
+  (() => {
+    'use strict';
+
+    /* ── State ──────────────────────────────────── */
+
+    let tourData = null;
+    let dayKeys = [];
+    let monthKeys = [];          // sorted list of month keys e.g. ["2019-11", "2019-12"]
+    let monthDaysMap = new Map(); // monthKey → [dayKey, ...]
+    let currentMonthIndex = 0;
+    let mapDayKey = null;        // which day's routes are on the map
+    let selectedItem = null;
+    let selectedIndex = -1;
+    let filterNotesOnly = false;
+    let searchQuery = '';
+    let searchMatches = [];      // [{ dayKey, index, item }, ...]
+    let currentMatchIndex = -1;
+
+    let map = null;
+    let tileLayer = null;
+    let currentMapStyle = 'street';
+    let routeLayerGroup = null;  // L.layerGroup for polylines
+    let markerLayerGroup = null; // L.layerGroup for markers (drawn above routes)
+    let markerRefs = [];         // [{ marker, index }]
+    let routeRefs = [];          // [{ border, route, index }]
+
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => document.querySelectorAll(sel);
+
+    /* ── Activity Metadata ──────────────────────── */
+
+    const ACTIVITY_MAP = {
+      stationary:     { label: 'Stationary',    colour: '#7A3CFC' },
+      walking:        { label: 'Walking',       colour: '#12A656' },
+      hiking:         { label: 'Hiking',        colour: '#0E8444' },
+      running:        { label: 'Running',       colour: '#EB781B' },
+      cycling:        { label: 'Cycling',       colour: '#039FD4' },
+      car:            { label: 'Car',           colour: '#4E5268' },
+      bus:            { label: 'Bus',           colour: '#4056B5' },
+      train:          { label: 'Train',         colour: '#AA9131' },
+      metro:          { label: 'Metro',         colour: '#AA9131' },
+      tram:           { label: 'Tram',          colour: '#AA9131' },
+      airplane:       { label: 'Flight',        colour: '#8E1DD2' },
+      boat:           { label: 'Boat',          colour: '#2196F3' },
+      ferry:          { label: 'Ferry',         colour: '#2196F3' },
+      motorcycle:     { label: 'Motorcycle',    colour: '#4E5268' },
+      taxi:           { label: 'Taxi',          colour: '#4E5268' },
+      unknown:        { label: 'Unknown',       colour: '#808080' }
+    };
+
+    const ACTIVITY_ICONS = {
+      walking: '🚶', hiking: '🥾', running: '🏃', cycling: '🚴',
+      car: '🚗', bus: '🚌', train: '🚆', metro: '🚇', tram: '🚊',
+      airplane: '✈️', boat: '⛴️', ferry: '⛴️', motorcycle: '🏍️',
+      taxi: '🚕', stationary: '📍', unknown: '❓'
+    };
+
+    function getActivityInfo(type) {
+      if (!type) return ACTIVITY_MAP.unknown;
+      return ACTIVITY_MAP[type.toLowerCase()] || ACTIVITY_MAP.unknown;
+    }
+
+    function getActivityIcon(type) {
+      if (!type) return '❓';
+      return ACTIVITY_ICONS[type.toLowerCase()] || '❓';
+    }
+
+    /* ── Helpers ────────────────────────────────── */
+
+    function getLocationName(item) {
+      if (item.customTitle) return item.customTitle;
+      if (item.place && item.place.name) return item.place.name;
+      if (item.isVisit && item.streetAddress) return item.streetAddress;
+      if (!item.isVisit) return getActivityInfo(item.activityType).label;
+      return 'Unknown Location';
+    }
+
+    function formatTime(dateStr) {
+      if (!dateStr) return '';
+      const d = new Date(dateStr);
+      return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    }
+
+    function formatDuration(seconds) {
+      if (!seconds || seconds <= 0) return '';
+      const h = Math.floor(seconds / 3600);
+      const m = Math.round((seconds % 3600) / 60);
+      if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+      return `${m}m`;
+    }
+
+    function formatDistance(meters) {
+      if (!meters || meters <= 0) return '';
+      return meters >= 1000 ? (meters / 1000).toFixed(1) + ' km' : Math.round(meters) + ' m';
+    }
+
+    function formatDayLabel(dayKey) {
+      const d = new Date(dayKey + 'T12:00:00');
+      return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    }
+
+    function formatMonthLabel(monthKey) {
+      const [year, month] = monthKey.split('-');
+      const d = new Date(year, parseInt(month) - 1);
+      return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+
+    function getMonthKey(dayKey) {
+      return dayKey.substring(0, 7); // "2019-11"
+    }
+
+    function extractNoteText(item) {
+      if (!item.notes) return '';
+      if (typeof item.notes === 'string') return item.notes.trim();
+      if (Array.isArray(item.notes)) {
+        return item.notes.map(n => (typeof n === 'string' ? n : (n && n.body ? n.body : ''))).filter(Boolean).join('\n---\n').trim();
+      }
+      return '';
+    }
+
+    function renderMarkdown(text) {
+      if (!text) return '';
+      try {
+        const html = marked.parse(text);
+        if (window.DOMPurify) {
+          return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+        }
+        return escapeHtml(text);
+      } catch (e) {
+        return escapeHtml(text);
+      }
+    }
+
+    function haversineDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371000; // Earth radius in meters
+      const toRad = x => x * Math.PI / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat / 2) ** 2 +
+                Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function smoothPolyline(points, iterations) {
+      if (points.length < 3) return points;
+      let pts = points;
+      for (let i = 0; i < (iterations || 4); i++) {
+        const out = [pts[0]];
+        for (let j = 0; j < pts.length - 1; j++) {
+          const a = pts[j], b = pts[j + 1];
+          out.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25]);
+          out.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]);
+        }
+        out.push(pts[pts.length - 1]);
+        pts = out;
+      }
+      return pts;
+    }
+
+    function calculateItemDistance(item) {
+      const points = extractRoutePoints(item);
+      if (points.length < 2) return 0;
+      let total = 0;
+      for (let i = 1; i < points.length; i++) {
+        total += haversineDistance(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1]);
+      }
+      return total;
+    }
+
+    function calculateItemElevationGain(item) {
+      if (!item.samples || !Array.isArray(item.samples)) return 0;
+      let gain = 0;
+      let prevAlt = null;
+      for (const s of item.samples) {
+        if (!s.location || typeof s.location.altitude !== 'number') continue;
+        const alt = s.location.altitude;
+        if (prevAlt !== null && alt > prevAlt) {
+          gain += (alt - prevAlt);
+        }
+        prevAlt = alt;
+      }
+      return gain;
+    }
+
+    function extractRoutePoints(item) {
+      if (!item.samples || !Array.isArray(item.samples) || item.samples.length === 0) return [];
+      return item.samples
+        .filter(s => s.location &&
+          isFinite(s.location.latitude) && isFinite(s.location.longitude) &&
+          s.location.latitude >= -90 && s.location.latitude <= 90 &&
+          s.location.longitude >= -180 && s.location.longitude <= 180)
+        .map(s => [s.location.latitude, s.location.longitude]);
+    }
+
+    function getSortedItems(dayKey) {
+      const day = tourData.days[dayKey];
+      if (!day || !day.timelineItems) return [];
+      return [...day.timelineItems].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+    }
+
+    /* ── Data Loading ──────────────────────────── */
+
+    async function fetchAndLoad() {
+      const statusEl = $('#loading-status');
+      try {
+        statusEl.textContent = 'Fetching tour data...';
+        const resp = await fetch('Resources/japanese-vacation.arctrip');
+        if (!resp.ok) throw new Error('Failed to fetch demo file');
+
+        statusEl.textContent = 'Decompressing...';
+        const buffer = await resp.arrayBuffer();
+        const uint8 = new Uint8Array(buffer);
+        const json = pako.ungzip(uint8, { to: 'string' });
+
+        statusEl.textContent = 'Building diary...';
+        tourData = JSON.parse(json);
+
+        if (!tourData.days || typeof tourData.days !== 'object') {
+          throw new Error('Invalid tour data');
+        }
+
+        dayKeys = Object.keys(tourData.days).sort();
+        if (dayKeys.length === 0) throw new Error('Tour has no days');
+
+        // Build month index
+        monthDaysMap = new Map();
+        dayKeys.forEach(dk => {
+          const mk = getMonthKey(dk);
+          if (!monthDaysMap.has(mk)) monthDaysMap.set(mk, []);
+          monthDaysMap.get(mk).push(dk);
+        });
+        monthKeys = [...monthDaysMap.keys()].sort();
+        currentMonthIndex = 0;
+
+        // Populate header
+        $('#tour-title').textContent = tourData.title || 'Tour Demo';
+        const subtitle = [];
+        if (tourData.author) subtitle.push('by ' + tourData.author);
+        subtitle.push(dayKeys.length + ' days');
+        $('#tour-subtitle').textContent = subtitle.join(' \u00B7 ');
+
+        // Show app, hide loading
+        $('#app').style.display = 'flex';
+        initMap();
+        initMonthNav();
+        renderDiary();
+        // Show first day of current month on map
+        const firstMonthDays = monthDaysMap.get(monthKeys[0]);
+        if (firstMonthDays && firstMonthDays.length > 0) {
+          renderDayOnMap(firstMonthDays[0]);
+        }
+
+        const loading = $('#loading-screen');
+        loading.classList.add('fade-out');
+        setTimeout(() => loading.remove(), 500);
+
+      } catch (err) {
+        statusEl.textContent = 'Error: ' + err.message;
+        console.error(err);
+      }
+    }
+
+    /* ── Month Navigation ─────────────────────── */
+
+    function initMonthNav() {
+      $('#month-prev').addEventListener('click', () => navigateMonth(-1));
+      $('#month-next').addEventListener('click', () => navigateMonth(1));
+      $('#month-nav-title').addEventListener('click', () => {
+        const mk = monthKeys[currentMonthIndex];
+        const days = monthDaysMap.get(mk);
+        if (days) showMonthOnMap(days);
+      });
+    }
+
+    function navigateMonth(dir) {
+      const newIndex = currentMonthIndex + dir;
+      if (newIndex < 0 || newIndex >= monthKeys.length) return;
+      currentMonthIndex = newIndex;
+      renderDiary();
+      // Show first day of new month on map
+      const mk = monthKeys[currentMonthIndex];
+      const days = monthDaysMap.get(mk);
+      if (days && days.length > 0) {
+        showDayOnMap(days[0]);
+      }
+    }
+
+    function updateMonthNav() {
+      const mk = monthKeys[currentMonthIndex];
+      $('#month-nav-title').textContent = formatMonthLabel(mk);
+      $('#month-prev').disabled = (currentMonthIndex === 0);
+      $('#month-next').disabled = (currentMonthIndex === monthKeys.length - 1);
+    }
+
+    /* ── Search ────────────────────────────────── */
+
+    function itemMatchesSearch(item, query) {
+      const name = getLocationName(item).toLowerCase();
+      const note = extractNoteText(item).toLowerCase();
+      const activity = getActivityInfo(item.isVisit ? 'stationary' : item.activityType).label.toLowerCase();
+      return name.includes(query) || note.includes(query) || activity.includes(query);
+    }
+
+    function buildSearchMatches() {
+      searchMatches = [];
+      if (!searchQuery) return;
+      const q = searchQuery.toLowerCase();
+      dayKeys.forEach(dayKey => {
+        const items = getSortedItems(dayKey);
+        items.forEach((item, index) => {
+          if (itemMatchesSearch(item, q)) {
+            searchMatches.push({ dayKey, index, item });
+          }
+        });
+      });
+    }
+
+    function updateSearchUI() {
+      const countEl = $('#search-count');
+      if (searchMatches.length === 0 && searchQuery) {
+        countEl.textContent = '0';
+      } else if (searchMatches.length > 0) {
+        countEl.textContent = `${currentMatchIndex + 1}/${searchMatches.length}`;
+      } else {
+        countEl.textContent = '';
+      }
+      $('#search-prev').disabled = searchMatches.length === 0;
+      $('#search-next').disabled = searchMatches.length === 0;
+    }
+
+    function navigateToMatch(index) {
+      if (searchMatches.length === 0) return;
+      // Wrap around
+      if (index < 0) index = searchMatches.length - 1;
+      if (index >= searchMatches.length) index = 0;
+      currentMatchIndex = index;
+
+      const match = searchMatches[currentMatchIndex];
+
+      // Switch to the correct month if needed
+      const mk = getMonthKey(match.dayKey);
+      const monthIdx = monthKeys.indexOf(mk);
+      if (monthIdx !== -1 && monthIdx !== currentMonthIndex) {
+        currentMonthIndex = monthIdx;
+        renderDiary();
+      }
+
+      // Select the entry (this loads the day on map and highlights)
+      selectEntry(match.dayKey, match.index, match.item);
+      updateSearchUI();
+    }
+
+    /* ── Diary Rendering (single month page) ── */
+
+    function renderDiary() {
+      const itemList = $('#item-list');
+      itemList.innerHTML = '';
+
+      updateMonthNav();
+
+      const monthKey = monthKeys[currentMonthIndex];
+      const monthDays = monthDaysMap.get(monthKey) || [];
+
+      monthDays.forEach(dayKey => {
+        const items = getSortedItems(dayKey);
+        const displayItems = filterNotesOnly
+          ? items.filter(it => extractNoteText(it))
+          : items;
+        if (displayItems.length === 0 && filterNotesOnly) return;
+
+        const dayHeader = document.createElement('h2');
+        dayHeader.className = 'day-header';
+        dayHeader.dataset.day = dayKey;
+        dayHeader.textContent = formatDayLabel(dayKey);
+        dayHeader.title = 'Click to show all routes for this day';
+        dayHeader.addEventListener('click', () => showDayOnMap(dayKey));
+        itemList.appendChild(dayHeader);
+
+        if (displayItems.length === 0) {
+          const empty = document.createElement('p');
+          empty.style.cssText = 'color:var(--text-secondary); font-size:12px; margin:4px 0 8px;';
+          empty.textContent = 'No timeline items.';
+          itemList.appendChild(empty);
+          return;
+        }
+
+        const ul = document.createElement('ul');
+        ul.className = 'day-entries';
+        displayItems.forEach(item => {
+          const originalIndex = items.indexOf(item);
+          ul.appendChild(createEntry(item, originalIndex, dayKey));
+        });
+        itemList.appendChild(ul);
+      });
+    }
+
+    /* ── Show all routes for a day or month ────── */
+
+    function showDayOnMap(dayKey) {
+      if (replay.active) cleanupReplay();
+      selectedItem = null;
+      selectedIndex = -1;
+      $$('.day-entries li.selected').forEach(el => el.classList.remove('selected'));
+      // Highlight the active day header
+      $$('.day-header.active').forEach(el => el.classList.remove('active'));
+      const header = $(`.day-header[data-day="${dayKey}"]`);
+      if (header) header.classList.add('active');
+      renderDayOnMap(dayKey);
+    }
+
+    function showMonthOnMap(monthDays) {
+      selectedItem = null;
+      selectedIndex = -1;
+      $$('.day-entries li.selected').forEach(el => el.classList.remove('selected'));
+      $('#stats-float').style.display = 'none';
+      routeLayerGroup.clearLayers();
+      markerLayerGroup.clearLayers();
+      markerRefs = [];
+      routeRefs = [];
+      mapDayKey = null;
+
+      const allBounds = [];
+
+      monthDays.forEach(dayKey => {
+        const items = getSortedItems(dayKey);
+
+        items.forEach((item, index) => {
+          if (item.isVisit) return;
+          const info = getActivityInfo(item.activityType);
+          const points = extractRoutePoints(item);
+          if (points.length >= 2) {
+            const smooth = smoothPolyline(points);
+            const border = L.polyline(smooth, {
+              color: '#ffffff', weight: 10, opacity: 0.8
+            }).addTo(routeLayerGroup);
+            const route = L.polyline(smooth, {
+              color: info.colour, weight: 5, opacity: 1
+            }).addTo(routeLayerGroup);
+            routeRefs.push({ border, route, index });
+            allBounds.push(...points);
+          }
+        });
+
+        items.forEach((item, index) => {
+          if (item.isVisit && item.center && item.center.latitude && item.center.longitude) {
+            const marker = L.circleMarker(
+              [item.center.latitude, item.center.longitude],
+              { radius: 7, fill: true, fillColor: '#7A3CFC', fillOpacity: 1, color: '#ffffff', weight: 2 }
+            ).addTo(markerLayerGroup);
+            const name = getLocationName(item);
+            marker.bindPopup(`<strong>${escapeHtml(name)}</strong>`, { maxWidth: 250 });
+            markerRefs.push({ marker, index });
+            allBounds.push([item.center.latitude, item.center.longitude]);
+          }
+        });
+      });
+
+      if (allBounds.length > 0) {
+        map.fitBounds(L.latLngBounds(allBounds), getMapPadding());
+      }
+    }
+
+    function createEntry(item, index, dayKey) {
+      const info = getActivityInfo(item.isVisit ? 'stationary' : item.activityType);
+      const name = getLocationName(item);
+      const startTime = formatTime(item.startDate);
+      const noteText = extractNoteText(item);
+      let durationSecs = 0;
+      if (item.startDate && item.endDate) {
+        durationSecs = (new Date(item.endDate) - new Date(item.startDate)) / 1000;
+      }
+
+      const li = document.createElement('li');
+      li.dataset.day = dayKey;
+      li.dataset.index = index;
+
+      // Build bullet header: "TIME Name · duration · distance"
+      const metrics = [];
+      if (durationSecs > 0) metrics.push(formatDuration(durationSecs));
+      if (!item.isVisit && item.distance) metrics.push(formatDistance(item.distance));
+      const metricStr = metrics.length > 0 ? ' \u00B7 ' + metrics.join(' \u00B7 ') : '';
+
+      // Visits are bold, activities are coloured (matching Arc Reader)
+      if (item.isVisit) {
+        li.innerHTML = `<strong>${escapeHtml(startTime)} ${escapeHtml(name)}</strong><span class="entry-meta">${escapeHtml(metricStr)}</span>`;
+      } else {
+        li.innerHTML = `<span style="color:${info.colour};">${escapeHtml(startTime)} ${escapeHtml(name)}</span><span class="entry-meta">${escapeHtml(metricStr)}</span>`;
+      }
+
+      // Note body (markdown)
+      if (noteText) {
+        const noteEl = document.createElement('div');
+        noteEl.className = 'entry-note';
+        noteEl.innerHTML = renderMarkdown(noteText);
+        li.appendChild(noteEl);
+      }
+
+      // Click → show this day on map and select this item
+      li.addEventListener('click', () => {
+        selectEntry(dayKey, index, item);
+      });
+
+      return li;
+    }
+
+    /* ── Entry Selection + Map Interaction ──────── */
+
+    function selectEntry(dayKey, index, item, opts = {}) {
+      selectedItem = item;
+      selectedIndex = index;
+
+      // Highlight in diary (clear day header active state)
+      $$('.day-header.active').forEach(el => el.classList.remove('active'));
+      $$('.day-entries li.selected').forEach(el => el.classList.remove('selected'));
+      const li = $(`.day-entries li[data-day="${dayKey}"][data-index="${index}"]`);
+      if (li) li.classList.add('selected');
+
+      // Load this day's routes on map if not already showing
+      if (dayKey !== mapDayKey) {
+        renderDayOnMap(dayKey);
+      }
+
+      highlightMapItem(index);
+
+      if (!opts.skipMapPan) {
+        panMapToItem(item);
+        if (li) li.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }
+
+    function selectItemFromMap(index) {
+      const items = getSortedItems(mapDayKey);
+      if (index >= 0 && index < items.length) {
+        selectEntry(mapDayKey, index, items[index]);
+      }
+    }
+
+    function getMapPadding() {
+      const panel = $('#diary-panel');
+      const statsPanel = $('#stats-float');
+      const elevPanel = $('#elevation-float');
+      const panelWidth = panel ? panel.offsetWidth + 30 : 0;
+      const statsWidth = (statsPanel && statsPanel.style.display !== 'none') ? statsPanel.offsetWidth + 30 : 0;
+      const elevHeight = (elevationVisible && elevPanel && elevPanel.style.display !== 'none') ? elevPanel.offsetHeight + 30 : 40;
+      return { paddingTopLeft: [panelWidth, 40], paddingBottomRight: [statsWidth, elevHeight] };
+    }
+
+    function panMapToItem(item) {
+      if (!map) return;
+      const padding = getMapPadding();
+
+      if (item.center && item.center.latitude && item.center.longitude) {
+        const latlng = L.latLng(item.center.latitude, item.center.longitude);
+        map.flyToBounds(latlng.toBounds(200), {
+          ...padding,
+          maxZoom: Math.max(map.getZoom(), 14),
+          duration: 0.5
+        });
+      } else {
+        const points = extractRoutePoints(item);
+        if (points.length >= 2) {
+          map.flyToBounds(L.latLngBounds(points), { ...padding, duration: 0.5 });
+        }
+      }
+
+      // Open popup on the marker or route
+      markerRefs.forEach(ref => {
+        if (ref.index === selectedIndex) {
+          ref.marker.openPopup();
+        }
+      });
+      routeRefs.forEach(ref => {
+        if (ref.index === selectedIndex) {
+          ref.route.openPopup();
+        }
+      });
+    }
+
+    function highlightMapItem(index) {
+      const noneSelected = (index === -1);
+
+      // Markers
+      markerRefs.forEach(ref => {
+        if (!noneSelected && ref.index === index) {
+          ref.marker.setRadius(11);
+          ref.marker.setStyle({ fillOpacity: 1, weight: 3 });
+        } else {
+          ref.marker.setRadius(7);
+          ref.marker.setStyle({ fillOpacity: noneSelected ? 1 : 0.6, weight: 2 });
+        }
+      });
+
+      // Routes
+      routeRefs.forEach(ref => {
+        if (!noneSelected && ref.index === index) {
+          ref.route.setStyle({ weight: 8, opacity: 1 });
+          ref.border.setStyle({ weight: 12, opacity: 1 });
+          ref.route.bringToFront();
+        } else {
+          ref.route.setStyle({ weight: 5, opacity: noneSelected ? 1 : 0.2 });
+          ref.border.setStyle({ weight: 10, opacity: noneSelected ? 0.8 : 0.2 });
+        }
+      });
+    }
+
+    function clearSelection() {
+      selectedItem = null;
+      selectedIndex = -1;
+      $$('.day-entries li.selected').forEach(el => el.classList.remove('selected'));
+      highlightMapItem(-1);
+      // Close any open popups
+      map.closePopup();
+    }
+
+    /** Highlight a diary entry without panning the map (used by replay) */
+    function highlightDiaryEntry(dayKey, index) {
+      $$('.day-header.active').forEach(el => el.classList.remove('active'));
+      $$('.day-entries li.selected').forEach(el => el.classList.remove('selected'));
+      const li = $(`.day-entries li[data-day="${dayKey}"][data-index="${index}"]`);
+      if (li) {
+        li.classList.add('selected');
+        li.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }
+
+    /* ── Map ────────────────────────────────────── */
+
+    function initMap() {
+      map = L.map('map-container', {
+        zoomControl: false,
+        attributionControl: true,
+        preferCanvas: true
+      }).setView([35.68, 139.69], 10);
+
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      routeLayerGroup = L.layerGroup().addTo(map);
+      markerLayerGroup = L.layerGroup().addTo(map);
+      updateMapTiles();
+
+      // Click on empty map area → unselect any selected entry
+      map.on('click', () => {
+        if (selectedIndex !== -1) {
+          clearSelection();
+        }
+      });
+    }
+
+    const TILE_CONFIGS = {
+      street: {
+        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+        maxZoom: 19
+      },
+      cycle: {
+        url: 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://www.cyclosm.org/">CyclOSM</a>',
+        maxZoom: 20
+      },
+      satellite: {
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        attribution: '&copy; Esri, Maxar, Earthstar Geographics',
+        maxZoom: 19
+      }
+    };
+
+    function updateMapTiles(style) {
+      if (style) currentMapStyle = style;
+      if (tileLayer) map.removeLayer(tileLayer);
+      const config = TILE_CONFIGS[currentMapStyle] || TILE_CONFIGS.street;
+      tileLayer = L.tileLayer(config.url, {
+        attribution: config.attribution,
+        maxZoom: config.maxZoom,
+        crossOrigin: 'anonymous'
+      }).addTo(map);
+      // Satellite brightness boost
+      const tilePane = map.getPane('tilePane');
+      if (tilePane) {
+        tilePane.classList.toggle('satellite-boost', currentMapStyle === 'satellite');
+      }
+      // Update button active states
+      $$('.tile-btn').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = $(`#tile-${currentMapStyle}`);
+      if (activeBtn) activeBtn.classList.add('active');
+    }
+
+    function initTileSwitcher() {
+      ['street', 'cycle', 'satellite'].forEach(style => {
+        const btn = $(`#tile-${style}`);
+        if (btn) btn.addEventListener('click', () => updateMapTiles(style));
+      });
+    }
+
+    function renderDayOnMap(dayKey) {
+      mapDayKey = dayKey;
+      routeLayerGroup.clearLayers();
+      markerLayerGroup.clearLayers();
+      markerRefs = [];
+      routeRefs = [];
+
+      const items = getSortedItems(dayKey);
+      const allBounds = [];
+
+      // First pass: draw routes for activity items only (visits are markers, never polylines)
+      items.forEach((item, index) => {
+        if (item.isVisit) return;
+
+        const info = getActivityInfo(item.activityType);
+        const points = extractRoutePoints(item);
+
+        if (points.length >= 2) {
+          const smooth = smoothPolyline(points);
+          const border = L.polyline(smooth, {
+            color: '#ffffff', weight: 10, opacity: 0.8, bubblingMouseEvents: false
+          }).addTo(routeLayerGroup);
+
+          const route = L.polyline(smooth, {
+            color: info.colour, weight: 5, opacity: 1, bubblingMouseEvents: false
+          }).addTo(routeLayerGroup);
+
+          // Build popup for this activity
+          const dist = item.distance || calculateItemDistance(item);
+          const durSec = (item.startDate && item.endDate)
+            ? (new Date(item.endDate) - new Date(item.startDate)) / 1000 : 0;
+          let popupHtml = `<strong>${escapeHtml(info.label)}</strong>`;
+          const timeStr = formatTime(item.startDate);
+          const endStr = formatTime(item.endDate);
+          if (timeStr) popupHtml += `<div class="popup-time">${escapeHtml(timeStr)}${endStr ? ' – ' + escapeHtml(endStr) : ''}</div>`;
+          const parts = [];
+          if (dist > 0) parts.push(formatDistance(dist));
+          if (durSec > 0) parts.push(formatDuration(durSec));
+          if (parts.length) popupHtml += `<div class="popup-time">${escapeHtml(parts.join(' · '))}</div>`;
+          route.bindPopup(popupHtml, { maxWidth: 250 });
+
+          route.on('click', () => selectItemFromMap(index));
+          border.on('click', () => selectItemFromMap(index));
+
+          routeRefs.push({ border, route, index });
+          allBounds.push(...points);
+        }
+
+        if (item.center && item.center.latitude && item.center.longitude) {
+          allBounds.push([item.center.latitude, item.center.longitude]);
+        }
+      });
+
+      // Second pass: draw visit markers (on top of routes)
+      items.forEach((item, index) => {
+        if (item.isVisit && item.center && item.center.latitude && item.center.longitude) {
+          const marker = L.circleMarker(
+            [item.center.latitude, item.center.longitude],
+            {
+              radius: 7,
+              fill: true,
+              fillColor: '#7A3CFC',
+              fillOpacity: 1,
+              color: '#ffffff',
+              weight: 2,
+              bubblingMouseEvents: false
+            }
+          ).addTo(markerLayerGroup);
+
+          const name = getLocationName(item);
+          const time = formatTime(item.startDate);
+          const note = extractNoteText(item);
+          const excerpt = note ? (note.length > 120 ? note.substring(0, 120) + '...' : note) : '';
+
+          let html = `<strong>${escapeHtml(name)}</strong>`;
+          if (time) html += `<div class="popup-time">${escapeHtml(time)}</div>`;
+          if (excerpt) html += `<div class="popup-note">${escapeHtml(excerpt)}</div>`;
+
+          marker.bindPopup(html, { maxWidth: 250 });
+          marker.on('click', () => selectItemFromMap(index));
+
+          markerRefs.push({ marker, index });
+          allBounds.push([item.center.latitude, item.center.longitude]);
+        }
+      });
+
+      // Show stats panel for this day
+      showStatsPanel(dayKey);
+
+      // Update elevation panel if visible
+      if (elevationVisible) showElevationPanel(dayKey);
+
+      // Fit map to all points (offset for diary + stats + elevation panels)
+      if (allBounds.length > 0) {
+        const padding = getMapPadding();
+        map.fitBounds(L.latLngBounds(allBounds), padding);
+      }
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    /* ── Stats Panel ──────────────────────────── */
+
+    function calculateDayStats(dayKey) {
+      const items = getSortedItems(dayKey);
+      const stats = {};
+
+      items.forEach(item => {
+        if (item.isVisit) return;
+        if (!item.activityType) return;
+
+        const type = item.activityType.toLowerCase();
+        if (type === 'stationary' || type === 'unknown') return;
+
+        if (!stats[type]) {
+          stats[type] = { distance: 0, duration: 0, elevationGain: 0, count: 0 };
+        }
+
+        // Use pre-computed distance if available, otherwise calculate from samples
+        const dist = item.distance || calculateItemDistance(item);
+        stats[type].distance += dist;
+
+        if (item.startDate && item.endDate) {
+          stats[type].duration += (new Date(item.endDate) - new Date(item.startDate)) / 1000;
+        }
+
+        // Use pre-computed elevation gain if available, otherwise calculate from samples
+        const elev = item.elevationGain || calculateItemElevationGain(item);
+        stats[type].elevationGain += elev;
+
+        stats[type].count += 1;
+      });
+
+      // Only keep activities with distance
+      const filtered = {};
+      for (const type in stats) {
+        if (stats[type].distance > 0) filtered[type] = stats[type];
+      }
+      return filtered;
+    }
+
+    function showStatsPanel(dayKey) {
+      const panel = $('#stats-float');
+      const tilesEl = $('#stats-tiles');
+      const titleEl = $('#stats-title');
+
+      const stats = calculateDayStats(dayKey);
+
+      if (Object.keys(stats).length === 0) {
+        panel.style.display = 'none';
+        return;
+      }
+
+      // Title: day label with line break after comma
+      const label = formatDayLabel(dayKey);
+      if (label.includes(',')) {
+        const parts = label.split(',');
+        titleEl.innerHTML = escapeHtml(parts[0]) + ',<br>' + escapeHtml(parts.slice(1).join(',').trim());
+      } else {
+        titleEl.textContent = label;
+      }
+
+      tilesEl.innerHTML = '';
+
+      // Sort: walking first, then by distance descending
+      const sortOrder = ['walking', 'hiking', 'running', 'cycling', 'car', 'motorcycle', 'airplane', 'boat', 'ferry', 'train', 'metro', 'tram', 'bus'];
+      const sorted = Object.keys(stats).sort((a, b) => {
+        const ia = sortOrder.indexOf(a);
+        const ib = sortOrder.indexOf(b);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return stats[b].distance - stats[a].distance;
+      });
+
+      sorted.forEach(type => {
+        const stat = stats[type];
+        const info = getActivityInfo(type);
+        const icon = getActivityIcon(type);
+
+        const tile = document.createElement('div');
+        tile.className = 'stats-tile';
+        tile.style.background = info.colour;
+
+        let html = `<div class="stats-tile-header"><span class="stats-tile-icon">${icon}</span><span class="stats-tile-name">${escapeHtml(info.label)}</span></div>`;
+        html += `<div class="stats-tile-distance">${formatDistance(stat.distance)}</div>`;
+        if (stat.duration > 0) html += `<div class="stats-tile-meta">${formatDuration(stat.duration)}</div>`;
+        if (stat.elevationGain > 0) html += `<div class="stats-tile-elevation">\u2191 ${Math.round(stat.elevationGain)}m</div>`;
+
+        tile.innerHTML = html;
+        tilesEl.appendChild(tile);
+      });
+
+      panel.style.display = 'flex';
+    }
+
+    function initStatsPanel() {
+      $('#stats-close').addEventListener('click', () => {
+        $('#stats-float').style.display = 'none';
+      });
+    }
+
+
+    /* ── Elevation Panel ──────────────────────── */
+
+    let elevationVisible = false;   // user preference — persists across day changes
+    let elevationData = null;       // cached data for current day
+    let elevationHoverMarker = null;
+
+    function buildElevationData(dayKey) {
+      const items = getSortedItems(dayKey);
+      const points = [];  // { dist, alt, activityType, lat, lng, itemIndex }
+      let cumDist = 0;
+      let totalAscent = 0;
+      let totalDescent = 0;
+      let prevAlt = null;
+
+      items.forEach((item, itemIndex) => {
+        if (item.isVisit || !item.samples || !Array.isArray(item.samples)) return;
+        const type = (item.activityType || 'unknown').toLowerCase();
+        let prevLat = null, prevLng = null;
+
+        for (const s of item.samples) {
+          if (!s.location || typeof s.location.altitude !== 'number') continue;
+          if (!isFinite(s.location.latitude) || !isFinite(s.location.longitude)) continue;
+          const lat = s.location.latitude;
+          const lng = s.location.longitude;
+          const alt = s.location.altitude;
+
+          if (prevLat !== null) {
+            cumDist += haversineDistance(prevLat, prevLng, lat, lng);
+          }
+
+          if (prevAlt !== null) {
+            const diff = alt - prevAlt;
+            if (diff > 0) totalAscent += diff;
+            else totalDescent += Math.abs(diff);
+          }
+          prevAlt = alt;
+
+          points.push({ dist: cumDist, alt, activityType: type, lat, lng, itemIndex });
+          prevLat = lat;
+          prevLng = lng;
+        }
+      });
+
+      if (points.length === 0) return null;
+
+      const alts = points.map(p => p.alt);
+      return {
+        points,
+        totalDist: cumDist,
+        minAlt: Math.min(...alts),
+        maxAlt: Math.max(...alts),
+        totalAscent,
+        totalDescent
+      };
+    }
+
+    function positionElevationPanel() {
+      const panel = $('#elevation-float');
+      if (!panel) return;
+      const diary = $('#diary-panel');
+      const stats = $('#stats-float');
+      const buffer = 20;
+
+      const diaryRight = diary ? (diary.offsetLeft + diary.offsetWidth + buffer) : 30;
+      const statsLeft = stats && stats.style.display !== 'none'
+        ? (stats.offsetWidth + buffer + 15)  // 15 = stats right offset
+        : 30;
+
+      panel.style.left = diaryRight + 'px';
+      panel.style.right = statsLeft + 'px';
+    }
+
+    let elevationMapBound = false;
+
+    function showElevationPanel(dayKey) {
+      // Bind map moveend listener once (map exists by now)
+      if (!elevationMapBound) {
+        elevationMapBound = true;
+        map.on('moveend', () => {
+          if (elevationVisible && elevationData) {
+            updateElevationForMapBounds();
+          }
+        });
+      }
+
+      const panel = $('#elevation-float');
+      const body = panel.querySelector('.elevation-body');
+      const empty = $('#elevation-empty');
+
+      elevationData = buildElevationData(dayKey);
+
+      if (!elevationData) {
+        body.style.display = 'none';
+        empty.style.display = 'block';
+        positionElevationPanel();
+        panel.style.display = 'flex';
+        return;
+      }
+
+      body.style.display = 'block';
+      empty.style.display = 'none';
+
+      positionElevationPanel();
+      panel.style.display = 'flex';
+      updateElevationForMapBounds();
+    }
+
+    // Get the subset of elevation points visible within the current map bounds
+    function getVisibleElevationPoints() {
+      if (!elevationData) return null;
+      const bounds = map.getBounds();
+      const vis = elevationData.points.filter(p =>
+        bounds.contains([p.lat, p.lng])
+      );
+      return vis.length > 0 ? vis : null;
+    }
+
+    // Redraw chart + stats to match what the map is currently showing
+    function updateElevationForMapBounds() {
+      if (!elevationData || !elevationVisible) return;
+      updateElevationStats();
+      drawElevationChart();
+    }
+
+    function updateElevationStats() {
+      if (!elevationData) return;
+      const statsEl = $('#elevation-stats');
+      const visPts = getVisibleElevationPoints();
+
+      if (!visPts) { statsEl.innerHTML = ''; return; }
+
+      const dist = visPts[visPts.length - 1].dist - visPts[0].dist;
+      let ascent = 0, descent = 0;
+      let prevAlt = null;
+      for (const p of visPts) {
+        if (prevAlt !== null) {
+          const d = p.alt - prevAlt;
+          if (d > 0) ascent += d; else descent += Math.abs(d);
+        }
+        prevAlt = p.alt;
+      }
+
+      const alts = visPts.map(p => p.alt);
+      const minA = Math.min(...alts);
+      const maxA = Math.max(...alts);
+
+      const distLabel = dist >= 1000
+        ? (dist / 1000).toFixed(1) + ' km'
+        : Math.round(dist) + ' m';
+      const diff = Math.round(maxA - minA);
+      statsEl.innerHTML =
+        `<span class="elevation-stat-tag">Dist ${distLabel}</span>` +
+        `<span class="elevation-stat-tag">Min ${Math.round(minA)}m</span>` +
+        `<span class="elevation-stat-tag">Max ${Math.round(maxA)}m</span>` +
+        `<span class="elevation-stat-tag">Gain ↑${Math.round(ascent)}m</span>` +
+        `<span class="elevation-stat-tag">Δ ${diff}m</span>`;
+    }
+
+    function drawElevationChart() {
+      if (!elevationData) return;
+      const canvas = $('#elevation-canvas');
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+      const W = rect.width;
+      const H = rect.height;
+
+      const PAD_LEFT = 36;
+      const PAD_RIGHT = 8;
+      const PAD_TOP = 8;
+      const PAD_BOTTOM = 20;
+      const chartW = W - PAD_LEFT - PAD_RIGHT;
+      const chartH = H - PAD_TOP - PAD_BOTTOM;
+
+      // Show only points visible within the current map bounds
+      const visPoints = getVisibleElevationPoints();
+      if (!visPoints) {
+        ctx.clearRect(0, 0, W, H);
+        return;
+      }
+
+      const distMin = visPoints[0].dist;
+      const distMax = visPoints[visPoints.length - 1].dist;
+
+      // Compute alt range from visible points
+      const visAlts = visPoints.map(p => p.alt);
+      const visMinAlt = Math.min(...visAlts);
+      const visMaxAlt = Math.max(...visAlts);
+      const altRange = visMaxAlt - visMinAlt || 1;
+      const altPad = altRange * 0.1;
+      const yMin = visMinAlt - altPad;
+      const yMax = visMaxAlt + altPad;
+      const yRange = yMax - yMin;
+      const distRange = distMax - distMin || 1;
+
+      const toX = d => PAD_LEFT + ((d - distMin) / distRange) * chartW;
+      const toY = a => PAD_TOP + chartH - ((a - yMin) / yRange) * chartH;
+
+      // Clear
+      ctx.clearRect(0, 0, W, H);
+
+      // Gridlines
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+      ctx.lineWidth = 0.5;
+      ctx.font = '9px -apple-system, sans-serif';
+      ctx.fillStyle = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)';
+      ctx.textAlign = 'right';
+
+      // Choose grid interval
+      const rawStep = yRange / 4;
+      const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+      const steps = [1, 2, 5, 10, 20, 50, 100, 200, 500];
+      let gridStep = steps.find(s => s * mag >= rawStep) * mag || rawStep;
+      if (gridStep < 1) gridStep = 1;
+
+      const gridStart = Math.ceil(yMin / gridStep) * gridStep;
+      for (let v = gridStart; v <= yMax; v += gridStep) {
+        const y = toY(v);
+        ctx.beginPath();
+        ctx.moveTo(PAD_LEFT, y);
+        ctx.lineTo(W - PAD_RIGHT, y);
+        ctx.stroke();
+        ctx.fillText(Math.round(v) + 'm', PAD_LEFT - 4, y + 3);
+      }
+
+      // X-axis labels
+      ctx.textAlign = 'center';
+      const fmtDist = d => d >= 1 ? d.toFixed(1) + ' km' : Math.round(d * 1000) + ' m';
+      ctx.fillText(fmtDist(distMin / 1000), toX(distMin), H - 4);
+      ctx.fillText(fmtDist(distMax / 1000), toX(distMax), H - 4);
+      if (distRange / 1000 > 2) {
+        const midDist = (distMin + distMax) / 2;
+        ctx.fillText(fmtDist(midDist / 1000), toX(midDist), H - 4);
+      }
+
+      // Filled area + coloured line, segmented by activity type
+      // First draw the fill (single colour)
+      ctx.beginPath();
+      ctx.moveTo(toX(visPoints[0].dist), toY(yMin));
+      for (const p of visPoints) {
+        ctx.lineTo(toX(p.dist), toY(p.alt));
+      }
+      ctx.lineTo(toX(visPoints[visPoints.length - 1].dist), toY(yMin));
+      ctx.closePath();
+
+      const grad = ctx.createLinearGradient(0, PAD_TOP, 0, PAD_TOP + chartH);
+      grad.addColorStop(0, isDark ? 'rgba(102,126,234,0.25)' : 'rgba(102,126,234,0.15)');
+      grad.addColorStop(1, isDark ? 'rgba(102,126,234,0.03)' : 'rgba(102,126,234,0.02)');
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Draw line segments coloured by activity
+      ctx.lineWidth = 1.5;
+      ctx.lineJoin = 'round';
+      let currentType = visPoints[0].activityType;
+      ctx.beginPath();
+      ctx.moveTo(toX(visPoints[0].dist), toY(visPoints[0].alt));
+      ctx.strokeStyle = getActivityInfo(currentType).colour;
+
+      for (let i = 1; i < visPoints.length; i++) {
+        const p = visPoints[i];
+        if (p.activityType !== currentType) {
+          // Finish current segment
+          ctx.lineTo(toX(p.dist), toY(p.alt));
+          ctx.stroke();
+          // Start new segment
+          currentType = p.activityType;
+          ctx.beginPath();
+          ctx.moveTo(toX(p.dist), toY(p.alt));
+          ctx.strokeStyle = getActivityInfo(currentType).colour;
+        } else {
+          ctx.lineTo(toX(p.dist), toY(p.alt));
+        }
+      }
+      ctx.stroke();
+    }
+
+    // Find the nearest elevation point for a given mouse X position on the chart
+    function findElevationPointAtX(mx, canvasRect) {
+      const PAD_LEFT = 36;
+      const PAD_RIGHT = 8;
+      const chartW = canvasRect.width - PAD_LEFT - PAD_RIGHT;
+
+      if (mx < PAD_LEFT || mx > canvasRect.width - PAD_RIGHT) return null;
+
+      const visPts = getVisibleElevationPoints();
+      if (!visPts || visPts.length === 0) return null;
+
+      const distMin = visPts[0].dist;
+      const distMax = visPts[visPts.length - 1].dist;
+      const frac = (mx - PAD_LEFT) / chartW;
+      const targetDist = distMin + frac * (distMax - distMin);
+
+      // Binary search for nearest point
+      let lo = 0, hi = visPts.length - 1;
+      while (lo < hi - 1) {
+        const mid = (lo + hi) >> 1;
+        if (visPts[mid].dist <= targetDist) lo = mid; else hi = mid;
+      }
+      return (Math.abs(visPts[lo].dist - targetDist) < Math.abs(visPts[hi].dist - targetDist)) ? visPts[lo] : visPts[hi];
+    }
+
+    function handleElevationHover(e) {
+      if (!elevationData) return;
+      const canvas = $('#elevation-canvas');
+      const tooltip = $('#elevation-tooltip');
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+
+      const nearest = findElevationPointAtX(mx, rect);
+      if (!nearest) {
+        tooltip.style.display = 'none';
+        if (elevationHoverMarker) { map.removeLayer(elevationHoverMarker); elevationHoverMarker = null; }
+        return;
+      }
+
+      // Tooltip
+      const distLabel = nearest.dist >= 1000
+        ? (nearest.dist / 1000).toFixed(1) + ' km'
+        : Math.round(nearest.dist) + ' m';
+      tooltip.textContent = `${Math.round(nearest.alt)}m  ·  ${distLabel}`;
+      tooltip.style.display = 'block';
+
+      // Position tooltip above cursor
+      const panelRect = $('#elevation-float').querySelector('.elevation-body').getBoundingClientRect();
+      let tx = e.clientX - panelRect.left + 8;
+      let ty = e.clientY - panelRect.top - 28;
+      if (tx + 100 > panelRect.width) tx = e.clientX - panelRect.left - 100;
+      if (ty < 0) ty = e.clientY - panelRect.top + 12;
+      tooltip.style.left = tx + 'px';
+      tooltip.style.top = ty + 'px';
+
+      // Draw crosshair on canvas
+      drawElevationChart();
+      const dpr = window.devicePixelRatio || 1;
+      const ctx = canvas.getContext('2d');
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      ctx.save();
+      ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)';
+      ctx.lineWidth = 0.5;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(mx * dpr, 0);
+      ctx.lineTo(mx * dpr, rect.height * dpr);
+      ctx.stroke();
+      ctx.restore();
+
+      // Hover marker on map
+      if (elevationHoverMarker) map.removeLayer(elevationHoverMarker);
+      elevationHoverMarker = L.marker([nearest.lat, nearest.lng], {
+        icon: L.divIcon({
+          className: 'elevation-hover-marker',
+          iconSize: [18, 18],
+          iconAnchor: [9, 9]
+        }),
+        interactive: false,
+        zIndexOffset: 1000
+      }).addTo(map);
+    }
+
+    function handleElevationLeave() {
+      const tooltip = $('#elevation-tooltip');
+      tooltip.style.display = 'none';
+      if (elevationHoverMarker) { map.removeLayer(elevationHoverMarker); elevationHoverMarker = null; }
+      drawElevationChart(); // redraw without crosshair
+    }
+
+    function handleElevationClick(e) {
+      if (!elevationData) return;
+      const canvas = $('#elevation-canvas');
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+
+      const nearest = findElevationPointAtX(mx, rect);
+      if (!nearest) return;
+
+      // Place / update the red marker on the map
+      if (elevationHoverMarker) map.removeLayer(elevationHoverMarker);
+      elevationHoverMarker = L.marker([nearest.lat, nearest.lng], {
+        icon: L.divIcon({
+          className: 'elevation-hover-marker',
+          iconSize: [18, 18],
+          iconAnchor: [9, 9]
+        }),
+        interactive: false,
+        zIndexOffset: 1000
+      }).addTo(map);
+
+      // Highlight the corresponding diary entry (without panning the map)
+      const items = getSortedItems(mapDayKey);
+      if (nearest.itemIndex >= 0 && nearest.itemIndex < items.length) {
+        selectEntry(mapDayKey, nearest.itemIndex, items[nearest.itemIndex], { skipMapPan: true });
+        const li = $(`.day-entries li[data-day="${mapDayKey}"][data-index="${nearest.itemIndex}"]`);
+        if (li) li.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }
+
+    function hideElevationPanel() {
+      $('#elevation-float').style.display = 'none';
+      $('#elevation-btn').classList.remove('active');
+      if (elevationHoverMarker) { map.removeLayer(elevationHoverMarker); elevationHoverMarker = null; }
+    }
+
+    function initElevationPanel() {
+      const btn = $('#elevation-btn');
+      const closeBtn = $('#elevation-close');
+      const canvas = $('#elevation-canvas');
+
+      btn.addEventListener('click', () => {
+        elevationVisible = !elevationVisible;
+        if (elevationVisible) {
+          btn.classList.add('active');
+          if (mapDayKey) showElevationPanel(mapDayKey);
+        } else {
+          hideElevationPanel();
+          elevationVisible = false;
+        }
+      });
+
+      closeBtn.addEventListener('click', () => {
+        elevationVisible = false;
+        hideElevationPanel();
+      });
+
+      canvas.addEventListener('mousemove', handleElevationHover);
+      canvas.addEventListener('mouseleave', handleElevationLeave);
+      canvas.addEventListener('click', handleElevationClick);
+
+      // Reposition + redraw on resize
+      window.addEventListener('resize', () => {
+        if (elevationVisible && elevationData) {
+          positionElevationPanel();
+          drawElevationChart();
+        }
+      });
+    }
+
+
+    /* ── Day Replay ──────────────────────────── */
+
+    // Font Awesome Free 6.7.2 icons — sourced from Arc Reader's arc-sprites-data.js
+    const REPLAY_ICONS = {
+      walking:    '<g transform="matrix(0.9524,0,0,0.9524,1.52,1.52)"><g transform="matrix(0.1250,0,0,0.1250,12.00,0.00)"><path d="M160 48a48 48 0 1 1 96 0 48 48 0 1 1 -96 0zM126.5 199.3c-1 .4-1.9 .8-2.9 1.2l-8 3.5c-16.4 7.3-29 21.2-34.7 38.2l-2.6 7.8c-5.6 16.8-23.7 25.8-40.5 20.2s-25.8-23.7-20.2-40.5l2.6-7.8c11.4-34.1 36.6-61.9 69.4-76.5l8-3.5c20.8-9.2 43.3-14 66.1-14c44.6 0 84.8 26.8 101.9 67.9L281 232.7l21.4 10.7c15.8 7.9 22.2 27.1 14.3 42.9s-27.1 22.2-42.9 14.3L247 287.3c-10.3-5.2-18.4-13.8-22.8-24.5l-9.6-23-19.3 65.5 49.5 54c5.4 5.9 9.2 13 11.2 20.8l23 92.1c4.3 17.1-6.1 34.5-23.3 38.8s-34.5-6.1-38.8-23.3l-22-88.1-70.7-77.1c-14.8-16.1-20.3-38.6-14.7-59.7l16.9-63.5zM68.7 398l25-62.4c2.1 3 4.5 5.8 7 8.6l40.7 44.4-14.5 36.2c-2.4 6-6 11.5-10.6 16.1L54.6 502.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L68.7 398z"/></g></g>',
+      hiking:     '<g transform="matrix(0.9048,0,0,0.9048,3.05,3.05)"><g transform="matrix(0.1250,0,0,0.1250,8.00,0.00)"><path d="M192 48a48 48 0 1 1 96 0 48 48 0 1 1 -96 0zm51.3 182.7L224.2 307l49.7 49.7c9 9 14.1 21.2 14.1 33.9l0 89.4c0 17.7-14.3 32-32 32s-32-14.3-32-32l0-82.7-73.9-73.9c-15.8-15.8-22.2-38.6-16.9-60.3l20.4-84c8.3-34.1 42.7-54.9 76.7-46.4c19 4.8 35.6 16.4 46.4 32.7L305.1 208l30.9 0 0-24c0-13.3 10.7-24 24-24s24 10.7 24 24l0 55.8c0 .1 0 .2 0 .2s0 .2 0 .2L384 488c0 13.3-10.7 24-24 24s-24-10.7-24-24l0-216-39.4 0c-16 0-31-8-39.9-21.4l-13.3-20zM81.1 471.9L117.3 334c3 4.2 6.4 8.2 10.1 11.9l41.9 41.9L142.9 488.1c-4.5 17.1-22 27.3-39.1 22.8s-27.3-22-22.8-39.1zm55.5-346L101.4 266.5c-3 12.1-14.9 19.9-27.2 17.9l-47.9-8c-14-2.3-22.9-16.3-19.2-30L31.9 155c9.5-34.8 41.1-59 77.2-59l4.2 0c15.6 0 27.1 14.7 23.3 29.8z"/></g></g>',
+      running:    '<g transform="matrix(0.9048,0,0,0.9048,3.05,3.05)"><g transform="matrix(0.1250,0,0,0.1250,4.00,0.00)"><path d="M320 48a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zM125.7 175.5c9.9-9.9 23.4-15.5 37.5-15.5c1.9 0 3.8 .1 5.6 .3L137.6 254c-9.3 28 1.7 58.8 26.8 74.5l86.2 53.9-25.4 88.8c-4.9 17 5 34.7 22 39.6s34.7-5 39.6-22l28.7-100.4c5.9-20.6-2.6-42.6-20.7-53.9L238 299l30.9-82.4 5.1 12.3C289 264.7 323.9 288 362.7 288l21.3 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-21.3 0c-12.9 0-24.6-7.8-29.5-19.7l-6.3-15c-14.6-35.1-44.1-61.9-80.5-73.1l-48.7-15c-11.1-3.4-22.7-5.2-34.4-5.2c-31 0-60.8 12.3-82.7 34.3L57.4 153.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l23.1-23.1zM91.2 352L32 352c-17.7 0-32 14.3-32 32s14.3 32 32 32l69.6 0c19 0 36.2-11.2 43.9-28.5L157 361.6l-9.5-6c-17.5-10.9-30.5-26.8-37.9-44.9L91.2 352z"/></g></g>',
+      cycling:    '<g transform="matrix(0.9524,0,0,0.9524,1.52,1.52)"><g transform="matrix(0.1000,0,0,0.1000,0.00,6.40)"><path d="M400 96a48 48 0 1 0 0-96 48 48 0 1 0 0 96zm27.2 64l-61.8-48.8c-17.3-13.6-41.7-13.8-59.1-.3l-83.1 64.2c-30.7 23.8-28.5 70.8 4.3 91.6L288 305.1 288 416c0 17.7 14.3 32 32 32s32-14.3 32-32l0-128c0-10.7-5.3-20.7-14.2-26.6L295 232.9l60.3-48.5L396 217c5.7 4.5 12.7 7 20 7l64 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-52.8 0zM56 384a72 72 0 1 1 144 0A72 72 0 1 1 56 384zm200 0A128 128 0 1 0 0 384a128 128 0 1 0 256 0zm184 0a72 72 0 1 1 144 0 72 72 0 1 1 -144 0zm200 0a128 128 0 1 0 -256 0 128 128 0 1 0 256 0z"/></g></g>',
+      car:        '<g transform="matrix(0.9524,0,0,0.9524,1.52,1.52)"><g transform="matrix(0.1000,0,0,0.1000,0.00,6.40)"><path d="M171.3 96L224 96l0 96-112.7 0 30.4-75.9C146.5 104 158.2 96 171.3 96zM272 192l0-96 81.2 0c9.7 0 18.9 4.4 25 12l67.2 84L272 192zm256.2 1L428.2 68c-18.2-22.8-45.8-36-75-36L171.3 32c-39.3 0-74.6 23.9-89.1 60.3L40.6 196.4C16.8 205.8 0 228.9 0 256L0 368c0 17.7 14.3 32 32 32l33.3 0c7.6 45.4 47.1 80 94.7 80s87.1-34.6 94.7-80l130.7 0c7.6 45.4 47.1 80 94.7 80s87.1-34.6 94.7-80l33.3 0c17.7 0 32-14.3 32-32l0-48c0-65.2-48.8-119-111.8-127zM434.7 368a48 48 0 1 1 90.5 32 48 48 0 1 1 -90.5-32zM160 336a48 48 0 1 1 0 96 48 48 0 1 1 0-96z"/></g></g>',
+      bus:        '<g transform="matrix(0.9524,0,0,0.9524,1.52,1.52)"><g transform="matrix(0.1111,0,0,0.1111,0.00,3.56)"><path d="M288 0C422.4 0 512 35.2 512 80l0 16 0 32c17.7 0 32 14.3 32 32l0 64c0 17.7-14.3 32-32 32l0 160c0 17.7-14.3 32-32 32l0 32c0 17.7-14.3 32-32 32l-32 0c-17.7 0-32-14.3-32-32l0-32-192 0 0 32c0 17.7-14.3 32-32 32l-32 0c-17.7 0-32-14.3-32-32l0-32c-17.7 0-32-14.3-32-32l0-160c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32c0 0 0 0 0 0l0-32s0 0 0 0l0-16C64 35.2 153.6 0 288 0zM128 160l0 96c0 17.7 14.3 32 32 32l112 0 0-160-112 0c-17.7 0-32 14.3-32 32zM304 288l112 0c17.7 0 32-14.3 32-32l0-96c0-17.7-14.3-32-32-32l-112 0 0 160zM144 400a32 32 0 1 0 0-64 32 32 0 1 0 0 64zm288 0a32 32 0 1 0 0-64 32 32 0 1 0 0 64zM384 80c0-8.8-7.2-16-16-16L208 64c-8.8 0-16 7.2-16 16s7.2 16 16 16l160 0c8.8 0 16-7.2 16-16z"/></g></g>',
+      train:      '<g transform="matrix(0.8571,0,0,0.8571,4.57,4.57)"><g transform="matrix(0.1250,0,0,0.1250,4.00,0.00)"><path d="M96 0C43 0 0 43 0 96L0 352c0 48 35.2 87.7 81.1 94.9l-46 46C28.1 499.9 33.1 512 43 512l39.7 0c8.5 0 16.6-3.4 22.6-9.4L160 448l128 0 54.6 54.6c6 6 14.1 9.4 22.6 9.4l39.7 0c10 0 15-12.1 7.9-19.1l-46-46c46-7.1 81.1-46.9 81.1-94.9l0-256c0-53-43-96-96-96L96 0zM64 96c0-17.7 14.3-32 32-32l256 0c17.7 0 32 14.3 32 32l0 96c0 17.7-14.3 32-32 32L96 224c-17.7 0-32-14.3-32-32l0-96zM224 288a48 48 0 1 1 0 96 48 48 0 1 1 0-96z"/></g></g>',
+      metro:      '<g transform="matrix(0.8571,0,0,0.8571,4.57,4.57)"><g transform="matrix(0.1250,0,0,0.1250,4.00,0.00)"><path d="M96 0C43 0 0 43 0 96L0 352c0 48 35.2 87.7 81.1 94.9l-46 46C28.1 499.9 33.1 512 43 512l39.7 0c8.5 0 16.6-3.4 22.6-9.4L160 448l128 0 54.6 54.6c6 6 14.1 9.4 22.6 9.4l39.7 0c10 0 15-12.1 7.9-19.1l-46-46c46-7.1 81.1-46.9 81.1-94.9l0-256c0-53-43-96-96-96L96 0zM64 96c0-17.7 14.3-32 32-32l256 0c17.7 0 32 14.3 32 32l0 96c0 17.7-14.3 32-32 32L96 224c-17.7 0-32-14.3-32-32l0-96zM224 288a48 48 0 1 1 0 96 48 48 0 1 1 0-96z"/></g></g>',
+      tram:       '<g transform="matrix(0.9048,0,0,0.9048,3.05,3.05)"><g transform="matrix(0.1250,0,0,0.1250,4.00,0.00)"><path d="M96 0C43 0 0 43 0 96L0 352c0 48 35.2 87.7 81.1 94.9l-46 46C28.1 499.9 33.1 512 43 512l39.7 0c8.5 0 16.6-3.4 22.6-9.4L160 448l128 0 54.6 54.6c6 6 14.1 9.4 22.6 9.4l39.7 0c10 0 15-12.1 7.9-19.1l-46-46c46-7.1 81.1-46.9 81.1-94.9l0-256c0-53-43-96-96-96L96 0zM64 128c0-17.7 14.3-32 32-32l80 0c17.7 0 32 14.3 32 32l0 96c0 17.7-14.3 32-32 32l-80 0c-17.7 0-32-14.3-32-32l0-96zM272 96l80 0c17.7 0 32 14.3 32 32l0 96c0 17.7-14.3 32-32 32l-80 0c-17.7 0-32-14.3-32-32l0-96c0-17.7 14.3-32 32-32zM64 352a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zm288-32a32 32 0 1 1 0 64 32 32 0 1 1 0-64z"/></g></g>',
+      airplane:   '<g transform="matrix(0.9048,0,0,0.9048,3.05,3.05)"><g transform="matrix(4.0000,0,0,4.0000,0.00,0.00)"><path d="M6.428 1.151C6.708.591 7.213 0 8 0s1.292.592 1.572 1.151C9.861 1.73 10 2.431 10 3v3.691l5.17 2.585a1.5 1.5 0 0 1 .83 1.342V12a.5.5 0 0 1-.582.493l-5.507-.918-.375 2.253 1.318 1.318A.5.5 0 0 1 10.5 16h-5a.5.5 0 0 1-.354-.854l1.319-1.318-.376-2.253-5.507.918A.5.5 0 0 1 0 12v-1.382a1.5 1.5 0 0 1 .83-1.342L6 6.691V3c0-.568.14-1.271.428-1.849"/></g></g>',
+      boat:       '<g transform="matrix(0.1250,0,0,0.1250,0.00,0.00)"><g><path d="M458.095,216.874h-33.519l-15.774-47.32h-41.405h-65.62h-74.37l11.83-41.406h-13.802l-27.604,41.406h-41.406l-62.008,94.641h374.028L458.095,216.874z M193.888,232.247h-23.66v-23.66h23.66V232.247z M251.067,232.247h-23.66v-23.66h23.66V232.247z M308.246,232.247h-23.66v-23.66h23.66V232.247z M359.51,232.247h-23.66v-23.66h23.66V232.247z"/><polygon points="367.397,99.358 314.161,99.358 309.871,119.861 367.397,119.861"/><polygon points="367.397,131.691 307.391,131.691 301.777,158.509 367.397,158.509"/><path d="M77.866,360.608l3.074-1.849c3.974-2.334,9.273-5.252,15.935-7.672c9.335-3.419,19.778-5.167,30.977-5.167c12.785,0,24.284,2.164,34.566,6.447c6.847,2.842,12.124,6.046,15.974,8.394l2.511,1.51c1.994,1.171,3.196,1.779,4.228,2.157c0.801,0.284,2.465,0.886,6.917,0.893c4.682-0.015,6.323-0.686,7.409-1.124c1.417-0.578,3.62-1.91,6.408-3.589l3.073-1.849c3.974-2.334,9.274-5.252,15.935-7.672c9.335-3.419,19.778-5.167,30.977-5.167c12.777,0,24.269,2.164,34.559,6.439c6.832,2.842,12.092,6.038,15.935,8.38l2.541,1.524c2.018,1.186,3.212,1.795,4.244,2.172c0.778,0.278,2.45,0.879,6.909,0.886c4.675-0.015,6.316-0.686,7.402-1.124c1.417-0.578,3.62-1.91,6.408-3.589l3.073-1.849c3.974-2.334,9.273-5.252,15.935-7.672c9.334-3.419,19.778-5.167,30.978-5.167c12.785,0,24.276,2.164,34.566,6.439c6.839,2.842,12.107,6.046,15.95,8.38l2.534,1.524c2.01,1.179,3.204,1.787,4.252,2.172c0.778,0.278,2.449,0.879,6.916,0.886c4.675-0.015,6.316-0.686,7.402-1.124c1.425-0.578,3.612-1.903,6.385-3.574l3.096-1.864c2.156-1.264,4.744-2.704,7.686-4.144l17.021-68.347h-21.196H94.418H22.351l51.44,76.726C74.963,362.34,76.287,361.555,77.866,360.608z"/><path d="M488.957,373.323c-4.714,1.71-8.619,3.828-11.938,5.776c-5.007,2.973-8.664,5.391-12.693,7.032c-4.036,1.632-8.641,2.818-16.328,2.849c-6.824-0.015-11.245-0.986-14.965-2.318c-2.788-1.017-5.261-2.311-8.033-3.944c-4.136-2.403-8.988-5.73-15.681-8.51c-6.693-2.781-15.019-4.66-25.34-4.629c-9.173-0.016-16.759,1.44-23.044,3.743c-4.706,1.71-8.611,3.828-11.93,5.776c-5.006,2.973-8.672,5.391-12.692,7.032c-4.036,1.632-8.649,2.818-16.328,2.849c-6.824-0.015-11.237-0.986-14.957-2.318c-2.788-1.017-5.252-2.311-8.026-3.944c-4.136-2.403-8.98-5.73-15.673-8.51c-6.693-2.781-15.011-4.66-25.332-4.629c-9.173-0.016-16.759,1.44-23.044,3.743c-4.706,1.71-8.611,3.828-11.93,5.776c-5.007,2.973-8.672,5.391-12.693,7.032c-4.036,1.632-8.648,2.818-16.336,2.849c-6.824-0.015-11.237-0.986-14.95-2.318c-2.796-1.017-5.26-2.311-8.04-3.944c-4.128-2.403-8.973-5.73-15.674-8.51c-6.686-2.781-15.011-4.66-25.331-4.629c-9.173-0.016-16.76,1.44-23.044,3.743c-4.706,1.71-8.611,3.828-11.93,5.776c-5.006,2.973-8.672,5.391-12.693,7.032c-4.036,1.632-8.649,2.818-16.328,2.849c-6.824-0.015-11.237-0.986-14.957-2.318c-2.796-1.017-5.26-2.311-8.033-3.944c-4.136-2.403-8.981-5.73-15.681-8.51c-6.693-2.781-15.019-4.66-25.332-4.629v23.66c6.824,0.015,11.237,0.986,14.957,2.318c2.788,1.017,5.26,2.311,8.033,3.944c4.136,2.395,8.981,5.73,15.681,8.51c6.686,2.781,15.011,4.66,25.332,4.629c9.181,0.016,16.759-1.44,23.044-3.743c4.706-1.718,8.611-3.827,11.93-5.776c5.007-2.974,8.672-5.392,12.693-7.032c4.036-1.632,8.649-2.819,16.328-2.85c6.824,0.015,11.237,0.986,14.957,2.318c2.788,1.017,5.26,2.311,8.032,3.944c4.136,2.395,8.981,5.73,15.674,8.51c6.694,2.781,15.019,4.66,25.332,4.629c9.181,0.016,16.767-1.44,23.052-3.743c4.706-1.71,8.611-3.827,11.93-5.776c5.006-2.974,8.672-5.392,12.693-7.032c4.036-1.632,8.649-2.819,16.328-2.85c6.824,0.015,11.237,0.986,14.95,2.318c2.788,1.017,5.26,2.311,8.032,3.944c4.137,2.395,8.981,5.73,15.674,8.51c6.686,2.781,15.012,4.66,25.332,4.629c9.172,0.016,16.76-1.44,23.044-3.743c4.706-1.718,8.61-3.827,11.93-5.776c5.006-2.974,8.665-5.392,12.693-7.032c4.036-1.632,8.65-2.819,16.328-2.85c6.824,0.015,11.245,0.986,14.965,2.318c2.788,1.017,5.26,2.311,8.033,3.944c4.136,2.403,8.981,5.738,15.681,8.51c6.693,2.781,15.019,4.66,25.339,4.629c9.181,0.016,16.76-1.44,23.044-3.743c4.706-1.718,8.619-3.827,11.93-5.776c5.014-2.974,8.672-5.392,12.7-7.032c4.029-1.632,8.642-2.819,16.328-2.85v-23.66C502.82,369.564,495.241,371.02,488.957,373.323z"/></g></g>',
+      ferry:      '<g transform="matrix(0.1250,0,0,0.1250,0.00,0.00)"><g><path d="M458.095,216.874h-33.519l-15.774-47.32h-41.405h-65.62h-74.37l11.83-41.406h-13.802l-27.604,41.406h-41.406l-62.008,94.641h374.028L458.095,216.874z M193.888,232.247h-23.66v-23.66h23.66V232.247z M251.067,232.247h-23.66v-23.66h23.66V232.247z M308.246,232.247h-23.66v-23.66h23.66V232.247z M359.51,232.247h-23.66v-23.66h23.66V232.247z"/><polygon points="367.397,99.358 314.161,99.358 309.871,119.861 367.397,119.861"/><polygon points="367.397,131.691 307.391,131.691 301.777,158.509 367.397,158.509"/></g></g>',
+      motorcycle: '<circle cx="12" cy="46" r="10"/><circle cx="12" cy="46" r="4" fill-opacity="0.3"/><circle cx="52" cy="46" r="10"/><circle cx="52" cy="46" r="4" fill-opacity="0.3"/><ellipse cx="30" cy="28" rx="8" ry="5"/><rect x="46" y="20" width="4" height="14"/><rect x="42" y="16" width="14" height="6" rx="2"/>',
+      scooter:    '<g transform="matrix(0.9524,0,0,0.9524,1.52,1.52)"><g transform="matrix(2.1333,0,0,2.1333,0.00,0.00)"><path d="M20.5 3C19.848122 3 19.298487 3.4187503 19.091797 4L16 4 A 1.0001 1.0001 0 1 0 16 6L19.433594 6C20.019771 7.3916739 21 9.9922761 21 12C21 16 18 18 16 18L14 18C12.895 18 12 17.105 12 16L12 14L4 14C4 14 1 15 1 18C1.3594395 18.117725 2.3069604 18.523655 3.3886719 19C2.5462008 19.735161 2 20.802871 2 22C2 24.197294 3.8027056 26 6 26C8.1972944 26 10 24.197294 10 22C10 21.982602 9.994366 21.966567 9.9941406 21.949219C10.139486 21.982409 10.288194 22 10.439453 22L17.757812 22C18.553812 22 19.316906 21.684094 19.878906 21.121094L20 21L20.144531 21C20.060164 21.321767 20 21.653007 20 22C20 24.197294 21.802706 26 24 26C26.197294 26 28 24.197294 28 22C28 21.517183 27.899373 21.058681 27.740234 20.628906L29 20C29 20 27.611132 17.153726 24.732422 16.267578L25 16C24.94075 12.294827 22.82577 7.931471 21.673828 6L23 6L23 3L20.5 3 z M 4 10 A 1.0001 1.0001 0 1 0 4 12L12 12 A 1.0001 1.0001 0 1 0 12 10L4 10 z M 5.6933594 20.03125C6.5026154 20.397632 7.0256163 20.636499 7.6992188 20.945312C7.8875654 21.250986 8 21.609513 8 22C8 23.116414 7.1164141 24 6 24C4.8835859 24 4 23.116414 4 22C4 20.988931 4.7273307 20.177018 5.6933594 20.03125 z M 22.271484 21L25.728516 21C25.897235 21.294108 26 21.631981 26 22C26 23.116414 25.116414 24 24 24C22.883586 24 22 23.116414 22 22C22 21.631981 22.102765 21.294108 22.271484 21 z"/></g></g>',
+      taxi:       '<g transform="matrix(0.9524,0,0,0.9524,1.52,1.52)"><g transform="matrix(0.1000,0,0,0.1000,0.00,6.40)"><path d="M171.3 96L224 96l0 96-112.7 0 30.4-75.9C146.5 104 158.2 96 171.3 96zM272 192l0-96 81.2 0c9.7 0 18.9 4.4 25 12l67.2 84L272 192zm256.2 1L428.2 68c-18.2-22.8-45.8-36-75-36L171.3 32c-39.3 0-74.6 23.9-89.1 60.3L40.6 196.4C16.8 205.8 0 228.9 0 256L0 368c0 17.7 14.3 32 32 32l33.3 0c7.6 45.4 47.1 80 94.7 80s87.1-34.6 94.7-80l130.7 0c7.6 45.4 47.1 80 94.7 80s87.1-34.6 94.7-80l33.3 0c17.7 0 32-14.3 32-32l0-48c0-65.2-48.8-119-111.8-127zM434.7 368a48 48 0 1 1 90.5 32 48 48 0 1 1 -90.5-32zM160 336a48 48 0 1 1 0 96 48 48 0 1 1 0-96z"/></g></g>',
+      skiing:     '<g transform="matrix(0.8095,0,0,0.8095,6.10,6.10)"><g transform="matrix(0.1250,0,0,0.1250,0.00,0.00)"><path d="M380.7 48a48 48 0 1 1 96 0 48 48 0 1 1 -96 0zM2.7 268.9c6.1-11.8 20.6-16.3 32.4-10.2L232.7 361.3l46.2-69.2-75.1-75.1c-14.6-14.6-20.4-33.9-18.4-52.1l108.8 52 39.3 39.3c16.2 16.2 18.7 41.5 6 60.6L289.8 391l128.7 66.8c13.6 7.1 29.8 7.2 43.6 .3l15.2-7.6c11.9-5.9 26.3-1.1 32.2 10.7s1.1 26.3-10.7 32.2l-15.2 7.6c-27.5 13.7-59.9 13.5-87.2-.7L12.9 301.3C1.2 295.2-3.4 280.7 2.7 268.9zM118.9 65.6L137 74.2l8.7-17.4c4-7.9 13.6-11.1 21.5-7.2s11.1 13.6 7.2 21.5l-8.5 16.9 54.7 26.2c1.5-.7 3.1-1.4 4.7-2.1l83.4-33.4c34.2-13.7 72.8 4.2 84.5 39.2l17.1 51.2 52.1 26.1c15.8 7.9 22.2 27.1 14.3 42.9s-27.1 22.2-42.9 14.3l-58.1-29c-11.4-5.7-20-15.7-24.1-27.8l-5.8-17.3-27.3 12.1-6.8 3-6.7-3.2L151.5 116.7l-9.2 18.4c-4 7.9-13.6 11.1-21.5 7.2s-11.1-13.6-7.2-21.5l9-18-17.6-8.4c-8-3.8-11.3-13.4-7.5-21.3s13.4-11.3 21.3-7.5z"/></g></g>',
+      tractor:    '<g transform="matrix(0.9524,0,0,0.9524,1.52,1.52)"><g transform="matrix(0.1000,0,0,0.1000,0.00,6.40)"><path d="M96 64c0-35.3 28.7-64 64-64L266.3 0c26.2 0 49.7 15.9 59.4 40.2L373.7 160 480 160l0-33.8c0-24.8 5.8-49.3 16.9-71.6l2.5-5c7.9-15.8 27.1-22.2 42.9-14.3s22.2 27.1 14.3 42.9l-2.5 5c-6.7 13.3-10.1 28-10.1 42.9l0 33.8 56 0c22.1 0 40 17.9 40 40l0 45.4c0 16.5-8.5 31.9-22.6 40.7l-43.3 27.1c-14.2-5.9-29.8-9.2-46.1-9.2c-39.3 0-74.1 18.9-96 48l-80 0c0 17.7-14.3 32-32 32l-8.2 0c-1.7 4.8-3.7 9.5-5.8 14.1l5.8 5.8c12.5 12.5 12.5 32.8 0 45.3l-22.6 22.6c-12.5 12.5-32.8 12.5-45.3 0l-5.8-5.8c-4.6 2.2-9.3 4.1-14.1 5.8l0 8.2c0 17.7-14.3 32-32 32l-32 0c-17.7 0-32-14.3-32-32l0-8.2c-4.8-1.7-9.5-3.7-14.1-5.8l-5.8 5.8c-12.5 12.5-32.8 12.5-45.3 0L40.2 449.1c-12.5-12.5-12.5-32.8 0-45.3l5.8-5.8c-2.2-4.6-4.1-9.3-5.8-14.1L32 384c-17.7 0-32-14.3-32-32l0-32c0-17.7 14.3-32 32-32l8.2 0c1.7-4.8 3.7-9.5 5.8-14.1l-5.8-5.8c-12.5-12.5-12.5-32.8 0-45.3l22.6-22.6c9-9 21.9-11.5 33.1-7.6l0-.6 0-32 0-96zm170.3 0L160 64l0 96 32 0 112.7 0L266.3 64zM176 256a80 80 0 1 0 0 160 80 80 0 1 0 0-160zM528 448a24 24 0 1 0 0-48 24 24 0 1 0 0 48zm0 64c-48.6 0-88-39.4-88-88c0-29.8 14.8-56.1 37.4-72c14.3-10.1 31.8-16 50.6-16c2.7 0 5.3 .1 7.9 .3c44.9 4 80.1 41.7 80.1 87.7c0 48.6-39.4 88-88 88z"/></g></g>',
+      stationary: '<g transform="matrix(2.6667,0,0,2.6667,0.00,0.00)"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22ZM8.58579 8.58579C8 9.17157 8 10.1144 8 12C8 13.8856 8 14.8284 8.58579 15.4142C9.17157 16 10.1144 16 12 16C13.8856 16 14.8284 16 15.4142 15.4142C16 14.8284 16 13.8856 16 12C16 10.1144 16 9.17157 15.4142 8.58579C14.8284 8 13.8856 8 12 8C10.1144 8 9.17157 8 8.58579 8.58579Z"/></g>',
+      unknown:    '<g transform="matrix(0.1250,0,0,0.1250,12.00,0.00)"><path d="M80 160c0-35.3 28.7-64 64-64l32 0c35.3 0 64 28.7 64 64l0 3.6c0 21.8-11.1 42.1-29.4 53.8l-42.2 27.1c-25.2 16.2-40.4 44.1-40.4 74l0 1.4c0 17.7 14.3 32 32 32s32-14.3 32-32l0-1.4c0-8.2 4.2-15.8 11-20.2l42.2-27.1c36.6-23.6 58.8-64.1 58.8-107.7l0-3.6c0-70.7-57.3-128-128-128l-32 0C73.3 32 16 89.3 16 160c0 17.7 14.3 32 32 32s32-14.3 32-32zm80 320a40 40 0 1 0 0-80 40 40 0 1 0 0 80z"/></g>',
+      finished:   '<g transform="matrix(0.7619,0,0,0.7619,7.62,7.62)"><g transform="matrix(0.1250,0,0,0.1250,4.00,0.00)"><path d="M32 0C49.7 0 64 14.3 64 32l0 16 69-17.2c38.1-9.5 78.3-5.1 113.5 12.5c46.3 23.2 100.8 23.2 147.1 0l9.6-4.8C423.8 28.1 448 43.1 448 66.1l0 279.7c0 13.3-8.3 25.3-20.8 30l-34.7 13c-46.2 17.3-97.6 14.6-141.7-7.4c-37.9-19-81.3-23.7-122.5-13.4L64 384l0 96c0 17.7-14.3 32-32 32s-32-14.3-32-32l0-80 0-66L0 64 0 32C0 14.3 14.3 0 32 0zM64 187.1l64-13.9 0 65.5L64 252.6 64 318l48.8-12.2c5.1-1.3 10.1-2.4 15.2-3.3l0-63.9 38.9-8.4c8.3-1.8 16.7-2.5 25.1-2.1l0-64c13.6 .4 27.2 2.6 40.4 6.4l23.6 6.9 0 66.7-41.7-12.3c-7.3-2.1-14.8-3.4-22.3-3.8l0 71.4c21.8 1.9 43.3 6.7 64 14.4l0-69.8 22.7 6.7c13.5 4 27.3 6.4 41.3 7.4l0-64.2c-7.8-.8-15.6-2.3-23.2-4.5l-40.8-12 0-62c-13-3.8-25.8-8.8-38.2-15c-8.2-4.1-16.9-7-25.8-8.8l0 72.4c-13-.4-26 .8-38.7 3.6L128 173.2 128 98 64 114l0 73.1zM320 335.7c16.8 1.5 33.9-.7 50-6.8l14-5.2 0-71.7-7.9 1.8c-18.4 4.3-37.3 5.7-56.1 4.5l0 77.4zm64-149.4l0-70.8c-20.9 6.1-42.4 9.1-64 9.1l0 69.4c13.9 1.4 28 .5 41.7-2.6l22.3-5.2z"/></g></g>'
+    };
+
+    let replay = {
+      active: false,
+      playing: false,
+      routeData: [],
+      cumulativeDistances: [],
+      totalDistance: 0,
+      currentDistance: 0,
+      speed: 5,
+      marker: null,
+      animationFrame: null,
+      lastFrameTime: 0,
+      pauseUntil: 0,
+      orderedStops: [],
+      nextStopIndex: 0,
+      locationPopup: null,
+      trailSegments: [],   // [{line, points, activity}]
+      currentActivity: null,
+      currentItemIndex: -1
+    };
+
+    function createReplayIcon(activityType) {
+      const type = (activityType || 'stationary').toLowerCase();
+      const svg = REPLAY_ICONS[type] || REPLAY_ICONS.stationary;
+      const html = `<div class="replay-marker-icon activity-${type}"><svg viewBox="0 0 64 64" width="18" height="18" fill="white">${svg}</svg></div>`;
+      return L.divIcon({
+        html: html,
+        className: 'replay-marker',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+    }
+
+    function buildReplayRoute(dayKey) {
+      const items = getSortedItems(dayKey);
+      const routeData = [];
+      const stops = [];
+
+      items.forEach((item, itemIndex) => {
+        if (item.isVisit) {
+          // Record visit stops for pausing
+          if (item.center && item.center.latitude && item.center.longitude) {
+            stops.push({
+              name: getLocationName(item),
+              lat: item.center.latitude,
+              lng: item.center.longitude,
+              time: formatTime(item.startDate),
+              duration: formatDuration(item.startDate && item.endDate
+                ? (new Date(item.endDate) - new Date(item.startDate)) / 1000 : 0),
+              distance: -1, // filled after computing cumulative distances
+              itemIndex: itemIndex
+            });
+          }
+          return;
+        }
+        // Collect GPS samples for activity items
+        if (!item.samples || !Array.isArray(item.samples)) return;
+        const type = item.activityType || 'unknown';
+        item.samples.forEach(s => {
+          if (!s.location || !isFinite(s.location.latitude) || !isFinite(s.location.longitude)) return;
+          if (s.location.latitude < -90 || s.location.latitude > 90) return;
+          if (s.location.longitude < -180 || s.location.longitude > 180) return;
+          routeData.push({
+            lat: s.location.latitude,
+            lng: s.location.longitude,
+            date: s.date,
+            activityType: type,
+            itemIndex: itemIndex
+          });
+        });
+      });
+
+      if (routeData.length < 2) return false;
+
+      // Sort by date
+      routeData.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      // Compute cumulative distances
+      const cumDist = [0];
+      for (let i = 1; i < routeData.length; i++) {
+        const d = haversineDistance(
+          routeData[i - 1].lat, routeData[i - 1].lng,
+          routeData[i].lat, routeData[i].lng
+        );
+        cumDist.push(cumDist[i - 1] + d);
+      }
+
+      // Match stops to nearest route point distance
+      stops.forEach(stop => {
+        let minDist = Infinity;
+        let bestCumDist = 0;
+        for (let i = 0; i < routeData.length; i++) {
+          const d = haversineDistance(stop.lat, stop.lng, routeData[i].lat, routeData[i].lng);
+          if (d < minDist) {
+            minDist = d;
+            bestCumDist = cumDist[i];
+          }
+        }
+        stop.distance = bestCumDist;
+      });
+
+      // Sort stops by distance along route
+      stops.sort((a, b) => a.distance - b.distance);
+
+      replay.routeData = routeData;
+      replay.cumulativeDistances = cumDist;
+      replay.totalDistance = cumDist[cumDist.length - 1];
+      replay.orderedStops = stops;
+      return true;
+    }
+
+    function interpolatePosition(distance) {
+      const cumDist = replay.cumulativeDistances;
+      const data = replay.routeData;
+      if (distance <= 0) return { lat: data[0].lat, lng: data[0].lng, index: 0 };
+      if (distance >= replay.totalDistance) {
+        const last = data.length - 1;
+        return { lat: data[last].lat, lng: data[last].lng, index: last };
+      }
+      // Binary search for the segment
+      let lo = 0, hi = cumDist.length - 1;
+      while (lo < hi - 1) {
+        const mid = (lo + hi) >> 1;
+        if (cumDist[mid] <= distance) lo = mid;
+        else hi = mid;
+      }
+      const segLen = cumDist[hi] - cumDist[lo];
+      const t = segLen > 0 ? (distance - cumDist[lo]) / segLen : 0;
+      return {
+        lat: data[lo].lat + (data[hi].lat - data[lo].lat) * t,
+        lng: data[lo].lng + (data[hi].lng - data[lo].lng) * t,
+        index: lo
+      };
+    }
+
+    function toggleReplay() {
+      if (replay.active) {
+        cleanupReplay();
+        return;
+      }
+      if (!mapDayKey) return;
+      if (!buildReplayRoute(mapDayKey)) return;
+
+      replay.active = true;
+      replay.playing = false;
+      replay.currentDistance = 0;
+      replay.nextStopIndex = 0;
+      replay.pauseUntil = 0;
+      replay.lastFrameTime = 0;
+      replay.currentActivity = null;
+      replay.trailSegments = [];
+
+      // Hide stats, elevation, show controller
+      $('#stats-float').style.display = 'none';
+      hideElevationPanel();
+      $('#elevation-btn').style.display = 'none';
+      $('#replay-controller').classList.add('active');
+      $('#replay-btn').classList.add('active');
+
+      // Clear existing map layers
+      routeLayerGroup.clearLayers();
+      markerLayerGroup.clearLayers();
+      markerRefs = [];
+      routeRefs = [];
+
+      // Place marker at start
+      const start = replay.routeData[0];
+      replay.marker = L.marker([start.lat, start.lng], {
+        icon: createReplayIcon(start.activityType),
+        zIndexOffset: 1000
+      }).addTo(markerLayerGroup);
+
+      map.setView([start.lat, start.lng], 16);
+      updateReplayInfo(start.activityType, start.date);
+      updateReplayProgress();
+
+      // Highlight first activity's diary entry
+      replay.currentItemIndex = start.itemIndex;
+      if (start.itemIndex !== undefined) highlightDiaryEntry(mapDayKey, start.itemIndex);
+
+      // Set speed from slider
+      const slider = $('#replay-slider');
+      setReplaySpeed(parseInt(slider.value));
+    }
+
+    function startReplay() {
+      if (!replay.active) return;
+      replay.playing = true;
+      replay.lastFrameTime = performance.now();
+      const btn = $('#replay-play');
+      btn.textContent = '⏸';
+      btn.classList.add('playing');
+      replay.animationFrame = requestAnimationFrame(animateReplay);
+    }
+
+    function pauseReplay() {
+      replay.playing = false;
+      const btn = $('#replay-play');
+      btn.textContent = '▶';
+      btn.classList.remove('playing');
+      if (replay.animationFrame) {
+        cancelAnimationFrame(replay.animationFrame);
+        replay.animationFrame = null;
+      }
+    }
+
+    function togglePlayPause() {
+      if (replay.playing) pauseReplay();
+      else startReplay();
+    }
+
+    function restartReplay() {
+      pauseReplay();
+      replay.currentDistance = 0;
+      replay.nextStopIndex = 0;
+      replay.pauseUntil = 0;
+      replay.trailSegments.forEach(s => routeLayerGroup.removeLayer(s.line));
+      replay.trailSegments = [];
+      replay.currentActivity = null;
+      replay.currentItemIndex = -1;
+      if (replay.locationPopup) { map.closePopup(replay.locationPopup); replay.locationPopup = null; }
+
+      const start = replay.routeData[0];
+      if (replay.marker) replay.marker.setLatLng([start.lat, start.lng]);
+      replay.marker.setIcon(createReplayIcon(start.activityType));
+      map.setView([start.lat, start.lng], 16);
+      updateReplayInfo(start.activityType, start.date);
+      updateReplayProgress();
+      // Highlight first diary entry
+      if (start.itemIndex !== undefined) {
+        replay.currentItemIndex = start.itemIndex;
+        highlightDiaryEntry(mapDayKey, start.itemIndex);
+      }
+    }
+
+    function cleanupReplay() {
+      pauseReplay();
+      replay.active = false;
+      replay.currentItemIndex = -1;
+
+      if (replay.marker) { map.removeLayer(replay.marker); replay.marker = null; }
+      replay.trailSegments.forEach(s => routeLayerGroup.removeLayer(s.line));
+      replay.trailSegments = [];
+      if (replay.locationPopup) { map.closePopup(replay.locationPopup); replay.locationPopup = null; }
+
+      // Clear diary selection from replay
+      $$('.day-entries li.selected').forEach(el => el.classList.remove('selected'));
+
+      $('#replay-controller').classList.remove('active');
+      $('#replay-btn').classList.remove('active');
+      const btn = $('#replay-play');
+      btn.textContent = '▶';
+      btn.classList.remove('playing');
+
+      // Restore elevation button + panel
+      $('#elevation-btn').style.display = '';
+      if (elevationVisible && mapDayKey) {
+        $('#elevation-btn').classList.add('active');
+      }
+
+      // Restore normal day view
+      if (mapDayKey) renderDayOnMap(mapDayKey);
+    }
+
+    function animateReplay(timestamp) {
+      if (!replay.active || !replay.playing) return;
+
+      const now = performance.now();
+
+      // Paused at a location?
+      if (replay.pauseUntil > 0 && now < replay.pauseUntil) {
+        replay.lastFrameTime = now;
+        replay.animationFrame = requestAnimationFrame(animateReplay);
+        return;
+      }
+      if (replay.pauseUntil > 0) {
+        replay.pauseUntil = 0;
+        if (replay.locationPopup) { map.closePopup(replay.locationPopup); replay.locationPopup = null; }
+      }
+
+      if (replay.lastFrameTime === 0) replay.lastFrameTime = timestamp;
+      const deltaMs = Math.min(timestamp - replay.lastFrameTime, 100); // cap at 100ms
+      replay.lastFrameTime = timestamp;
+
+      let metersPerSecond = replay.speed * 50;
+
+      // Slow down near next stop
+      if (replay.nextStopIndex < replay.orderedStops.length) {
+        const nextStop = replay.orderedStops[replay.nextStopIndex];
+        const distToStop = nextStop.distance - replay.currentDistance;
+        if (distToStop > 0 && distToStop < 150) {
+          const factor = Math.max(0.15, (distToStop / 150) ** 2);
+          metersPerSecond *= factor;
+        }
+      }
+
+      replay.currentDistance += (deltaMs / 1000) * metersPerSecond;
+
+      // Check if finished
+      if (replay.currentDistance >= replay.totalDistance) {
+        replay.currentDistance = replay.totalDistance;
+        const pos = interpolatePosition(replay.currentDistance);
+        replay.marker.setLatLng([pos.lat, pos.lng]);
+        replay.marker.setIcon(createReplayIcon('finished'));
+        const seg = replay.trailSegments[replay.trailSegments.length - 1];
+        if (seg) { seg.points.push([pos.lat, pos.lng]); seg.line.setLatLngs(smoothPolyline(seg.points)); }
+        updateReplayProgress();
+        updateReplayInfo('finished', null);
+        pauseReplay();
+        return;
+      }
+
+      const pos = interpolatePosition(replay.currentDistance);
+      replay.marker.setLatLng([pos.lat, pos.lng]);
+      map.panTo([pos.lat, pos.lng], { animate: false });
+
+      // Update marker icon if activity changed — start new trail segment
+      const currentType = replay.routeData[pos.index].activityType;
+      if (currentType !== replay.currentActivity) {
+        // Smooth the now-completed previous segment
+        if (replay.trailSegments.length > 0) {
+          const prev = replay.trailSegments[replay.trailSegments.length - 1];
+          prev.line.setLatLngs(smoothPolyline(prev.points));
+        }
+        const info = getActivityInfo(currentType);
+        // Bridge: start new segment from last point of previous segment
+        const bridge = replay.trailSegments.length > 0
+          ? replay.trailSegments[replay.trailSegments.length - 1].points.slice(-1)
+          : [];
+        const newLine = L.polyline(bridge, { color: info.colour, weight: 4, opacity: 0.8 }).addTo(routeLayerGroup);
+        replay.trailSegments.push({ line: newLine, points: [...bridge], activity: currentType });
+        replay.currentActivity = currentType;
+        replay.marker.setIcon(createReplayIcon(currentType));
+      }
+
+      // Append point to current segment — raw points for performance
+      const seg = replay.trailSegments[replay.trailSegments.length - 1];
+      seg.points.push([pos.lat, pos.lng]);
+      if (seg.points.length % 3 === 0) {
+        seg.line.setLatLngs(seg.points);
+      }
+
+      // Highlight matching diary entry
+      const itemIdx = replay.routeData[pos.index].itemIndex;
+      if (itemIdx !== undefined && itemIdx !== replay.currentItemIndex) {
+        replay.currentItemIndex = itemIdx;
+        highlightDiaryEntry(mapDayKey, itemIdx);
+      }
+
+      // Update info display
+      updateReplayInfo(currentType, replay.routeData[pos.index].date);
+      updateReplayProgress();
+
+      // Check for location stops
+      if (replay.nextStopIndex < replay.orderedStops.length) {
+        const nextStop = replay.orderedStops[replay.nextStopIndex];
+        if (replay.currentDistance >= nextStop.distance) {
+          showReplayLocationPopup(nextStop);
+          replay.pauseUntil = performance.now() + 3000;
+          replay.nextStopIndex++;
+          // Highlight the visit's diary entry
+          if (nextStop.itemIndex !== undefined) {
+            replay.currentItemIndex = nextStop.itemIndex;
+            highlightDiaryEntry(mapDayKey, nextStop.itemIndex);
+          }
+        }
+      }
+
+      replay.animationFrame = requestAnimationFrame(animateReplay);
+    }
+
+    function showReplayLocationPopup(stop) {
+      if (replay.locationPopup) map.closePopup(replay.locationPopup);
+      const html = `<div class="replay-popup-name">${escapeHtml(stop.name)}</div>` +
+                   `<div class="replay-popup-time">${escapeHtml(stop.time)}${stop.duration ? ' · ' + escapeHtml(stop.duration) : ''}</div>`;
+      replay.locationPopup = L.popup({
+        className: 'replay-location-popup',
+        closeButton: false,
+        offset: [0, -10],
+        maxWidth: 250
+      })
+        .setLatLng([stop.lat, stop.lng])
+        .setContent(html)
+        .openOn(map);
+    }
+
+    function updateReplayProgress() {
+      const pct = replay.totalDistance > 0
+        ? (replay.currentDistance / replay.totalDistance) * 100 : 0;
+      $('#replay-progress').style.width = Math.min(pct, 100) + '%';
+    }
+
+    function updateReplayInfo(activityType, dateStr) {
+      const info = $('#replay-info');
+      const label = getActivityInfo(activityType).label;
+      const time = dateStr ? formatTime(dateStr) : '';
+      info.innerHTML = `<span class="replay-activity">${escapeHtml(label)}</span>${time ? ' · <span class="replay-time">' + escapeHtml(time) + '</span>' : ''}`;
+    }
+
+    function setReplaySpeed(sliderValue) {
+      // Map 1-100 → 1-60
+      replay.speed = 1 + (sliderValue - 1) * 59 / 99;
+      const display = replay.speed < 10 ? replay.speed.toFixed(1) : Math.round(replay.speed);
+      $('#replay-speed').textContent = display + '×';
+    }
+
+    function initReplay() {
+      $('#replay-btn').addEventListener('click', toggleReplay);
+      $('#replay-play').addEventListener('click', togglePlayPause);
+      $('#replay-restart').addEventListener('click', restartReplay);
+      $('#replay-close').addEventListener('click', cleanupReplay);
+
+      $('#replay-slider').addEventListener('input', (e) => {
+        setReplaySpeed(parseInt(e.target.value));
+      });
+
+      // Click on progress bar to seek
+      $('#replay-progress-wrap').addEventListener('click', (e) => {
+        if (!replay.active || replay.totalDistance === 0) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        replay.currentDistance = pct * replay.totalDistance;
+        // Clear existing trail segments
+        replay.trailSegments.forEach(s => routeLayerGroup.removeLayer(s.line));
+        replay.trailSegments = [];
+        replay.currentActivity = null;
+        // Rebuild multi-colour trail up to current position
+        const stepDist = replay.totalDistance / 200;
+        for (let d = 0; d <= replay.currentDistance; d += stepDist) {
+          const p = interpolatePosition(d);
+          const aType = replay.routeData[p.index].activityType;
+          if (aType !== replay.currentActivity) {
+            const info = getActivityInfo(aType);
+            const bridge = replay.trailSegments.length > 0
+              ? replay.trailSegments[replay.trailSegments.length - 1].points.slice(-1)
+              : [];
+            const newLine = L.polyline(bridge, { color: info.colour, weight: 4, opacity: 0.8 }).addTo(routeLayerGroup);
+            replay.trailSegments.push({ line: newLine, points: [...bridge], activity: aType });
+            replay.currentActivity = aType;
+          }
+          const seg = replay.trailSegments[replay.trailSegments.length - 1];
+          seg.points.push([p.lat, p.lng]);
+        }
+        const pos = interpolatePosition(replay.currentDistance);
+        const posType = replay.routeData[pos.index].activityType;
+        if (posType !== replay.currentActivity) {
+          const info = getActivityInfo(posType);
+          const bridge = replay.trailSegments.length > 0
+            ? replay.trailSegments[replay.trailSegments.length - 1].points.slice(-1)
+            : [];
+          const newLine = L.polyline(bridge, { color: info.colour, weight: 4, opacity: 0.8 }).addTo(routeLayerGroup);
+          replay.trailSegments.push({ line: newLine, points: [...bridge], activity: posType });
+          replay.currentActivity = posType;
+        }
+        if (replay.trailSegments.length > 0) {
+          const lastSeg = replay.trailSegments[replay.trailSegments.length - 1];
+          lastSeg.points.push([pos.lat, pos.lng]);
+        }
+        replay.trailSegments.forEach(s => s.line.setLatLngs(smoothPolyline(s.points)));
+        replay.marker.setLatLng([pos.lat, pos.lng]);
+        map.panTo([pos.lat, pos.lng], { animate: false });
+        // Recalculate next stop index
+        replay.nextStopIndex = 0;
+        while (replay.nextStopIndex < replay.orderedStops.length &&
+               replay.orderedStops[replay.nextStopIndex].distance <= replay.currentDistance) {
+          replay.nextStopIndex++;
+        }
+        replay.pauseUntil = 0;
+        if (replay.locationPopup) { map.closePopup(replay.locationPopup); replay.locationPopup = null; }
+        const currentType = replay.routeData[pos.index].activityType;
+        replay.marker.setIcon(createReplayIcon(currentType));
+        replay.currentActivity = currentType;
+        updateReplayInfo(currentType, replay.routeData[pos.index].date);
+        updateReplayProgress();
+        // Update diary highlight for seeked position
+        const seekItemIdx = replay.routeData[pos.index].itemIndex;
+        if (seekItemIdx !== undefined) {
+          replay.currentItemIndex = seekItemIdx;
+          highlightDiaryEntry(mapDayKey, seekItemIdx);
+        }
+      });
+    }
+
+
+    /* ── Panel Resize ──────────────────────────── */
+
+    function initPanelResize() {
+      const handle = $('#diary-resize');
+      const panel = $('#diary-panel');
+      let dragging = false;
+
+      handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        dragging = true;
+        handle.classList.add('dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const panelLeft = panel.getBoundingClientRect().left;
+        const newWidth = Math.min(Math.max(e.clientX - panelLeft, 280), window.innerWidth * 0.5);
+        panel.style.width = newWidth + 'px';
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        handle.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        // Re-fit map to account for new panel width
+        if (map) {
+          map.invalidateSize();
+          if (mapDayKey) renderDayOnMap(mapDayKey);
+        }
+        // Reposition elevation panel after diary resize
+        if (elevationVisible) {
+          positionElevationPanel();
+          if (elevationData) drawElevationChart();
+        }
+      });
+    }
+
+    /* ── Filters & Search ─────────────────────── */
+
+    function initFilter() {
+      const checkbox = $('#filter-notes-only');
+      checkbox.addEventListener('change', () => {
+        filterNotesOnly = checkbox.checked;
+        renderDiary();
+      });
+
+      const searchInput = $('#search-input');
+      const searchWrap = $('#search-wrap');
+      let debounceTimer;
+
+      searchInput.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          searchQuery = searchInput.value.trim();
+          searchWrap.classList.toggle('has-query', searchQuery.length > 0);
+          buildSearchMatches();
+          currentMatchIndex = -1;
+          if (searchMatches.length > 0) {
+            navigateToMatch(0);
+          } else {
+            updateSearchUI();
+          }
+        }, 200);
+      });
+
+      // Enter = next match, Shift+Enter = previous match
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (searchMatches.length === 0) return;
+          if (e.shiftKey) {
+            navigateToMatch(currentMatchIndex - 1);
+          } else {
+            navigateToMatch(currentMatchIndex + 1);
+          }
+        }
+        if (e.key === 'Escape') {
+          clearSearch();
+        }
+      });
+
+      $('#search-next').addEventListener('click', () => {
+        navigateToMatch(currentMatchIndex + 1);
+      });
+      $('#search-prev').addEventListener('click', () => {
+        navigateToMatch(currentMatchIndex - 1);
+      });
+      $('#search-close').addEventListener('click', () => {
+        clearSearch();
+      });
+
+      function clearSearch() {
+        searchInput.value = '';
+        searchQuery = '';
+        searchMatches = [];
+        currentMatchIndex = -1;
+        searchWrap.classList.remove('has-query');
+        updateSearchUI();
+        searchInput.focus();
+      }
+    }
+
+    /* ── CTA Banner ────────────────────────────── */
+
+    function initCTABanner() {
+      const banner = $('#cta-banner');
+      const closeBtn = $('#cta-close');
+
+      if (sessionStorage.getItem('demo-cta-dismissed')) {
+        banner.classList.add('hidden');
+        return;
+      }
+
+      closeBtn.addEventListener('click', () => {
+        banner.classList.add('hidden');
+        sessionStorage.setItem('demo-cta-dismissed', '1');
+        if (map) map.invalidateSize();
+      });
+    }
+
+    /* ── Keyboard Navigation ───────────────────── */
+
+    function initKeyboard() {
+      document.addEventListener('keydown', (e) => {
+        if (!tourData || e.ctrlKey || e.metaKey) return;
+        const tag = document.activeElement?.tagName;
+        if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+
+        // Spacebar: toggle replay play/pause
+        if (e.key === ' ' && replay.active) {
+          e.preventDefault();
+          togglePlayPause();
+          return;
+        }
+
+        // Escape: close replay
+        if (e.key === 'Escape' && replay.active) {
+          e.preventDefault();
+          cleanupReplay();
+          return;
+        }
+
+        // Item navigation: Up/Down walks through all visible <li> entries
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          const allEntries = [...$$('.day-entries li')];
+          if (allEntries.length === 0) return;
+          const current = $('.day-entries li.selected');
+          const curIdx = current ? allEntries.indexOf(current) : -1;
+          const newIdx = curIdx + (e.key === 'ArrowUp' ? -1 : 1);
+          if (newIdx >= 0 && newIdx < allEntries.length) {
+            allEntries[newIdx].click();
+          }
+        }
+
+        // Day navigation: Left/Right moves between days, crossing month boundaries
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          const dir = (e.key === 'ArrowRight') ? 1 : -1;
+          const mk = monthKeys[currentMonthIndex];
+          const currentDays = monthDaysMap.get(mk) || [];
+          const dayIdx = mapDayKey ? currentDays.indexOf(mapDayKey) : -1;
+          const newDayIdx = dayIdx + dir;
+
+          if (newDayIdx >= 0 && newDayIdx < currentDays.length) {
+            // Move within the same month
+            showDayOnMap(currentDays[newDayIdx]);
+            scrollDayHeaderIntoView(currentDays[newDayIdx]);
+          } else if (newDayIdx < 0 && currentMonthIndex > 0) {
+            // Go to last day of previous month
+            currentMonthIndex--;
+            renderDiary();
+            const prevDays = monthDaysMap.get(monthKeys[currentMonthIndex]);
+            const lastDay = prevDays[prevDays.length - 1];
+            showDayOnMap(lastDay);
+            scrollDayHeaderIntoView(lastDay);
+          } else if (newDayIdx >= currentDays.length && currentMonthIndex < monthKeys.length - 1) {
+            // Go to first day of next month
+            currentMonthIndex++;
+            renderDiary();
+            const nextDays = monthDaysMap.get(monthKeys[currentMonthIndex]);
+            showDayOnMap(nextDays[0]);
+            scrollDayHeaderIntoView(nextDays[0]);
+          }
+        }
+      });
+    }
+
+    function scrollDayHeaderIntoView(dayKey) {
+      // Find the day header for this dayKey and scroll it into view
+      const headers = [...$$('.day-header')];
+      const label = formatDayLabel(dayKey);
+      const header = headers.find(h => h.textContent === label);
+      if (header) header.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+
+    /* ── Diary Font Size Controls ────────────────── */
+
+    let diaryFontScale = 1.0;
+
+    function initFontControls() {
+      const stored = localStorage.getItem('arc-demo-font-scale');
+      if (stored) {
+        diaryFontScale = Math.min(1.6, Math.max(0.7, parseFloat(stored)));
+        $('.diary-panel').style.setProperty('--diary-font-scale', diaryFontScale);
+      }
+      $('#font-up').addEventListener('click', () => {
+        diaryFontScale = Math.min(1.6, +(diaryFontScale + 0.1).toFixed(1));
+        $('.diary-panel').style.setProperty('--diary-font-scale', diaryFontScale);
+        localStorage.setItem('arc-demo-font-scale', diaryFontScale);
+      });
+      $('#font-down').addEventListener('click', () => {
+        diaryFontScale = Math.max(0.7, +(diaryFontScale - 0.1).toFixed(1));
+        $('.diary-panel').style.setProperty('--diary-font-scale', diaryFontScale);
+        localStorage.setItem('arc-demo-font-scale', diaryFontScale);
+      });
+    }
+
+    /* ── Init ───────────────────────────────────── */
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initFontControls();
+      initPanelResize();
+      initFilter();
+      initStatsPanel();
+      initElevationPanel();
+      initTileSwitcher();
+      initReplay();
+      initCTABanner();
+      initKeyboard();
+      fetchAndLoad();
+    });
+
+  })();
+  </script>
+</body>
+</html>
