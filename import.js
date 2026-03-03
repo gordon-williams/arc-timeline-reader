@@ -1146,6 +1146,8 @@
 
     function normalizeBackupSample(rawSample, requireTimelineItemId = true) {
         if (!rawSample || typeof rawSample !== 'object') return null;
+        // Skip samples marked as disabled/deleted in Arc Editor (e.g. replaced by HealthKit workout)
+        if (rawSample.disabled || rawSample.deleted) return null;
         const location = rawSample.location || (
             rawSample.latitude != null && rawSample.longitude != null
                 ? {
@@ -1176,7 +1178,7 @@
             places: { files: 0, seen: 0, accepted: 0, rejected: 0 },
             notes: { files: 0, seen: 0, accepted: 0, rejected: 0 },
             timeline: { files: 0, seen: 0, accepted: 0, rejected: 0, deleted: 0 },
-            samples: { files: 0, seen: 0, accepted: 0, rejected: 0, invalid: 0, outOfScope: 0 }
+            samples: { files: 0, seen: 0, accepted: 0, rejected: 0, invalid: 0, disabled: 0, outOfScope: 0 }
         };
     }
 
@@ -1186,14 +1188,14 @@
         deps.addLog(`  Places: files ${diag.places.files}, records ${diag.places.accepted}/${diag.places.seen} accepted (${diag.places.rejected} rejected)`);
         deps.addLog(`  Notes: files ${diag.notes.files}, records ${diag.notes.accepted}/${diag.notes.seen} accepted (${diag.notes.rejected} rejected)`);
         deps.addLog(`  Timeline: files ${diag.timeline.files}, records ${diag.timeline.accepted}/${diag.timeline.seen} accepted (${diag.timeline.rejected} rejected, ${diag.timeline.deleted} deleted)`);
-        deps.addLog(`  Samples: files ${diag.samples.files}, records ${diag.samples.accepted}/${diag.samples.seen} accepted (${diag.samples.rejected} rejected: ${diag.samples.invalid} invalid, ${diag.samples.outOfScope} out-of-scope)`);
+        deps.addLog(`  Samples: files ${diag.samples.files}, records ${diag.samples.accepted}/${diag.samples.seen} accepted (${diag.samples.rejected} rejected: ${diag.samples.invalid} invalid, ${diag.samples.disabled} disabled, ${diag.samples.outOfScope} out-of-scope)`);
         // Mirror diagnostics to browser console for easier copy/paste during testing.
         console.log('🧪 Import diagnostics');
         console.log(`  Mode/format: ${diag.mode} / ${diag.format}`);
         console.log(`  Places: files ${diag.places.files}, records ${diag.places.accepted}/${diag.places.seen} accepted (${diag.places.rejected} rejected)`);
         console.log(`  Notes: files ${diag.notes.files}, records ${diag.notes.accepted}/${diag.notes.seen} accepted (${diag.notes.rejected} rejected)`);
         console.log(`  Timeline: files ${diag.timeline.files}, records ${diag.timeline.accepted}/${diag.timeline.seen} accepted (${diag.timeline.rejected} rejected, ${diag.timeline.deleted} deleted)`);
-        console.log(`  Samples: files ${diag.samples.files}, records ${diag.samples.accepted}/${diag.samples.seen} accepted (${diag.samples.rejected} rejected: ${diag.samples.invalid} invalid, ${diag.samples.outOfScope} out-of-scope)`);
+        console.log(`  Samples: files ${diag.samples.files}, records ${diag.samples.accepted}/${diag.samples.seen} accepted (${diag.samples.rejected} rejected: ${diag.samples.invalid} invalid, ${diag.samples.disabled} disabled, ${diag.samples.outOfScope} out-of-scope)`);
     }
 
     // Helper: Order items by linked list (previousItemId/nextItemId)
@@ -1809,6 +1811,12 @@
                     if (Array.isArray(samples)) {
                         for (const sample of samples) {
                             importDiag.samples.seen++;
+                            // Skip disabled/deleted samples before normalization (track separately)
+                            if (sample && (sample.disabled || sample.deleted)) {
+                                importDiag.samples.rejected++;
+                                importDiag.samples.disabled++;
+                                continue;
+                            }
                             const normalizedSample = normalizeBackupSample(sample);
                             if (!normalizedSample) {
                                 importDiag.samples.rejected++;
@@ -2434,6 +2442,12 @@
                     const normalizedSamples = [];
                     for (const rawSample of toRecordArray(samples)) {
                         importDiag.samples.seen++;
+                        // Skip disabled/deleted samples (e.g. replaced by HealthKit workout)
+                        if (rawSample && (rawSample.disabled || rawSample.deleted)) {
+                            importDiag.samples.rejected++;
+                            importDiag.samples.disabled++;
+                            continue;
+                        }
                         // Safari path matches samples by date/time, not timelineItemId
                         const sample = normalizeBackupSample(rawSample, false);
                         if (sample) {
