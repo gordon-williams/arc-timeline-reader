@@ -27,6 +27,12 @@ Arc Timeline Diary Reader uses the following open source libraries and services:
 - **Website:** https://www.chartjs.org/
 - **Description:** Charts and graphs for the Analysis panel
 
+### DOMPurify
+- **Version:** 3.1.7
+- **License:** Apache-2.0 / MPL-2.0
+- **Website:** https://github.com/cure53/DOMPurify
+- **Description:** HTML sanitisation for safe rendering of user-generated markdown (demo viewer)
+
 ### Pako
 - **Version:** 2.1.0
 - **License:** MIT
