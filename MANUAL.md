@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader - User Manual
 
-**Build 02.089**
+**Build 02.092**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and [Arc Editor](https://editor.arc.wiki) GPS tracking data. Generates interactive diaries with maps from your location history, stored locally in your browser. No server required.
 
@@ -634,8 +634,12 @@ API keys are stored locally in your browser's localStorage. They are only sent d
 
 | Model | Input / Output cost (per M tokens) | Best for |
 |-------|-------------------------------------|----------|
-| **Gemini 2.0 Flash** | $0.10 / $0.40 | Very low cost, fast responses |
+| **Gemini 2.5 Flash** | $0.30 / $2.50 | Best price-performance |
+| **Gemini 2.5 Flash Lite** | $0.10 / $0.40 | Cheapest, fast responses |
 | **Gemini 2.5 Pro** | $1.25 / $10 | Strong reasoning at moderate cost |
+| **Gemini 3 Flash (Preview)** | $0.50 / $3.00 | Latest frontier performance |
+| **Gemini 3.1 Flash Lite (Preview)** | $0.25 / $1.50 | Latest efficient model |
+| **Gemini 3.1 Pro (Preview)** | $2.00 / $12 | Latest advanced reasoning |
 
 Cost per message is displayed after each response, along with a running session total. Click the cost display to expand a breakdown of cumulative costs by model across all sessions.
 

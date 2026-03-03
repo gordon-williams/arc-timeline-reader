@@ -35,14 +35,20 @@
 
     // --- Gemini Constants ---
     const GEMINI_MODELS = {
-        'gemini-2.5-flash':      { name: 'Gemini 2.5 Flash',      maxTokens: 8192 },
-        'gemini-2.5-flash-lite': { name: 'Gemini 2.5 Flash Lite', maxTokens: 8192 },
-        'gemini-2.5-pro':        { name: 'Gemini 2.5 Pro',        maxTokens: 8192 }
+        'gemini-2.5-flash':              { name: 'Gemini 2.5 Flash',              maxTokens: 8192 },
+        'gemini-2.5-flash-lite':         { name: 'Gemini 2.5 Flash Lite',         maxTokens: 8192 },
+        'gemini-2.5-pro':                { name: 'Gemini 2.5 Pro',                maxTokens: 8192 },
+        'gemini-3-flash-preview':        { name: 'Gemini 3 Flash (Preview)',      maxTokens: 8192 },
+        'gemini-3.1-flash-lite-preview': { name: 'Gemini 3.1 Flash Lite (Preview)', maxTokens: 8192 },
+        'gemini-3.1-pro-preview':        { name: 'Gemini 3.1 Pro (Preview)',      maxTokens: 8192 }
     };
     const GEMINI_MODEL_COSTS = {
-        'gemini-2.5-flash':      { input: 0.30, output: 2.50 },
-        'gemini-2.5-flash-lite': { input: 0.10, output: 0.40 },
-        'gemini-2.5-pro':        { input: 1.25, output: 10.00 }
+        'gemini-2.5-flash':              { input: 0.30, output: 2.50 },
+        'gemini-2.5-flash-lite':         { input: 0.10, output: 0.40 },
+        'gemini-2.5-pro':                { input: 1.25, output: 10.00 },
+        'gemini-3-flash-preview':        { input: 0.50, output: 3.00 },
+        'gemini-3.1-flash-lite-preview': { input: 0.25, output: 1.50 },
+        'gemini-3.1-pro-preview':        { input: 2.00, output: 12.00 }
     };
     const LS_KEY_GEMINI_API = 'arc_chat_gemini_key';
     const LS_KEY_PROVIDER = 'arc_chat_provider';

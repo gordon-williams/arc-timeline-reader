@@ -1,5 +1,17 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.092 (2026-03-04)
+
+### Gemini 3.x Models
+- **Gemini 3 Flash (Preview)** — Frontier-class model at $0.50/$3.00 per M tokens.
+- **Gemini 3.1 Flash Lite (Preview)** — Latest efficient model at $0.25/$1.50 per M tokens.
+- **Gemini 3.1 Pro (Preview)** — Advanced reasoning model at $2.00/$12.00 per M tokens.
+- All three appear in the model dropdown when Gemini is selected as provider.
+
+### Disabled Sample Filtering (#7)
+- **Filter disabled/deleted samples during import** — LocomotionSamples marked as disabled or deleted in Arc Editor (e.g. when replaced by a HealthKit workout) were being imported. Now filtered out in `normalizeBackupSample()` and both Chrome/FSA and Safari import paths.
+- **Import diagnostics** — Disabled sample count shown separately in the import log.
+
 ## Build 02.089 (2026-02-28)
 
 ### Google Gemini Support
