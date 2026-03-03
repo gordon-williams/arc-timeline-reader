@@ -936,6 +936,97 @@
       50% { transform: scale(1.3); }
       100% { transform: scale(1); }
     }
+
+    /* ── About Modal ──────────────────────────── */
+    .about-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      background: rgba(0, 0, 0, 0.4);
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .about-modal {
+      background: var(--bg-surface);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 20px;
+      box-shadow: 0 12px 48px rgba(0, 0, 0, 0.25);
+      max-width: 480px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .about-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-card);
+    }
+    .about-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .about-close {
+      background: none;
+      border: none;
+      font-size: 20px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 0 2px;
+      line-height: 1;
+    }
+    .about-close:hover { color: var(--text); }
+    .about-body {
+      padding: 16px 20px 20px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+    .about-body p { margin: 0 0 12px; }
+    .about-body a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .about-body a:hover { text-decoration: underline; }
+    .about-body h3 {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 16px 0 8px;
+    }
+    .about-body h3:first-child { margin-top: 0; }
+    .about-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+    .about-table th {
+      text-align: left;
+      font-weight: 600;
+      color: var(--text);
+      padding: 4px 8px 4px 0;
+      border-bottom: 1px solid var(--border-card);
+    }
+    .about-table td {
+      padding: 4px 8px 4px 0;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-card);
+    }
+    .about-table td:last-child { text-align: right; }
+    .about-footer {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-card);
+    }
   </style>
 </head>
 <body>
@@ -967,6 +1058,7 @@
         <button class="tile-btn" id="elevation-btn" title="Elevation profile">⛰️</button>
         <button class="btn btn-replay" id="replay-btn" title="Replay this day">▶ Replay</button>
         <a class="btn btn-primary" href="../index.html">Try the Full App</a>
+        <button class="tile-btn" id="about-btn" title="About">ⓘ</button>
       </div>
     </div>
 
@@ -1048,6 +1140,51 @@
       <span>This is a demo of Arc Diary Reader</span>
       <a href="../index.html">Get the full app &nearr;</a>
       <button class="cta-close" id="cta-close" title="Dismiss">&times;</button>
+    </div>
+
+    <!-- About Modal -->
+    <div class="about-overlay" id="about-overlay">
+      <div class="about-modal">
+        <div class="about-header">
+          <span class="about-title">About This Demo</span>
+          <button class="about-close" id="about-close">&times;</button>
+        </div>
+        <div class="about-body">
+          <p>A lite interactive viewer for <a href="https://github.com/gordon-williams/arc-timeline-reader" target="_blank" rel="noopener">Arc Diary Reader</a> &mdash; a browser-based tool for exploring <a href="https://www.bigpaua.com/arcapp" target="_blank" rel="noopener">Arc Timeline</a> and <a href="https://editor.arc.wiki" target="_blank" rel="noopener">Arc Editor</a> location history.</p>
+
+          <h3>Libraries</h3>
+          <table class="about-table">
+            <thead><tr><th>Library</th><th>Version</th><th>Licence</th></tr></thead>
+            <tbody>
+              <tr><td><a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a></td><td>1.9.4</td><td>BSD-2-Clause</td></tr>
+              <tr><td><a href="https://github.com/nodeca/pako" target="_blank" rel="noopener">Pako</a></td><td>2.1.0</td><td>MIT</td></tr>
+              <tr><td><a href="https://marked.js.org/" target="_blank" rel="noopener">Marked</a></td><td>15.0.12</td><td>MIT</td></tr>
+              <tr><td><a href="https://github.com/cure53/DOMPurify" target="_blank" rel="noopener">DOMPurify</a></td><td>3.1.7</td><td>Apache-2.0</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Map Tiles</h3>
+          <table class="about-table">
+            <thead><tr><th>Provider</th><th>Usage</th></tr></thead>
+            <tbody>
+              <tr><td><a href="https://carto.com/" target="_blank" rel="noopener">CARTO</a></td><td>Street map</td></tr>
+              <tr><td><a href="https://www.cyclosm.org/" target="_blank" rel="noopener">CyclOSM</a></td><td>Cycle map</td></tr>
+              <tr><td><a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a></td><td>Satellite</td></tr>
+            </tbody>
+          </table>
+          <p>Map data &copy; <a href="https://www.openstreetmap.org/" target="_blank" rel="noopener">OpenStreetMap</a> contributors.</p>
+
+          <h3>Font</h3>
+          <p><a href="https://fonts.google.com/specimen/DM+Sans" target="_blank" rel="noopener">DM Sans</a> &mdash; Open Font Licence (OFL)</p>
+
+          <div class="about-footer">
+            Built by Gordon Williams &middot;
+            <a href="https://github.com/gordon-williams/arc-timeline-reader" target="_blank" rel="noopener">GitHub</a> &middot;
+            <a href="https://github.com/gordon-williams/arc-timeline-reader/blob/main/README.md" target="_blank" rel="noopener">README</a> &middot;
+            <a href="https://github.com/gordon-williams/arc-timeline-reader/blob/main/MANUAL.md" target="_blank" rel="noopener">Manual</a>
+          </div>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -3131,10 +3268,26 @@
       });
     }
 
+    /* ── About Modal ──────────────────────────────── */
+
+    function initAbout() {
+      const overlay = $('#about-overlay');
+      $('#about-btn').addEventListener('click', () => {
+        overlay.style.display = 'flex';
+      });
+      $('#about-close').addEventListener('click', () => {
+        overlay.style.display = 'none';
+      });
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.style.display = 'none';
+      });
+    }
+
     /* ── Init ───────────────────────────────────── */
 
     document.addEventListener('DOMContentLoaded', () => {
       initFontControls();
+      initAbout();
       initPanelResize();
       initFilter();
       initStatsPanel();
