@@ -6210,9 +6210,16 @@ scrollToDiaryDay(currentDayKey);
                     items: [
                         { name: 'Leaflet', desc: 'Interactive maps', license: 'BSD-2', url: 'https://leafletjs.com/' },
                         { name: 'Leaflet.markercluster', desc: 'Marker clustering', license: 'MIT', url: 'https://github.com/Leaflet/Leaflet.markercluster' },
+                        { name: 'Leaflet.heat', desc: 'Heatmap layer', license: 'BSD-2', url: 'https://github.com/Leaflet/Leaflet.heat' },
                         { name: 'Chart.js', desc: 'Charts & graphs', license: 'MIT', url: 'https://www.chartjs.org/' },
+                        { name: 'chartjs-plugin-zoom', desc: 'Chart zoom & pan', license: 'MIT', url: 'https://github.com/chartjs/chartjs-plugin-zoom' },
+                        { name: 'chartjs-plugin-annotation', desc: 'Chart annotations', license: 'MIT', url: 'https://github.com/chartjs/chartjs-plugin-annotation' },
+                        { name: 'Hammer.js', desc: 'Touch gestures', license: 'MIT', url: 'https://hammerjs.github.io/' },
                         { name: 'Pako', desc: 'Compression', license: 'MIT', url: 'https://github.com/nodeca/pako' },
-                        { name: 'Marked', desc: 'Markdown parser', license: 'MIT', url: 'https://marked.js.org/' }
+                        { name: 'Marked', desc: 'Markdown parser', license: 'MIT', url: 'https://marked.js.org/' },
+                        { name: 'DOMPurify', desc: 'HTML sanitisation', license: 'Apache-2', url: 'https://github.com/cure53/DOMPurify' },
+                        { name: 'html2canvas', desc: 'Screenshot export', license: 'MIT', url: 'https://html2canvas.hertzen.com/' },
+                        { name: 'jsPDF', desc: 'PDF export', license: 'MIT', url: 'https://github.com/parallax/jsPDF' }
                     ]
                 },
                 {
@@ -6233,6 +6240,15 @@ scrollToDiaryDay(currentDayKey);
                         { name: 'Nominatim', desc: 'Geocoding', url: 'https://nominatim.org/' },
                         { name: 'OSRM', desc: 'Routing engine', url: 'https://project-osrm.org/' },
                         { name: 'Open-Elevation', desc: 'Elevation data', url: 'https://open-elevation.com/' }
+                    ]
+                },
+                {
+                    title: 'Photo Server',
+                    icon: '📷',
+                    items: [
+                        { name: 'Express', desc: 'HTTP server', license: 'MIT', url: 'https://expressjs.com/' },
+                        { name: 'Sharp', desc: 'Image processing', license: 'Apache-2', url: 'https://sharp.pixelplumbing.com/' },
+                        { name: 'better-sqlite3', desc: 'Photos database', license: 'MIT', url: 'https://github.com/WiseLibs/better-sqlite3' }
                     ]
                 },
                 {
