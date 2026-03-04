@@ -45,7 +45,7 @@
     window.ArcState = {
         // ---- Database ----
         DB_NAME: 'ArcTimelineDiary',
-        DB_VERSION: 2,  // Must stay at v2 — can't downgrade
+        DB_VERSION: 4,
         db: null,
         dbReadyResolve: null,
         dbReadyPromise: null, // Initialized below

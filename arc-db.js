@@ -26,29 +26,70 @@
         updateStatsForCurrentView: null,
     };
 
+function _attachDbHandlers(database) {
+    // Handle connection closed by browser (e.g. during file picker dialog,
+    // page backgrounding, or resource pressure)
+    database.onclose = () => {
+        logWarn('⚠️ IndexedDB connection closed by browser — will reconnect on next operation');
+        db = null;
+        S.db = null;
+    };
+
+    // Handle version change from another tab — close gracefully so the
+    // other tab's upgrade can proceed, then reconnect on next operation
+    database.onversionchange = () => {
+        logWarn('⚠️ IndexedDB version change detected — closing connection');
+        database.close();
+        db = null;
+        S.db = null;
+    };
+}
+
+// Re-open the database if the connection was lost. Safe to call when
+// the connection is already open (returns immediately).
+async function ensureDb() {
+    if (db) {
+        // Verify the connection is actually usable — db.close() sets the
+        // closing flag immediately but onclose fires asynchronously, so
+        // db may be non-null but already closing.
+        try {
+            db.transaction(['metadata'], 'readonly');
+            return db;
+        } catch (e) {
+            logWarn('⚠️ IndexedDB connection stale — reconnecting...');
+            db = null;
+            S.db = null;
+        }
+    }
+    logInfo('🔄 Reconnecting to IndexedDB...');
+    await initDatabase();
+    return db;
+}
+
 async function initDatabase() {
     return new Promise((resolve, reject) => {
         logDebug('📂 Opening IndexedDB...');
         const request = indexedDB.open(DB_NAME, DB_VERSION);
-        
+
         request.onerror = (event) => {
             logError('IndexedDB open error:', request.error);
             reject(request.error);
         };
-        
+
         request.onsuccess = () => {
             db = request.result;
             S.db = db; // sync to ArcState for cross-module access
+            _attachDbHandlers(db);
             logInfo('✅ IndexedDB initialized');
             resolve(db);
         };
-        
+
         request.onupgradeneeded = (event) => {
             const database = event.target.result;
             const oldVersion = event.oldVersion;
-            
+
             logDebug(`📦 Upgrading database from v${oldVersion} to v${DB_VERSION}`);
-            
+
             // v1 stores - core functionality
             if (!database.objectStoreNames.contains('days')) {
                 const dayStore = database.createObjectStore('days', { keyPath: 'dayKey' });
@@ -56,16 +97,16 @@ async function initDatabase() {
                 dayStore.createIndex('lastUpdated', 'lastUpdated', { unique: false });
                 dayStore.createIndex('sourceFile', 'sourceFile', { unique: false });
             }
-            
+
             if (!database.objectStoreNames.contains('months')) {
                 const monthStore = database.createObjectStore('months', { keyPath: 'monthKey' });
                 monthStore.createIndex('lastUpdated', 'lastUpdated', { unique: false });
             }
-            
+
             if (!database.objectStoreNames.contains('metadata')) {
                 database.createObjectStore('metadata', { keyPath: 'key' });
             }
-            
+
             // v2 stores - create empty, don't populate yet
             if (oldVersion < 2) {
                 if (!database.objectStoreNames.contains('dailySummaries')) {
@@ -82,8 +123,17 @@ async function initDatabase() {
                     locStore.createIndex('totalVisits', 'totalVisits', { unique: false });
                 }
             }
+
+            // v4 stores - photos
+            if (oldVersion < 4) {
+                if (!database.objectStoreNames.contains('photos')) {
+                    const photoStore = database.createObjectStore('photos', { keyPath: 'id' });
+                    photoStore.createIndex('dayKey', 'dayKey', { unique: false });
+                    photoStore.createIndex('date', 'date', { unique: false });
+                }
+            }
         };
-        
+
         request.onblocked = () => {
             logError('⚠️ Database blocked - close other tabs');
             alert('Please close other tabs with this app and refresh');
@@ -93,6 +143,7 @@ async function initDatabase() {
 
 // Get database statistics (optimized for large datasets)
 async function getDBStats() {
+    await ensureDb();
     if (!db) return { dayCount: 0, monthCount: 0, lastSync: null };
 
     return new Promise((resolve, reject) => {
@@ -134,8 +185,9 @@ async function getDBStats() {
 
 // Save metadata
 async function saveMetadata(key, value) {
+    await ensureDb();
     if (!db) return;
-    
+
     return new Promise((resolve, reject) => {
         const tx = db.transaction(['metadata'], 'readwrite');
         const store = tx.objectStore('metadata');
@@ -148,13 +200,14 @@ async function saveMetadata(key, value) {
 
 // Get metadata
 async function getMetadata(key) {
+    await ensureDb();
     if (!db) return null;
-    
+
     return new Promise((resolve, reject) => {
         const tx = db.transaction(['metadata'], 'readonly');
         const store = tx.objectStore('metadata');
         const req = store.get(key);
-        
+
         req.onsuccess = () => resolve(req.result?.value || null);
         req.onerror = () => reject(req.error);
     });
@@ -579,8 +632,9 @@ function getStoredActivityTypeForTimelineItem(item) {
 
 // Get day from IndexedDB
 async function getDayFromDB(dayKey) {
+    await ensureDb();
     if (!db) return null;
-    
+
     return new Promise((resolve, reject) => {
         const tx = db.transaction(['days'], 'readonly');
         const store = tx.objectStore('days');
@@ -593,6 +647,7 @@ async function getDayFromDB(dayKey) {
 
 // Lightweight version - just get day keys, not full data
 async function getAllDayKeysFromDB() {
+    await ensureDb();
     if (!db) return [];
 
     return new Promise((resolve, reject) => {
@@ -607,8 +662,9 @@ async function getAllDayKeysFromDB() {
 
 // Get all days for a month from IndexedDB
 async function getMonthDaysFromDB(monthKey) {
+    await ensureDb();
     if (!db) return [];
-    
+
     return new Promise((resolve, reject) => {
         const tx = db.transaction(['days'], 'readonly');
         const store = tx.objectStore('days');
@@ -622,8 +678,9 @@ async function getMonthDaysFromDB(monthKey) {
 
 // Get all months from IndexedDB
 async function getAllMonthsFromDB() {
+    await ensureDb();
     if (!db) return [];
-    
+
     return new Promise((resolve, reject) => {
         const tx = db.transaction(['months'], 'readonly');
         const store = tx.objectStore('months');
@@ -664,8 +721,9 @@ function getLocalDayKey(dateStr) {
 
 // Save month aggregated data
 async function saveMonthToDB(monthKey, monthData) {
+    await ensureDb();
     if (!db) return;
-    
+
     return new Promise((resolve, reject) => {
         const tx = db.transaction(['months'], 'readwrite');
         const store = tx.objectStore('months');
@@ -2435,8 +2493,9 @@ async function exportDatabaseToJSON() {
 
 // Clear entire database
 async function clearDatabase() {
+    await ensureDb();
     if (!db) return;
-    
+
     return new Promise((resolve, reject) => {
         const tx = db.transaction(['days', 'months', 'metadata'], 'readwrite');
         
@@ -2473,6 +2532,7 @@ async function clearDatabase() {
     window.ArcDB = {
         // Init & config
         initDatabase,
+        ensureDb,
         setUICallbacks,
         getDBStats,
 

@@ -240,6 +240,7 @@
      * @returns {Promise<{action: string, dayKey: string, diff?: string}>}
      */
     async function importDayToDB(dayKey, monthKey, dayData, sourceFile, lastUpdated, existingMetadata = null, forceOverwrite = false) {
+        if (deps.ensureDb) await deps.ensureDb();
         const db = deps.getDB();
         if (!db) throw new Error('Database not initialized');
 
@@ -327,6 +328,7 @@
      * @returns {Promise<Map>} Map<dayKey, {lastUpdated, contentHash}>
      */
     async function getDayMetadataFromDB() {
+        if (deps.ensureDb) await deps.ensureDb();
         const db = deps.getDB();
         if (!db) return new Map();
 

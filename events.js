@@ -506,8 +506,9 @@
                 return;
             }
 
-            // Close search slider if open
+            // Close search slider and photo slider if open
             if (_ui.closeSearchResults) _ui.closeSearchResults();
+            if (window.closePhotoSlider) window.closePhotoSlider();
 
             // Position slider
             positionEventSlider();

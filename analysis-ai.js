@@ -25,7 +25,14 @@
     let abortController = null; // AbortController for in-flight API requests
     let sessionCost = 0;
 
-    // Cost per million tokens
+    // --- Prompt history (terminal-style up/down arrow) ---
+    const MAX_PROMPT_HISTORY = 5;
+    let promptHistory = [];   // oldest → newest
+    let promptHistoryIdx = -1; // -1 = not browsing; 0..length-1 = position
+    let promptDraft = '';      // stash of in-progress text when user starts browsing
+
+    // Cost per million tokens (USD). Built-in fallback — live prices fetched from pricing.json in repo.
+    const PRICING_URL = 'https://raw.githubusercontent.com/gordon-williams/arc-timeline-reader/main/pricing.json';
     const MODEL_COSTS = {
         'claude-sonnet-4-6':       { input: 3.00, output: 15.00 },
         'claude-sonnet-4-5':       { input: 3.00, output: 15.00 },
@@ -2432,7 +2439,7 @@ Be concise and friendly.`;
             const costs = costTable[id];
             const opt = document.createElement('option');
             opt.value = id;
-            opt.textContent = `${m.name} ($${costs.input}/$${costs.output})`;
+            opt.textContent = m.name;
             elModelSelect.appendChild(opt);
         }
         if (savedModel && models[savedModel]) {
@@ -2554,7 +2561,12 @@ Be concise and friendly.`;
                 } else if (Array.isArray(msg.content)) {
                     const parts = msg.content.map(block => {
                         if (block.type === 'tool_use') {
-                            return { functionCall: { name: block.name, args: block.input } };
+                            const part = { functionCall: { name: block.name, args: block.input } };
+                            // Restore Gemini thought signature for round-tripping
+                            if (block._thoughtSignature) {
+                                part.thoughtSignature = block._thoughtSignature;
+                            }
+                            return part;
                         }
                         return { text: block.text || '' };
                     });
@@ -2599,15 +2611,22 @@ Be concise and friendly.`;
         for (const part of parts) {
             if (part.functionCall) {
                 hasToolUse = true;
-                contentBlocks.push({
+                const block = {
                     type: 'tool_use',
                     id: `gemini_${part.functionCall.name}_${Date.now()}`,
                     name: part.functionCall.name,
                     input: part.functionCall.args || {}
-                });
-            } else if (part.text) {
+                };
+                // Preserve Gemini thought signature for round-tripping
+                if (part.thoughtSignature) {
+                    block._thoughtSignature = part.thoughtSignature;
+                }
+                contentBlocks.push(block);
+            } else if (part.text && !part.thought) {
                 contentBlocks.push({ type: 'text', text: part.text });
             }
+            // Skip thought-only text parts (internal reasoning) — they must not be
+            // sent back and their signatures are already on the functionCall parts
         }
 
         // Empty response — surface the finish reason so the user knows why
@@ -2846,6 +2865,15 @@ Be concise and friendly.`;
         if (isProcessing || !text.trim()) return;
 
         const userMessage = text.trim();
+
+        // Push to prompt history (dedup consecutive identical prompts)
+        if (!promptHistory.length || promptHistory[promptHistory.length - 1] !== userMessage) {
+            promptHistory.push(userMessage);
+            if (promptHistory.length > MAX_PROMPT_HISTORY) promptHistory.shift();
+        }
+        promptHistoryIdx = -1;
+        promptDraft = '';
+
         isProcessing = true;
         abortController = new AbortController();
         elInput.disabled = true;
@@ -3141,6 +3169,157 @@ Be concise and friendly.`;
     }
 
     // =========================================================================
+    // Pricing Modal
+    // =========================================================================
+
+    let pricingSortCol = 'provider'; // provider | model | input | output
+    let pricingSortAsc = true;
+    let remotePricing = null; // cached fetch result
+    let remotePricingFetched = false;
+
+    async function fetchRemotePricing() {
+        if (remotePricingFetched) return remotePricing;
+        remotePricingFetched = true;
+        try {
+            const resp = await fetch(PRICING_URL, { cache: 'no-cache' });
+            if (resp.ok) remotePricing = await resp.json();
+        } catch (e) { /* offline or blocked — use built-in prices */ }
+        return remotePricing;
+    }
+
+    function priceMovement(builtIn, remote) {
+        if (remote == null || remote === builtIn) return '<span class="price-move"></span>';
+        return remote > builtIn
+            ? '<span class="price-move price-up" title="Was $' + builtIn.toFixed(2) + '">▲</span>'
+            : '<span class="price-move price-down" title="Was $' + builtIn.toFixed(2) + '">▼</span>';
+    }
+
+    function getAllModelRows() {
+        const rows = [];
+        const rAnth = remotePricing ? remotePricing.anthropic : null;
+        const rGem = remotePricing ? remotePricing.gemini : null;
+        for (const [id, m] of Object.entries(MODELS)) {
+            const c = MODEL_COSTS[id];
+            const r = rAnth && rAnth[id];
+            rows.push({
+                id, provider: 'Anthropic', name: m.name,
+                input: r ? r.input : c.input,
+                output: r ? r.output : c.output,
+                builtInInput: c.input,
+                builtInOutput: c.output
+            });
+        }
+        for (const [id, m] of Object.entries(GEMINI_MODELS)) {
+            const c = GEMINI_MODEL_COSTS[id];
+            const r = rGem && rGem[id];
+            rows.push({
+                id, provider: 'Gemini', name: m.name,
+                input: r ? r.input : c.input,
+                output: r ? r.output : c.output,
+                builtInInput: c.input,
+                builtInOutput: c.output
+            });
+        }
+        return rows;
+    }
+
+    function renderPricingModal() {
+        const body = document.getElementById('pricingModalBody');
+        if (!body) return;
+
+        const rows = getAllModelRows();
+        rows.sort((a, b) => {
+            let va, vb;
+            if (pricingSortCol === 'provider') { va = a.provider; vb = b.provider; }
+            else if (pricingSortCol === 'model') { va = a.name; vb = b.name; }
+            else if (pricingSortCol === 'input') { va = a.input; vb = b.input; }
+            else { va = a.output; vb = b.output; }
+            if (typeof va === 'string') {
+                const cmp = va.localeCompare(vb);
+                return pricingSortAsc ? cmp : -cmp;
+            }
+            return pricingSortAsc ? va - vb : vb - va;
+        });
+
+        const selectedModel = elModelSelect ? elModelSelect.value : '';
+        const cols = [
+            { key: 'provider', label: 'Provider', num: false },
+            { key: 'model', label: 'Model', num: false },
+            { key: 'input', label: 'Input', num: true },
+            { key: 'output', label: 'Output', num: true }
+        ];
+
+        let html = '<table class="pricing-table"><thead><tr>';
+        for (const col of cols) {
+            const active = pricingSortCol === col.key;
+            const arrow = active ? (pricingSortAsc ? ' ▲' : ' ▼') : '';
+            const cls = (active ? 'sort-active' : '') + (col.num ? ' col-num' : '');
+            html += `<th class="${cls}" data-sort="${col.key}">${col.label}${arrow}</th>`;
+        }
+        html += '</tr></thead><tbody>';
+
+        let prevProvider = null;
+        rows.forEach((r, i) => {
+            const selected = r.id === selectedModel ? ' row-selected' : '';
+            const alt = i % 2 === 1 ? ' row-alt' : '';
+            const providerCell = r.provider !== prevProvider
+                ? `<span class="provider-badge">${r.provider}</span>`
+                : '';
+            prevProvider = r.provider;
+            html += `<tr class="${alt}${selected}">`;
+            html += `<td>${providerCell}</td>`;
+            html += `<td>${r.name}</td>`;
+            html += `<td class="col-num">$${r.input.toFixed(2)}${priceMovement(r.builtInInput, r.input !== r.builtInInput ? r.input : null)}</td>`;
+            html += `<td class="col-num">$${r.output.toFixed(2)}${priceMovement(r.builtInOutput, r.output !== r.builtInOutput ? r.output : null)}</td>`;
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        body.innerHTML = html;
+
+        // Update footer with pricing date
+        const footer = document.getElementById('pricingModalFooter');
+        if (footer) {
+            const checked = remotePricing ? remotePricing.checked : null;
+            footer.textContent = checked
+                ? `Prices per million tokens (USD) · Updated ${checked}`
+                : 'Prices per million tokens (USD)';
+        }
+
+        // Attach sort handlers
+        body.querySelectorAll('th[data-sort]').forEach(th => {
+            th.addEventListener('click', () => {
+                const col = th.dataset.sort;
+                if (pricingSortCol === col) {
+                    pricingSortAsc = !pricingSortAsc;
+                } else {
+                    pricingSortCol = col;
+                    pricingSortAsc = true;
+                }
+                renderPricingModal();
+            });
+        });
+    }
+
+    async function showPricingModal() {
+        const backdrop = document.getElementById('pricingModalBackdrop');
+        if (!backdrop) return;
+        pricingSortCol = 'provider';
+        pricingSortAsc = true;
+        // Show immediately with built-in prices, then update if remote differs
+        renderPricingModal();
+        backdrop.classList.add('visible');
+        if (!remotePricingFetched) {
+            await fetchRemotePricing();
+            renderPricingModal(); // re-render with remote data
+        }
+    }
+
+    function hidePricingModal() {
+        const backdrop = document.getElementById('pricingModalBackdrop');
+        if (backdrop) backdrop.classList.remove('visible');
+    }
+
+    // =========================================================================
     // Initialization
     // =========================================================================
 
@@ -3199,6 +3378,30 @@ Be concise and friendly.`;
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 sendChatMessage(elInput.value);
+                return;
+            }
+            // Terminal-style prompt history with up/down arrows
+            if (e.key === 'ArrowUp' && promptHistory.length) {
+                e.preventDefault();
+                if (promptHistoryIdx === -1) {
+                    promptDraft = elInput.value;
+                    promptHistoryIdx = promptHistory.length - 1;
+                } else if (promptHistoryIdx > 0) {
+                    promptHistoryIdx--;
+                }
+                elInput.value = promptHistory[promptHistoryIdx];
+                return;
+            }
+            if (e.key === 'ArrowDown' && promptHistoryIdx !== -1) {
+                e.preventDefault();
+                if (promptHistoryIdx < promptHistory.length - 1) {
+                    promptHistoryIdx++;
+                    elInput.value = promptHistory[promptHistoryIdx];
+                } else {
+                    promptHistoryIdx = -1;
+                    elInput.value = promptDraft;
+                }
+                return;
             }
         });
 
@@ -3492,6 +3695,23 @@ Be concise and friendly.`;
                 if (elCostBadge) elCostBadge.classList.remove('active');
             });
         }
+
+        // Event listeners — pricing modal
+        const elPricingBtn = document.getElementById('chatPricingBtn');
+        const elPricingBackdrop = document.getElementById('pricingModalBackdrop');
+        const elPricingClose = document.getElementById('pricingModalClose');
+        if (elPricingBtn) elPricingBtn.addEventListener('click', showPricingModal);
+        if (elPricingClose) elPricingClose.addEventListener('click', hidePricingModal);
+        if (elPricingBackdrop) {
+            elPricingBackdrop.addEventListener('click', (e) => {
+                if (e.target === elPricingBackdrop) hidePricingModal();
+            });
+        }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && elPricingBackdrop && elPricingBackdrop.classList.contains('visible')) {
+                hidePricingModal();
+            }
+        });
 
         // Initialize cost badge display
         updateCostBadge();

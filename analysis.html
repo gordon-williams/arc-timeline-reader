@@ -2309,6 +2309,151 @@
             margin-top: 6px;
             opacity: 0.7;
         }
+
+        /* Pricing info button */
+        .btn-pricing-info {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: var(--bg-input);
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: all 0.15s ease;
+            flex-shrink: 0;
+        }
+        .btn-pricing-info:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* Pricing modal */
+        .pricing-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        .pricing-modal-backdrop.visible {
+            display: flex;
+        }
+        .pricing-modal {
+            background: var(--bg-surface);
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border-strong);
+            max-width: 540px;
+            width: 90%;
+            overflow: hidden;
+        }
+        .pricing-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .pricing-modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0 4px;
+            line-height: 1;
+        }
+        .pricing-modal-close:hover {
+            color: var(--text-primary);
+        }
+        .pricing-modal-body {
+            padding: 0;
+        }
+        .pricing-modal-footer {
+            padding: 10px 18px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            opacity: 0.7;
+            border-top: 1px solid var(--border);
+        }
+        .pricing-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .pricing-table th {
+            text-align: left;
+            padding: 8px 14px;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        .pricing-table th:hover {
+            color: var(--text-primary);
+        }
+        .pricing-table th.sort-active {
+            color: var(--accent);
+        }
+        .pricing-table th.col-num {
+            text-align: right;
+        }
+        .pricing-table td {
+            padding: 7px 14px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .pricing-table td.col-num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+        .pricing-table tr:last-child td {
+            border-bottom: none;
+        }
+        .pricing-table tr.row-alt {
+            background: var(--bg-input);
+        }
+        .pricing-table tr.row-selected td {
+            color: var(--accent);
+            font-weight: 600;
+        }
+        .pricing-table .provider-badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 1px 6px;
+            border-radius: 4px;
+            background: var(--bg-elevated);
+            color: var(--text-secondary);
+            letter-spacing: 0.3px;
+        }
+        .pricing-table .price-move {
+            display: inline-block;
+            width: 12px;
+            text-align: center;
+            font-size: 10px;
+            margin-left: 2px;
+        }
+        .pricing-table .price-up {
+            color: #ff453a;
+        }
+        .pricing-table .price-down {
+            color: #30d158;
+        }
+
         .chat-messages {
             flex: 1;
             overflow-y: auto;
@@ -2827,6 +2972,7 @@
                                     <select id="chatModelSelect" class="chat-select">
                                         <!-- populated dynamically by updateProviderUI() -->
                                     </select>
+                                    <button class="btn-pricing-info" id="chatPricingBtn" title="Model pricing">ℹ</button>
                                     <label class="chat-label">API Key</label>
                                     <input type="password" id="chatApiKey" class="chat-key-input" placeholder="sk-ant-..." />
                                     <button class="btn btn-secondary btn-small" id="chatSaveKey">Save Key</button>
@@ -2887,7 +3033,7 @@
     <script src="arc-sprites.js"></script>
     <script>
         // Build version
-        const ANALYSIS_BUILD = '02.092';
+        const ANALYSIS_BUILD = '02.116';
         
         // Database and state
         let db = null;
@@ -3060,17 +3206,13 @@
         
         function openDatabase() {
             return new Promise((resolve, reject) => {
-                const request = indexedDB.open('ArcTimelineDiary', 2);
-                
+                const request = indexedDB.open('ArcTimelineDiary', 4);
+
                 request.onerror = () => reject(new Error('Could not open database'));
-                
+
                 request.onsuccess = (e) => {
                     db = e.target.result;
                     resolve();
-                };
-                
-                request.onupgradeneeded = (e) => {
-                    // Don't create stores here - just read existing
                 };
             });
         }
@@ -9216,5 +9358,17 @@
         document.body.appendChild(s);
     })();
     </script>
+
+    <!-- Pricing modal -->
+    <div class="pricing-modal-backdrop" id="pricingModalBackdrop">
+        <div class="pricing-modal">
+            <div class="pricing-modal-header">
+                <span>Model Pricing</span>
+                <button class="pricing-modal-close" id="pricingModalClose">&times;</button>
+            </div>
+            <div class="pricing-modal-body" id="pricingModalBody"></div>
+            <div class="pricing-modal-footer" id="pricingModalFooter">Prices per million tokens (USD)</div>
+        </div>
+    </div>
 </body>
 </html>

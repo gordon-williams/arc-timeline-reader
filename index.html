@@ -26,7 +26,7 @@ SOFTWARE.
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Arc Diary Reader v3.0</title>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://*.tile-cyclosm.openstreetmap.fr https://server.arcgisonline.com https://basemap.nationalmap.gov https://maps.googleapis.com https://api.mapbox.com; connect-src 'self' https://nominatim.openstreetmap.org https://maps.googleapis.com https://api.mapbox.com https://api.open-elevation.com https://router.project-osrm.org https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; worker-src blob:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: http://localhost:* https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://*.tile-cyclosm.openstreetmap.fr https://server.arcgisonline.com https://basemap.nationalmap.gov https://maps.googleapis.com https://api.mapbox.com; connect-src 'self' http://localhost:* https://nominatim.openstreetmap.org https://maps.googleapis.com https://api.mapbox.com https://api.open-elevation.com https://router.project-osrm.org https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; worker-src blob:;">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" integrity="sha384-pmjIAcz2bAn0xukfxADbZIb3t8oRT9Sv0rvO+BR5Csr6Dhqq+nZs59P0pPKQJkEV" crossorigin="anonymous" />
@@ -36,7 +36,7 @@ SOFTWARE.
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = '02.092';
+  window.__ARC_BUILD__ = '02.116';
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -154,9 +154,19 @@ SOFTWARE.
       var sh = document.createElement('script');
       sh.src = 'share.js?v=' + b;
       sh.async = false;
-      sh.onload = function() { loadMainApp(); };
-      sh.onerror = function() { loadMainApp(); }; // Continue even if missing
+      sh.onload = function() { loadPhotos(); };
+      sh.onerror = function() { loadPhotos(); }; // Continue even if missing
       document.body.appendChild(sh);
+    }
+
+    function loadPhotos() {
+      // Load arc-photos.js (Apple Photos integration)
+      var p = document.createElement('script');
+      p.src = 'arc-photos.js?v=' + b;
+      p.async = false;
+      p.onload = function() { loadMainApp(); };
+      p.onerror = function() { loadMainApp(); }; // Continue without photos
+      document.body.appendChild(p);
     }
 
     function loadMainApp() {
@@ -236,12 +246,49 @@ SOFTWARE.
 						<span class="import-panel-title" style="font-size: 15px; margin-bottom: 0;">🗺️ Mapbox Integration</span>
 						<span id="mapboxStatusBadge" style="font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--bg-app); color: var(--text-secondary);">Not configured</span>
 					</div>
-					<div style="display: flex; gap: 8px; align-items: center;">
+					<div id="mapboxTokenRow" style="display: flex; gap: 8px; align-items: center;">
 						<input type="text" id="mainMapboxToken" placeholder="pk.eyJ1Ijoi..." style="flex: 1; padding: 10px 12px; border: 1px solid var(--border-card); border-radius: 8px; font-size: 13px; font-family: monospace; background: var(--bg-input); color: var(--text-primary);">
-						<button onclick="saveMainMapboxToken()" style="padding: 10px 16px; background: var(--accent); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">Save</button>
+						<button id="mapboxSaveBtn" onclick="saveMainMapboxToken()" style="width: auto; flex: none; padding: 10px 16px; background: var(--accent); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;">Save</button>
 					</div>
 					<div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
 						Optional: <a href="https://account.mapbox.com/access-tokens/" target="_blank" rel="noopener" style="color: var(--accent);">Get free token</a> for faster geocoding and more map styles (Dark, Outdoors, Satellite with labels)
+					</div>
+				</div>
+
+				<!-- Photo Server Integration -->
+				<div id="photoSettingsSection" class="import-panel" style="cursor: default; text-align: left; padding: 24px; margin-bottom: 24px;">
+					<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+						<span class="import-panel-title" style="font-size: 15px; margin-bottom: 0;">Apple Photos</span>
+						<span id="photoStatusBadge" style="font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--bg-app); color: var(--text-secondary);">Not connected</span>
+					</div>
+					<div id="photoServerRow" style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+						<input type="text" id="photoServerUrl" placeholder="http://localhost:3000" value="http://localhost:3000"
+							style="flex: 1; padding: 10px 12px; border: 1px solid var(--border-card); border-radius: 8px; font-size: 13px; font-family: monospace; background: var(--bg-input); color: var(--text-primary);">
+						<button id="photoConnectBtn" style="width: auto; flex: none; padding: 10px 16px; background: var(--accent); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;">Connect</button>
+					</div>
+					<div id="photoImportControls" style="display: none;">
+						<div id="photoServerInfo" style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;"></div>
+						<div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+							<label style="font-size: 12px; color: var(--text-secondary); white-space: nowrap;">From</label>
+							<input type="date" id="photoDateFrom" style="flex: 1; padding: 6px 8px; border: 1px solid var(--border-card); border-radius: 6px; font-size: 13px; background: var(--bg-input); color: var(--text-primary);">
+							<label style="font-size: 12px; color: var(--text-secondary); white-space: nowrap;">To</label>
+							<input type="date" id="photoDateTo" style="flex: 1; padding: 6px 8px; border: 1px solid var(--border-card); border-radius: 6px; font-size: 13px; background: var(--bg-input); color: var(--text-primary);">
+						</div>
+						<div id="photoActionBtns" style="display: flex; gap: 8px; align-items: stretch;">
+							<button id="photoImportBtn" style="width: auto; flex: none; min-height: 0; padding: 8px 14px; background: var(--bg-app); color: var(--text-primary); border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;">Import Photos</button>
+							<button id="photoRepairBtn" style="display: none; width: auto; flex: none; min-height: 0; padding: 8px 14px; background: var(--bg-app); color: var(--text-primary); border: none; border-radius: 8px; font-size: 13px; cursor: pointer; white-space: nowrap;" title="Re-fetch missing or corrupt thumbnails">Repair</button>
+							<button id="photoClearBtn" style="display: none; width: auto; flex: none; min-height: 0; padding: 8px 14px; background: var(--red); color: white; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; white-space: nowrap;">Clear</button>
+						</div>
+						<div id="photoImportProgress" style="display: none; margin-top: 12px;">
+							<div style="background: var(--border-medium, #333); height: 4px; border-radius: 2px; overflow: hidden;">
+								<div id="photoProgressFill" style="background: linear-gradient(90deg, var(--accent), #5AC8FA); height: 100%; width: 0%; transition: width 0.3s;"></div>
+							</div>
+							<div id="photoProgressText" style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;"></div>
+						</div>
+					</div>
+					<div id="photoLocalStatus" style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;"></div>
+					<div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+						Double-click <strong>Start Photo Server</strong> in the <code style="background: var(--bg-app); padding: 2px 6px; border-radius: 4px;">photo-server</code> folder to start
 					</div>
 				</div>
 
@@ -302,8 +349,9 @@ SOFTWARE.
                 
                 <button id="cancelBtn" class="btn-danger" onclick="cancelProcessing = true; event.stopPropagation();" style="display: none;">Cancel Import</button>
             </div>
-            
-            
+
+
+
             <div class="progress" id="progress">
                 <div class="progress-bar">
                     <div class="progress-fill" id="progressFill">0%</div>
@@ -532,6 +580,10 @@ SOFTWARE.
                             <span class="tools-dropdown-icon">🎯</span>
                             <span>Activity Filter</span>
                         </div>
+                        <div class="tools-dropdown-item" id="photoGalleryMenuItem" onclick="selectToolFromDropdown('photos')" style="display: none;">
+                            <span class="tools-dropdown-icon">📷</span>
+                            <span>Photos</span>
+                        </div>
                     </div>
                 </div>
 
@@ -564,6 +616,24 @@ SOFTWARE.
             </div>
 
             <div class="modal-body">
+                <!-- Photo Viewer Modal (overlays map area) -->
+                <div class="photo-viewer-overlay" id="photoViewer" style="display: none;">
+                    <div class="photo-viewer-modal" id="photoViewerModal">
+                        <div class="photo-viewer-header" id="photoViewerHeader">
+                            <span class="photo-viewer-info" id="photoViewerInfo"></span>
+                            <div class="photo-viewer-controls">
+                                <button class="photo-viewer-btn" onclick="togglePhotoViewerMaximize()" title="Maximize">⛶</button>
+                                <button class="photo-viewer-btn" onclick="closePhotoViewer()" title="Close">&times;</button>
+                            </div>
+                        </div>
+                        <div class="photo-viewer-body">
+                            <button class="photo-viewer-nav photo-viewer-prev" onclick="navigatePhoto(-1)">&#8249;</button>
+                            <img id="photoViewerImg" src="" alt="Photo">
+                            <button class="photo-viewer-nav photo-viewer-next" onclick="navigatePhoto(1)">&#8250;</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Map container - fills entire viewport -->
                 <div class="map-container" id="mapContainer">
                     <div class="map-placeholder" id="mapPlaceholder">
@@ -688,6 +758,8 @@ SOFTWARE.
                 <!-- Floating Diary Toggle (visible when diary is hidden) -->
                 <button class="diary-toggle-float" id="diaryToggleFloat" onclick="toggleDiary()" title="Show diary" style="display: none;">📖</button>
                 
+                <!-- Photo Gallery (removed — now uses photo-slider) -->
+
                 <!-- Floating Stats Panel -->
                 <div class="stats-float" id="statsFloat" style="display: none;">
                     <div class="stats-header">
@@ -756,6 +828,7 @@ SOFTWARE.
                                 <button class="btn-search" id="nextSearchBtn" onclick="navigateSearch(1)" disabled title="Next match" style="display: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>
                                 <button class="btn-search" id="clearSearchBtn" onclick="clearSearch()" title="Clear search" style="display: none;">✕</button>
                                 <button class="btn-events" id="eventsBtn" onclick="openEventList()" title="Events (multi-day trips, vacations)">📅</button>
+                                <button class="btn-photos" id="photosBtn" onclick="togglePhotoSlider()" title="Photos for this day" style="display: none;">📷</button>
                             </div>
                         </div>
                     </div>
@@ -844,6 +917,18 @@ SOFTWARE.
                 </div>
             </div>
 
+            <!-- Photo Gallery Slider -->
+            <div class="photo-slider" id="photoSlider">
+                <div class="photo-slider-header">
+                    <span class="photo-slider-title" id="photoSliderTitle">Photos</span>
+                    <div style="display:flex;gap:4px;">
+                        <button class="photo-slider-map-toggle" id="photoMapToggle" onclick="togglePhotoMapMarkers()" title="Toggle map markers">📍</button>
+                        <button class="btn-close-slider" onclick="closePhotoSlider()">✕</button>
+                    </div>
+                </div>
+                <div class="photo-slider-content" id="photoSliderGrid"></div>
+            </div>
+
             <!-- Category Manager Modal -->
             <div class="category-manager-backdrop" id="categoryManagerBackdrop" onclick="closeCategoryManager()"></div>
             <div class="category-manager-modal" id="categoryManagerModal">
@@ -919,6 +1004,9 @@ SOFTWARE.
     if (document.title && document.title.indexOf('Build') === -1) document.title = document.title + ' • Build ' + b;
   })();
 </script>
+
+<!-- Photo Lightbox -->
+<!-- Photo lightbox removed — now uses photo-viewer inside modal-body -->
 
 <!-- Tool Modals - Outside any containers with transforms/filters for proper fixed positioning -->
 

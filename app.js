@@ -74,6 +74,7 @@ function moveMapSmart(latlng, zoom) {
         const S = window.ArcState;
         const {
             initDatabase,
+            ensureDb,
             setUICallbacks: _setDBCallbacks,
             getDBStats,
             saveMetadata,
@@ -534,9 +535,10 @@ function moveMapSmart(latlng, zoom) {
             const token = localStorage.getItem('arc_mapbox_token') || '';
             const input = document.getElementById('mainMapboxToken');
             const badge = document.getElementById('mapboxStatusBadge');
-            
+            const saveBtn = document.getElementById('mapboxSaveBtn');
+
             if (input) input.value = token;
-            
+
             if (badge) {
                 if (token) {
                     badge.textContent = 'Active';
@@ -548,20 +550,52 @@ function moveMapSmart(latlng, zoom) {
                     badge.style.color = '#86868b';
                 }
             }
+
+            // When a token is saved: subdued button, read-only input until focused
+            if (saveBtn && input) {
+                const setSavedAppearance = () => {
+                    saveBtn.textContent = 'Saved';
+                    saveBtn.style.cssText = 'width:auto; flex:none; padding:8px 12px; background:var(--bg-app); color:var(--text-secondary); border:none; border-radius:8px; font-size:13px; font-weight:600; white-space:nowrap; cursor:default;';
+                    saveBtn.disabled = true;
+                    input.style.opacity = '0.7';
+                };
+                const setEditAppearance = () => {
+                    input.style.opacity = '1';
+                    saveBtn.textContent = 'Save';
+                    saveBtn.style.cssText = 'width:auto; flex:none; padding:10px 16px; background:var(--accent); color:white; border:none; border-radius:8px; font-size:13px; font-weight:600; white-space:nowrap; cursor:pointer;';
+                    saveBtn.disabled = false;
+                };
+
+                if (token) {
+                    setSavedAppearance();
+                    input.onfocus = setEditAppearance;
+                    input.onblur = (e) => {
+                        // If blur target is the save button, let the click go through
+                        if (e.relatedTarget === saveBtn) return;
+                        // Revert to saved appearance if value unchanged
+                        if (input.value.trim() === token) setSavedAppearance();
+                    };
+                } else {
+                    setEditAppearance();
+                    input.onfocus = null;
+                    input.onblur = null;
+                }
+            }
         }
         
         window.saveMainMapboxToken = function() {
             const input = document.getElementById('mainMapboxToken');
             const token = input?.value.trim() || '';
-            
+
             if (token) {
                 localStorage.setItem('arc_mapbox_token', token);
             } else {
                 localStorage.removeItem('arc_mapbox_token');
             }
-            
+
+            if (input) input.blur();
             initMainMapboxSettings();
-            
+
             // Notify other tabs/pages
             window.dispatchEvent(new StorageEvent('storage', {
                 key: 'arc_mapbox_token',
@@ -1202,6 +1236,7 @@ function moveMapSmart(latlng, zoom) {
         let mapResizeObserver = null;
         let markerLayer = null;
         let clusterGroup = null;
+        let photoMarkerLayer = null;
         let cancelProcessing = false;
         let dayRoutePolyline = null;
         let allRouteSegments = [];
@@ -1262,6 +1297,8 @@ function moveMapSmart(latlng, zoom) {
                 }
                 
                 const content = openPopup.getContent();
+                // Skip popups with DOM element content (e.g. photo popups)
+                if (typeof content !== 'string') return;
                 // Remove existing zoom line if present
                 const contentWithoutZoom = content.replace(/<div class="popup-zoom".*?<\/div>/, '');
                 // Add updated zoom line
@@ -1329,7 +1366,8 @@ function moveMapSmart(latlng, zoom) {
         if (window.ArcImportModule) {
             window.ArcImportModule.init({
                 // Database access
-                getDB: () => db,
+                getDB: () => S.db,
+                ensureDb: ensureDb,
                 getDayFromDB: getDayFromDB,
                 getLocalDayKey: getLocalDayKey,
                 getStoredDisplayNameForTimelineItem: getStoredDisplayNameForTimelineItem,
@@ -3146,6 +3184,9 @@ function moveMapSmart(latlng, zoom) {
             // Attach all click handlers (locations, activities, day titles, month title)
             attachDiaryClickHandlers();
 
+            // Inject photo thumbnails into diary entries (async, non-blocking)
+            attachPhotoStrips();
+
             // Re-enable route search click mode if search popup is open
             const searchPopup = document.getElementById('searchPopup');
             if (searchPopup && searchPopup.style.display !== 'none' && typeof enableDiaryLocationClickMode === 'function') {
@@ -4597,6 +4638,12 @@ function moveMapSmart(latlng, zoom) {
                 }
             }
 
+            // Add photo markers to their own layer (separate from location clusters)
+            addPhotoMapMarkers(dayKey);
+
+            // Update photo gallery if open
+            if (photoSliderOpen) openPhotoSlider(dayKey);
+
             // Resolve clicked target marker — only accept if within ~110m of diary coordinates
             const MAX_MATCH_D2 = 0.001 * 0.001;
             if (targetLat !== null && targetLng !== null && bestTargetMarker && bestTargetD2 <= MAX_MATCH_D2) {
@@ -4962,6 +5009,10 @@ function moveMapSmart(latlng, zoom) {
             if (markerLayer) {
                 map.removeLayer(markerLayer);
                 markerLayer = null;
+            }
+            if (photoMarkerLayer) {
+                try { map.removeLayer(photoMarkerLayer); } catch (e) { /* ignore */ }
+                photoMarkerLayer = null;
             }
             clearDayRoute();
         }
@@ -5474,8 +5525,11 @@ scrollToDiaryDay(currentDayKey);
             if (clusterGroup && map.hasLayer(clusterGroup)) {
                 map.removeLayer(clusterGroup);
             }
+            if (photoMarkerLayer && map.hasLayer(photoMarkerLayer)) {
+                map.removeLayer(photoMarkerLayer);
+            }
         }
-        
+
         function showDiaryRoutes() {
             const searchPopup = document.getElementById('searchPopup');
             if (searchPopup && searchPopup.style.display === 'block') {
@@ -5489,6 +5543,9 @@ scrollToDiaryDay(currentDayKey);
             }
             if (clusterGroup && !map.hasLayer(clusterGroup)) {
                 map.addLayer(clusterGroup);
+            }
+            if (photoMarkerLayer && !map.hasLayer(photoMarkerLayer)) {
+                map.addLayer(photoMarkerLayer);
             }
         }
         
@@ -6712,6 +6769,9 @@ scrollToDiaryDay(currentDayKey);
                     break;
                 case 'filter':
                     toggleMapFilters();
+                    break;
+                case 'photos':
+                    togglePhotoSlider();
                     break;
             }
         }
@@ -11101,6 +11161,619 @@ scrollToDiaryDay(currentDayKey);
             return str.charAt(0).toUpperCase() + str.slice(1);
         }
         
+        // ===== Apple Photos Integration =====
+
+        let photoSliderOpen = false;
+        let photoSliderDayKey = null;
+        let viewerPhotos = [];
+        let viewerIndex = 0;
+
+        // Inject photo thumbnail strips into rendered diary entries
+        async function attachPhotoStrips() {
+            if (!window.ArcPhotos) return;
+            const count = await ArcPhotos.getPhotoCount();
+            // Show/hide the photos button based on whether any photos exist
+            const photosBtn = document.getElementById('photosBtn');
+            if (photosBtn) photosBtn.style.display = count > 0 ? '' : 'none';
+            if (count === 0) return;
+
+            // Revoke any previously created ObjectURLs
+            ArcPhotos.revokeUrls();
+
+            const listItems = markdownContent.querySelectorAll('li');
+            // Group entries by dayKey
+            const dayEntries = new Map(); // dayKey → [{li, startDate, endDate, itemId}]
+            for (const li of listItems) {
+                const locData = li.querySelector('.location-data');
+                if (!locData) continue;
+                const dayKey = locData.dataset.daykey;
+                if (!dayKey) continue;
+                if (!dayEntries.has(dayKey)) dayEntries.set(dayKey, []);
+                dayEntries.get(dayKey).push({
+                    li,
+                    startDate: locData.dataset.startDate || locData.dataset.date,
+                    endDate: locData.dataset.endDate || locData.dataset.date,
+                    itemId: `${locData.dataset.startDate || locData.dataset.date}_${locData.dataset.placeId || ''}`
+                });
+            }
+
+            for (const [dayKey, entries] of dayEntries) {
+                const photos = await ArcPhotos.getPhotosForDay(dayKey);
+                if (photos.length === 0) continue;
+
+                const matches = ArcPhotos.matchPhotosToTimeline(photos, entries.map(e => ({
+                    startDate: e.startDate,
+                    endDate: e.endDate,
+                    itemId: e.itemId
+                })));
+
+                for (const entry of entries) {
+                    const key = entry.itemId;
+                    const rawMatched = matches.get(key);
+                    if (!rawMatched || rawMatched.length === 0) continue;
+                    const matched = rawMatched.filter(p => p.thumbnail && p.thumbnail.size > 0);
+                    if (matched.length === 0) continue;
+
+                    const strip = document.createElement('div');
+                    strip.className = 'diary-photo-strip';
+                    strip.dataset.daykey = dayKey;
+
+                    const maxInline = 8;
+                    const shown = matched.slice(0, maxInline);
+                    for (const photo of shown) {
+                        const thumb = document.createElement('span');
+                        thumb.className = 'diary-photo-thumb';
+                        thumb.dataset.photoId = photo.id;
+                        const url = ArcPhotos.getThumbnailUrl(photo);
+                        if (url) thumb.style.backgroundImage = `url(${url})`;
+                        thumb.onclick = (e) => {
+                            e.stopPropagation();
+                            openPhotoViewer(photo.id, matched);
+                        };
+                        strip.appendChild(thumb);
+                    }
+
+                    if (matched.length > maxInline) {
+                        const more = document.createElement('span');
+                        more.className = 'diary-photo-more';
+                        more.textContent = `+${matched.length - maxInline}`;
+                        more.onclick = (e) => {
+                            e.stopPropagation();
+                            openPhotoSlider(dayKey);
+                        };
+                        strip.appendChild(more);
+                    }
+
+                    entry.li.appendChild(strip);
+                }
+            }
+        }
+
+        // Photo Slider Panel (slides out from diary like event slider)
+        function positionPhotoSlider() {
+            const slider = document.getElementById('photoSlider');
+            const diaryFloat = document.querySelector('.diary-float');
+            const modalHeader = document.querySelector('.modal-header');
+            if (!slider || !diaryFloat) return;
+
+            const diaryRect = diaryFloat.getBoundingClientRect();
+            const headerBottom = modalHeader ? modalHeader.getBoundingClientRect().bottom + 15 : 0;
+            const sliderTop = Math.max(diaryRect.top, headerBottom);
+
+            slider.style.left = (diaryRect.right - 20) + 'px';
+            slider.style.top = sliderTop + 'px';
+            slider.style.bottom = (window.innerHeight - diaryRect.bottom) + 'px';
+            slider.style.height = 'auto';
+        }
+
+        async function openPhotoSlider(dayKey) {
+            if (!window.ArcPhotos) return;
+            const slider = document.getElementById('photoSlider');
+            const grid = document.getElementById('photoSliderGrid');
+            const title = document.getElementById('photoSliderTitle');
+            if (!slider || !grid) return;
+
+            // Close event slider if open
+            if (typeof closeEventSlider === 'function') closeEventSlider();
+
+            const photos = await ArcPhotos.getPhotosForDay(dayKey);
+            photoSliderDayKey = dayKey;
+            photoSliderOpen = true;
+
+            // Update title
+            const d = new Date(dayKey);
+            title.textContent = `Photos · ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+
+            // Clear and populate grid
+            grid.innerHTML = '';
+            // Filter to photos with valid thumbnails
+            const visiblePhotos = photos.filter(p => p.thumbnail && p.thumbnail.size > 0);
+
+            if (visiblePhotos.length === 0) {
+                grid.innerHTML = photos.length > 0
+                    ? '<div class="photo-slider-empty">Photos not available (originals not downloaded)</div>'
+                    : '<div class="photo-slider-empty">No photos for this day</div>';
+            } else {
+                for (const photo of visiblePhotos) {
+                    const item = document.createElement('div');
+                    item.className = 'photo-slider-item';
+                    const url = ArcPhotos.getThumbnailUrl(photo);
+                    if (url) item.style.backgroundImage = `url(${url})`;
+                    item.onclick = () => openPhotoViewer(photo.id, visiblePhotos);
+                    grid.appendChild(item);
+                }
+            }
+
+            // Update map toggle button state
+            const toggle = document.getElementById('photoMapToggle');
+            if (toggle) {
+                toggle.textContent = ArcPhotos.showMapMarkers() ? '📍' : '📌';
+                toggle.classList.toggle('active', ArcPhotos.showMapMarkers());
+            }
+
+            positionPhotoSlider();
+            slider.classList.add('open');
+        }
+
+        function closePhotoSlider() {
+            const slider = document.getElementById('photoSlider');
+            if (slider) slider.classList.remove('open');
+            photoSliderOpen = false;
+        }
+
+        function togglePhotoSlider() {
+            if (photoSliderOpen) {
+                closePhotoSlider();
+            } else {
+                // Try current day, previous slider day, or first visible day in diary
+                let dayKey = currentDayKey || photoSliderDayKey;
+                if (!dayKey) {
+                    const firstLoc = document.querySelector('.location-data[data-daykey]');
+                    if (firstLoc) dayKey = firstLoc.dataset.daykey;
+                }
+                if (dayKey) openPhotoSlider(dayKey);
+            }
+        }
+
+        function togglePhotoMapMarkers() {
+            if (!window.ArcPhotos) return;
+            const current = ArcPhotos.showMapMarkers();
+            ArcPhotos.setShowMapMarkers(!current);
+            const toggle = document.getElementById('photoMapToggle');
+            if (toggle) {
+                toggle.textContent = !current ? '📍' : '📌';
+                toggle.classList.toggle('active', !current);
+            }
+            if (currentDayKey) {
+                showDayMap(currentDayKey);
+            }
+        }
+
+        // Add photo markers to map (separate layer from location markers)
+        async function addPhotoMapMarkers(dayKey) {
+            if (!window.ArcPhotos || !ArcPhotos.showMapMarkers()) return;
+
+            const photos = await ArcPhotos.getPhotosForDay(dayKey);
+
+            // Guard: if the day changed while we were awaiting, discard results
+            if (currentDayKey !== dayKey) return;
+
+            const gpsPhotos = photos.filter(p => p.latitude && p.longitude && p.thumbnail && p.thumbnail.size > 0);
+            if (gpsPhotos.length === 0) return;
+
+            // Clean up previous photo layer (in case it wasn't cleared by clearMapLayers)
+            if (photoMarkerLayer) {
+                try { map.removeLayer(photoMarkerLayer); } catch (e) { /* ignore */ }
+                photoMarkerLayer = null;
+            }
+
+            // Use a simple layer group (not cluster) to avoid interfering with route polylines
+            photoMarkerLayer = L.layerGroup();
+
+            for (const photo of gpsPhotos) {
+                const photoMarker = L.marker([photo.latitude, photo.longitude], {
+                    icon: L.divIcon({
+                        className: 'photo-map-marker',
+                        html: `<div class="photo-map-thumb" data-photo-id="${photo.id}"></div>`,
+                        iconSize: [36, 36],
+                        iconAnchor: [18, 18]
+                    })
+                });
+
+                photoMarker.on('add', () => {
+                    setTimeout(async () => {
+                        const el = document.querySelector(`.photo-map-thumb[data-photo-id="${photo.id}"]`);
+                        if (el) {
+                            const p = await ArcPhotos.getPhotoById(photo.id);
+                            if (p) {
+                                const url = ArcPhotos.getThumbnailUrl(p);
+                                if (url) el.style.backgroundImage = `url(${url})`;
+                            }
+                        }
+                    }, 50);
+                });
+
+                const popupContent = document.createElement('div');
+                popupContent.className = 'photo-map-popup';
+                const imgDiv = document.createElement('div');
+                imgDiv.className = 'photo-popup-img';
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'photo-popup-info';
+                const photoDate = new Date(photo.date);
+                infoDiv.textContent = `${photoDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}${photo.cameraModel ? ' · ' + photo.cameraModel : ''}`;
+                popupContent.appendChild(imgDiv);
+                popupContent.appendChild(infoDiv);
+
+                ArcPhotos.getPhotoById(photo.id).then(p => {
+                    if (p?.thumbnail) {
+                        const url = ArcPhotos.getThumbnailUrl(p);
+                        if (url) imgDiv.style.backgroundImage = `url(${url})`;
+                    }
+                });
+
+                imgDiv.style.cursor = 'pointer';
+                imgDiv.onclick = () => {
+                    openPhotoViewer(photo.id, gpsPhotos);
+                };
+
+                photoMarker.bindPopup(popupContent, { maxWidth: 220, className: 'photo-popup-wrap' });
+                photoMarkerLayer.addLayer(photoMarker);
+            }
+
+            // Final guard: check day hasn't changed during marker creation
+            if (currentDayKey === dayKey) {
+                map.addLayer(photoMarkerLayer);
+            }
+        }
+
+        // Photo Viewer (resizable modal over map)
+        function openPhotoViewer(photoId, photoList) {
+            viewerPhotos = photoList || [];
+            viewerIndex = viewerPhotos.findIndex(p => p.id === photoId);
+            if (viewerIndex === -1) viewerIndex = 0;
+
+            const overlay = document.getElementById('photoViewer');
+            if (!overlay) return;
+            overlay.style.display = 'flex';
+            showViewerPhoto();
+
+            // Init draggable once
+            const modal = document.getElementById('photoViewerModal');
+            if (modal && !modal.dataset.draggableInit) {
+                initPhotoViewerDrag(modal);
+            }
+
+            // Keyboard handler
+            overlay._keyHandler = (e) => {
+                if (e.key === 'Escape') closePhotoViewer();
+                else if (e.key === 'ArrowLeft') navigatePhoto(-1);
+                else if (e.key === 'ArrowRight') navigatePhoto(1);
+            };
+            document.addEventListener('keydown', overlay._keyHandler);
+        }
+
+        function initPhotoViewerDrag(modal) {
+            const header = document.getElementById('photoViewerHeader');
+            if (!header) return;
+            let isDragging = false;
+            let startX, startY, startLeft, startTop;
+
+            header.addEventListener('mousedown', (e) => {
+                if (e.target.tagName === 'BUTTON') return;
+                isDragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                const rect = modal.getBoundingClientRect();
+                const parentRect = modal.offsetParent?.getBoundingClientRect() || { left: 0, top: 0 };
+                startLeft = rect.left - parentRect.left;
+                startTop = rect.top - parentRect.top;
+                // Switch from centered to absolute positioning
+                modal.style.position = 'absolute';
+                modal.style.margin = '0';
+                modal.style.left = startLeft + 'px';
+                modal.style.top = startTop + 'px';
+                e.preventDefault();
+            });
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+                modal.style.left = (startLeft + e.clientX - startX) + 'px';
+                modal.style.top = (startTop + e.clientY - startY) + 'px';
+            });
+            document.addEventListener('mouseup', () => { isDragging = false; });
+            modal.dataset.draggableInit = 'true';
+        }
+
+        function closePhotoViewer() {
+            const overlay = document.getElementById('photoViewer');
+            if (!overlay) return;
+            overlay.style.display = 'none';
+            if (overlay._keyHandler) {
+                document.removeEventListener('keydown', overlay._keyHandler);
+                overlay._keyHandler = null;
+            }
+            // Reset modal position for next open
+            const modal = document.getElementById('photoViewerModal');
+            if (modal) {
+                modal.style.position = '';
+                modal.style.left = '';
+                modal.style.top = '';
+                modal.style.margin = '';
+                modal.classList.remove('maximized');
+            }
+        }
+
+        function togglePhotoViewerMaximize() {
+            const modal = document.getElementById('photoViewerModal');
+            if (!modal) return;
+            if (modal.classList.contains('maximized')) {
+                modal.classList.remove('maximized');
+            } else {
+                modal.classList.add('maximized');
+                modal.style.position = '';
+                modal.style.left = '';
+                modal.style.top = '';
+                modal.style.margin = '';
+            }
+        }
+
+        function navigatePhoto(dir) {
+            if (viewerPhotos.length === 0) return;
+            viewerIndex = (viewerIndex + dir + viewerPhotos.length) % viewerPhotos.length;
+            showViewerPhoto();
+        }
+
+        async function showViewerPhoto() {
+            const photo = viewerPhotos[viewerIndex];
+            if (!photo) return;
+
+            const img = document.getElementById('photoViewerImg');
+            const info = document.getElementById('photoViewerInfo');
+            if (!img) return;
+
+            // Show thumbnail immediately from IndexedDB
+            const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
+            if (dbPhoto?.thumbnail) {
+                const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
+                if (thumbUrl) img.src = thumbUrl;
+            }
+
+            // Try to load full-res from server
+            let fullUrl = ArcPhotos.getFullResUrl(photo.id);
+            // Fallback: try server URL from localStorage even if not marked available
+            if (!fullUrl) {
+                const savedUrl = localStorage.getItem('arcPhotoServerUrl');
+                if (savedUrl) fullUrl = `${savedUrl.replace(/\/+$/, '')}/api/full/${photo.id}`;
+            }
+            if (fullUrl) {
+                const fullImg = new Image();
+                fullImg.onload = () => { img.src = fullUrl; };
+                fullImg.onerror = () => {}; // Keep thumbnail
+                fullImg.src = fullUrl;
+            }
+
+            // Info line
+            if (info) {
+                const d = new Date(photo.date);
+                const dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                const camera = photo.cameraModel || '';
+                const counter = viewerPhotos.length > 1 ? ` · ${viewerIndex + 1} / ${viewerPhotos.length}` : '';
+                info.textContent = `${dateStr} ${timeStr}${camera ? ' · ' + camera : ''}${counter}`;
+            }
+
+            // Update prev/next visibility
+            const prev = document.querySelector('.photo-viewer-prev');
+            const next = document.querySelector('.photo-viewer-next');
+            if (prev) prev.style.display = viewerPhotos.length > 1 ? 'flex' : 'none';
+            if (next) next.style.display = viewerPhotos.length > 1 ? 'flex' : 'none';
+        }
+
+        // Photo import UI setup (start screen)
+        async function setupPhotoImportUI() {
+            if (!window.ArcPhotos) return;
+
+            const connectBtn = document.getElementById('photoConnectBtn');
+            const importBtn = document.getElementById('photoImportBtn');
+            const repairBtn = document.getElementById('photoRepairBtn');
+            const clearBtn = document.getElementById('photoClearBtn');
+            const serverUrlInput = document.getElementById('photoServerUrl');
+            const statusBadge = document.getElementById('photoStatusBadge');
+            const importControls = document.getElementById('photoImportControls');
+            const serverInfo = document.getElementById('photoServerInfo');
+            const localStatus = document.getElementById('photoLocalStatus');
+
+            // Restore saved server URL
+            const savedUrl = ArcPhotos.getServerUrl();
+            if (savedUrl && serverUrlInput) serverUrlInput.value = savedUrl;
+
+            // Show local photo stats
+            async function updateLocalStatus() {
+                const stats = await ArcPhotos.getPhotoStats();
+                if (stats && stats.count > 0) {
+                    const first = new Date(stats.firstDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                    const last = new Date(stats.lastDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                    localStatus.textContent = `${stats.count.toLocaleString()} photos imported · ${first} – ${last}`;
+                    clearBtn.style.display = '';
+                    if (repairBtn) repairBtn.style.display = '';
+                    // Show photo buttons in diary toolbar
+                    const menuItem = document.getElementById('photoGalleryMenuItem');
+                    if (menuItem) menuItem.style.display = '';
+                    const photosBtn = document.getElementById('photosBtn');
+                    if (photosBtn) photosBtn.style.display = '';
+                } else {
+                    localStatus.textContent = 'No photos imported';
+                    clearBtn.style.display = 'none';
+                    if (repairBtn) repairBtn.style.display = 'none';
+                }
+            }
+            await updateLocalStatus();
+
+            // Connect button — saved/active state pattern
+            function setPhotoConnectedAppearance() {
+                if (!connectBtn) return;
+                connectBtn.textContent = 'Connected';
+                connectBtn.style.cssText = 'width:auto; flex:none; padding:8px 12px; background:var(--bg-app); color:var(--text-secondary); border:none; border-radius:8px; font-size:13px; font-weight:600; white-space:nowrap; cursor:default;';
+                connectBtn.disabled = true;
+                if (serverUrlInput) serverUrlInput.style.opacity = '0.7';
+            }
+            function setPhotoDisconnectedAppearance() {
+                if (!connectBtn) return;
+                connectBtn.textContent = 'Connect';
+                connectBtn.style.cssText = 'width:auto; flex:none; padding:10px 16px; background:var(--accent); color:white; border:none; border-radius:8px; font-size:13px; font-weight:600; white-space:nowrap; cursor:pointer;';
+                connectBtn.disabled = false;
+                if (serverUrlInput) serverUrlInput.style.opacity = '1';
+            }
+
+            if (connectBtn) {
+                connectBtn.onclick = async () => {
+                    const url = serverUrlInput?.value?.trim();
+                    if (!url) return;
+                    connectBtn.textContent = '...';
+                    try {
+                        const status = await ArcPhotos.checkServer(url);
+                        statusBadge.textContent = 'Connected';
+                        statusBadge.style.background = '#34C75920';
+                        statusBadge.style.color = '#34C759';
+                        serverInfo.textContent = `${status.photoCount.toLocaleString()} photos in library`;
+                        importControls.style.display = '';
+                        setPhotoConnectedAppearance();
+                    } catch (e) {
+                        statusBadge.textContent = 'Failed';
+                        statusBadge.style.background = '#FF3B3020';
+                        statusBadge.style.color = '#FF3B30';
+                        importControls.style.display = 'none';
+                        setPhotoDisconnectedAppearance();
+                    }
+                };
+                // On focus, enable editing if currently connected
+                if (serverUrlInput) {
+                    serverUrlInput.onfocus = () => {
+                        if (connectBtn.disabled) {
+                            serverUrlInput.style.opacity = '1';
+                            connectBtn.textContent = 'Connect';
+                            connectBtn.style.cssText = 'width:auto; flex:none; padding:10px 16px; background:var(--accent); color:white; border:none; border-radius:8px; font-size:13px; font-weight:600; white-space:nowrap; cursor:pointer;';
+                            connectBtn.disabled = false;
+                        }
+                    };
+                    serverUrlInput.onblur = (e) => {
+                        if (e.relatedTarget === connectBtn) return;
+                        // Revert if still connected and URL unchanged
+                        if (ArcPhotos.isServerAvailable() && serverUrlInput.value.trim() === ArcPhotos.getServerUrl()) {
+                            setPhotoConnectedAppearance();
+                        }
+                    };
+                }
+            }
+
+            // Import button
+            if (importBtn) {
+                importBtn.onclick = async () => {
+                    importBtn.disabled = true;
+                    importBtn.textContent = 'Importing...';
+                    const progressBar = document.getElementById('photoImportProgress');
+                    const progressFill = document.getElementById('photoProgressFill');
+                    const progressText = document.getElementById('photoProgressText');
+                    if (progressBar) progressBar.style.display = '';
+
+                    try {
+                        const fromDate = document.getElementById('photoDateFrom')?.value;
+                        const toDate = document.getElementById('photoDateTo')?.value;
+                        const importOpts = (fromDate && toDate) ? { startDate: fromDate, endDate: toDate } : {};
+                        const result = await ArcPhotos.importPhotos((p) => {
+                            if (progressFill) progressFill.style.width = `${p.percent || 0}%`;
+                            if (progressText) progressText.textContent = p.message || `${p.imported || 0} of ${p.total || 0} photos...`;
+                        }, importOpts);
+                        let doneMsg = `Done — ${result.imported} imported`;
+                        if (result.skipped > 0) {
+                            doneMsg += `, ${result.skipped} skipped`;
+                            const sb = result.skipBreakdown;
+                            if (sb && sb.noOriginal > 0) {
+                                doneMsg += ` (${sb.noOriginal} not downloaded from iCloud)`;
+                            }
+                        }
+                        if (progressText) progressText.textContent = doneMsg;
+                        await updateLocalStatus();
+                    } catch (e) {
+                        if (progressText) progressText.textContent = `Error: ${e.message}`;
+                    }
+                    importBtn.disabled = false;
+                    importBtn.textContent = 'Import Photos';
+                };
+            }
+
+            // Repair button — re-fetch missing/corrupt thumbnails
+            if (repairBtn) {
+                repairBtn.onclick = async () => {
+                    repairBtn.disabled = true;
+                    repairBtn.textContent = 'Repairing...';
+                    const progressBar = document.getElementById('photoImportProgress');
+                    const progressFill = document.getElementById('photoProgressFill');
+                    const progressText = document.getElementById('photoProgressText');
+                    if (progressBar) progressBar.style.display = '';
+
+                    try {
+                        // Reset server failure cache so previously failed photos get retried
+                        await ArcPhotos.resetServerFailures();
+                        const result = await ArcPhotos.repairThumbnails((p) => {
+                            if (progressFill) progressFill.style.width = `${p.percent || 0}%`;
+                            if (progressText) progressText.textContent = `Repaired ${p.repaired} of ${p.total}${p.failed ? ` (${p.failed} failed)` : ''}`;
+                        });
+                        let repairMsg = `Done — ${result.repaired} repaired, ${result.failed} failed`;
+                        if (result.failed > 0 && result.repaired === 0) {
+                            repairMsg += ' (originals likely not downloaded from iCloud)';
+                        }
+                        if (progressText) progressText.textContent = repairMsg;
+                    } catch (e) {
+                        if (progressText) progressText.textContent = `Error: ${e.message}`;
+                    }
+                    repairBtn.disabled = false;
+                    repairBtn.textContent = 'Repair';
+                };
+            }
+
+            // Clear button
+            if (clearBtn) {
+                clearBtn.onclick = async () => {
+                    if (!confirm('Remove all imported photos from the browser database?')) return;
+                    await ArcPhotos.clearPhotos();
+                    await updateLocalStatus();
+                    const menuItem = document.getElementById('photoGalleryMenuItem');
+                    if (menuItem) menuItem.style.display = 'none';
+                    const photosBtn = document.getElementById('photosBtn');
+                    if (photosBtn) photosBtn.style.display = 'none';
+                };
+            }
+
+            // Auto-connect to photo server if a URL is saved
+            const autoUrl = serverUrlInput?.value?.trim();
+            if (autoUrl) {
+                try {
+                    const status = await ArcPhotos.checkServer(autoUrl);
+                    if (statusBadge) {
+                        statusBadge.textContent = 'Connected';
+                        statusBadge.style.background = '#34C75920';
+                        statusBadge.style.color = '#34C759';
+                    }
+                    if (serverInfo) serverInfo.textContent = `${status.photoCount.toLocaleString()} photos in library`;
+                    if (importControls) importControls.style.display = '';
+                    setPhotoConnectedAppearance();
+                } catch (e) {
+                    // Server not running — leave as "Not connected", no error shown
+                }
+            }
+        }
+
+        // Expose photo functions to window for onclick handlers
+        window.closePhotoSlider = closePhotoSlider;
+        window.togglePhotoSlider = togglePhotoSlider;
+        window.openPhotoSlider = openPhotoSlider;
+        window.togglePhotoMapMarkers = togglePhotoMapMarkers;
+        window.openPhotoViewer = openPhotoViewer;
+        window.closePhotoViewer = closePhotoViewer;
+        window.togglePhotoViewerMaximize = togglePhotoViewerMaximize;
+        window.navigatePhoto = navigatePhoto;
+
 		  function generateMarkdown(monthData, includeAllLocations = false, includeAllActivities = true) {
 
             const [year, month] = monthData.month.split('-');
@@ -11553,6 +12226,9 @@ scrollToDiaryDay(currentDayKey);
                 // Update status display
                 await updateDBStatusDisplay();
 
+                // Setup photo import UI (start screen)
+                setupPhotoImportUI();
+
                 // Check if database has data
                 const stats = await getDBStats();
 
@@ -11619,6 +12295,7 @@ if (typeof switchMonth === 'function') window.switchMonth = switchMonth;
 if (typeof switchYear === 'function') window.switchYear = switchYear;
 if (typeof toggleAllActivities === 'function') window.toggleAllActivities = toggleAllActivities;
 if (typeof toggleAnalysisPanel === 'function') window.toggleAnalysisPanel = toggleAnalysisPanel;
+// Photo function exports moved inside initApp() where they're in scope
 
         // Analysis opens in separate tab - reuse existing if same build
         const analysisChannel = new BroadcastChannel('arc-analysis-control');
