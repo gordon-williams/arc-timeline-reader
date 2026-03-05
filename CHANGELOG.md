@@ -1,5 +1,21 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.161 (2026-03-06)
+
+### Photo Viewer & Gallery
+- **Remember viewer size** — The photo/video viewer remembers its window size, position state (default/fitted/maximized), and restores them when reopened.
+- **Video crossfade fix** — Smooth opacity transition from placeholder to video. Previously showed a split-screen flash when both elements competed for flex space; now uses absolute overlay during the fade.
+- **Gallery resize handle** — Drag the right edge of the gallery slider to resize between 1 and 4 columns of thumbnails. Width saved to localStorage and restored on next open.
+- **Adaptive date format** — Gallery header date adjusts to available width: full date at 4 columns, abbreviated at 3, short at 1–2.
+- **Gallery follows diary resize** — Dragging the diary panel wider/narrower repositions the gallery in real-time.
+- **Gallery closes with diary** — Hiding the diary panel also closes the gallery slide-out.
+- **Hide media hides map markers** — Switching the diary filter to "Hide Media" or "Notes" now removes photo/video markers from the map. Switching back restores them.
+
+### Diary Panel
+- **Font size controls** — Floating A−/A+ pill at the bottom-right of the diary panel. Scales body text, headings (h1, h2), and line heights proportionately across 8 steps (0.80× to 1.47×). Saved to localStorage and restored on reload; auto-applied when navigating to new days.
+- **Round close buttons** — All panel close buttons (diary, gallery, events, search) now use a consistent 32×32px circular design.
+- **Consistent close character** — Standardised all close buttons to use × (U+00D7) instead of a mix of × and ✕ (U+2715).
+
 ## Build 02.092 (2026-03-04)
 
 ### Gemini 3.x Models

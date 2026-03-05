@@ -1501,6 +1501,7 @@ function moveMapSmart(latlng, zoom) {
 					setTimeout(() => {
 						 initializeMapPanel(skipMapInit);
 						 initializeDiaryResize();
+						 initPhotoSliderResize();
 						 initializeResponsiveDiaryHeader();
 						 
 						 // Set build number in diary header
@@ -1509,6 +1510,7 @@ function moveMapSmart(latlng, zoom) {
 						     diaryBuild.textContent = `Build ${BUILD}`;
 						 }
 						 
+						 restoreDiaryFontSize();
 						 initializeFocusHandling();
 						 // Load saved transparency setting from localStorage
 						 loadTransparencySetting();
@@ -3544,6 +3546,18 @@ function moveMapSmart(latlng, zoom) {
                 displayDiary(currentMonth, true);
                 setTimeout(() => updateStatsForCurrentView(), 10);
             }
+
+            // Remove or restore photo map markers based on filter
+            const filter = getDiaryViewFilter();
+            if (filter === 'hide-media' || filter === 'notes') {
+                if (photoMarkerLayer) {
+                    try { map.removeLayer(photoMarkerLayer); } catch (e) { /* ignore */ }
+                    photoMarkerLayer = null;
+                }
+            } else if (currentDayKey) {
+                // Re-add photo markers for current day
+                addPhotoMapMarkers(currentDayKey);
+            }
         }
 
         // Toggle diary visibility
@@ -3626,6 +3640,9 @@ function moveMapSmart(latlng, zoom) {
                 }
                 if (eventSlider && eventSlider.classList.contains('open')) {
                     closeEventSlider();
+                }
+                if (photoSliderOpen) {
+                    closePhotoSlider();
                 }
 
                 // Function to hide diary
@@ -3909,13 +3926,18 @@ function moveMapSmart(latlng, zoom) {
                 const newWidth = startWidth + deltaX;
                 
                 // Enforce min and max width
-                const minWidth = 315;
+                const minWidth = 420;
                 const maxWidth = window.innerWidth * 0.5; // Max 50% of screen
                 const clampedWidth = Math.max(minWidth, Math.min(newWidth, maxWidth));
                 
                 // Update diary width
                 diaryFloat.style.width = clampedWidth + 'px';
-                
+
+                // Reposition photo gallery if open
+                if (photoSliderOpen) {
+                    positionPhotoSlider();
+                }
+
                 // Invalidate map size so it adjusts to new space
                 if (map) {
                     map.invalidateSize();
@@ -3934,6 +3956,76 @@ function moveMapSmart(latlng, zoom) {
             });
         }
         
+        // Diary font size adjustment — uses scale steps for proportional sizing
+        // Scale factors: 0.80, 0.87, 0.93, 1.0 (default), 1.07, 1.20, 1.33, 1.47
+        const FONT_SCALE_STEPS = [0.80, 0.87, 0.93, 1.0, 1.07, 1.20, 1.33, 1.47];
+        const DEFAULT_FONT_SCALE_INDEX = 3; // 1.0x default
+
+        // Base sizes from CSS (at scale 1.0)
+        const BASE_BODY_FONT = 16;    // inherited body font
+        const BASE_H1_FONT = 32;
+        const BASE_H2_FONT = 24;
+        const BASE_LINE_HEIGHT = 1.6;
+
+        function applyDiaryFontScale(scaleIndex) {
+            const markdownBody = document.getElementById('markdownContent');
+            if (!markdownBody) return;
+
+            const scale = FONT_SCALE_STEPS[scaleIndex];
+            const bodySize = Math.round(BASE_BODY_FONT * scale);
+            const h1Size = Math.round(BASE_H1_FONT * scale);
+            const h2Size = Math.round(BASE_H2_FONT * scale);
+            // Line height grows slightly with larger text for readability
+            const lineHeight = (BASE_LINE_HEIGHT + (scale - 1) * 0.15).toFixed(2);
+
+            markdownBody.style.fontSize = bodySize + 'px';
+            markdownBody.style.lineHeight = lineHeight;
+
+            // Apply to headings within markdown body
+            markdownBody.querySelectorAll('h1').forEach(h => {
+                h.style.fontSize = h1Size + 'px';
+            });
+            markdownBody.querySelectorAll('h2').forEach(h => {
+                h.style.fontSize = h2Size + 'px';
+            });
+        }
+
+        function adjustDiaryFontSize(direction) {
+            const markdownBody = document.getElementById('markdownContent');
+            if (!markdownBody) return;
+
+            let currentIndex = parseInt(localStorage.getItem('arcDiaryFontScaleIndex') || DEFAULT_FONT_SCALE_INDEX);
+            let newIndex = currentIndex + direction;
+            newIndex = Math.max(0, Math.min(newIndex, FONT_SCALE_STEPS.length - 1));
+
+            if (newIndex === currentIndex) return; // Already at min/max
+
+            applyDiaryFontScale(newIndex);
+            localStorage.setItem('arcDiaryFontScaleIndex', String(newIndex));
+        }
+
+        // Expose globally for onclick
+        window.adjustDiaryFontSize = adjustDiaryFontSize;
+
+        function restoreDiaryFontSize() {
+            const savedIndex = parseInt(localStorage.getItem('arcDiaryFontScaleIndex'));
+            if (!isNaN(savedIndex) && savedIndex >= 0 && savedIndex < FONT_SCALE_STEPS.length && savedIndex !== DEFAULT_FONT_SCALE_INDEX) {
+                applyDiaryFontScale(savedIndex);
+            }
+
+            // Watch for content changes so new headings get scaled too
+            const markdownBody = document.getElementById('markdownContent');
+            if (markdownBody) {
+                const observer = new MutationObserver(() => {
+                    const idx = parseInt(localStorage.getItem('arcDiaryFontScaleIndex'));
+                    if (!isNaN(idx) && idx !== DEFAULT_FONT_SCALE_INDEX) {
+                        applyDiaryFontScale(idx);
+                    }
+                });
+                observer.observe(markdownBody, { childList: true });
+            }
+        }
+
         // Responsive diary header - hide title then nav buttons as width decreases
         function initializeResponsiveDiaryHeader() {
             const diaryFloat = document.querySelector('.diary-float');
@@ -10493,7 +10585,11 @@ scrollToDiaryDay(currentDayKey);
         // Update map padding when slider opens/closes
         function updateMapPaddingForSlider(sliderOpen) {
             const oldSliderWidth = NavigationController.margins?.sliderLeft || 0;
-            const newSliderWidth = sliderOpen ? 280 : 0;
+            let newSliderWidth = 0;
+            if (sliderOpen) {
+                const slider = document.getElementById('photoSlider');
+                newSliderWidth = slider ? Math.max(slider.offsetWidth - 20, 0) : 280;
+            }
             const delta = newSliderWidth - oldSliderWidth;
             
             // Update the margin tracking
@@ -11325,13 +11421,9 @@ scrollToDiaryDay(currentDayKey);
             photoSliderDayKey = dayKey;
             photoSliderOpen = true;
 
-            // Update title
+            // Set initial short title — updatePhotoGridColumns will refine based on width
             const d = new Date(dayKey);
-            // Title reflects whether there are videos
-            const hasVideos = photos.some(p => p.type === 'video');
-            const videoCount = photos.filter(p => p.type === 'video').length;
-            const titleLabel = hasVideos ? 'Media' : 'Photos';
-            title.textContent = `${titleLabel} · ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+            title.textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
             // Clear and populate grid
             grid.innerHTML = '';
@@ -11369,11 +11461,18 @@ scrollToDiaryDay(currentDayKey);
                 }
             }
 
-            // Update map toggle button state
-            const toggle = document.getElementById('photoMapToggle');
-            if (toggle) {
-                toggle.textContent = ArcPhotos.showMapMarkers() ? '📍' : '📌';
-                toggle.classList.toggle('active', ArcPhotos.showMapMarkers());
+            // Restore saved width before opening
+            const savedWidth = localStorage.getItem('arcPhotoSliderWidth');
+            if (savedWidth) {
+                const w = parseInt(savedWidth, 10);
+                if (w >= 150 && w <= 500) {
+                    slider.style.width = w + 'px';
+                    updatePhotoGridColumns(w);
+                } else {
+                    updatePhotoGridColumns(300); // default width
+                }
+            } else {
+                updatePhotoGridColumns(300); // default width
             }
 
             positionPhotoSlider();
@@ -11383,9 +11482,87 @@ scrollToDiaryDay(currentDayKey);
 
         function closePhotoSlider() {
             const slider = document.getElementById('photoSlider');
-            if (slider) slider.classList.remove('open');
+            if (slider) {
+                slider.classList.remove('open');
+                // Clear inline width/transition so CSS collapse animation works
+                slider.style.width = '';
+                slider.style.transition = '';
+            }
+            const grid = document.getElementById('photoSliderGrid');
+            if (grid) grid.style.gridTemplateColumns = '';
             photoSliderOpen = false;
             updateMapPaddingForSlider(false);
+        }
+
+        function updatePhotoGridColumns(sliderWidth) {
+            const grid = document.getElementById('photoSliderGrid');
+            if (!grid) return;
+            // Usable content width = total minus left padding (44px) and right padding (12px)
+            const contentWidth = sliderWidth - 44 - 12;
+            let columns;
+            if (contentWidth < 160) columns = 1;
+            else if (contentWidth < 240) columns = 2;
+            else if (contentWidth < 340) columns = 3;
+            else columns = 4;
+            grid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
+
+            // Update title date format based on available space
+            const title = document.getElementById('photoSliderTitle');
+            if (title && photoSliderDayKey) {
+                const d = new Date(photoSliderDayKey);
+                if (columns >= 4) {
+                    // Full: "March 2, 2026"
+                    title.textContent = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                } else if (columns >= 3) {
+                    // Medium: "Mar 2, 2026"
+                    title.textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                } else {
+                    // Short: "Mar 2"
+                    title.textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                }
+            }
+        }
+
+        function initPhotoSliderResize() {
+            const slider = document.getElementById('photoSlider');
+            const handle = document.getElementById('photoSliderResizeHandle');
+            if (!slider || !handle) return;
+
+            let isResizing = false;
+            let startX = 0;
+            let startWidth = 0;
+
+            handle.addEventListener('mousedown', function(e) {
+                isResizing = true;
+                startX = e.clientX;
+                startWidth = slider.offsetWidth;
+                e.preventDefault();
+                document.body.style.userSelect = 'none';
+                slider.style.transition = 'none'; // prevent lag during drag
+            });
+
+            document.addEventListener('mousemove', function(e) {
+                if (!isResizing) return;
+                const newWidth = startWidth + (e.clientX - startX);
+                const clamped = Math.max(150, Math.min(newWidth, 500));
+                slider.style.width = clamped + 'px';
+                updatePhotoGridColumns(clamped);
+            });
+
+            document.addEventListener('mouseup', function() {
+                if (isResizing) {
+                    isResizing = false;
+                    document.body.style.userSelect = '';
+                    slider.style.transition = '';
+                    // Save width
+                    const w = slider.offsetWidth;
+                    localStorage.setItem('arcPhotoSliderWidth', String(w));
+                    // Update map padding
+                    if (photoSliderOpen) {
+                        updateMapPaddingForSlider(true);
+                    }
+                }
+            });
         }
 
         function togglePhotoSlider() {
@@ -11521,12 +11698,17 @@ scrollToDiaryDay(currentDayKey);
             const overlay = document.getElementById('photoViewer');
             if (!overlay) return;
             overlay.style.display = 'flex';
+
+            // Restore saved size before showing content
+            restoreViewerSize();
             showViewerPhoto();
 
             // Init draggable once
             const modal = document.getElementById('photoViewerModal');
             if (modal && !modal.dataset.draggableInit) {
                 initPhotoViewerDrag(modal);
+                // Detect CSS resize-handle drag and save new size
+                modal.addEventListener('mouseup', () => saveViewerSize());
             }
 
             // Keyboard handler — bound to overlay so it only fires when viewer has focus.
@@ -11594,9 +11776,43 @@ scrollToDiaryDay(currentDayKey);
             modal.dataset.draggableInit = 'true';
         }
 
+        function saveViewerSize() {
+            const modal = document.getElementById('photoViewerModal');
+            if (!modal) return;
+            let state = 'default';
+            if (modal.classList.contains('maximized')) state = 'maximized';
+            else if (modal.classList.contains('fitted')) state = 'fitted';
+            const rect = modal.getBoundingClientRect();
+            localStorage.setItem('arcPhotoViewerSize', JSON.stringify({
+                width: Math.round(rect.width) + 'px',
+                height: Math.round(rect.height) + 'px',
+                state: state
+            }));
+        }
+
+        function restoreViewerSize() {
+            const modal = document.getElementById('photoViewerModal');
+            if (!modal) return;
+            const saved = localStorage.getItem('arcPhotoViewerSize');
+            if (!saved) return;
+            try {
+                const { width, height, state } = JSON.parse(saved);
+                modal.classList.remove('maximized', 'fitted');
+                if (state === 'maximized') {
+                    modal.classList.add('maximized');
+                } else if (width && height) {
+                    modal.style.width = width;
+                    modal.style.height = height;
+                    if (state === 'fitted') modal.classList.add('fitted');
+                }
+            } catch (e) { /* ignore corrupt data */ }
+        }
+
         function closePhotoViewer() {
             const overlay = document.getElementById('photoViewer');
             if (!overlay) return;
+            // Save size before resetting
+            saveViewerSize();
             overlay.style.display = 'none';
             overlay.blur();
             // Pause any playing video and hide iCloud overlay
@@ -11633,6 +11849,7 @@ scrollToDiaryDay(currentDayKey);
                 modal.style.top = '';
                 modal.style.margin = '';
             }
+            saveViewerSize();
         }
 
         function fitPhotoViewerToContent() {
@@ -11644,7 +11861,7 @@ scrollToDiaryDay(currentDayKey);
                 modal.classList.remove('fitted');
                 modal.style.width = '';
                 modal.style.height = '';
-                // Remove transition class after animation
+                saveViewerSize();
                 return;
             }
 
@@ -11705,6 +11922,7 @@ scrollToDiaryDay(currentDayKey);
             modal.style.left = '';
             modal.style.top = '';
             modal.style.margin = '';
+            saveViewerSize();
         }
 
         function navigatePhoto(dir) {
@@ -11802,12 +12020,29 @@ scrollToDiaryDay(currentDayKey);
             }
 
             if (result && result.ready) {
-                // Video now available — crossfade from placeholder to video
+                // Video now available — crossfade from placeholder to video.
+                // Position video absolutely so it overlays the placeholder image
+                // (both are flex items, so without this they'd split the space).
+                videoEl.style.position = 'absolute';
+                videoEl.style.top = '0';
+                videoEl.style.left = '0';
                 videoEl.style.display = 'block';
                 videoEl.style.opacity = '0'; // start invisible
+                const restoreVideoLayout = () => {
+                    videoEl.style.position = '';
+                    videoEl.style.top = '';
+                    videoEl.style.left = '';
+                    imgEl.style.display = 'none';
+                    imgEl.style.width = '';
+                    imgEl.style.height = '';
+                    imgEl.style.objectFit = '';
+                };
                 videoEl.onerror = () => {
                     console.warn('[iCloud] Video element failed to play, falling back to image');
                     videoEl.style.display = 'none';
+                    videoEl.style.position = '';
+                    videoEl.style.top = '';
+                    videoEl.style.left = '';
                     imgEl.style.width = '';
                     imgEl.style.height = '';
                     imgEl.style.objectFit = '';
@@ -11816,17 +12051,19 @@ scrollToDiaryDay(currentDayKey);
                 };
                 videoEl.src = result.url;
 
-                // Fade in video once it has enough data to display a frame
-                videoEl.oncanplay = () => {
-                    videoEl.oncanplay = null;
+                // Wait for the first decoded frame before fading in
+                const startFade = () => {
                     videoEl.style.opacity = '1'; // CSS transition handles the fade
-                    // After fade completes, hide placeholder and restore img styling
-                    setTimeout(() => {
-                        imgEl.style.display = 'none';
-                        imgEl.style.width = '';
-                        imgEl.style.height = '';
-                        imgEl.style.objectFit = '';
-                    }, 350); // slightly longer than the 0.3s transition
+                    // After fade completes, clean up overlay positioning
+                    setTimeout(restoreVideoLayout, 600);
+                };
+                videoEl.onloadeddata = () => {
+                    videoEl.onloadeddata = null;
+                    if ('requestVideoFrameCallback' in videoEl) {
+                        videoEl.requestVideoFrameCallback(startFade);
+                    } else {
+                        requestAnimationFrame(() => requestAnimationFrame(startFade));
+                    }
                 };
             } else {
                 // Download failed — restore normal img styling, placeholder stays visible

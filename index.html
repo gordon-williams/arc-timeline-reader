@@ -36,7 +36,7 @@ SOFTWARE.
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = '02.152';
+  window.__ARC_BUILD__ = '02.161';
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -857,6 +857,11 @@ SOFTWARE.
                             <div class="markdown-body" id="markdownContent"></div>
                         </div>
                     </div>
+                    <!-- Floating font size controls -->
+                    <div class="diary-font-size-float" id="diaryFontSizeFloat">
+                        <button class="btn-font-size" onclick="adjustDiaryFontSize(-1)" title="Decrease text size">A−</button>
+                        <button class="btn-font-size" onclick="adjustDiaryFontSize(1)" title="Increase text size">A+</button>
+                    </div>
                 </div>
             </div>
             
@@ -864,7 +869,7 @@ SOFTWARE.
             <div class="search-results-slider" id="searchResultsSlider">
                 <div class="search-results-header">
                     <span class="search-results-title" id="searchResultsTitle">Results</span>
-                    <button class="btn-close-slider" onclick="closeSearchResults()">✕</button>
+                    <button class="btn-close-slider" onclick="closeSearchResults()">×</button>
                 </div>
                 <div class="search-results-list" id="searchResultsList"></div>
             </div>
@@ -873,7 +878,7 @@ SOFTWARE.
             <div class="event-slider" id="eventSlider">
                 <div class="event-slider-header">
                     <span class="event-slider-title" id="eventSliderTitle">New Event</span>
-                    <button class="btn-close-slider" onclick="closeEventSlider()">✕</button>
+                    <button class="btn-close-slider" onclick="closeEventSlider()">×</button>
                 </div>
                 <div class="event-slider-content">
                     <!-- Event Name -->
@@ -936,12 +941,10 @@ SOFTWARE.
 
             <!-- Photo Gallery Slider -->
             <div class="photo-slider" id="photoSlider">
+                <div class="photo-slider-resize-handle" id="photoSliderResizeHandle"></div>
                 <div class="photo-slider-header">
                     <span class="photo-slider-title" id="photoSliderTitle">Photos</span>
-                    <div style="display:flex;gap:4px;">
-                        <button class="photo-slider-map-toggle" id="photoMapToggle" onclick="togglePhotoMapMarkers()" title="Toggle map markers">📍</button>
-                        <button class="btn-close-slider" onclick="closePhotoSlider()">✕</button>
-                    </div>
+                    <button class="btn-close-slider" onclick="closePhotoSlider()">×</button>
                 </div>
                 <div class="photo-slider-content" id="photoSliderGrid"></div>
             </div>
@@ -951,7 +954,7 @@ SOFTWARE.
             <div class="category-manager-modal" id="categoryManagerModal">
                 <div class="category-manager-header">
                     <span>Manage Categories</span>
-                    <button class="btn-close-slider" onclick="closeCategoryManager()">✕</button>
+                    <button class="btn-close-slider" onclick="closeCategoryManager()">×</button>
                 </div>
                 <div class="category-manager-content">
                     <div class="category-list" id="categoryList">

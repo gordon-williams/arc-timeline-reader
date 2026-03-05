@@ -134,6 +134,10 @@ At the top of the diary panel:
 
 The diary panel can be **resized** by dragging its right edge, or **hidden** by clicking the X. When hidden, a floating bookmark icon appears to bring it back.
 
+#### Font Size
+
+A floating **A− / A+** pill at the bottom-right of the diary panel lets you adjust text size. All text scales proportionately — body text, day titles, and month headings. The setting is saved and restored across sessions.
+
 ---
 
 ## Navigating the Diary
@@ -827,9 +831,11 @@ Photos and videos matching each timeline entry appear as inline thumbnail strips
 
 Click the camera button (📷) in the diary toolbar or click a day's photo count to open the slide-out gallery. This shows a grid of all photos and videos for the current day, sorted chronologically.
 
+- **Resizable** — drag the right edge handle to resize between 1 and 4 columns. The width is saved and restored next time you open the gallery.
 - Video thumbnails display a **▶ play icon** overlay to distinguish them from photos.
 - Click any thumbnail to open it in the viewer.
 - The gallery updates automatically when you navigate to a different day.
+- The gallery moves with the diary panel when you resize it, and closes automatically when the diary is hidden.
 
 #### Photo & Video Viewer
 

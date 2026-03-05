@@ -1031,7 +1031,7 @@
             top: 15px;  /* Back to original top margin - titlebar no longer blocks left side! */
             width: 28%;
             max-width: none;  /* Allow JavaScript to control max width */
-            min-width: 420px;  /* Wide enough to show title and build number */
+            min-width: 420px;  /* Controls progressively hide at narrower widths */
             bottom: 15px;
             background: var(--glass-bg);  /* Less transparent - CarPlay style */
             backdrop-filter: blur(var(--glass-blur));  /* Stronger blur */
@@ -1080,6 +1080,54 @@
             border-radius: 1px;
         }
         
+        /* Floating font size controls */
+        .diary-font-size-float {
+            position: absolute;
+            bottom: 20px;
+            right: 30px;
+            display: flex;
+            gap: 2px;
+            background: rgba(55, 71, 79, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+            z-index: 12;
+            padding: 3px;
+            opacity: 0.35;
+            transition: opacity 0.25s;
+        }
+
+        .diary-font-size-float:hover {
+            opacity: 1;
+        }
+
+        .btn-font-size {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 50%;
+            background: transparent;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .btn-font-size:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-font-size:active {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(0.95);
+        }
+
         /* Diary header */
         .diary-header {
             background: var(--glass-bg);  /* Apple white (was dark #37474f) */
@@ -2329,17 +2377,17 @@
         }
         
         .btn-toggle-diary {
-            background: rgba(0, 0, 0, 0.06);  /* Apple light gray */
+            background: rgba(0, 0, 0, 0.06);
             border: none;
-            border-radius: 10px;  /* CarPlay: rounded */
-            color: var(--text-primary);  /* Apple dark gray (was white) */
-            padding: 6px;  /* CarPlay: padding for visual balance */
-            font-size: 26px;  /* CarPlay: larger (was 24px) */
+            border-radius: 50%;
+            color: var(--text-primary);
+            padding: 0;
+            font-size: 18px;
             cursor: pointer;
             transition: all 0.3s;
             line-height: 1;
-            width: 40px;  /* CarPlay: defined size */
-            height: 40px;  /* CarPlay: touch-friendly */
+            width: 32px;
+            height: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -3826,6 +3874,7 @@
     .animation-settings-popup,
     .container,
     .diary-resize-handle,
+    .diary-font-size-float,
     .import-tag {
         display: none !important;
     }
@@ -6247,8 +6296,10 @@ li.route-clickable:hover {
     padding-left: 44px;
     border-bottom: 1px solid var(--border-medium);
     background: var(--bg-app);
-    min-width: 260px;
+    min-width: 120px;
     border-radius: 0 20px 0 0;
+    position: relative;
+    z-index: 11;
 }
 .photo-slider-title {
     font-weight: 600;
@@ -6271,8 +6322,7 @@ li.route-clickable:hover {
 .photo-slider-content {
     flex: 1;
     overflow-y: auto;
-    padding: 8px;
-    padding-left: 44px;
+    padding: 8px 12px 8px 44px;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 3px;
@@ -6315,6 +6365,37 @@ li.route-clickable:hover {
     padding: 24px 16px;
     color: var(--text-secondary);
     font-size: 13px;
+}
+/* Photo slider resize handle (right edge) */
+.photo-slider-resize-handle {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    cursor: ew-resize;
+    z-index: 10;
+    background: transparent;
+    transition: background 0.2s;
+}
+.photo-slider-resize-handle:hover {
+    background: rgba(102, 126, 234, 0.3);
+}
+.photo-slider-resize-handle::after {
+    content: '';
+    position: absolute;
+    right: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 2px;
+    height: 40px;
+    background: var(--text-muted);
+    border-radius: 1px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+.photo-slider-resize-handle:hover::after {
+    opacity: 1;
 }
 .diary-search .btn-photos {
     background: #f0f4ff;
@@ -6510,7 +6591,7 @@ li.route-clickable:hover {
     width: 100%;
     height: 100%;
     object-fit: contain;
-    transition: opacity 0.3s;
+    transition: opacity 0.5s ease;
     position: relative;
     z-index: 2;
 }
