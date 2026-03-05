@@ -1317,18 +1317,7 @@ function moveMapSmart(latlng, zoom) {
         
         // Year button population removed - Quick Select buttons no longer exist in v3.0
         
-        const notesOnlyEl = document.getElementById('notesOnly');
-        
-        if (notesOnlyEl) {
-            notesOnlyEl.addEventListener('change', () => {
-                if (currentMonth) {
-                    displayDiary(currentMonth, true); // re-render, keep search state stable
-                    
-                    // Update stats panel after DOM updates
-                    setTimeout(() => updateStatsForCurrentView(), 10);
-                }
-            });
-        }
+        // Diary view filter handler is now global applyDiaryViewFilter()
         
         // Raw timeline toggle removed
         
@@ -3073,8 +3062,7 @@ function moveMapSmart(latlng, zoom) {
                         
                         if (generatedDiaries[monthKey]?.monthData?.days?.[dayKey]) {
                             const dayData = generatedDiaries[monthKey].monthData.days[dayKey];
-                            const notesOnly = document.getElementById('notesOnly')?.checked ?? false;
-                            const includeAll = !notesOnly;
+                            const includeAll = !isNotesOnlyFilter();
                             const visibleNotes = getFilteredNotesForDay(dayData, includeAll, includeAll);
                             const dayStats = calculateDailyActivityStats(visibleNotes);
                             
@@ -3163,9 +3151,9 @@ function moveMapSmart(latlng, zoom) {
             const diary = generatedDiaries[monthKey];
             if (!diary) return;
             
-            // Render markdown
-            const notesOnly = document.getElementById('notesOnly')?.checked ?? false;
-            const includeAll = !notesOnly; // Inverted logic: notesOnly checked = includeAll false
+            // Render markdown — 'notes' filter shows only entries with notes
+            const filter = getDiaryViewFilter();
+            const includeAll = filter !== 'notes';
             const md = generateMarkdown(diary.monthData, includeAll, includeAll);
             diary.markdown = md; 
             markdownContent.innerHTML = sanitizeHtml(marked.parse(md));
@@ -3535,6 +3523,29 @@ function moveMapSmart(latlng, zoom) {
             map.setZoomAround(safeCenter, map.getZoom() - 1);
         }
         
+        // Diary view filter — returns 'all', 'notes', 'hide-media', or 'videos'
+        function getDiaryViewFilter() {
+            return document.getElementById('diaryViewFilter')?.value || 'all';
+        }
+
+        // Check if the current filter shows notes-only (hides non-note entries)
+        function isNotesOnlyFilter() {
+            return getDiaryViewFilter() === 'notes';
+        }
+
+        // Reset filter to 'all' (used when auto-unchecking is needed)
+        function resetDiaryFilter() {
+            const el = document.getElementById('diaryViewFilter');
+            if (el) el.value = 'all';
+        }
+
+        function applyDiaryViewFilter(value) {
+            if (currentMonth) {
+                displayDiary(currentMonth, true);
+                setTimeout(() => updateStatsForCurrentView(), 10);
+            }
+        }
+
         // Toggle diary visibility
         function toggleDiary() {
             const diaryFloat = document.querySelector('.diary-float');
@@ -3693,9 +3704,13 @@ function moveMapSmart(latlng, zoom) {
                 return;
             }
             
-            // Only handle keys if not typing in an input field
+            // Only handle keys if focus isn't in an input, or inside a component
+            // with its own key handling (e.g. photo viewer)
             const activeElement = document.activeElement;
             if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+                return;
+            }
+            if (activeElement && activeElement.closest('#photoViewer')) {
                 return;
             }
             
@@ -4607,14 +4622,11 @@ function moveMapSmart(latlng, zoom) {
 
                 // Add click handler to highlight diary entry
                 mm.on('click', function() {
-                    const notesOnlyCheckbox = document.getElementById('notesOnly');
-                    
-                    // If location has no note and "Notes only" is checked, auto-uncheck it to show all
-                    if (!hasNote && notesOnlyCheckbox && notesOnlyCheckbox.checked) {
-                        notesOnlyCheckbox.checked = false;
-                        // Trigger change event to refresh diary
-                        notesOnlyCheckbox.dispatchEvent(new Event('change'));
-                        
+                    // If location has no note and filter hides it, reset filter to show all
+                    if (!hasNote && isNotesOnlyFilter()) {
+                        resetDiaryFilter();
+                        applyDiaryViewFilter('all');
+
                         // Wait for diary to refresh before highlighting
                         setTimeout(() => {
                             NavigationController.selectEntryFromMap(p.lat, p.lng, dayKey);
@@ -4641,8 +4653,13 @@ function moveMapSmart(latlng, zoom) {
             // Add photo markers to their own layer (separate from location clusters)
             addPhotoMapMarkers(dayKey);
 
-            // Update photo gallery if open
-            if (photoSliderOpen) openPhotoSlider(dayKey);
+            // Update photo gallery if open (close it if media is hidden)
+            const viewFilter = getDiaryViewFilter();
+            if (viewFilter === 'hide-media' || viewFilter === 'notes') {
+                if (photoSliderOpen) closePhotoSlider();
+            } else if (photoSliderOpen) {
+                openPhotoSlider(dayKey);
+            }
 
             // Resolve clicked target marker — only accept if within ~110m of diary coordinates
             const MAX_MATCH_D2 = 0.001 * 0.001;
@@ -5285,15 +5302,13 @@ function moveMapSmart(latlng, zoom) {
                     const highlightSegment = function(e) {
                         const zoomToSegment = e && e.originalEvent && e.originalEvent.altKey;
                         
-                        // Auto-uncheck "Notes only" if needed (similar to location behavior)
-                        const notesOnlyCheckbox = document.getElementById('notesOnly');
+                        // Auto-reset filter if needed (similar to location behavior)
                         const firstPoint = points[0];
-                        
-                        // Check if this activity might not have a note by looking for the hasNote property
-                        // If we can't determine, auto-uncheck anyway to ensure visibility
-                        if (notesOnlyCheckbox && notesOnlyCheckbox.checked) {
-                            notesOnlyCheckbox.checked = false;
-                            notesOnlyCheckbox.dispatchEvent(new Event('change'));
+
+                        // If filter hides this entry, reset to show all
+                        if (isNotesOnlyFilter()) {
+                            resetDiaryFilter();
+                            applyDiaryViewFilter('all');
                             // Wait for diary to refresh before highlighting
                             setTimeout(() => {
                                 performHighlight(zoomToSegment);
@@ -5392,12 +5407,10 @@ function moveMapSmart(latlng, zoom) {
                     const scrollToDay = function(e) {
                         const zoomToSegment = e && e.originalEvent && e.originalEvent.altKey;
                         
-                        // Auto-uncheck "Notes only" if needed
-                        const notesOnlyCheckbox = document.getElementById('notesOnly');
-                        
-                        if (notesOnlyCheckbox && notesOnlyCheckbox.checked) {
-                            notesOnlyCheckbox.checked = false;
-                            notesOnlyCheckbox.dispatchEvent(new Event('change'));
+                        // Auto-reset filter if needed
+                        if (isNotesOnlyFilter()) {
+                            resetDiaryFilter();
+                            applyDiaryViewFilter('all');
                             // Wait for diary to refresh before highlighting
                             setTimeout(() => {
                                 performDayHighlight(zoomToSegment);
@@ -9549,11 +9562,10 @@ scrollToDiaryDay(currentDayKey);
                     }
                 } else {
                     // Day not found in current view - may be filtered out
-                    // Try unchecking "Notes only" and refreshing
-                    const notesOnly = document.getElementById('notesOnly');
-                    if (notesOnly && notesOnly.checked) {
-                        notesOnly.checked = false;
-                        notesOnly.dispatchEvent(new Event('change'));
+                    // Try resetting filter and refreshing
+                    if (isNotesOnlyFilter()) {
+                        resetDiaryFilter();
+                        applyDiaryViewFilter('all');
                         // Try again after refresh
                         setTimeout(() => {
                             const dayHeader2 = markdownContent.querySelector(`[data-day="${dayKey}"]`);
@@ -9636,7 +9648,12 @@ scrollToDiaryDay(currentDayKey);
             if (eventSlider && eventSlider.classList.contains('open')) {
                 positionEventSlider();
             }
-            
+
+            // Also reposition photo slider
+            if (photoSliderOpen) {
+                positionPhotoSlider();
+            }
+
             // Reposition replay controller if visible
             const replayControllerEl = document.getElementById('replayController');
             if (replayControllerEl && replayControllerEl.style.display === 'flex') {
@@ -10524,11 +10541,10 @@ scrollToDiaryDay(currentDayKey);
                 return;
             }
 
-            // If match is in a note and Notes Only is checked, disable it first
-            const notesOnly = document.getElementById('notesOnly');
-            if (match.inNote && notesOnly && notesOnly.checked) {
-                notesOnly.checked = false;
-                notesOnly.dispatchEvent(new Event('change'));
+            // If match is in a note and filter hides it, reset filter first
+            if (match.inNote && isNotesOnlyFilter()) {
+                resetDiaryFilter();
+                applyDiaryViewFilter('all');
                 await new Promise(r => setTimeout(r, 100));
             }
             
@@ -11106,13 +11122,12 @@ scrollToDiaryDay(currentDayKey);
                 if (generatedDiaries[monthKey]?.monthData?.days?.[selectedDayKey]) {
                     const dayData = generatedDiaries[monthKey].monthData.days[selectedDayKey];
                     
-                    // Get filtered notes (respects "Notes only" checkbox)
-                    const notesOnly = document.getElementById('notesOnly')?.checked ?? false;
-                    const includeAll = !notesOnly;
+                    // Get filtered notes (respects diary view filter)
+                    const includeAll = !isNotesOnlyFilter();
                     const visibleNotes = getFilteredNotesForDay(dayData, includeAll, includeAll);
-                    
-                    // When "Notes only" is checked, show month stats if day has no visible notes
-                    if (notesOnly && visibleNotes.length === 0) {
+
+                    // When filter hides entries, show month stats if day has no visible notes
+                    if (isNotesOnlyFilter() && visibleNotes.length === 0) {
                         showMonthStatsForCurrent();
                         return;
                     }
@@ -11183,15 +11198,19 @@ scrollToDiaryDay(currentDayKey);
         let photoSliderDayKey = null;
         let viewerPhotos = [];
         let viewerIndex = 0;
+        let externalViewerTab = null; // reference to external browser tab for photo viewing
 
         // Inject photo thumbnail strips into rendered diary entries
         async function attachPhotoStrips() {
             if (!window.ArcPhotos) return;
             const count = await ArcPhotos.getPhotoCount();
             // Show/hide the photos button based on whether any photos exist
+            // Check diary view filter — hide button and skip strips for 'notes' and 'hide-media'
+            const filter = getDiaryViewFilter();
+            const hideMedia = filter === 'notes' || filter === 'hide-media';
             const photosBtn = document.getElementById('photosBtn');
-            if (photosBtn) photosBtn.style.display = count > 0 ? '' : 'none';
-            if (count === 0) return;
+            if (photosBtn) photosBtn.style.display = (count > 0 && !hideMedia) ? '' : 'none';
+            if (count === 0 || hideMedia) return;
 
             // Revoke any previously created ObjectURLs
             ArcPhotos.revokeUrls();
@@ -11223,12 +11242,22 @@ scrollToDiaryDay(currentDayKey);
                     itemId: e.itemId
                 })));
 
+                // Track which photos have been shown to avoid duplicates
+                const shownPhotoIds = new Set();
+
                 for (const entry of entries) {
+                    // Skip if this <li> already has a photo strip
+                    if (entry.li.querySelector('.diary-photo-strip')) continue;
+
                     const key = entry.itemId;
                     const rawMatched = matches.get(key);
                     if (!rawMatched || rawMatched.length === 0) continue;
-                    const matched = rawMatched.filter(p => p.thumbnail && p.thumbnail.size > 0);
+                    // Filter to valid thumbnails and exclude already-shown photos
+                    let matched = rawMatched.filter(p => p.thumbnail && p.thumbnail.size > 0 && !shownPhotoIds.has(p.id));
+                    // 'videos' filter: only show video items
+                    if (filter === 'videos') matched = matched.filter(p => p.type === 'video');
                     if (matched.length === 0) continue;
+                    for (const p of matched) shownPhotoIds.add(p.id);
 
                     const strip = document.createElement('div');
                     strip.className = 'diary-photo-strip';
@@ -11298,17 +11327,30 @@ scrollToDiaryDay(currentDayKey);
 
             // Update title
             const d = new Date(dayKey);
-            title.textContent = `Photos · ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+            // Title reflects whether there are videos
+            const hasVideos = photos.some(p => p.type === 'video');
+            const videoCount = photos.filter(p => p.type === 'video').length;
+            const titleLabel = hasVideos ? 'Media' : 'Photos';
+            title.textContent = `${titleLabel} · ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 
             // Clear and populate grid
             grid.innerHTML = '';
-            // Filter to photos with valid thumbnails
-            const visiblePhotos = photos.filter(p => p.thumbnail && p.thumbnail.size > 0);
+            // Filter to photos with valid thumbnails, respect diary view filter, sort chronologically
+            const filter = getDiaryViewFilter();
+            let visiblePhotos = photos.filter(p => p.thumbnail && p.thumbnail.size > 0);
+            if (filter === 'videos') visiblePhotos = visiblePhotos.filter(p => p.type === 'video');
+            if (filter === 'hide-media' || filter === 'notes') visiblePhotos = [];
+            visiblePhotos.sort((a, b) => new Date(a.date) - new Date(b.date));
 
             if (visiblePhotos.length === 0) {
-                grid.innerHTML = photos.length > 0
-                    ? '<div class="photo-slider-empty">Photos not available (originals not downloaded)</div>'
-                    : '<div class="photo-slider-empty">No photos for this day</div>';
+                const emptyMsg = (filter === 'hide-media' || filter === 'notes')
+                    ? '<div class="photo-slider-empty">Media hidden by filter</div>'
+                    : filter === 'videos'
+                        ? '<div class="photo-slider-empty">No videos for this day</div>'
+                        : photos.length > 0
+                            ? '<div class="photo-slider-empty">Photos not available (originals not downloaded)</div>'
+                            : '<div class="photo-slider-empty">No photos for this day</div>';
+                grid.innerHTML = emptyMsg;
             } else {
                 for (const photo of visiblePhotos) {
                     const item = document.createElement('div');
@@ -11316,6 +11358,13 @@ scrollToDiaryDay(currentDayKey);
                     const url = ArcPhotos.getThumbnailUrl(photo);
                     if (url) item.style.backgroundImage = `url(${url})`;
                     item.onclick = () => openPhotoViewer(photo.id, visiblePhotos);
+                    // Video play icon overlay
+                    if (photo.type === 'video') {
+                        const playIcon = document.createElement('div');
+                        playIcon.className = 'photo-slider-play-icon';
+                        playIcon.textContent = '▶';
+                        item.appendChild(playIcon);
+                    }
                     grid.appendChild(item);
                 }
             }
@@ -11329,12 +11378,14 @@ scrollToDiaryDay(currentDayKey);
 
             positionPhotoSlider();
             slider.classList.add('open');
+            updateMapPaddingForSlider(true);
         }
 
         function closePhotoSlider() {
             const slider = document.getElementById('photoSlider');
             if (slider) slider.classList.remove('open');
             photoSliderOpen = false;
+            updateMapPaddingForSlider(false);
         }
 
         function togglePhotoSlider() {
@@ -11369,12 +11420,17 @@ scrollToDiaryDay(currentDayKey);
         async function addPhotoMapMarkers(dayKey) {
             if (!window.ArcPhotos || !ArcPhotos.showMapMarkers()) return;
 
+            // Respect diary view filter — hide markers when media is hidden
+            const filter = getDiaryViewFilter();
+            if (filter === 'hide-media' || filter === 'notes') return;
+
             const photos = await ArcPhotos.getPhotosForDay(dayKey);
 
             // Guard: if the day changed while we were awaiting, discard results
             if (currentDayKey !== dayKey) return;
 
-            const gpsPhotos = photos.filter(p => p.latitude && p.longitude && p.thumbnail && p.thumbnail.size > 0);
+            let gpsPhotos = photos.filter(p => p.latitude && p.longitude && p.thumbnail && p.thumbnail.size > 0);
+            if (filter === 'videos') gpsPhotos = gpsPhotos.filter(p => p.type === 'video');
             if (gpsPhotos.length === 0) return;
 
             // Clean up previous photo layer (in case it wasn't cleared by clearMapLayers)
@@ -11404,6 +11460,8 @@ scrollToDiaryDay(currentDayKey);
                             if (p) {
                                 const url = ArcPhotos.getThumbnailUrl(p);
                                 if (url) el.style.backgroundImage = `url(${url})`;
+                                // Add video play icon overlay on map marker
+                                if (p.type === 'video') el.classList.add('photo-map-thumb-video');
                             }
                         }
                     }, 50);
@@ -11442,11 +11500,23 @@ scrollToDiaryDay(currentDayKey);
             }
         }
 
-        // Photo Viewer (resizable modal over map)
+        // Photo Viewer (non-modal panel over map, or external browser tab)
         function openPhotoViewer(photoId, photoList) {
             viewerPhotos = photoList || [];
             viewerIndex = viewerPhotos.findIndex(p => p.id === photoId);
             if (viewerIndex === -1) viewerIndex = 0;
+
+            // If an external browser tab is open, navigate it instead of opening inline
+            if (externalViewerTab && !externalViewerTab.closed) {
+                const photo = viewerPhotos[viewerIndex];
+                if (photo) {
+                    const url = getPhotoFullUrl(photo.id);
+                    if (url) {
+                        externalViewerTab = window.open(url, 'arcPhotoViewer');
+                        return;
+                    }
+                }
+            }
 
             const overlay = document.getElementById('photoViewer');
             if (!overlay) return;
@@ -11459,13 +11529,37 @@ scrollToDiaryDay(currentDayKey);
                 initPhotoViewerDrag(modal);
             }
 
-            // Keyboard handler
-            overlay._keyHandler = (e) => {
-                if (e.key === 'Escape') closePhotoViewer();
-                else if (e.key === 'ArrowLeft') navigatePhoto(-1);
-                else if (e.key === 'ArrowRight') navigatePhoto(1);
-            };
-            document.addEventListener('keydown', overlay._keyHandler);
+            // Keyboard handler — bound to overlay so it only fires when viewer has focus.
+            // Arrow keys on a focused <video> element seek the video (browser default),
+            // so only navigate photos when the overlay itself has focus.
+            if (!overlay._keyHandler) {
+                overlay._keyHandler = (e) => {
+                    if (e.key === 'Escape') { closePhotoViewer(); return; }
+                    // If a video element has focus, let it handle arrow keys for seeking
+                    if (e.target && e.target.tagName === 'VIDEO') return;
+                    if (e.key === 'ArrowLeft') { e.preventDefault(); navigatePhoto(-1); }
+                    else if (e.key === 'ArrowRight') { e.preventDefault(); navigatePhoto(1); }
+                };
+                overlay.addEventListener('keydown', overlay._keyHandler);
+                // Re-focus overlay on click so arrow keys work after clicking nav buttons, etc.
+                // (Clicks on <video> naturally give it focus for seeking — that's fine.)
+                overlay.addEventListener('click', (e) => {
+                    if (e.target.tagName !== 'VIDEO') overlay.focus();
+                });
+            }
+
+            // Focus the overlay so it receives keyboard events
+            overlay.focus();
+        }
+
+        // Helper: get full-res URL for a photo ID
+        function getPhotoFullUrl(photoId) {
+            let url = ArcPhotos.getFullResUrl(photoId);
+            if (!url) {
+                const savedUrl = localStorage.getItem('arcPhotoServerUrl');
+                if (savedUrl) url = `${savedUrl.replace(/\/+$/, '')}/api/full/${photoId}`;
+            }
+            return url;
         }
 
         function initPhotoViewerDrag(modal) {
@@ -11504,10 +11598,12 @@ scrollToDiaryDay(currentDayKey);
             const overlay = document.getElementById('photoViewer');
             if (!overlay) return;
             overlay.style.display = 'none';
-            if (overlay._keyHandler) {
-                document.removeEventListener('keydown', overlay._keyHandler);
-                overlay._keyHandler = null;
-            }
+            overlay.blur();
+            // Pause any playing video and hide iCloud overlay
+            const video = document.getElementById('photoViewerVideo');
+            if (video) { video.pause(); video.removeAttribute('src'); video.load(); }
+            const icloudOverlay = document.getElementById('photoViewerICloudOverlay');
+            if (icloudOverlay) icloudOverlay.style.display = 'none';
             // Reset modal position for next open
             const modal = document.getElementById('photoViewerModal');
             if (modal) {
@@ -11515,13 +11611,19 @@ scrollToDiaryDay(currentDayKey);
                 modal.style.left = '';
                 modal.style.top = '';
                 modal.style.margin = '';
-                modal.classList.remove('maximized');
+                modal.style.width = '';
+                modal.style.height = '';
+                modal.classList.remove('maximized', 'fitted');
             }
         }
 
         function togglePhotoViewerMaximize() {
             const modal = document.getElementById('photoViewerModal');
             if (!modal) return;
+            // Clear fitted state
+            modal.classList.remove('fitted');
+            modal.style.width = '';
+            modal.style.height = '';
             if (modal.classList.contains('maximized')) {
                 modal.classList.remove('maximized');
             } else {
@@ -11533,10 +11635,206 @@ scrollToDiaryDay(currentDayKey);
             }
         }
 
+        function fitPhotoViewerToContent() {
+            const modal = document.getElementById('photoViewerModal');
+            if (!modal) return;
+
+            // If already fitted, revert to default
+            if (modal.classList.contains('fitted')) {
+                modal.classList.remove('fitted');
+                modal.style.width = '';
+                modal.style.height = '';
+                // Remove transition class after animation
+                return;
+            }
+
+            // Exit maximized mode if active
+            if (modal.classList.contains('maximized')) {
+                modal.classList.remove('maximized');
+            }
+
+            // Get content dimensions
+            const video = document.getElementById('photoViewerVideo');
+            const img = document.getElementById('photoViewerImg');
+            let contentW = 0, contentH = 0;
+
+            if (video && video.style.display !== 'none' && video.videoWidth) {
+                contentW = video.videoWidth;
+                contentH = video.videoHeight;
+            } else if (img && img.style.display !== 'none' && img.naturalWidth) {
+                contentW = img.naturalWidth;
+                contentH = img.naturalHeight;
+            }
+
+            if (!contentW || !contentH) return;
+
+            const aspectRatio = contentW / contentH;
+
+            // Get the header height for the calculation
+            const header = document.getElementById('photoViewerHeader');
+            const headerH = header ? header.offsetHeight : 40;
+
+            // Available viewport space (with 5% padding on each side)
+            const vpW = window.innerWidth * 0.90;
+            const vpH = window.innerHeight * 0.90;
+            const bodyMaxH = vpH - headerH;
+
+            // Calculate optimal body size that fits the aspect ratio within the viewport
+            let bodyW, bodyH;
+            if (bodyMaxH * aspectRatio <= vpW) {
+                // Height-limited: use full available height
+                bodyH = bodyMaxH;
+                bodyW = bodyH * aspectRatio;
+            } else {
+                // Width-limited: use full available width
+                bodyW = vpW;
+                bodyH = bodyW / aspectRatio;
+            }
+
+            // Enforce minimums
+            const modalW = Math.max(400, bodyW);
+            const modalH = Math.max(300, bodyH + headerH);
+
+            // Apply with transition
+            modal.classList.add('fitted');
+            modal.style.width = Math.round(modalW) + 'px';
+            modal.style.height = Math.round(modalH) + 'px';
+
+            // Re-centre (clear any drag offset)
+            modal.style.position = '';
+            modal.style.left = '';
+            modal.style.top = '';
+            modal.style.margin = '';
+        }
+
         function navigatePhoto(dir) {
             if (viewerPhotos.length === 0) return;
             viewerIndex = (viewerIndex + dir + viewerPhotos.length) % viewerPhotos.length;
             showViewerPhoto();
+        }
+
+        function openPhotoInNewTab() {
+            const photo = viewerPhotos[viewerIndex];
+            if (!photo) return;
+            let url = getPhotoFullUrl(photo.id);
+            // Fallback to current viewer image
+            if (!url) {
+                const img = document.getElementById('photoViewerImg');
+                if (img?.src) url = img.src;
+            }
+            if (url) {
+                // Open in a named tab — subsequent clicks will reuse it
+                externalViewerTab = window.open(url, 'arcPhotoViewer');
+                // Close the inline viewer
+                closePhotoViewer();
+            }
+        }
+
+        async function showICloudDownloadOverlay(photo, videoEl, imgEl, targetIdx) {
+            const overlay = document.getElementById('photoViewerICloudOverlay');
+            const fill = document.getElementById('icloudProgressFill');
+            const pctText = document.getElementById('icloudProgressText');
+            const statusText = document.getElementById('icloudStatusText');
+            if (!overlay) { console.warn('[iCloud] Overlay element not found in DOM'); return; }
+
+            // Hide video — show placeholder photo behind the semi-transparent overlay
+            videoEl.style.display = 'none';
+
+            // Load derivative still image as backdrop (server is available — we just got a 202)
+            // Stretch to fill viewer body — behind the blurred overlay it acts as a full-bleed background
+            // ?poster=1 bypasses the iCloud fetch and serves the derivative JPEG at full resolution
+            imgEl.style.display = '';
+            imgEl.style.width = '100%';
+            imgEl.style.height = '100%';
+            imgEl.style.objectFit = 'cover';
+            const serverUrl = ArcPhotos.getServerUrl();
+            if (serverUrl) {
+                const posterUrl = `${serverUrl}/api/full/${photo.id}?poster=1`;
+                imgEl.onerror = () => {
+                    // Poster failed (no derivative, or server not updated) — try thumbnail
+                    imgEl.onerror = null;
+                    imgEl.src = `${serverUrl}/api/thumbnail/${photo.id}`;
+                };
+                imgEl.src = posterUrl;
+                imgEl.style.opacity = '1';
+            }
+
+            // Show overlay on top of the placeholder photo
+            overlay.style.display = 'flex';
+            fill.style.width = '0%';
+            pctText.textContent = '0%';
+            statusText.textContent = 'Downloading from iCloud\u2026';
+            console.log('[iCloud] Overlay shown with placeholder, polling for photo', photo.id);
+
+            let result;
+            try {
+                result = await ArcPhotos.requestICloudVideo(photo.id, (status) => {
+                    if (viewerIndex !== targetIdx) return; // user navigated away
+                    const pct = Math.round((status.progress || 0) * 100);
+                    fill.style.width = pct + '%';
+                    if (status.elapsed) {
+                        pctText.textContent = `${pct}% \u2022 ${status.elapsed}s`;
+                    } else {
+                        pctText.textContent = `${pct}%`;
+                    }
+                    if (status.status === 'copying' || status.status === 'done') {
+                        statusText.textContent = 'Saving video\u2026';
+                    } else if (status.status === 'exporting') {
+                        statusText.textContent = 'Exporting video\u2026';
+                    }
+                });
+            } catch (err) {
+                console.error('[iCloud] requestICloudVideo error:', err);
+                result = { ready: false, error: err.message };
+            }
+
+            // Hide overlay but keep placeholder visible for crossfade
+            overlay.style.display = 'none';
+            imgEl.onerror = null;
+            console.log('[iCloud] Download result:', result);
+
+            // User navigated away during download
+            if (viewerIndex !== targetIdx) {
+                imgEl.style.width = '';
+                imgEl.style.height = '';
+                imgEl.style.objectFit = '';
+                return;
+            }
+
+            if (result && result.ready) {
+                // Video now available — crossfade from placeholder to video
+                videoEl.style.display = 'block';
+                videoEl.style.opacity = '0'; // start invisible
+                videoEl.onerror = () => {
+                    console.warn('[iCloud] Video element failed to play, falling back to image');
+                    videoEl.style.display = 'none';
+                    imgEl.style.width = '';
+                    imgEl.style.height = '';
+                    imgEl.style.objectFit = '';
+                    imgEl.src = result.url;
+                    imgEl.style.opacity = '1';
+                };
+                videoEl.src = result.url;
+
+                // Fade in video once it has enough data to display a frame
+                videoEl.oncanplay = () => {
+                    videoEl.oncanplay = null;
+                    videoEl.style.opacity = '1'; // CSS transition handles the fade
+                    // After fade completes, hide placeholder and restore img styling
+                    setTimeout(() => {
+                        imgEl.style.display = 'none';
+                        imgEl.style.width = '';
+                        imgEl.style.height = '';
+                        imgEl.style.objectFit = '';
+                    }, 350); // slightly longer than the 0.3s transition
+                };
+            } else {
+                // Download failed — restore normal img styling, placeholder stays visible
+                imgEl.style.width = '';
+                imgEl.style.height = '';
+                imgEl.style.objectFit = '';
+                console.warn('[iCloud] Download failed:', result?.error);
+            }
         }
 
         async function showViewerPhoto() {
@@ -11544,28 +11842,129 @@ scrollToDiaryDay(currentDayKey);
             if (!photo) return;
 
             const img = document.getElementById('photoViewerImg');
+            const video = document.getElementById('photoViewerVideo');
             const info = document.getElementById('photoViewerInfo');
             if (!img) return;
 
-            // Show thumbnail immediately from IndexedDB
-            const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
-            if (dbPhoto?.thumbnail) {
-                const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
-                if (thumbUrl) img.src = thumbUrl;
-            }
+            // Track which photo we're loading to prevent race conditions
+            const targetIndex = viewerIndex;
 
-            // Try to load full-res from server
-            let fullUrl = ArcPhotos.getFullResUrl(photo.id);
-            // Fallback: try server URL from localStorage even if not marked available
-            if (!fullUrl) {
-                const savedUrl = localStorage.getItem('arcPhotoServerUrl');
-                if (savedUrl) fullUrl = `${savedUrl.replace(/\/+$/, '')}/api/full/${photo.id}`;
+            // Pause any playing video when navigating away and hide iCloud overlay
+            if (video) {
+                video.pause();
+                video.removeAttribute('src');
+                video.load(); // reset
             }
-            if (fullUrl) {
-                const fullImg = new Image();
-                fullImg.onload = () => { img.src = fullUrl; };
-                fullImg.onerror = () => {}; // Keep thumbnail
-                fullImg.src = fullUrl;
+            const icloudOvl = document.getElementById('photoViewerICloudOverlay');
+            if (icloudOvl) icloudOvl.style.display = 'none';
+
+            // Toggle between photo and video display
+            const isVideo = photo.type === 'video';
+
+            if (isVideo && video) {
+                // VIDEO: hide both elements initially — only show the right one when ready
+                img.style.display = 'none';
+                video.style.display = 'none';
+
+                const videoUrl = getPhotoFullUrl(photo.id);
+                if (videoUrl) {
+                    // Pre-flight check: is the video available or does it need iCloud download?
+                    try {
+                        const checkResp = await fetch(videoUrl, { method: 'HEAD' });
+                        if (viewerIndex !== targetIndex) return; // user navigated away during fetch
+                        if (checkResp.status === 202) {
+                            // Video needs iCloud download — show progress overlay (no video/img visible)
+                            console.log('[iCloud] Video needs download, showing overlay for photo', photo.id);
+                            showICloudDownloadOverlay(photo, video, img, targetIndex);
+                            // Still set info bar (below) — fall through
+                        } else if (checkResp.ok) {
+                            // Video available — show and load normally
+                            video.style.display = 'block';
+                            video.onerror = () => {
+                                video.style.display = 'none';
+                                img.style.display = '';
+                                img.src = videoUrl;
+                                img.style.opacity = '1';
+                            };
+                            video.src = videoUrl;
+                            video.style.opacity = '1';
+                        } else {
+                            // 404 or other error — fall back to still image
+                            img.style.display = '';
+                            img.src = videoUrl;
+                            img.style.opacity = '1';
+                        }
+                    } catch (e) {
+                        // Network error — try loading directly (works if server is just slow)
+                        video.style.display = 'block';
+                        video.onerror = () => {
+                            video.style.display = 'none';
+                            img.style.display = '';
+                            img.src = videoUrl;
+                            img.style.opacity = '1';
+                        };
+                        video.src = videoUrl;
+                        video.style.opacity = '1';
+                    }
+                }
+            } else {
+                // PHOTO: show <img>, hide <video>
+                if (video) video.style.display = 'none';
+                img.style.display = '';
+
+                // Build full-res URL (try server first)
+                const fullUrl = getPhotoFullUrl(photo.id);
+
+                // Fade out current image while loading
+                img.style.opacity = '0';
+
+                if (fullUrl) {
+                    // Try to load full-res directly (skip thumbnail flash)
+                    const fullImg = new Image();
+                    const loadTimeout = setTimeout(async () => {
+                        // Full-res taking too long — show thumbnail as fallback
+                        if (viewerIndex !== targetIndex) return;
+                        const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
+                        if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
+                            const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
+                            if (thumbUrl) {
+                                img.src = thumbUrl;
+                                img.style.opacity = '1';
+                            }
+                        }
+                    }, 300);
+                    fullImg.onload = () => {
+                        clearTimeout(loadTimeout);
+                        if (viewerIndex === targetIndex) {
+                            img.src = fullUrl;
+                            img.style.opacity = '1';
+                        }
+                    };
+                    fullImg.onerror = async () => {
+                        clearTimeout(loadTimeout);
+                        if (viewerIndex !== targetIndex) return;
+                        // Fall back to thumbnail
+                        const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
+                        if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
+                            const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
+                            if (thumbUrl) {
+                                img.src = thumbUrl;
+                                img.style.opacity = '1';
+                            }
+                        }
+                    };
+                    fullImg.src = fullUrl;
+                } else {
+                    // No server — show thumbnail directly
+                    const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
+                    if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
+                        const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
+                        if (thumbUrl) {
+                            img.src = thumbUrl;
+                            img.style.opacity = '1';
+                        }
+                    }
+                }
             }
 
             // Info line
@@ -11575,7 +11974,14 @@ scrollToDiaryDay(currentDayKey);
                 const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
                 const camera = photo.cameraModel || '';
                 const counter = viewerPhotos.length > 1 ? ` · ${viewerIndex + 1} / ${viewerPhotos.length}` : '';
-                info.textContent = `${dateStr} ${timeStr}${camera ? ' · ' + camera : ''}${counter}`;
+                // Duration display for videos
+                let durationStr = '';
+                if (photo.type === 'video' && photo.duration) {
+                    const mins = Math.floor(photo.duration / 60);
+                    const secs = Math.floor(photo.duration % 60);
+                    durationStr = ` · ${mins}:${secs.toString().padStart(2, '0')}`;
+                }
+                info.textContent = `${dateStr} ${timeStr}${camera ? ' · ' + camera : ''}${durationStr}${counter}`;
             }
 
             // Update prev/next visibility
@@ -11609,7 +12015,7 @@ scrollToDiaryDay(currentDayKey);
                 if (stats && stats.count > 0) {
                     const first = new Date(stats.firstDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
                     const last = new Date(stats.lastDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                    localStatus.textContent = `${stats.count.toLocaleString()} photos imported · ${first} – ${last}`;
+                    localStatus.textContent = `${stats.count.toLocaleString()} media imported · ${first} – ${last}`;
                     clearBtn.style.display = '';
                     if (repairBtn) repairBtn.style.display = '';
                     // Show photo buttons in diary toolbar
@@ -11698,7 +12104,13 @@ scrollToDiaryDay(currentDayKey);
                         const importOpts = (fromDate && toDate) ? { startDate: fromDate, endDate: toDate } : {};
                         const result = await ArcPhotos.importPhotos((p) => {
                             if (progressFill) progressFill.style.width = `${p.percent || 0}%`;
-                            if (progressText) progressText.textContent = p.message || `${p.imported || 0} of ${p.total || 0} photos...`;
+                            if (progressText) {
+                                if (p.message) {
+                                    progressText.textContent = p.message;
+                                } else if (p.phase === 'thumbnails') {
+                                    progressText.textContent = `${(p.imported || 0).toLocaleString()} of ${(p.total || 0).toLocaleString()} media...`;
+                                }
+                            }
                         }, importOpts);
                         let doneMsg = `Done — ${result.imported} imported`;
                         if (result.skipped > 0) {
@@ -11709,9 +12121,28 @@ scrollToDiaryDay(currentDayKey);
                             }
                         }
                         if (progressText) progressText.textContent = doneMsg;
+                        // Reset bar on completion — green flash then fade out
+                        if (progressFill) {
+                            progressFill.style.width = '100%';
+                            progressFill.style.background = 'linear-gradient(90deg, #34C759, #30D158)';
+                            setTimeout(() => {
+                                progressFill.style.transition = 'width 0.6s, opacity 0.6s';
+                                progressFill.style.opacity = '0';
+                                setTimeout(() => {
+                                    progressFill.style.width = '0%';
+                                    progressFill.style.opacity = '1';
+                                    progressFill.style.background = '';
+                                    progressFill.style.transition = 'width 0.3s';
+                                }, 700);
+                            }, 1500);
+                        }
                         await updateLocalStatus();
                     } catch (e) {
                         if (progressText) progressText.textContent = `Error: ${e.message}`;
+                        if (progressFill) {
+                            progressFill.style.width = '0%';
+                            progressFill.style.background = '';
+                        }
                     }
                     importBtn.disabled = false;
                     importBtn.textContent = 'Import Photos';
@@ -11788,7 +12219,9 @@ scrollToDiaryDay(currentDayKey);
         window.openPhotoViewer = openPhotoViewer;
         window.closePhotoViewer = closePhotoViewer;
         window.togglePhotoViewerMaximize = togglePhotoViewerMaximize;
+        window.fitPhotoViewerToContent = fitPhotoViewerToContent;
         window.navigatePhoto = navigatePhoto;
+        window.openPhotoInNewTab = openPhotoInNewTab;
 
 		  function generateMarkdown(monthData, includeAllLocations = false, includeAllActivities = true) {
 
@@ -12275,6 +12708,7 @@ scrollToDiaryDay(currentDayKey);
         
 
 // === Expose UI handlers required by inline HTML (consolidated) ===
+if (typeof applyDiaryViewFilter === 'function') window.applyDiaryViewFilter = applyDiaryViewFilter;
 if (typeof changeMapStyle === 'function') window.changeMapStyle = changeMapStyle;
 if (typeof selectMapStyle === 'function') window.selectMapStyle = selectMapStyle;
 if (typeof toggleTheme === 'function') window.toggleTheme = toggleTheme;

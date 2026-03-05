@@ -30,13 +30,28 @@ const LIBRARY_PATH = (function () {
 
 const DB_PATH = path.join(LIBRARY_PATH, 'database', 'Photos.sqlite');
 const ORIGINALS_PATH = path.join(LIBRARY_PATH, 'originals');
+const DERIVATIVES_PATH = path.join(LIBRARY_PATH, 'resources', 'derivatives');
 const CACHE_DIR = path.join(__dirname, '.cache');
 const THUMB_CACHE = path.join(CACHE_DIR, 'thumbnails');
 const FULL_CACHE = path.join(CACHE_DIR, 'full');
+const ICLOUD_CACHE = path.join(CACHE_DIR, 'icloud-videos');
+
+// Swift PhotoKit helper for on-demand iCloud video fetch
+const PHOTO_FETCH_DIR = path.join(__dirname, 'photo-fetch');
+const PHOTO_FETCH_BIN = path.join(PHOTO_FETCH_DIR, 'photo-fetch');
+const PHOTO_FETCH_SRC = path.join(PHOTO_FETCH_DIR, 'PhotoFetch.swift');
+const PHOTO_FETCH_TIMEOUT = 300; // 5 minutes max per download
+
+// In-flight iCloud download tracking: UUID → { progress, status, startTime, promise }
+const activeFetches = new Map();
+const MAX_CONCURRENT_ICLOUD = 2;
+let activeICloudCount = 0;
+let photoFetchAvailable = false;
 
 // Ensure cache directories exist
 fs.mkdirSync(THUMB_CACHE, { recursive: true });
 fs.mkdirSync(FULL_CACHE, { recursive: true });
+fs.mkdirSync(ICLOUD_CACHE, { recursive: true });
 
 // Purge empty/corrupt cached files and stale temp files on startup
 for (const dir of [THUMB_CACHE, FULL_CACHE]) {
@@ -121,6 +136,10 @@ function prepareStatements() {
         ['ZDIRECTORY', 'directory'],
         ['ZFILENAME', 'filename'],
         ['ZUNIFORMTYPEIDENTIFIER', 'uti'],
+        ['ZKIND', 'kind'],
+        ['ZDURATION', 'duration'],
+        ['ZMODIFICATIONDATE', 'modDate'],
+        ['ZUUID', 'uuid'],
     ].filter(([col]) => assetCols.has(col))
      .map(([col, alias]) => `z.${col} AS ${alias}`);
 
@@ -146,18 +165,31 @@ function prepareStatements() {
         ${joinClause}
         WHERE z.ZTRASHEDSTATE = 0
           AND z.ZHIDDEN = 0
-          AND z.ZKIND = 0
+          AND z.ZKIND IN (0, 1)
     `;
 
     stmts.count = db.prepare(`
         SELECT COUNT(*) AS count FROM ZASSET
-        WHERE ZTRASHEDSTATE = 0 AND ZHIDDEN = 0 AND ZKIND = 0
+        WHERE ZTRASHEDSTATE = 0 AND ZHIDDEN = 0 AND ZKIND IN (0, 1)
+    `);
+
+    stmts.countByType = db.prepare(`
+        SELECT ZKIND AS kind, COUNT(*) AS count FROM ZASSET
+        WHERE ZTRASHEDSTATE = 0 AND ZHIDDEN = 0 AND ZKIND IN (0, 1)
+        GROUP BY ZKIND
     `);
 
     stmts.allMetadata = db.prepare(`${BASE_SELECT} ORDER BY z.ZDATECREATED`);
 
+    // Incremental query: return items that are new OR modified since last import
+    // ZMODIFICATIONDATE updates when a photo is edited (crop, adjust, etc.)
+    const hasModDate = assetCols.has('ZMODIFICATIONDATE');
+    const afterClause = hasModDate
+        ? `AND (z.ZDATECREATED > :afterCoreData OR z.ZMODIFICATIONDATE > :afterCoreData)`
+        : `AND z.ZDATECREATED > :afterCoreData`;
+
     stmts.metadataAfter = db.prepare(`
-        ${BASE_SELECT} AND z.ZDATECREATED > :afterCoreData ORDER BY z.ZDATECREATED
+        ${BASE_SELECT} ${afterClause} ORDER BY z.ZDATECREATED
     `);
 
     stmts.metadataRange = db.prepare(`
@@ -182,8 +214,12 @@ function formatRow(row) {
         originalFilename: row.originalFilename || null,
         cameraMake: row.cameraMake || null,
         cameraModel: row.cameraModel || null,
+        type: row.kind === 1 ? 'video' : 'photo',
+        duration: row.duration || null,
+        modDate: row.modDate || null,
         _directory: row.directory || null,
-        _uti: row.uti || null
+        _uti: row.uti || null,
+        _uuid: row.uuid || null
     };
 }
 
@@ -222,6 +258,198 @@ function releaseSlot() {
     }
 }
 
+// Video file extensions (used to route to qlmanage instead of Sharp/sips)
+const VIDEO_EXTENSIONS = new Set(['.mov', '.mp4', '.m4v', '.avi', '.3gp']);
+
+function isVideoFile(filePath) {
+    return VIDEO_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+}
+
+// ---------------------------------------------------------------------------
+// Derivative (proxy) image lookup — Apple Photos keeps local thumbnails even
+// when originals are evicted to iCloud. Derivatives live in:
+//   resources/derivatives/{0-9}/{UUID}_1_{size}_{suffix}.jpeg
+//   resources/renders/{0-9}/{UUID}_1_{suffix}.jpeg (rendered thumbnails)
+// We scan these directories once at startup and build a UUID→path map.
+// ---------------------------------------------------------------------------
+
+const derivativeMap = new Map(); // UUID (uppercase) → { thumb: path, large: path }
+
+// Image extensions we can process (Sharp handles all of these)
+const DERIVATIVE_EXTENSIONS = new Set(['.jpeg', '.jpg', '.heic', '.png', '.tiff', '.tif', '.webp']);
+
+function isImageFile(filename) {
+    const ext = path.extname(filename).toLowerCase();
+    return DERIVATIVE_EXTENSIONS.has(ext);
+}
+
+function scanDerivativeDir(dirPath) {
+    let totalFiles = 0;
+
+    let entries;
+    try { entries = fs.readdirSync(dirPath, { withFileTypes: true }); } catch (_) { return 0; }
+
+    for (const entry of entries) {
+        if (entry.isDirectory()) {
+            // Recurse into subdirectories (some buckets have nested UUID folders)
+            totalFiles += scanDerivativeDir(path.join(dirPath, entry.name));
+            continue;
+        }
+
+        if (!isImageFile(entry.name)) continue;
+        totalFiles++;
+
+        // Extract UUID from filename: {UUID}_1_{suffix}.jpeg
+        // UUID format: 8-4-4-4-12 hex chars = 36 chars
+        const uuid = entry.name.substring(0, 36).toUpperCase();
+        if (uuid.length !== 36 || uuid[8] !== '-') continue;
+
+        const filePath = path.join(dirPath, entry.name);
+        let mapEntry = derivativeMap.get(uuid);
+        if (!mapEntry) {
+            mapEntry = { thumb: null, large: null };
+            derivativeMap.set(uuid, mapEntry);
+        }
+
+        // Prefer larger derivatives for better quality thumbnails
+        // _105_c = mini thumbnail (~105px), _102_o = larger derivative
+        // Pick the best available: large > thumb
+        if (entry.name.includes('_102_o') || entry.name.includes('_201_o') || entry.name.includes('_100_o')) {
+            mapEntry.large = filePath;
+        } else if (!mapEntry.thumb) {
+            mapEntry.thumb = filePath;
+        }
+    }
+
+    return totalFiles;
+}
+
+function buildDerivativeMap() {
+    const start = Date.now();
+    let totalFiles = 0;
+
+    // Scan derivatives/{0-9}/
+    if (fs.existsSync(DERIVATIVES_PATH)) {
+        for (let bucket = 0; bucket <= 9; bucket++) {
+            totalFiles += scanDerivativeDir(path.join(DERIVATIVES_PATH, String(bucket)));
+        }
+    }
+
+    // Also scan resources/renders/{0-9}/ (rendered thumbnails)
+    const rendersPath = path.join(LIBRARY_PATH, 'resources', 'renders');
+    if (fs.existsSync(rendersPath)) {
+        const beforeRenders = derivativeMap.size;
+        try {
+            const renderEntries = fs.readdirSync(rendersPath, { withFileTypes: true });
+            for (const entry of renderEntries) {
+                if (entry.isDirectory()) {
+                    totalFiles += scanDerivativeDir(path.join(rendersPath, entry.name));
+                }
+            }
+        } catch (_) {}
+        const rendersAdded = derivativeMap.size - beforeRenders;
+        if (rendersAdded > 0) console.log(`  + ${rendersAdded.toLocaleString()} from renders/`);
+    }
+
+    if (totalFiles === 0) {
+        console.log('Derivs:  none found — derivative fallback disabled');
+    } else {
+        console.log(`Derivs:  ${totalFiles.toLocaleString()} files, ${derivativeMap.size.toLocaleString()} unique assets (${Date.now() - start}ms)`);
+    }
+}
+
+function resolveDerivativePath(formatted) {
+    if (!formatted._uuid) return null;
+    const uuid = formatted._uuid.toUpperCase();
+    const entry = derivativeMap.get(uuid);
+    if (!entry) return null;
+    // Prefer larger derivative for better resize quality
+    const derivPath = entry.large || entry.thumb;
+    if (!derivPath || !fs.existsSync(derivPath)) return null;
+    return derivPath;
+}
+
+// Use macOS qlmanage for video thumbnail generation (built-in, no install needed)
+function qlmanageThumbnail(videoPath, outputPath, maxSize) {
+    return new Promise((resolve, reject) => {
+        const tmpDir = path.join(CACHE_DIR, 'ql-tmp');
+        fs.mkdirSync(tmpDir, { recursive: true });
+
+        execFile('qlmanage', ['-t', '-s', String(maxSize), '-o', tmpDir, videoPath],
+            { timeout: 30000 }, async (err) => {
+                if (err) return reject(err);
+
+                // qlmanage outputs {filename}.png in the output directory
+                const videoFileName = path.basename(videoPath);
+                const qlOutput = path.join(tmpDir, videoFileName + '.png');
+
+                if (!fs.existsSync(qlOutput)) {
+                    return reject(new Error('qlmanage produced no output'));
+                }
+
+                try {
+                    // Convert PNG to JPEG via Sharp (already a dependency)
+                    const isThumb = maxSize <= 200;
+                    await sharp(qlOutput)
+                        .resize(maxSize, maxSize, { fit: 'inside', withoutEnlargement: true })
+                        .jpeg({ quality: isThumb ? 80 : 85 })
+                        .toFile(outputPath);
+
+                    // Clean up qlmanage PNG
+                    try { fs.unlinkSync(qlOutput); } catch (_) {}
+
+                    // Validate output
+                    const stat = fs.statSync(outputPath);
+                    if (stat.size === 0) {
+                        fs.unlinkSync(outputPath);
+                        return reject(new Error('qlmanage→Sharp produced 0-byte output'));
+                    }
+
+                    resolve(outputPath);
+                } catch (sharpErr) {
+                    try { fs.unlinkSync(qlOutput); } catch (_) {}
+                    reject(sharpErr);
+                }
+            });
+    });
+}
+
+// Use ffmpeg as fallback for video thumbnails (requires Homebrew ffmpeg)
+let ffmpegPath = null;
+try {
+    const { execSync } = require('child_process');
+    ffmpegPath = execSync('which ffmpeg 2>/dev/null').toString().trim() || null;
+} catch (_) {}
+
+function ffmpegThumbnail(videoPath, outputPath, maxSize) {
+    return new Promise((resolve, reject) => {
+        if (!ffmpegPath) return reject(new Error('ffmpeg not installed'));
+        // Extract frame at 1 second, scale to fit maxSize, force JPEG output
+        // -f image2 ensures JPEG output regardless of file extension (.tmp)
+        execFile(ffmpegPath, [
+            '-y',
+            '-ss', '1',                // seek before input (fast)
+            '-i', videoPath,
+            '-frames:v', '1',
+            '-vf', `scale=${maxSize}:${maxSize}:force_original_aspect_ratio=decrease`,
+            '-f', 'image2',             // force image output
+            '-update', '1',             // single image mode
+            '-c:v', 'mjpeg',            // JPEG codec
+            '-q:v', '3',               // quality (2-5 good range)
+            outputPath
+        ], { timeout: 30000 }, (err) => {
+            if (err) return reject(err);
+            if (!fs.existsSync(outputPath)) return reject(new Error('ffmpeg produced no output'));
+            const stat = fs.statSync(outputPath);
+            if (stat.size === 0) {
+                fs.unlinkSync(outputPath);
+                return reject(new Error('ffmpeg produced 0-byte output'));
+            }
+            resolve(outputPath);
+        });
+    });
+}
+
 // Use macOS sips as fallback for HEIC and other formats Sharp can't handle
 function sipsConvert(inputPath, outputPath, maxSize) {
     return new Promise((resolve, reject) => {
@@ -248,21 +476,66 @@ async function generateThumbnail(photoId, maxSize) {
     const cacheDir = isThumb ? THUMB_CACHE : FULL_CACHE;
     const cachePath = path.join(cacheDir, `${photoId}.jpg`);
 
-    // Check cache — only trust files with actual content
-    if (fs.existsSync(cachePath)) {
-        const stat = fs.statSync(cachePath);
-        if (stat.size > 0) return cachePath;
-        // Remove empty/corrupt cached file
-        fs.unlinkSync(cachePath);
-    }
-
-    // Look up the photo
+    // Look up the photo first — needed for cache staleness check
     const row = stmts.photoById.get({ id: photoId });
     if (!row) return null;
 
     const formatted = formatRow(row);
+
+    // Check cache — only trust files with actual content that aren't stale
+    if (fs.existsSync(cachePath)) {
+        const stat = fs.statSync(cachePath);
+        if (stat.size > 0) {
+            // If the item has a modification date, check if cache is stale
+            if (formatted.modDate) {
+                const modTimeMs = (formatted.modDate + CORE_DATA_EPOCH) * 1000;
+                if (modTimeMs > stat.mtimeMs) {
+                    // Original was modified after cache was written — regenerate
+                    fs.unlinkSync(cachePath);
+                } else {
+                    return cachePath;
+                }
+            } else {
+                return cachePath;
+            }
+        } else {
+            // Remove empty/corrupt cached file
+            fs.unlinkSync(cachePath);
+        }
+    }
+
     const originalPath = resolveOriginalPath(formatted);
-    if (!originalPath || !fs.existsSync(originalPath)) return null;
+    const hasOriginal = originalPath && fs.existsSync(originalPath);
+
+    // No original? Try derivative (Apple Photos proxy image)
+    if (!hasOriginal) {
+        const derivPath = resolveDerivativePath(formatted);
+        if (!derivPath) return null;
+
+        // Derivative is already a JPEG — just resize with Sharp
+        const tmpPath = cachePath + '.tmp';
+        await acquireSlot();
+        try {
+            await sharp(derivPath, { failOn: 'none' })
+                .rotate()
+                .resize(maxSize, maxSize, { fit: 'inside', withoutEnlargement: true })
+                .jpeg({ quality: isThumb ? 80 : 85 })
+                .toFile(tmpPath);
+
+            const tmpStat = fs.statSync(tmpPath);
+            if (tmpStat.size === 0) {
+                fs.unlinkSync(tmpPath);
+                return null;
+            }
+            fs.renameSync(tmpPath, cachePath);
+            return cachePath;
+        } catch (err) {
+            try { fs.unlinkSync(tmpPath); } catch (_) {}
+            return null;
+        } finally {
+            releaseSlot();
+        }
+    }
 
     // Write to temp file first, rename on success (prevents corrupt cache entries)
     const tmpPath = cachePath + '.tmp';
@@ -270,6 +543,30 @@ async function generateThumbnail(photoId, maxSize) {
     // Limit concurrent image processing to prevent resource exhaustion
     await acquireSlot();
     try {
+        // Route videos to qlmanage first, ffmpeg as fallback
+        if (isVideoFile(originalPath)) {
+            const fname = formatted.filename || formatted.originalFilename || `ID ${photoId}`;
+            // Try qlmanage (built-in, no install needed)
+            try {
+                await qlmanageThumbnail(originalPath, tmpPath, maxSize);
+                fs.renameSync(tmpPath, cachePath);
+                return cachePath;
+            } catch (qlErr) {
+                try { fs.unlinkSync(tmpPath); } catch (_) {}
+            }
+            // Fallback to ffmpeg (Homebrew)
+            try {
+                await ffmpegThumbnail(originalPath, tmpPath, maxSize);
+                fs.renameSync(tmpPath, cachePath);
+                return cachePath;
+            } catch (ffErr) {
+                try { fs.unlinkSync(tmpPath); } catch (_) {}
+                failedPhotos.add(photoId);
+                console.warn(`Skipping video ${fname}: qlmanage + ffmpeg both failed`);
+                return null;
+            }
+        }
+
         // Try Sharp first (fast, handles JPEG/PNG/WebP/TIFF)
         try {
             await sharp(originalPath, { failOn: 'none' })
@@ -318,6 +615,134 @@ async function generateThumbnail(photoId, maxSize) {
 }
 
 // ---------------------------------------------------------------------------
+// iCloud video fetch via Swift PhotoKit helper
+// ---------------------------------------------------------------------------
+
+const { execSync } = require('child_process');
+
+function ensurePhotoFetch() {
+    if (!fs.existsSync(PHOTO_FETCH_SRC)) {
+        console.log('photo-fetch: Swift source not found — iCloud video fetch disabled');
+        return false;
+    }
+
+    // Check if binary exists and is newer than source
+    if (fs.existsSync(PHOTO_FETCH_BIN)) {
+        try {
+            const srcStat = fs.statSync(PHOTO_FETCH_SRC);
+            const binStat = fs.statSync(PHOTO_FETCH_BIN);
+            if (binStat.mtimeMs > srcStat.mtimeMs) {
+                return true; // binary up to date
+            }
+        } catch (_) {}
+    }
+
+    // Compile
+    console.log('photo-fetch: compiling Swift tool...');
+    try {
+        execSync(
+            `swiftc -O -o "${PHOTO_FETCH_BIN}" "${PHOTO_FETCH_SRC}" -framework Photos -framework AVFoundation 2>&1`,
+            { timeout: 120000, stdio: 'pipe' }
+        );
+        console.log('photo-fetch: compiled successfully');
+        return true;
+    } catch (err) {
+        const stderr = err.stdout ? err.stdout.toString().substring(0, 500) : err.message;
+        console.error(`photo-fetch: compilation failed — ${stderr}`);
+        return false;
+    }
+}
+
+function fetchFromICloud(uuid, outputPath, fetchState) {
+    return new Promise((resolve, reject) => {
+        const tmpPath = outputPath + '.downloading';
+        const proc = execFile(
+            PHOTO_FETCH_BIN,
+            [uuid, tmpPath, '--timeout', String(PHOTO_FETCH_TIMEOUT)],
+            { timeout: (PHOTO_FETCH_TIMEOUT + 30) * 1000 }
+        );
+
+        proc.stdout.on('data', (data) => {
+            const lines = data.toString().split('\n');
+            for (const line of lines) {
+                if (line.startsWith('PROGRESS:')) {
+                    fetchState.progress = parseFloat(line.substring(9)) || 0;
+                    fetchState.status = 'downloading';
+                } else if (line.startsWith('STATUS:')) {
+                    fetchState.status = line.substring(7).toLowerCase();
+                } else if (line.startsWith('ERROR:')) {
+                    fetchState.error = line.substring(6);
+                }
+            }
+        });
+
+        proc.stderr.on('data', (data) => {
+            // Capture stderr for debugging but don't treat as fatal
+            const msg = data.toString().trim();
+            if (msg) console.error(`photo-fetch stderr: ${msg}`);
+        });
+
+        proc.on('close', (code) => {
+            if (code === 0 && fs.existsSync(tmpPath)) {
+                try {
+                    const stat = fs.statSync(tmpPath);
+                    if (stat.size === 0) {
+                        try { fs.unlinkSync(tmpPath); } catch (_) {}
+                        reject(new Error('Downloaded file is empty'));
+                        return;
+                    }
+                    fs.renameSync(tmpPath, outputPath);
+                    resolve({ success: true, path: outputPath });
+                } catch (err) {
+                    reject(new Error(`Failed to move downloaded video: ${err.message}`));
+                }
+            } else {
+                try { fs.unlinkSync(tmpPath); } catch (_) {}
+                const errorMsg = fetchState.error || `photo-fetch exited with code ${code}`;
+                reject(new Error(errorMsg));
+            }
+        });
+
+        proc.on('error', (err) => {
+            try { fs.unlinkSync(tmpPath); } catch (_) {}
+            reject(err);
+        });
+    });
+}
+
+// Stream a video file with Range support (reusable for originals and iCloud cache)
+function serveVideoFile(videoPath, req, res) {
+    const stat = fs.statSync(videoPath);
+    const ext = path.extname(videoPath).toLowerCase();
+    const contentType = ext === '.mov' ? 'video/mp4' : (VIDEO_CONTENT_TYPES[ext] || 'video/mp4');
+
+    res.set('Cache-Control', 'public, max-age=300');
+    res.set('Accept-Ranges', 'bytes');
+    res.set('Content-Disposition', 'inline');
+
+    const range = req.headers.range;
+    if (range) {
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+        const chunkSize = end - start + 1;
+
+        res.writeHead(206, {
+            'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+            'Content-Length': chunkSize,
+            'Content-Type': contentType,
+        });
+        fs.createReadStream(videoPath, { start, end }).pipe(res);
+    } else {
+        res.writeHead(200, {
+            'Content-Length': stat.size,
+            'Content-Type': contentType,
+        });
+        fs.createReadStream(videoPath).pipe(res);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Express app
 // ---------------------------------------------------------------------------
 
@@ -356,7 +781,7 @@ app.get('/api/photos/metadata/all', (req, res) => {
         }
         const photos = rows.map(formatRow);
         // Strip internal fields before sending
-        for (const p of photos) { delete p._directory; delete p._uti; }
+        for (const p of photos) { delete p._directory; delete p._uti; delete p._uuid; delete p.modDate; }
         res.json(photos);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -374,18 +799,21 @@ app.get('/api/photos/metadata', (req, res) => {
         const endCoreData = isoToCoreData(end + 'T23:59:59Z');
         const rows = stmts.metadataRange.all({ startCoreData, endCoreData });
         const photos = rows.map(formatRow);
-        for (const p of photos) { delete p._directory; delete p._uti; }
+        for (const p of photos) { delete p._directory; delete p._uti; delete p._uuid; delete p.modDate; }
         res.json(photos);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// Photo count
+// Photo count (with type breakdown)
 app.get('/api/photos/count', (req, res) => {
     try {
         const { count } = stmts.count.get();
-        res.json({ count });
+        const byType = stmts.countByType.all();
+        const photos = byType.find(r => r.kind === 0)?.count || 0;
+        const videos = byType.find(r => r.kind === 1)?.count || 0;
+        res.json({ count, photos, videos });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -415,7 +843,7 @@ app.post('/api/photos/check-available', express.json({ limit: '5mb' }), (req, re
             continue;
         }
 
-        // Look up in DB and check original file exists
+        // Look up in DB and check original or derivative file exists
         const row = stmts.photoById.get({ id });
         if (!row) {
             unavailable.notFound++;
@@ -423,11 +851,17 @@ app.post('/api/photos/check-available', express.json({ limit: '5mb' }), (req, re
         }
         const formatted = formatRow(row);
         const originalPath = resolveOriginalPath(formatted);
-        if (!originalPath || !fs.existsSync(originalPath)) {
-            unavailable.noOriginal++;
+        if (originalPath && fs.existsSync(originalPath)) {
+            available.push(id);
             continue;
         }
-        available.push(id);
+        // No original — check if a derivative exists
+        const derivPath = resolveDerivativePath(formatted);
+        if (derivPath) {
+            available.push(id);
+            continue;
+        }
+        unavailable.noOriginal++;
     }
 
     res.json({ available, unavailable });
@@ -456,11 +890,110 @@ app.get('/api/thumbnail/:id', async (req, res) => {
     res.sendFile(cachePath);
 });
 
-// Full resolution (1600px max)
+// Content-type mapping for video files
+const VIDEO_CONTENT_TYPES = {
+    '.mov': 'video/quicktime',
+    '.mp4': 'video/mp4',
+    '.m4v': 'video/x-m4v',
+    '.avi': 'video/x-msvideo',
+    '.3gp': 'video/3gpp',
+};
+
+// Full resolution (1600px max for photos, or stream original for videos)
 app.get('/api/full/:id', async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid photo ID' });
 
+    // Look up the media item
+    const row = stmts.photoById.get({ id });
+    if (!row) return res.status(404).json({ error: 'Media not found' });
+
+    const formatted = formatRow(row);
+    const originalPath = resolveOriginalPath(formatted);
+    const hasOriginal = originalPath && fs.existsSync(originalPath);
+
+    if (!hasOriginal) {
+        // For videos: try iCloud fetch if available
+        // ?poster=1 skips iCloud fetch — serves derivative still image as placeholder
+        if (formatted.type === 'video' && photoFetchAvailable && formatted._uuid && !req.query.poster) {
+            const uuid = formatted._uuid.toUpperCase();
+            const cachedVideoPath = path.join(ICLOUD_CACHE, `${uuid}.mov`);
+
+            // Already cached from previous iCloud fetch?
+            if (fs.existsSync(cachedVideoPath)) {
+                try {
+                    const stat = fs.statSync(cachedVideoPath);
+                    if (stat.size > 0) return serveVideoFile(cachedVideoPath, req, res);
+                    // Corrupt cache — remove and re-fetch
+                    fs.unlinkSync(cachedVideoPath);
+                } catch (_) {}
+            }
+
+            // Check if fetch is already in progress for this UUID
+            if (activeFetches.has(uuid)) {
+                const state = activeFetches.get(uuid);
+                return res.status(202).json({
+                    status: state.status || 'downloading',
+                    progress: state.progress || 0,
+                    message: 'Video is being downloaded from iCloud'
+                });
+            }
+
+            // Concurrency limit check
+            if (activeICloudCount >= MAX_CONCURRENT_ICLOUD) {
+                return res.status(503).json({
+                    error: 'Too many iCloud downloads in progress',
+                    retryAfter: 10
+                });
+            }
+
+            // Launch iCloud fetch in background — return 202 immediately
+            const fetchState = { progress: 0, status: 'starting', startTime: Date.now(), error: null };
+            activeFetches.set(uuid, fetchState);
+            activeICloudCount++;
+
+            console.log(`iCloud: fetching video ${uuid} (${formatted.filename || 'unknown'})`);
+
+            fetchFromICloud(uuid, cachedVideoPath, fetchState).then(() => {
+                console.log(`iCloud: downloaded ${uuid} successfully`);
+            }).catch((err) => {
+                console.error(`iCloud: fetch failed for ${uuid} — ${err.message}`);
+            }).finally(() => {
+                activeFetches.delete(uuid);
+                activeICloudCount--;
+            });
+
+            return res.status(202).json({
+                status: 'downloading',
+                progress: 0,
+                message: 'Downloading video from iCloud...'
+            });
+        }
+
+        // No original and not a fetchable video — generate resized derivative (up to 1600px)
+        const posterPath = await generateThumbnail(id, 1600);
+        if (!posterPath) {
+            return res.status(404).json({ error: 'Original file not found (may be in iCloud)' });
+        }
+        try {
+            const stat = fs.statSync(posterPath);
+            if (stat.size === 0) {
+                try { fs.unlinkSync(posterPath); } catch (_) {}
+                return res.status(404).json({ error: 'Generated image was empty' });
+            }
+        } catch (e) {
+            return res.status(404).json({ error: 'Image file missing' });
+        }
+        res.set('Cache-Control', 'public, max-age=300');
+        return res.sendFile(posterPath);
+    }
+
+    // Video: stream the original file with Range support for seeking
+    if (isVideoFile(originalPath)) {
+        return serveVideoFile(originalPath, req, res);
+    }
+
+    // Photo: generate resized version (existing behaviour)
     const cachePath = await generateThumbnail(id, 1600);
     if (!cachePath) return res.status(404).json({ error: 'Photo not found or unsupported format' });
 
@@ -479,18 +1012,69 @@ app.get('/api/full/:id', async (req, res) => {
     res.sendFile(cachePath);
 });
 
+// iCloud download status polling endpoint
+app.get('/api/icloud-status/:id', (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid photo ID' });
+
+    const row = stmts.photoById.get({ id });
+    if (!row) return res.status(404).json({ error: 'Media not found' });
+
+    const formatted = formatRow(row);
+    if (!formatted._uuid) return res.json({ status: 'unavailable' });
+
+    const uuid = formatted._uuid.toUpperCase();
+
+    // Check if already cached
+    const cachedPath = path.join(ICLOUD_CACHE, `${uuid}.mov`);
+    if (fs.existsSync(cachedPath)) {
+        try {
+            if (fs.statSync(cachedPath).size > 0) {
+                return res.json({ status: 'ready', progress: 1.0 });
+            }
+        } catch (_) {}
+    }
+
+    // Check for original on disk (may have been downloaded by Photos.app since last check)
+    const originalPath = resolveOriginalPath(formatted);
+    if (originalPath && fs.existsSync(originalPath)) {
+        return res.json({ status: 'ready', progress: 1.0 });
+    }
+
+    // Check if fetch is in progress
+    if (activeFetches.has(uuid)) {
+        const state = activeFetches.get(uuid);
+        return res.json({
+            status: state.status || 'downloading',
+            progress: state.progress || 0,
+            elapsed: Math.round((Date.now() - state.startTime) / 1000),
+            error: state.error || null
+        });
+    }
+
+    // Not cached and not downloading
+    return res.json({ status: 'not_started', photoFetchAvailable });
+});
+
 // ---------------------------------------------------------------------------
 // Start
 // ---------------------------------------------------------------------------
 
 openDatabase();
 prepareStatements();
+buildDerivativeMap();
+photoFetchAvailable = ensurePhotoFetch();
 
 const { count } = stmts.count.get();
+const byType = stmts.countByType.all();
+const photoCount = byType.find(r => r.kind === 0)?.count || 0;
+const videoCount = byType.find(r => r.kind === 1)?.count || 0;
 console.log(`Arc Photo Server`);
 console.log(`Library: ${LIBRARY_PATH}`);
-console.log(`Photos:  ${count.toLocaleString()}`);
+console.log(`Media:   ${count.toLocaleString()} (${photoCount.toLocaleString()} photos, ${videoCount.toLocaleString()} videos)`);
 console.log(`Cache:   ${CACHE_DIR}`);
+console.log(`ffmpeg:  ${ffmpegPath || 'not found (video thumbnails may fail)'}`);
+console.log(`iCloud:  ${photoFetchAvailable ? 'photo-fetch available — on-demand video download enabled' : 'photo-fetch not available — iCloud videos will show stills only'}`);
 
 app.listen(PORT, () => {
     console.log(`Server:  http://localhost:${PORT}`);

@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader - User Manual
 
-**Build 02.092**
+**Build 02.120**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and [Arc Editor](https://editor.arc.wiki) GPS tracking data. Generates interactive diaries with maps from your location history, stored locally in your browser. No server required.
 
@@ -25,11 +25,12 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and [Arc E
 15. [Exporting Your Data](#exporting-your-data)
 16. [Share Tour](#share-tour)
 17. [AI Chat](#ai-chat)
-18. [Privacy & Security](#privacy--security)
-19. [Settings](#settings)
-20. [Database Management](#database-management)
-21. [Keyboard Shortcuts](#keyboard-shortcuts)
-22. [Troubleshooting](#troubleshooting)
+18. [Apple Photos & Videos](#apple-photos--videos)
+19. [Privacy & Security](#privacy--security)
+20. [Settings](#settings)
+21. [Database Management](#database-management)
+22. [Keyboard Shortcuts](#keyboard-shortcuts)
+23. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -719,6 +720,162 @@ Typical costs are very low — a single question-and-answer exchange costs aroun
 
 ---
 
+## Apple Photos & Videos
+
+Display photos and videos from your Apple Photos library alongside your timeline entries. Thumbnails appear inline in diary entries, in a slide-out gallery, and as map markers at their GPS locations. Videos play inline in the viewer with native controls.
+
+> **macOS only.** This feature requires a local server that reads directly from the Apple Photos library database. It is not currently available on Windows, Linux, or mobile platforms.
+
+### Prerequisites
+
+1. **macOS** with Apple Photos (any recent version).
+2. **Node.js** (version 18 or later).
+3. **Xcode Command Line Tools** — required for the iCloud video download feature. The server uses a small Swift helper tool that is compiled automatically at startup. Install with:
+   ```
+   xcode-select --install
+   ```
+   If you already have Xcode or the Command Line Tools installed, this step is not needed. The server still works without them, but videos offloaded to iCloud will not be playable.
+
+### Installing Node.js
+
+If you don't have Node.js installed:
+
+1. **Download** the macOS installer from [nodejs.org](https://nodejs.org/) — choose the **LTS** (Long Term Support) version.
+2. **Run** the installer and follow the prompts. The defaults are fine.
+3. **Verify** the installation by opening Terminal and running:
+   ```
+   node --version
+   ```
+   You should see a version number like `v22.x.x`.
+
+Alternatively, if you use Homebrew:
+
+```
+brew install node
+```
+
+### Setting Up the Photo Server
+
+The photo server is a small Node.js application included in the `photo-server/` folder. It reads your Apple Photos library and serves thumbnails and full-resolution media to the diary reader.
+
+1. **Open Terminal** and navigate to the photo-server directory:
+   ```
+   cd /path/to/arc-diary-reader/photo-server
+   ```
+
+2. **Install dependencies** (first time only):
+   ```
+   npm install
+   ```
+   This installs Express, Sharp (image processing), better-sqlite3 (database access), and CORS middleware.
+
+3. **Start the server:**
+   ```
+   npm start
+   ```
+   You should see output like:
+   ```
+   Arc Photo Server
+   Library: /Users/you/Pictures/Photos Library.photoslibrary
+   Media:   12,345 (photos + videos)
+   Cache:   /path/to/photo-server/.cache
+   iCloud:  photo-fetch available — on-demand video download enabled
+   Server:  http://localhost:3000
+
+   Ready. Keep this running while using Arc Diary Reader.
+   ```
+   On first startup, the server compiles a small Swift helper tool (`photo-fetch`) that enables on-demand downloading of videos stored in iCloud. This compilation takes 5–10 seconds and only happens once — subsequent starts reuse the compiled binary. If the Command Line Tools are not installed, you will see `photo-fetch: not available` instead, and iCloud videos will not be playable.
+
+4. **Grant Photos access (first time only):** The first time a video is downloaded from iCloud, macOS will show a permission dialog asking you to allow `photo-fetch` to access your Photos library. Click **Allow** — this is a one-time prompt and the permission persists across restarts. You can review or change this in **System Settings → Privacy & Security → Photos**.
+
+5. **Keep the terminal window open** while using the diary reader. The server must be running for photo and video features to work.
+
+**Custom library path:** If your Photos library is not in the default location (`~/Pictures/Photos Library.photoslibrary`), specify the path with:
+
+```
+node server.js --library "/path/to/Photos Library.photoslibrary"
+```
+
+**Note:** If Photos.app is running, the server may report a database lock error. Quit Photos.app and try again.
+
+### Connecting the Diary Reader
+
+1. Open the Arc Diary Reader start screen.
+2. In the **Apple Photos Integration** section, the server URL defaults to `http://localhost:3000`.
+3. Click **Connect** to verify the server is running. A green status badge shows the connection is active and how many photos and videos are available.
+4. Click **Import** to begin importing thumbnails.
+
+### Importing Photos
+
+The import process fetches metadata and thumbnails from the photo server and stores them in your browser's IndexedDB:
+
+- **First import** downloads thumbnails for all available photos and videos. This can take several minutes for large libraries (10,000+ items).
+- **Subsequent imports** are incremental — only new items added since the last import are fetched.
+- **Date range import** lets you import only photos and videos from a specific period.
+- Items without local originals (offloaded to iCloud) are automatically skipped.
+- Progress is shown during import with counts of imported, skipped, and total items.
+
+After import, photos and videos appear in the diary reader immediately.
+
+### Features
+
+#### Diary Thumbnails
+
+Photos and videos matching each timeline entry appear as inline thumbnail strips below the entry. Click a thumbnail to open the viewer, or click the count badge to open the gallery slider.
+
+#### Gallery Slider
+
+Click the camera button (📷) in the diary toolbar or click a day's photo count to open the slide-out gallery. This shows a grid of all photos and videos for the current day, sorted chronologically.
+
+- Video thumbnails display a **▶ play icon** overlay to distinguish them from photos.
+- Click any thumbnail to open it in the viewer.
+- The gallery updates automatically when you navigate to a different day.
+
+#### Photo & Video Viewer
+
+A non-modal viewer panel that overlays the map area. Features:
+
+- **Photos** load at full resolution (up to 1600px) from the server, with a fast thumbnail fallback while loading.
+- **Videos** play inline with native browser controls (play, pause, seek, volume, fullscreen). Videos stream from the server with seeking support.
+- **iCloud videos** — videos that have been offloaded to iCloud are downloaded automatically when you open them in the viewer. A progress overlay shows the download status with the video's still image as a backdrop. Downloaded videos are cached locally so they play instantly on subsequent views.
+- **Navigation** — use the left/right arrow buttons or keyboard arrow keys to step through media. Videos automatically pause when navigating away.
+- **Info bar** — shows the date, time, camera model, video duration, and position counter.
+- **Draggable** — grab the header bar to reposition the viewer on screen.
+- **Resizable** — drag the edges to resize, or click the maximize button to fill the viewport.
+- **Open in new tab** — click ↗ to open the current photo or video in a separate browser tab. Subsequent clicks in the gallery update the same tab.
+- **Keyboard shortcuts** — Escape to close, Left/Right to navigate.
+
+#### Map Markers
+
+When the map marker toggle is active (📍 button in the gallery toolbar), photos and videos appear as small thumbnail markers on the map at their GPS coordinates. Click a marker to see a popup with the image, time, and camera model. Click the popup image to open the viewer.
+
+Video markers also show the ▶ play icon overlay.
+
+### Troubleshooting
+
+#### "Photo server not connected"
+
+- Make sure the server is running (`npm start` in the `photo-server/` directory).
+- Check that the URL matches (default: `http://localhost:3000`).
+- Check the terminal for error messages.
+
+#### Videos not playing
+
+- The browser must support the video format. Most Mac-recorded videos are MOV (QuickTime) or MP4, which are supported by Safari and Chrome.
+- If the video is stored in iCloud, the server will attempt to download it automatically. Check the terminal for `iCloud: fetching video...` messages. If you see `photo-fetch: not available`, install Xcode Command Line Tools (`xcode-select --install`) and restart the server.
+- If the first iCloud video download fails with a permission error, check that `photo-fetch` has Photos access in **System Settings → Privacy & Security → Photos**.
+
+#### Some photos/videos are missing
+
+- Run a fresh import to pick up newly added items.
+- Click **Repair** to re-fetch thumbnails that may have been corrupted.
+
+#### Server reports "database locked"
+
+- Quit Photos.app and restart the server.
+
+---
+
 ## Privacy & Security
 
 Arc Diary Reader is designed with privacy as a core principle. Your location data is sensitive personal information, and the application handles it accordingly.
@@ -750,6 +907,10 @@ Coordinates are stripped from all tool results before they are sent to the API b
 - API data is **not used for model training**.
 - API data is retained for up to **30 days** for safety and abuse monitoring purposes only, then deleted.
 - These protections apply automatically to all API usage — no opt-out is required.
+
+### Photo Server Privacy
+
+The Apple Photos server runs entirely on your local machine (`localhost`). No photo or video data leaves your computer — the server reads directly from your Apple Photos library database and serves thumbnails and media only to your local browser. Imported thumbnails are stored in your browser's IndexedDB alongside your timeline data. No external services are contacted by the photo server.
 
 ### Tour Sharing Privacy
 
@@ -859,6 +1020,13 @@ In the Analysis page, click the **Rebuild** button to reconstruct analysis data 
 | Home / End | First / Last location |
 | Enter / Space | Expand or collapse visits |
 | PageUp / PageDown | Scroll list |
+
+### Photo & Video Viewer
+
+| Key | Action |
+|-----|--------|
+| Left / Right | Previous / Next photo or video |
+| Escape | Close viewer |
 
 ### Location Search (Analysis Page)
 

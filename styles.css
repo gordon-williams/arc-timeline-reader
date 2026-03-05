@@ -1178,36 +1178,36 @@
             color: var(--text-primary);  /* Apple dark gray (was white) */
         }
         
-        /* Settings dropdown */
-        /* Inline checkboxes in diary header */
-        .diary-checkboxes {
-            display: flex;
-            align-items: center;
-            gap: 16px;  /* CarPlay: more spacing (was 12px) */
+        /* Diary view filter dropdown */
+        .diary-filter-group {
             margin: 0 10px;
         }
-        
-        .diary-checkbox-label {
-            display: flex;
-            align-items: center;
-            gap: 6px;  /* CarPlay: more spacing (was 4px) */
+
+        .diary-filter-group select {
+            appearance: none;
+            -webkit-appearance: none;
+            background: rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            padding: 5px 28px 5px 10px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-primary);
             cursor: pointer;
-            user-select: none;
-            font-size: 13px;  /* CarPlay: larger (was 12px) */
-            font-weight: 500;  /* CarPlay: medium weight */
-            color: var(--text-primary);  /* Apple dark gray (was white) */
-            white-space: nowrap;
+            outline: none;
+            background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            transition: background 0.2s, border-color 0.2s;
         }
-        
-        .diary-checkbox-label input[type="checkbox"] {
-            margin: 0;
-            cursor: pointer;
-            width: 18px;  /* CarPlay: larger (was 14px) */
-            height: 18px;  /* CarPlay: larger (was 14px) */
+
+        .diary-filter-group select:hover {
+            background-color: rgba(0, 0, 0, 0.1);
+            border-color: rgba(0, 0, 0, 0.15);
         }
-        
-        .diary-checkbox-label span {
-            font-size: 13px;  /* CarPlay: match label size */
+
+        .diary-filter-group select:focus {
+            border-color: var(--accent);
         }
         
         /* Search controls in diary header */
@@ -6279,6 +6279,7 @@ li.route-clickable:hover {
     align-content: start;
 }
 .photo-slider-item {
+    position: relative;
     aspect-ratio: 1;
     background-size: cover;
     background-position: center;
@@ -6289,6 +6290,24 @@ li.route-clickable:hover {
 }
 .photo-slider-item:hover {
     opacity: 0.8;
+}
+/* Video play icon overlay on slider thumbnails */
+.photo-slider-play-icon {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 10px;
+    pointer-events: none;
+    line-height: 1;
+    padding-left: 2px;
 }
 .photo-slider-empty {
     grid-column: 1 / -1;
@@ -6340,6 +6359,7 @@ li.route-clickable:hover {
     border: none !important;
 }
 .photo-map-thumb {
+    position: relative;
     width: 36px;
     height: 36px;
     border-radius: 6px;
@@ -6349,6 +6369,24 @@ li.route-clickable:hover {
     background-position: center;
     background-color: var(--bg-app);
     cursor: pointer;
+}
+/* Video play icon on map marker thumbnails */
+.photo-map-thumb-video::after {
+    content: '▶';
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 16px;
+    height: 16px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 7px;
+    line-height: 1;
+    padding-left: 1px;
 }
 .photo-popup-wrap .leaflet-popup-content-wrapper {
     padding: 0;
@@ -6375,15 +6413,16 @@ li.route-clickable:hover {
     color: var(--text-secondary);
 }
 
-/* Photo Viewer (resizable modal over map) */
+/* Photo Viewer (non-modal, resizable panel over map) */
 .photo-viewer-overlay {
     position: absolute;
     inset: 0;
     z-index: 500;
-    background: rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
     justify-content: center;
+    pointer-events: none;
+    outline: none;
 }
 .photo-viewer-modal {
     position: relative;
@@ -6398,6 +6437,10 @@ li.route-clickable:hover {
     flex-direction: column;
     overflow: hidden;
     resize: both;
+    pointer-events: auto;
+}
+.photo-viewer-modal.fitted {
+    transition: width 0.3s ease, height 0.3s ease;
 }
 .photo-viewer-modal.maximized {
     width: 100% !important;
@@ -6449,6 +6492,7 @@ li.route-clickable:hover {
 }
 .photo-viewer-body {
     flex: 1;
+    min-height: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -6462,16 +6506,25 @@ li.route-clickable:hover {
     object-fit: contain;
     transition: opacity 0.3s;
 }
+.photo-viewer-body video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transition: opacity 0.3s;
+    position: relative;
+    z-index: 2;
+}
 .photo-viewer-nav {
     position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 0;
+    bottom: 0;
+    margin: auto 0;
+    height: 64px;
+    width: 44px;
     background: rgba(255, 255, 255, 0.1);
     border: none;
     color: white;
     font-size: 36px;
-    width: 44px;
-    height: 64px;
     cursor: pointer;
     transition: background 0.2s;
     display: flex;
@@ -6484,4 +6537,50 @@ li.route-clickable:hover {
 .photo-viewer-next { right: 10px; }
 .photo-viewer-nav:hover {
     background: rgba(255, 255, 255, 0.25);
+}
+/* iCloud download overlay in photo viewer */
+.icloud-download-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+.icloud-download-content {
+    text-align: center;
+    color: white;
+}
+.icloud-download-icon {
+    margin-bottom: 16px;
+    opacity: 0.7;
+    color: rgba(255, 255, 255, 0.8);
+}
+.icloud-download-text {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: 16px;
+}
+.icloud-download-progress-bar {
+    width: 200px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 2px;
+    margin: 0 auto 10px;
+    overflow: hidden;
+}
+.icloud-download-progress-fill {
+    height: 100%;
+    background: #007AFF;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+    width: 0%;
+}
+.icloud-download-percent {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.4);
+    font-variant-numeric: tabular-nums;
 }

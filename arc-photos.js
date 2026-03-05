@@ -122,11 +122,13 @@
                 const store = tx.objectStore('photos');
                 const request = store.clear();
                 request.onsuccess = () => {
-                    // Also clear last import timestamp
+                    // Also clear import state
                     try {
                         const metaTx = db.transaction('metadata', 'readwrite');
                         const metaStore = metaTx.objectStore('metadata');
                         metaStore.delete('lastPhotoImport');
+                        metaStore.delete('videoImportDone');  // legacy key
+                        metaStore.delete('lastServerVideoCount');
                         metaTx.oncomplete = () => resolve();
                         metaTx.onerror = () => resolve();
                     } catch (e) {
@@ -186,6 +188,54 @@
         });
     }
 
+    function clearLastImportTime() {
+        return new Promise((resolve) => {
+            const db = getDb();
+            if (!db) return resolve();
+            try {
+                const tx = db.transaction('metadata', 'readwrite');
+                const store = tx.objectStore('metadata');
+                store.delete('lastPhotoImport');
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => resolve();
+            } catch (e) {
+                resolve();
+            }
+        });
+    }
+
+    function getMetadataValue(key) {
+        return new Promise((resolve) => {
+            const db = getDb();
+            if (!db) return resolve(null);
+            try {
+                const tx = db.transaction('metadata', 'readonly');
+                const store = tx.objectStore('metadata');
+                const request = store.get(key);
+                request.onsuccess = () => resolve(request.result?.value ?? null);
+                request.onerror = () => resolve(null);
+            } catch (e) {
+                resolve(null);
+            }
+        });
+    }
+
+    function setMetadataValue(key, value) {
+        return new Promise((resolve) => {
+            const db = getDb();
+            if (!db) return resolve();
+            try {
+                const tx = db.transaction('metadata', 'readwrite');
+                const store = tx.objectStore('metadata');
+                store.put({ key, value });
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => resolve();
+            } catch (e) {
+                resolve();
+            }
+        });
+    }
+
     // ---------------------------------------------------------------------------
     // Server communication
     // ---------------------------------------------------------------------------
@@ -221,6 +271,32 @@
         // Reset server failure cache so previously failed photos get retried
         await resetServerFailures();
 
+        // Video migration: when video support is first enabled, existing videos
+        // won't be picked up by incremental import (their ZDATECREATED is before
+        // lastPhotoImport). Detect this by comparing the server's video count with
+        // what we stored from the last successful import.
+        let serverVideoCount = 0;
+        if (!options.startDate && !options.endDate) {
+            try {
+                const countResp = await fetch(`${serverUrl}/api/photos/count`,
+                    { signal: AbortSignal.timeout(5000) });
+                if (countResp.ok) {
+                    const countData = await countResp.json();
+                    serverVideoCount = countData.videos || 0;
+                    const lastVideoCount = await getMetadataValue('lastServerVideoCount');
+                    if (serverVideoCount > 0) {
+                        if (!lastVideoCount || lastVideoCount === 0) {
+                            // Server has videos but we've never imported them — trigger full re-import
+                            progressCb?.({ phase: 'metadata', message: 'Video support detected — full re-import needed...' });
+                            await clearLastImportTime();
+                        }
+                    }
+                }
+            } catch (e) {
+                // Count endpoint may not support type breakdown — continue normally
+            }
+        }
+
         // Build metadata URL — date range or incremental
         let metadataUrl;
         if (options.startDate && options.endDate) {
@@ -232,12 +308,14 @@
         }
 
         // Fetch all metadata
-        progressCb?.({ phase: 'metadata', message: 'Fetching photo metadata...' });
+        progressCb?.({ phase: 'metadata', percent: 10, message: 'Fetching photo metadata...' });
         const resp = await fetch(metadataUrl);
         if (!resp.ok) throw new Error(`Metadata fetch failed: HTTP ${resp.status}`);
+        progressCb?.({ phase: 'metadata', percent: 30, message: 'Processing metadata...' });
         const allPhotos = await resp.json();
 
         if (allPhotos.length === 0) {
+            progressCb?.({ phase: 'done', percent: 100, message: 'No new photos to import' });
             return { imported: 0, skipped: 0, total: 0, message: 'No new photos to import' };
         }
 
@@ -246,7 +324,7 @@
         const allIds = allPhotos.map(p => p.id);
         let availableSet = null;
         let unavailableStats = null;
-        progressCb?.({ phase: 'metadata', message: 'Checking photo availability...' });
+        progressCb?.({ phase: 'metadata', percent: 40, message: `Checking availability of ${allPhotos.length.toLocaleString()} items...` });
         try {
             const checkResp = await fetch(`${serverUrl}/api/photos/check-available`, {
                 method: 'POST',
@@ -301,6 +379,8 @@
                     originalFilename: photo.originalFilename,
                     cameraMake: photo.cameraMake,
                     cameraModel: photo.cameraModel,
+                    type: photo.type || 'photo',
+                    duration: photo.duration || null,
                     thumbnail: blob
                 };
             } catch (e) {
@@ -335,15 +415,18 @@
                     await drainToIDB();
                 }
 
-                // Progress reporting
+                // Progress reporting — thumbnails use 50-100% of the bar
                 const processed = imported + skipped - skippedUpfront;
-                if (processed % 500 < FETCH_CONCURRENCY || idx === photosToFetch.length - 1) {
+                if (processed % 200 < FETCH_CONCURRENCY || idx === photosToFetch.length - 1) {
+                    const thumbPercent = photosToFetch.length > 0
+                        ? Math.round((processed / photosToFetch.length) * 100)
+                        : 100;
                     progressCb?.({
                         phase: 'thumbnails',
                         imported,
                         skipped,
                         total,
-                        percent: Math.round((processed / photosToFetch.length) * 100)
+                        percent: 50 + Math.round(thumbPercent / 2)
                     });
                 }
             }
@@ -359,9 +442,12 @@
         // Flush remaining records
         await drainToIDB();
 
-        // Save import timestamp
+        // Save import timestamp and server video count (for migration detection)
         const now = new Date().toISOString();
         await saveLastImportTime(now);
+        if (serverVideoCount > 0) {
+            await setMetadataValue('lastServerVideoCount', serverVideoCount);
+        }
 
         // Build skip breakdown from availability check + runtime failures
         const skipBreakdown = {
@@ -456,6 +542,12 @@
         return `${serverUrl}/api/full/${photoId}`;
     }
 
+    function getVideoUrl(photoId) {
+        // Videos use the same /api/full/ endpoint — the server detects video files
+        // and streams them with Range support and correct Content-Type
+        return getFullResUrl(photoId);
+    }
+
     // ---------------------------------------------------------------------------
     // Map marker preference
     // ---------------------------------------------------------------------------
@@ -536,6 +628,79 @@
     }
 
     // ---------------------------------------------------------------------------
+    // iCloud video fetch (on-demand download via server's PhotoKit helper)
+    // ---------------------------------------------------------------------------
+
+    async function requestICloudVideo(photoId, progressCb) {
+        if (!serverAvailable) return { ready: false, error: 'Server not available' };
+
+        const fullUrl = `${serverUrl}/api/full/${photoId}`;
+        const statusUrl = `${serverUrl}/api/icloud-status/${photoId}`;
+
+        // First request: triggers the download if needed, or returns 200 if already available
+        try {
+            logDebug(`[iCloud] HEAD check: ${fullUrl}`);
+            const resp = await fetch(fullUrl, { method: 'HEAD' });
+            logDebug(`[iCloud] HEAD response: ${resp.status}`);
+            if (resp.status === 200) {
+                return { ready: true, url: fullUrl };
+            }
+            // 202 = download initiated/in-progress, 503 = too many downloads
+            if (resp.status !== 202 && resp.status !== 503) {
+                logDebug(`[iCloud] Unexpected status ${resp.status}, giving up`);
+                return { ready: false, error: `Server returned ${resp.status}` };
+            }
+        } catch (e) {
+            logDebug(`[iCloud] HEAD request failed: ${e.message}`);
+            return { ready: false, error: e.message };
+        }
+
+        // Poll for progress until ready or timeout
+        logDebug(`[iCloud] Starting download poll for photo ${photoId}`);
+        return new Promise((resolve) => {
+            let attempts = 0;
+            const maxAttempts = 240; // 240 × 1.5s = 6 minutes
+
+            const poll = setInterval(async () => {
+                attempts++;
+                try {
+                    const resp = await fetch(statusUrl);
+                    const data = await resp.json();
+
+                    if (attempts <= 3 || attempts % 10 === 0) {
+                        logDebug(`[iCloud] Poll #${attempts}: ${data.status} progress=${data.progress}`);
+                    }
+
+                    progressCb?.(data);
+
+                    if (data.status === 'ready') {
+                        logDebug(`[iCloud] Video ready after ${attempts} polls`);
+                        clearInterval(poll);
+                        resolve({ ready: true, url: fullUrl });
+                    } else if (data.status === 'not_started' && attempts > 3) {
+                        // Fetch was attempted but failed — give up
+                        logDebug(`[iCloud] Download not started after ${attempts} polls, giving up`);
+                        clearInterval(poll);
+                        resolve({ ready: false, error: data.error || 'Download failed' });
+                    } else if (data.error && data.status !== 'downloading') {
+                        logDebug(`[iCloud] Download error: ${data.error}`);
+                        clearInterval(poll);
+                        resolve({ ready: false, error: data.error });
+                    } else if (attempts >= maxAttempts) {
+                        logDebug(`[iCloud] Timeout after ${maxAttempts} polls`);
+                        clearInterval(poll);
+                        resolve({ ready: false, error: 'Timeout waiting for iCloud download' });
+                    }
+                } catch (e) {
+                    logDebug(`[iCloud] Poll error: ${e.message}`);
+                    clearInterval(poll);
+                    resolve({ ready: false, error: e.message });
+                }
+            }, 1500);
+        });
+    }
+
+    // ---------------------------------------------------------------------------
     // Public API
     // ---------------------------------------------------------------------------
 
@@ -564,10 +729,48 @@
         // Display
         getThumbnailUrl,
         getFullResUrl,
+        getVideoUrl,
+        requestICloudVideo,
         revokeUrls,
 
         // Preferences
         showMapMarkers,
-        setShowMapMarkers
+        setShowMapMarkers,
+
+        // Diagnostics
+        async diagnoseVideos() {
+            const results = {};
+            // Metadata keys
+            results.lastPhotoImport = await getLastImportTime();
+            results.lastServerVideoCount = await getMetadataValue('lastServerVideoCount');
+            results.videoImportDone = await getMetadataValue('videoImportDone');
+            // IDB record types
+            const allPhotos = await new Promise((resolve) => {
+                const db = getDb();
+                if (!db) return resolve([]);
+                const tx = db.transaction('photos', 'readonly');
+                const store = tx.objectStore('photos');
+                const req = store.getAll();
+                req.onsuccess = () => resolve(req.result || []);
+                req.onerror = () => resolve([]);
+            });
+            const types = {};
+            for (const p of allPhotos) {
+                const t = p.type || 'undefined';
+                types[t] = (types[t] || 0) + 1;
+            }
+            results.idbTotal = allPhotos.length;
+            results.idbTypes = types;
+            // Server count
+            try {
+                const resp = await fetch(`${serverUrl}/api/photos/count`, { signal: AbortSignal.timeout(3000) });
+                if (resp.ok) results.serverCount = await resp.json();
+            } catch (e) {
+                results.serverCount = 'unavailable';
+            }
+            console.table(results);
+            console.log('IDB type breakdown:', types);
+            return results;
+        }
     };
 })();
