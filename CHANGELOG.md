@@ -1,5 +1,24 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.183 (2026-03-07)
+
+### iCloud Photo Download
+- **Poster-first for still photos** — Photos whose originals are in iCloud now display the poster/derivative immediately instead of blocking the viewer with a download overlay. Videos keep the existing on-demand download behaviour.
+- **Poster-only badge** — A small "Poster only" badge appears in the viewer when showing a derivative instead of the iCloud original.
+- **503 cooldown** — After receiving a 503 (server busy) from the photo server, iCloud preflight checks are paused for 30 seconds to avoid hammering the queue.
+
+### Photo Viewer
+- **Photo title on-demand fetch** — If a photo's Apple Photos title isn't cached locally, the viewer fetches it from the server via `/api/photos/info/:id`.
+- **Fix photo display name** — Prefer `originalFilename` (camera name like IMG_1234.HEIC) over `filename` (which can be an iCloud UUID). UUIDs are filtered out entirely.
+- **Fix nav buttons not clickable** — Raised nav button z-index above the cross-fade image layers so prev/next buttons respond to clicks.
+- **Full-res first loading** — The viewer loads the full-resolution photo directly and only falls back to the blurry IDB thumbnail if the full-res load fails.
+
+### Photo Server
+- **Server hardening** — Top-level try/catch on async media endpoints to prevent unhandled exceptions from crashing the process.
+- **Process logging** — Added handlers for `unhandledRejection`, `uncaughtException`, `exit`, and OS signals, with log output via `tee`.
+- **iCloud fetch state fix** — `fetchState.status` is now set to `'ready'` on successful download before cleanup, so the status endpoint reports `'ready'` immediately instead of leaving a gap between `'done'` and `'ready'`.
+- **Temp-file recovery** — Stalled downloads that reached `STATUS:DONE` but never renamed the temp file are now recovered.
+
 ## Build 02.173 (2026-03-06)
 
 ### Photo Viewer
