@@ -12662,9 +12662,13 @@ scrollToDiaryDay(currentDayKey);
         function photoDisplayName(photo) {
             // Title from Apple Photos if set, otherwise filename without extension
             if (photo.title) return photo.title;
-            const raw = photo.filename || photo.originalFilename || '';
-            // Strip file extension (e.g. IMG_1234.HEIC → IMG_1234)
-            return raw.replace(/\.[^.]+$/, '');
+            // Prefer originalFilename (camera name like IMG_1234.HEIC) over
+            // filename which can be an iCloud UUID
+            const raw = photo.originalFilename || photo.filename || '';
+            const name = raw.replace(/\.[^.]+$/, ''); // strip extension
+            // If it still looks like a UUID, don't show it
+            if (/^[0-9A-F]{8}-[0-9A-F]{4}-/i.test(name)) return '';
+            return name;
         }
 
         function updateFilenameBar() {
