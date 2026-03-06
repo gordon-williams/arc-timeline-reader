@@ -11829,17 +11829,19 @@ scrollToDiaryDay(currentDayKey);
             if (!overlay._keyHandler) {
                 overlay._keyHandler = (e) => {
                     if (e.key === 'Escape') { closePhotoViewer(); return; }
-                    // If a video element has focus, let it handle arrow keys for seeking
-                    if (e.target && e.target.tagName === 'VIDEO') return;
+                    // Let form controls and video handle their own keys
+                    const tag = e.target && e.target.tagName;
+                    if (tag === 'VIDEO' || tag === 'SELECT' || tag === 'OPTION') return;
                     if (e.key === 'ArrowLeft') { e.preventDefault(); navigatePhoto(-1); }
                     else if (e.key === 'ArrowRight') { e.preventDefault(); navigatePhoto(1); }
                     else if (e.key === ' ') { e.preventDefault(); toggleSlideshow(); }
                 };
                 overlay.addEventListener('keydown', overlay._keyHandler);
                 // Re-focus overlay on click so arrow keys work after clicking nav buttons, etc.
-                // (Clicks on <video> naturally give it focus for seeking — that's fine.)
+                // (Clicks on <video> and form controls keep their own focus.)
                 overlay.addEventListener('click', (e) => {
-                    if (e.target.tagName !== 'VIDEO') overlay.focus();
+                    const tag = e.target.tagName;
+                    if (tag !== 'VIDEO' && tag !== 'SELECT' && tag !== 'OPTION') overlay.focus();
                 });
             }
 
