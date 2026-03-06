@@ -6493,6 +6493,35 @@ li.route-clickable:hover {
     font-size: 12px;
     color: var(--text-secondary);
 }
+.photo-popup-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 8px 6px;
+    border-top: 1px solid var(--border-subtle);
+}
+.photo-popup-nav button {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: none;
+    background: var(--bg-secondary);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+.photo-popup-nav button:hover {
+    background: var(--border-subtle);
+}
+.photo-popup-counter {
+    font-size: 11px;
+    color: var(--text-muted);
+}
 
 /* Photo Viewer (non-modal, resizable panel over map) */
 .photo-viewer-overlay {

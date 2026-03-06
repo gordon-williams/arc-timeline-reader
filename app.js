@@ -11619,6 +11619,99 @@ scrollToDiaryDay(currentDayKey);
             // Use a simple layer group (not cluster) to avoid interfering with route polylines
             photoMarkerLayer = L.layerGroup();
 
+            // Helper: find all photos near a given photo, within the marker icon radius at the current zoom
+            function findNearbyPhotos(target, allPhotos) {
+                // Marker icon is 36px; photos overlap when closer than ~36px on screen
+                // Convert pixel distance to degrees using the map's current resolution
+                const zoom = map.getZoom();
+                const metersPerPixel = 40075016.686 * Math.cos(target.latitude * Math.PI / 180) / Math.pow(2, zoom + 8);
+                const overlapMeters = metersPerPixel * 36; // marker width in metres at current zoom
+                const threshold = overlapMeters / 111320; // convert metres to approximate degrees
+                return allPhotos.filter(p =>
+                    Math.abs(p.latitude - target.latitude) < threshold &&
+                    Math.abs(p.longitude - target.longitude) < threshold
+                );
+            }
+
+            // Helper: format photo info line
+            function formatPhotoInfo(p) {
+                const d = new Date(p.date);
+                return `${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}${p.cameraModel ? ' · ' + p.cameraModel : ''}`;
+            }
+
+            // Build popup content for a photo marker, detecting nearby photos at the current zoom
+            function buildPhotoPopup(photo, allPhotos) {
+                const nearby = findNearbyPhotos(photo, allPhotos);
+                let currentIdx = nearby.findIndex(p => p.id === photo.id);
+                if (currentIdx === -1) currentIdx = 0;
+
+                const container = document.createElement('div');
+                container.className = 'photo-map-popup';
+                const imgDiv = document.createElement('div');
+                imgDiv.className = 'photo-popup-img';
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'photo-popup-info';
+                infoDiv.textContent = formatPhotoInfo(nearby[currentIdx]);
+                container.appendChild(imgDiv);
+                container.appendChild(infoDiv);
+
+                // Load initial thumbnail
+                ArcPhotos.getPhotoById(nearby[currentIdx].id).then(p => {
+                    if (p?.thumbnail) {
+                        const url = ArcPhotos.getThumbnailUrl(p);
+                        if (url) imgDiv.style.backgroundImage = `url(${url})`;
+                    }
+                });
+
+                imgDiv.style.cursor = 'pointer';
+                imgDiv.onclick = () => {
+                    openPhotoViewer(nearby[currentIdx].id, allPhotos);
+                };
+
+                // Add prev/next nav if multiple photos overlap at this zoom
+                if (nearby.length > 1) {
+                    const navDiv = document.createElement('div');
+                    navDiv.className = 'photo-popup-nav';
+                    const prevBtn = document.createElement('button');
+                    prevBtn.textContent = '‹';
+                    prevBtn.title = 'Previous photo';
+                    const counter = document.createElement('span');
+                    counter.className = 'photo-popup-counter';
+                    counter.textContent = `${currentIdx + 1} / ${nearby.length}`;
+                    const nextBtn = document.createElement('button');
+                    nextBtn.textContent = '›';
+                    nextBtn.title = 'Next photo';
+                    navDiv.appendChild(prevBtn);
+                    navDiv.appendChild(counter);
+                    navDiv.appendChild(nextBtn);
+                    container.appendChild(navDiv);
+
+                    const showPhoto = (idx) => {
+                        currentIdx = idx;
+                        const p = nearby[currentIdx];
+                        infoDiv.textContent = formatPhotoInfo(p);
+                        counter.textContent = `${currentIdx + 1} / ${nearby.length}`;
+                        ArcPhotos.getPhotoById(p.id).then(full => {
+                            if (full?.thumbnail) {
+                                const url = ArcPhotos.getThumbnailUrl(full);
+                                if (url) imgDiv.style.backgroundImage = `url(${url})`;
+                            }
+                        });
+                    };
+
+                    prevBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        showPhoto(currentIdx <= 0 ? nearby.length - 1 : currentIdx - 1);
+                    };
+                    nextBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        showPhoto(currentIdx >= nearby.length - 1 ? 0 : currentIdx + 1);
+                    };
+                }
+
+                return container;
+            }
+
             for (const photo of gpsPhotos) {
                 const photoMarker = L.marker([photo.latitude, photo.longitude], {
                     icon: L.divIcon({
@@ -11637,37 +11730,21 @@ scrollToDiaryDay(currentDayKey);
                             if (p) {
                                 const url = ArcPhotos.getThumbnailUrl(p);
                                 if (url) el.style.backgroundImage = `url(${url})`;
-                                // Add video play icon overlay on map marker
                                 if (p.type === 'video') el.classList.add('photo-map-thumb-video');
                             }
                         }
                     }, 50);
                 });
 
-                const popupContent = document.createElement('div');
-                popupContent.className = 'photo-map-popup';
-                const imgDiv = document.createElement('div');
-                imgDiv.className = 'photo-popup-img';
-                const infoDiv = document.createElement('div');
-                infoDiv.className = 'photo-popup-info';
-                const photoDate = new Date(photo.date);
-                infoDiv.textContent = `${photoDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}${photo.cameraModel ? ' · ' + photo.cameraModel : ''}`;
-                popupContent.appendChild(imgDiv);
-                popupContent.appendChild(infoDiv);
-
-                ArcPhotos.getPhotoById(photo.id).then(p => {
-                    if (p?.thumbnail) {
-                        const url = ArcPhotos.getThumbnailUrl(p);
-                        if (url) imgDiv.style.backgroundImage = `url(${url})`;
-                    }
+                // Rebuild popup content each time it opens so nearby grouping reflects current zoom
+                photoMarker.on('click', () => {
+                    photoMarker.unbindPopup();
+                    const content = buildPhotoPopup(photo, gpsPhotos);
+                    photoMarker.bindPopup(content, { maxWidth: 220, className: 'photo-popup-wrap' }).openPopup();
                 });
 
-                imgDiv.style.cursor = 'pointer';
-                imgDiv.onclick = () => {
-                    openPhotoViewer(photo.id, gpsPhotos);
-                };
-
-                photoMarker.bindPopup(popupContent, { maxWidth: 220, className: 'photo-popup-wrap' });
+                // Bind an empty popup initially (Leaflet needs it for the popup infrastructure)
+                photoMarker.bindPopup('', { maxWidth: 220, className: 'photo-popup-wrap' });
                 photoMarkerLayer.addLayer(photoMarker);
             }
 

@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader - User Manual
 
-**Build 02.120**
+**Build 02.166**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and [Arc Editor](https://editor.arc.wiki) GPS tracking data. Generates interactive diaries with maps from your location history, stored locally in your browser. No server required.
 
@@ -854,6 +854,8 @@ A non-modal viewer panel that overlays the map area. Features:
 #### Map Markers
 
 When the map marker toggle is active (📍 button in the gallery toolbar), photos and videos appear as small thumbnail markers on the map at their GPS coordinates. Click a marker to see a popup with the image, time, and camera model. Click the popup image to open the viewer.
+
+When multiple photos overlap at the same location, the popup shows ◀/▶ navigation buttons and a counter (e.g. "2 / 5") to browse all stacked photos. The grouping radius adapts to the current zoom level -- markers are grouped tighter when zoomed in and broader when zoomed out.
 
 Video markers also show the ▶ play icon overlay.
 

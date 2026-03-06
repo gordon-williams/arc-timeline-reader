@@ -1,5 +1,23 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.166 (2026-03-06)
+
+### Photo Map Markers
+- **Popup navigation for stacked markers** — When multiple photos overlap at the same map location, the popup now shows ◀/▶ prev/next buttons and a counter (e.g. "2 / 5") so you can browse all overlapping photos without clicking individual markers. Clicking the photo still opens the full viewer.
+- **Zoom-dependent grouping** — The overlap detection radius adapts to the current zoom level using a metres-per-pixel calculation, so markers are grouped tighter when zoomed in and broader when zoomed out. The popup rebuilds on each click to reflect the current zoom.
+
+### GPS Sample Import Fix
+- **Fallback scan for mislabeled sample files** — Some Arc Editor backup sample files have week-key names that don't match the dates they contain (e.g. `2015-W01.json.gz` containing January 2016 data). After the primary week-key-based sample loading, the importer now detects items that received zero GPS samples and probes unloaded sample files by date range to find the correct data.
+- **Fallback cache** — Discovered file-to-day mappings (e.g. `2016-01-02 → 2015-W01`) are cached in IndexedDB metadata, so subsequent imports skip the probe and load the correct file directly.
+- **Import report** — The import log shows individual fallback hits during import and a summary count of resolved days in the final report.
+- **Both import paths** — Fallback scan implemented for both Chrome/Edge (File System Access API) and Safari (FileList) import paths.
+
+### Photo Server Security
+- **Localhost binding** — Server now binds to `127.0.0.1` instead of all interfaces.
+- **CORS restriction** — Only accepts requests from `localhost` and `127.0.0.1` origins.
+- **Input validation** — Photo IDs validated as positive integers; invalid Range headers return 416.
+- **Reduced information disclosure** — Library path removed from status endpoint response.
+
 ## Build 02.161 (2026-03-06)
 
 ### Photo Viewer & Gallery

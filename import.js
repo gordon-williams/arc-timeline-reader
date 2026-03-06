@@ -1617,7 +1617,9 @@
                             changedItems.push(item);
                             changedItemIds.add(item.itemId);
                             changedDays.add(startDayKey);
-                            changedWeeks.add(getISOWeek(item.startDate));
+                            for (const wk of getCandidateWeekKeysForItem(item.startDate)) {
+                                changedWeeks.add(wk);
+                            }
                             importDiag.timeline.accepted++;
                         }
                     }
@@ -1703,7 +1705,9 @@
                             changedItems.push(item);
                             changedItemIds.add(item.itemId);
                             changedDays.add(startDayKey);
-                            changedWeeks.add(getISOWeek(item.startDate));
+                            for (const wk of getCandidateWeekKeysForItem(item.startDate)) {
+                                changedWeeks.add(wk);
+                            }
                         importDiag.timeline.accepted++;
                     }
                 }
@@ -1721,7 +1725,9 @@
                     if (changedItemIds.has(item.itemId)) continue; // already promoted via another day
                     changedItems.push(item);
                     changedItemIds.add(item.itemId);
-                    changedWeeks.add(getISOWeek(item.startDate));
+                    for (const wk of getCandidateWeekKeysForItem(item.startDate)) {
+                        changedWeeks.add(wk);
+                    }
                     promotedCount++;
                     dayPromoted++;
                     importDiag.timeline.accepted++;
@@ -1746,7 +1752,9 @@
                         changedItems.push(item);
                         changedItemIds.add(item.itemId);
                         changedDays.add(dayKey);
-                        changedWeeks.add(getISOWeek(item.startDate));
+                        for (const wk of getCandidateWeekKeysForItem(item.startDate)) {
+                            changedWeeks.add(wk);
+                        }
                         promotedMissingCount++;
                         dayPromoted++;
                         importDiag.timeline.accepted++;
@@ -1776,6 +1784,7 @@
             progressFill.style.width = '60%';
             progressFill.textContent = '60%';
             const samplesByItemId = new Map();
+            const skippedSampleEntries = []; // Track skipped files for fallback scan
 
             if (sampleDir) {
                 let weekCount = 0;
@@ -1792,7 +1801,10 @@
 
                     // Check if this week is needed
                     const weekMatch = entry.name.match(/^(\d{4}-W\d{2})/);
-                    if (weekMatch && !changedWeeks.has(weekMatch[1])) continue;
+                    if (weekMatch && !changedWeeks.has(weekMatch[1])) {
+                        skippedSampleEntries.push(entry); // Track for fallback
+                        continue;
+                    }
 
                     let samples;
                     if (isGz) {
@@ -1852,6 +1864,167 @@
                     }
                 }
                 deps.addLog(`  Loaded ${sampleCount.toLocaleString()} GPS samples from ${weekCount} week files`);
+            }
+
+            // Fallback scan: find GPS samples for items that got none from primary week-key loading
+            // Handles mislabeled sample files (e.g. 2015-W01.json.gz containing Jan 2016 data)
+            let fsaCacheUpdated = false;
+            let fsaSampleFileCache = {};
+            let fsaFallbackDaysResolved = 0;
+            if (sampleDir && skippedSampleEntries.length > 0) {
+                // Identify non-visit items that got no samples from primary load
+                const missedItems = changedItems.filter(item =>
+                    !item.isVisit && item.startDate && !samplesByItemId.has(item.itemId));
+
+                if (missedItems.length > 0) {
+                    // Load cached sample file mapping from previous fallback discoveries
+                    try {
+                        fsaSampleFileCache = await deps.getMetadata('sampleFileCache') || {};
+                    } catch (e) { /* ignore */ }
+
+                    // Group missed items by dayKey for cache lookups
+                    const missedByDay = new Map();
+                    for (const item of missedItems) {
+                        const dk = deps.getLocalDayKey(item.startDate);
+                        if (!missedByDay.has(dk)) missedByDay.set(dk, []);
+                        missedByDay.get(dk).push(item);
+                    }
+
+                    // Track files already loaded by fallback to avoid re-reading
+                    const fallbackLoadedWeeks = new Set();
+
+                    for (const [dayKey, dayMissedItems] of missedByDay) {
+                        // Determine the time window of missed items for this day
+                        let dayStart = Infinity, dayEnd = -Infinity;
+                        const missedItemIds = new Set();
+                        for (const item of dayMissedItems) {
+                            missedItemIds.add(item.itemId);
+                            const s = new Date(item.startDate).getTime();
+                            const e = item.endDate ? new Date(item.endDate).getTime() : s + 3600000;
+                            if (s < dayStart) dayStart = s;
+                            if (e > dayEnd) dayEnd = e;
+                        }
+
+                        // Check cache for known file mapping
+                        const cachedWeekKey = fsaSampleFileCache[dayKey];
+                        let found = false;
+
+                        if (cachedWeekKey && !fallbackLoadedWeeks.has(cachedWeekKey)) {
+                            // Load the cached file directly
+                            const cachedEntry = skippedSampleEntries.find(e =>
+                                e.name.startsWith(cachedWeekKey));
+                            if (cachedEntry) {
+                                let samples;
+                                if (cachedEntry.name.endsWith('.gz')) {
+                                    samples = await readGzippedFileAsJson(cachedEntry);
+                                } else {
+                                    const file = await cachedEntry.getFile();
+                                    const text = await file.text();
+                                    try { samples = JSON.parse(text); } catch (e) { samples = null; }
+                                }
+
+                                if (Array.isArray(samples)) {
+                                    let addedCount = 0;
+                                    for (const sample of samples) {
+                                        if (sample && (sample.disabled || sample.deleted)) continue;
+                                        const ns = normalizeBackupSample(sample);
+                                        if (!ns) continue;
+                                        if (changedItemIds.has(ns.timelineItemId)) {
+                                            if (!samplesByItemId.has(ns.timelineItemId)) {
+                                                samplesByItemId.set(ns.timelineItemId, []);
+                                            }
+                                            samplesByItemId.get(ns.timelineItemId).push({
+                                                location: ns.location,
+                                                date: ns.date,
+                                                movingState: ns.movingState,
+                                                confirmedType: ns.confirmedType,
+                                                classifiedType: ns.classifiedType
+                                            });
+                                            addedCount++;
+                                        }
+                                    }
+                                    fallbackLoadedWeeks.add(cachedWeekKey);
+                                    if (addedCount > 0) {
+                                        found = true;
+                                        fsaFallbackDaysResolved++;
+                                        deps.addLog(`  ⚠️ Fallback (cached): found GPS for ${dayKey} in ${cachedEntry.name}`);
+                                    }
+                                }
+                            }
+                        } else if (cachedWeekKey && fallbackLoadedWeeks.has(cachedWeekKey)) {
+                            found = true; // File already loaded by a prior day's fallback
+                            fsaFallbackDaysResolved++;
+                        }
+
+                        // Cache miss — probe skipped files for date overlap
+                        if (!found) {
+                            for (const entry of skippedSampleEntries) {
+                                const wm = entry.name.match(/^(\d{4}-W\d{2})/);
+                                if (!wm) continue;
+                                const fileWeekKey = wm[1];
+                                if (fallbackLoadedWeeks.has(fileWeekKey)) continue;
+
+                                let samples;
+                                if (entry.name.endsWith('.gz')) {
+                                    samples = await readGzippedFileAsJson(entry);
+                                } else {
+                                    const file = await entry.getFile();
+                                    const text = await file.text();
+                                    try { samples = JSON.parse(text); } catch (e) { continue; }
+                                }
+                                if (!Array.isArray(samples) || samples.length === 0) continue;
+
+                                // Probe first/last 50 records for date overlap with our window
+                                let hasOverlap = false;
+                                const probeIndices = [];
+                                for (let pi = 0; pi < Math.min(50, samples.length); pi++) probeIndices.push(pi);
+                                for (let pi = Math.max(samples.length - 50, 50); pi < samples.length; pi++) probeIndices.push(pi);
+                                for (const pi of probeIndices) {
+                                    const r = samples[pi];
+                                    if (r && r.date) {
+                                        const t = new Date(r.date).getTime();
+                                        if (t >= dayStart - 86400000 && t <= dayEnd + 86400000) {
+                                            hasOverlap = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (!hasOverlap) continue;
+
+                                // Overlap found — extract samples for our changed items
+                                let addedCount = 0;
+                                for (const sample of samples) {
+                                    if (sample && (sample.disabled || sample.deleted)) continue;
+                                    const ns = normalizeBackupSample(sample);
+                                    if (!ns) continue;
+                                    if (changedItemIds.has(ns.timelineItemId)) {
+                                        if (!samplesByItemId.has(ns.timelineItemId)) {
+                                            samplesByItemId.set(ns.timelineItemId, []);
+                                        }
+                                        samplesByItemId.get(ns.timelineItemId).push({
+                                            location: ns.location,
+                                            date: ns.date,
+                                            movingState: ns.movingState,
+                                            confirmedType: ns.confirmedType,
+                                            classifiedType: ns.classifiedType
+                                        });
+                                        addedCount++;
+                                    }
+                                }
+
+                                fallbackLoadedWeeks.add(fileWeekKey);
+
+                                if (addedCount > 0) {
+                                    fsaSampleFileCache[dayKey] = fileWeekKey;
+                                    fsaCacheUpdated = true;
+                                    fsaFallbackDaysResolved++;
+                                    deps.addLog(`  ⚠️ Fallback: found GPS for ${dayKey} in ${entry.name}`);
+                                    break; // Found matching file for this day
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // Step 5: Order items by linked list, then group by day (80-100%)
@@ -2023,6 +2196,10 @@
 
             // Save sync time
             await deps.saveMetadata('lastBackupSync', maxLastSaved);
+            if (fsaCacheUpdated) {
+                await deps.saveMetadata('sampleFileCache', fsaSampleFileCache);
+                deps.addLog(`  💾 Saved sample file cache (${Object.keys(fsaSampleFileCache).length} mappings)`);
+            }
 
 
             importAddedDays = addedDays;
@@ -2057,6 +2234,9 @@
                 if (addedDays.length > 0) {
                     deps.addLog(`  New data range: ${addedDays[0]} to ${addedDays[addedDays.length - 1]}`);
                 }
+            }
+            if (fsaFallbackDaysResolved > 0) {
+                deps.addLog(`  🔍 GPS fallback scan resolved ${fsaFallbackDaysResolved} day(s) with mislabeled sample files`);
             }
 
             progress.style.display = 'none';
@@ -2374,7 +2554,11 @@
 
                         changedItems.push(item);
                         changedDays.add(startDayKey);
-                        changedWeeks.add(getISOWeek(item.startDate));
+                        // Add all candidate week keys (local, UTC, adjacent) to catch
+                        // year-boundary mismatches where backup naming differs from computed key
+                        for (const wk of getCandidateWeekKeysForItem(item.startDate)) {
+                            changedWeeks.add(wk);
+                        }
                         importDiag.timeline.accepted++;
                     }
                 }
@@ -2476,6 +2660,21 @@
             }
             deps.addLog(`  Loaded ${samplesByWeek.size.toLocaleString()} weeks of GPS data`);
 
+            // Build set of already-loaded week keys and list of unloaded files for fallback scan
+            const loadedWeekKeys = new Set(samplesByWeek.keys());
+            const unloadedSampleFiles = sampleFiles.filter(file => {
+                const wm = file.name.match(/^(\d{4}-W\d{2})/);
+                return wm && !loadedWeekKeys.has(wm[1]);
+            });
+
+            // Load cached sample file mapping from previous fallback discoveries
+            let sampleFileCache = {};
+            try {
+                sampleFileCache = await deps.getMetadata('sampleFileCache') || {};
+            } catch (e) { /* ignore */ }
+            let cacheUpdated = false;
+            let safariFallbackDaysResolved = 0;
+
             // Step 5: Order items and group by day (80-100%)
             deps.addLog('\n💾 Saving to database...');
             progressFill.style.width = '80%';
@@ -2560,6 +2759,131 @@
                     }
                 }
 
+                // Fallback scan: find samples for items that got none from the primary load
+                const missedItems = orderedItems.filter(item =>
+                    !item.isVisit && item.startDate && (!item.samples || item.samples.length === 0));
+
+                if (missedItems.length > 0 && unloadedSampleFiles.length > 0) {
+                    // Determine the time window we need samples for
+                    let dayStart = Infinity, dayEnd = -Infinity;
+                    for (const item of missedItems) {
+                        const s = new Date(item.startDate).getTime();
+                        const e = item.endDate ? new Date(item.endDate).getTime() : s + 3600000;
+                        if (s < dayStart) dayStart = s;
+                        if (e > dayEnd) dayEnd = e;
+                    }
+
+                    // Check cache for a known file mapping for this day
+                    let fallbackSamples = null;
+                    const cachedWeekKey = sampleFileCache[dayKey];
+                    if (cachedWeekKey && samplesByWeek.has(cachedWeekKey)) {
+                        // Already loaded from a previous fallback in this session
+                        fallbackSamples = samplesByWeek.get(cachedWeekKey);
+                        safariFallbackDaysResolved++;
+                    } else if (cachedWeekKey) {
+                        // Load the cached file directly
+                        const cachedFile = sampleFiles.find(f => f.name.startsWith(cachedWeekKey));
+                        if (cachedFile) {
+                            let raw = cachedFile.name.endsWith('.gz')
+                                ? await readGzippedFileAsJsonSafari(cachedFile)
+                                : await readFileAsJsonSafari(cachedFile);
+                            if (raw) {
+                                const normalized = [];
+                                for (const rs of toRecordArray(raw)) {
+                                    if (rs && !rs.disabled && !rs.deleted) {
+                                        const ns = normalizeBackupSample(rs, false);
+                                        if (ns) normalized.push(ns);
+                                    }
+                                }
+                                raw = null; // free memory
+                                if (normalized.length > 0) {
+                                    samplesByWeek.set(cachedWeekKey, normalized);
+                                    fallbackSamples = normalized;
+                                    safariFallbackDaysResolved++;
+                                }
+                            }
+                        }
+                    }
+
+                    // Cache miss — scan unloaded files for matching dates
+                    if (!fallbackSamples) {
+                        for (const file of unloadedSampleFiles) {
+                            const wm = file.name.match(/^(\d{4}-W\d{2})/);
+                            if (!wm) continue;
+                            const fileWeekKey = wm[1];
+                            if (samplesByWeek.has(fileWeekKey)) continue; // loaded by prior fallback
+
+                            let raw = file.name.endsWith('.gz')
+                                ? await readGzippedFileAsJsonSafari(file)
+                                : await readFileAsJsonSafari(file);
+                            if (!raw) continue;
+
+                            const records = toRecordArray(raw);
+                            raw = null; // free the raw parse
+
+                            // Probe first/last records to check if date range overlaps our window
+                            let hasOverlap = false;
+                            const probeIndices = [];
+                            for (let pi = 0; pi < Math.min(50, records.length); pi++) probeIndices.push(pi);
+                            for (let pi = Math.max(records.length - 50, 50); pi < records.length; pi++) probeIndices.push(pi);
+                            for (const pi of probeIndices) {
+                                const r = records[pi];
+                                if (r && r.date) {
+                                    const t = new Date(r.date).getTime();
+                                    if (t >= dayStart - 86400000 && t <= dayEnd + 86400000) {
+                                        hasOverlap = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (!hasOverlap) continue;
+
+                            // Overlap found — normalize all samples from this file
+                            const normalized = [];
+                            for (const rs of records) {
+                                if (rs && !rs.disabled && !rs.deleted) {
+                                    const ns = normalizeBackupSample(rs, false);
+                                    if (ns) normalized.push(ns);
+                                }
+                            }
+
+                            if (normalized.length > 0) {
+                                samplesByWeek.set(fileWeekKey, normalized);
+                                fallbackSamples = normalized;
+                                sampleFileCache[dayKey] = fileWeekKey;
+                                cacheUpdated = true;
+                                safariFallbackDaysResolved++;
+                                deps.addLog(`  ⚠️ Fallback: found GPS for ${dayKey} in ${file.name}`);
+                                break;
+                            }
+                        }
+                    }
+
+                    // Re-attach samples to missed items from fallback data
+                    if (fallbackSamples) {
+                        for (const item of missedItems) {
+                            const itemStart = new Date(item.startDate).getTime();
+                            const itemEnd = item.endDate ? new Date(item.endDate).getTime() : itemStart + 3600000;
+                            const matched = [];
+                            for (const s of fallbackSamples) {
+                                if (!s.date) continue;
+                                const t = new Date(s.date).getTime();
+                                if (t >= itemStart && t <= itemEnd) matched.push(s);
+                            }
+                            if (matched.length > 0) {
+                                const seen = new Set();
+                                item.samples = matched.filter(s => {
+                                    const key = s.sampleId || s.id || s.date;
+                                    if (seen.has(key)) return false;
+                                    seen.add(key);
+                                    return true;
+                                });
+                                item.samples.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+                            }
+                        }
+                    }
+                }
+
                 const dayNotes = notesByDate.get(dayKey) || [];
                 const dayData = {
                     timelineItems: orderedItems.map(item => ({
@@ -2615,6 +2939,10 @@
 
             // Save sync time
             await deps.saveMetadata('lastBackupSync', maxLastSaved);
+            if (cacheUpdated) {
+                await deps.saveMetadata('sampleFileCache', sampleFileCache);
+                deps.addLog(`  💾 Saved sample file cache (${Object.keys(sampleFileCache).length} mappings)`);
+            }
 
 
             importAddedDays = addedDays;
@@ -2649,6 +2977,9 @@
                 if (addedDays.length > 0) {
                     deps.addLog(`  New data range: ${addedDays[0]} to ${addedDays[addedDays.length - 1]}`);
                 }
+            }
+            if (safariFallbackDaysResolved > 0) {
+                deps.addLog(`  🔍 GPS fallback scan resolved ${safariFallbackDaysResolved} day(s) with mislabeled sample files`);
             }
 
             // Report any files that failed to read

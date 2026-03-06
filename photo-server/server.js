@@ -722,9 +722,17 @@ function serveVideoFile(videoPath, req, res) {
 
     const range = req.headers.range;
     if (range) {
-        const parts = range.replace(/bytes=/, '').split('-');
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+        const rangeMatch = range.match(/^bytes=(\d+)-(\d*)$/);
+        if (!rangeMatch) {
+            return res.status(416).set('Content-Range', `bytes */${stat.size}`).end();
+        }
+        const start = parseInt(rangeMatch[1], 10);
+        const end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : stat.size - 1;
+
+        if (start < 0 || start >= stat.size || end >= stat.size || start > end) {
+            return res.status(416).set('Content-Range', `bytes */${stat.size}`).end();
+        }
+
         const chunkSize = end - start + 1;
 
         res.writeHead(206, {
@@ -747,7 +755,7 @@ function serveVideoFile(videoPath, req, res) {
 // ---------------------------------------------------------------------------
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/ }));
 
 // Health check
 app.get('/api/status', (req, res) => {
@@ -756,7 +764,6 @@ app.get('/api/status', (req, res) => {
         res.json({
             ok: true,
             photoCount: count,
-            libraryPath: LIBRARY_PATH,
             skippedCount: failedPhotos.size
         });
     } catch (err) {
@@ -835,6 +842,9 @@ app.post('/api/photos/check-available', express.json({ limit: '5mb' }), (req, re
     const unavailable = { noOriginal: 0, notFound: 0, alreadyCached: 0 };
 
     for (const id of ids) {
+        // Validate ID is a positive integer to prevent path traversal
+        if (!Number.isInteger(id) || id <= 0) continue;
+
         // Already has a cached thumbnail? Definitely available
         const thumbPath = path.join(THUMB_CACHE, `${id}.jpg`);
         if (fs.existsSync(thumbPath) && fs.statSync(thumbPath).size > 0) {
@@ -1076,7 +1086,7 @@ console.log(`Cache:   ${CACHE_DIR}`);
 console.log(`ffmpeg:  ${ffmpegPath || 'not found (video thumbnails may fail)'}`);
 console.log(`iCloud:  ${photoFetchAvailable ? 'photo-fetch available — on-demand video download enabled' : 'photo-fetch not available — iCloud videos will show stills only'}`);
 
-app.listen(PORT, () => {
-    console.log(`Server:  http://localhost:${PORT}`);
+app.listen(PORT, '127.0.0.1', () => {
+    console.log(`Server:  http://127.0.0.1:${PORT}`);
     console.log(`\nReady. Keep this running while using Arc Diary Reader.`);
 });
