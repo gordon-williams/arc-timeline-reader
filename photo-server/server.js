@@ -148,6 +148,7 @@ function prepareStatements() {
         ['ZORIGINALFILENAME', 'originalFilename'],
         ['ZCAMERAMAKE', 'cameraMake'],
         ['ZCAMERAMODEL', 'cameraModel'],
+        ['ZTITLE', 'title'],
     ].filter(([col]) => attrCols.has(col))
      .map(([col, alias]) => `a.${col} AS ${alias}`);
 
@@ -215,6 +216,7 @@ function formatRow(row) {
         originalFilename: row.originalFilename || null,
         cameraMake: row.cameraMake || null,
         cameraModel: row.cameraModel || null,
+        title: row.title || null,
         type: row.kind === 1 ? 'video' : 'photo',
         duration: row.duration || null,
         modDate: row.modDate || null,

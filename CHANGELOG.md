@@ -1,12 +1,16 @@
 # Arc Timeline Diary Reader - Changelog
 
-## Build 02.171 (2026-03-06)
+## Build 02.173 (2026-03-06)
 
 ### Photo Viewer
-- **Filename overlay** — New toolbar button (🖹) toggles a semi-transparent bar at the bottom of the viewer showing the current photo's filename. Preference is saved to localStorage.
+- **Photo title overlay** — New toolbar button (🖹) toggles a semi-transparent bar at the bottom of the viewer showing the photo's Apple Photos title (falls back to filename). Preference is saved to localStorage.
 - **Slideshow auto-play** — New toolbar play button (▶) starts an automatic slideshow that cycles through photos with smooth cross-fade transitions. Videos are skipped during playback.
-- **Adjustable slideshow speed** — When the slideshow is active, a speed selector appears with 3s / 5s / 8s / 12s options (default 5s). Speed preference is saved to localStorage.
+- **Adjustable slideshow speed** — Click the speed button to cycle through 3s / 5s / 8s / 12s intervals (default 5s). Speed preference is saved to localStorage.
 - **Slideshow keyboard shortcut** — Space bar toggles slideshow play/pause. Arrow keys stop the slideshow and resume manual navigation.
+- **Smooth aspect-ratio transitions** — Cross-fade now fades out the old photo and fades in the new one simultaneously, preventing the old image from lingering when transitioning between portrait and landscape photos.
+
+### Photo Server
+- **Photo title support** — The server now fetches `ZTITLE` from the Apple Photos database, exposing the user-visible title set in Apple Photos.
 
 ## Build 02.170 (2026-03-06)
 

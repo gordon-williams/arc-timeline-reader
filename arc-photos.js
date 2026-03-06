@@ -385,6 +385,7 @@
                     height: photo.height,
                     filename: photo.filename,
                     originalFilename: photo.originalFilename,
+                    title: photo.title,
                     cameraMake: photo.cameraMake,
                     cameraModel: photo.cameraModel,
                     type: photo.type || 'photo',

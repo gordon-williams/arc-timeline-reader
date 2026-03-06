@@ -6707,24 +6707,11 @@ li.route-clickable:hover {
 .photo-viewer-btn.active {
     background: rgba(255, 255, 255, 0.35);
 }
-/* Slideshow speed selector */
-.photo-viewer-speed-select {
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: white;
-    font-size: 12px;
-    padding: 4px 6px;
-    border-radius: 6px;
-    cursor: pointer;
-    height: 32px;
-    outline: none;
-}
-.photo-viewer-speed-select:hover {
-    background: rgba(255, 255, 255, 0.25);
-}
-.photo-viewer-speed-select option {
-    background: #333;
-    color: white;
+/* Slideshow speed button */
+.photo-viewer-speed-btn {
+    font-size: 12px !important;
+    font-weight: 600;
+    letter-spacing: 0.3px;
 }
 /* Filename overlay bar at bottom of viewer */
 .photo-viewer-filename-bar {

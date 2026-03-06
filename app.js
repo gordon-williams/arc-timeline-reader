@@ -11809,8 +11809,6 @@ scrollToDiaryDay(currentDayKey);
             const savedSpeed = localStorage.getItem('arcPhotoViewerSlideshowSpeed');
             if (savedSpeed) {
                 slideshowSpeed = parseInt(savedSpeed, 10) || 5000;
-                const sel = document.getElementById('photoViewerSpeedSelect');
-                if (sel) sel.value = String(slideshowSpeed);
             }
 
             showViewerPhoto();
@@ -11831,7 +11829,7 @@ scrollToDiaryDay(currentDayKey);
                     if (e.key === 'Escape') { closePhotoViewer(); return; }
                     // Let form controls and video handle their own keys
                     const tag = e.target && e.target.tagName;
-                    if (tag === 'VIDEO' || tag === 'SELECT' || tag === 'OPTION') return;
+                    if (tag === 'VIDEO') return;
                     if (e.key === 'ArrowLeft') { e.preventDefault(); navigatePhoto(-1); }
                     else if (e.key === 'ArrowRight') { e.preventDefault(); navigatePhoto(1); }
                     else if (e.key === ' ') { e.preventDefault(); toggleSlideshow(); }
@@ -11841,7 +11839,7 @@ scrollToDiaryDay(currentDayKey);
                 // (Clicks on <video> and form controls keep their own focus.)
                 overlay.addEventListener('click', (e) => {
                     const tag = e.target.tagName;
-                    if (tag !== 'VIDEO' && tag !== 'SELECT' && tag !== 'OPTION') overlay.focus();
+                    if (tag !== 'VIDEO') overlay.focus();
                 });
             }
 
@@ -12666,7 +12664,7 @@ scrollToDiaryDay(currentDayKey);
             if (!span || !showFilenameOverlay) return;
             const photo = viewerPhotos[viewerIndex];
             if (!photo) { span.textContent = ''; return; }
-            span.textContent = photo.filename || photo.originalFilename || '';
+            span.textContent = photo.title || photo.filename || photo.originalFilename || '';
         }
 
         // --- Slideshow ---
@@ -12683,9 +12681,9 @@ scrollToDiaryDay(currentDayKey);
             if (viewerPhotos.length <= 1) return;
             slideshowPlaying = true;
             const btn = document.getElementById('photoViewerSlideshowBtn');
-            const sel = document.getElementById('photoViewerSpeedSelect');
+            const speedBtn = document.getElementById('photoViewerSpeedBtn');
             if (btn) { btn.textContent = '\u23F8'; btn.classList.add('active'); } // ⏸
-            if (sel) sel.style.display = '';
+            if (speedBtn) { speedBtn.style.display = ''; speedBtn.textContent = (slideshowSpeed / 1000) + 's'; }
             slideshowTimer = setInterval(() => slideshowAdvance(), slideshowSpeed);
         }
 
@@ -12693,9 +12691,9 @@ scrollToDiaryDay(currentDayKey);
             slideshowPlaying = false;
             if (slideshowTimer) { clearInterval(slideshowTimer); slideshowTimer = null; }
             const btn = document.getElementById('photoViewerSlideshowBtn');
-            const sel = document.getElementById('photoViewerSpeedSelect');
+            const speedBtn = document.getElementById('photoViewerSpeedBtn');
             if (btn) { btn.textContent = '\u25B6'; btn.classList.remove('active'); } // ▶
-            if (sel) sel.style.display = 'none';
+            if (speedBtn) speedBtn.style.display = 'none';
         }
 
         function slideshowAdvance() {
@@ -12740,11 +12738,13 @@ scrollToDiaryDay(currentDayKey);
                 if (viewerIndex !== targetIndex) return;
                 back.src = url;
                 requestAnimationFrame(() => {
+                    // Fade in new and fade out old simultaneously
                     back.style.transition = 'opacity 0.8s ease';
                     back.style.opacity = '1';
+                    front.style.transition = 'opacity 0.8s ease';
+                    front.style.opacity = '0';
                     setTimeout(() => {
                         if (viewerIndex !== targetIndex) return;
-                        front.style.opacity = '0';
                         front.style.display = 'none';
                         front.style.transition = 'opacity 0.3s';
                         back.style.zIndex = '2';
@@ -12793,9 +12793,14 @@ scrollToDiaryDay(currentDayKey);
             updateFilenameBar();
         }
 
-        function setSlideshowSpeed(value) {
-            slideshowSpeed = parseInt(value, 10) || 5000;
+        const SLIDESHOW_SPEEDS = [3000, 5000, 8000, 12000];
+
+        function cycleSlideshowSpeed() {
+            const idx = SLIDESHOW_SPEEDS.indexOf(slideshowSpeed);
+            slideshowSpeed = SLIDESHOW_SPEEDS[(idx + 1) % SLIDESHOW_SPEEDS.length];
             localStorage.setItem('arcPhotoViewerSlideshowSpeed', String(slideshowSpeed));
+            const speedBtn = document.getElementById('photoViewerSpeedBtn');
+            if (speedBtn) speedBtn.textContent = (slideshowSpeed / 1000) + 's';
             if (slideshowPlaying && slideshowTimer) {
                 clearInterval(slideshowTimer);
                 slideshowTimer = setInterval(() => slideshowAdvance(), slideshowSpeed);
@@ -12815,7 +12820,7 @@ scrollToDiaryDay(currentDayKey);
         window.openPhotoInNewTab = openPhotoInNewTab;
         window.toggleFilenameOverlay = toggleFilenameOverlay;
         window.toggleSlideshow = toggleSlideshow;
-        window.setSlideshowSpeed = setSlideshowSpeed;
+        window.cycleSlideshowSpeed = cycleSlideshowSpeed;
 
 		  function generateMarkdown(monthData, includeAllLocations = false, includeAllActivities = true) {
 

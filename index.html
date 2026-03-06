@@ -36,7 +36,7 @@ SOFTWARE.
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = '02.172';
+  window.__ARC_BUILD__ = '02.173';
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -624,12 +624,7 @@ SOFTWARE.
                             <div class="photo-viewer-controls">
                                 <button class="photo-viewer-btn" id="photoViewerFilenameBtn" onclick="toggleFilenameOverlay()" title="Show filename">&#x1F5B9;</button>
                                 <button class="photo-viewer-btn" id="photoViewerSlideshowBtn" onclick="toggleSlideshow()" title="Slideshow">&#9654;</button>
-                                <select class="photo-viewer-speed-select" id="photoViewerSpeedSelect" onchange="setSlideshowSpeed(this.value)" title="Slideshow speed" style="display:none;">
-                                    <option value="3000">3s</option>
-                                    <option value="5000" selected>5s</option>
-                                    <option value="8000">8s</option>
-                                    <option value="12000">12s</option>
-                                </select>
+                                <button class="photo-viewer-btn photo-viewer-speed-btn" id="photoViewerSpeedBtn" onclick="cycleSlideshowSpeed()" title="Slideshow speed" style="display:none;">5s</button>
                                 <button class="photo-viewer-btn" onclick="openPhotoInNewTab()" title="Open in new tab">↗</button>
                                 <button class="photo-viewer-btn" id="photoViewerFitBtn" onclick="fitPhotoViewerToContent()" title="Fit to content">⊞</button>
                                 <button class="photo-viewer-btn" onclick="togglePhotoViewerMaximize()" title="Maximize">⛶</button>
