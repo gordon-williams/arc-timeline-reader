@@ -12298,26 +12298,16 @@ scrollToDiaryDay(currentDayKey);
                 img.style.opacity = '0';
                 if (imgB) { imgB.style.display = 'none'; imgB.src = ''; }
 
-                // Show IDB thumbnail immediately (blurry) while full-res loads
-                const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
-                if (viewerIndex !== targetIndex) return;
-                let thumbShown = false;
-                if (dbPhoto?.thumbnail) {
-                    const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
-                    if (thumbUrl) {
-                        img.src = thumbUrl;
-                        img.style.opacity = '1';
-                        thumbShown = true;
-                    }
-                }
+                // Start full-res and IDB thumbnail loading in parallel
+                let fullResLoaded = false;
 
                 if (fullUrl) {
-                    // Preload full-res in background
                     const fullImg = new Image();
                     fullImg.onload = () => {
                         if (viewerIndex !== targetIndex) return;
-                        if (thumbShown && imgB) {
-                            // Cross-fade from thumbnail to full-res
+                        fullResLoaded = true;
+                        if (img.style.opacity === '1' && imgB) {
+                            // Thumbnail is already showing — cross-fade to full-res
                             imgB.style.display = '';
                             imgB.src = fullUrl;
                             imgB.style.opacity = '0';
@@ -12328,7 +12318,6 @@ scrollToDiaryDay(currentDayKey);
                                 imgB.style.opacity = '1';
                                 setTimeout(() => {
                                     if (viewerIndex !== targetIndex) return;
-                                    // Swap: full-res becomes primary img
                                     img.src = fullUrl;
                                     img.style.opacity = '1';
                                     img.style.zIndex = '2';
@@ -12339,19 +12328,29 @@ scrollToDiaryDay(currentDayKey);
                                 }, 350);
                             });
                         } else {
-                            // No thumbnail was shown — just fade in full-res
+                            // No thumbnail yet — show full-res directly
                             img.src = fullUrl;
                             img.style.opacity = '1';
                         }
                     };
                     fullImg.onerror = () => {
-                        // Full-res failed — thumbnail already showing if available
-                        if (!thumbShown && viewerIndex === targetIndex) {
-                            // No thumbnail either — nothing to show
-                        }
+                        if (viewerIndex !== targetIndex) return;
+                        console.warn(`[Viewer] Full-res failed for photo ${photo.id}, keeping thumbnail`);
                     };
                     fullImg.src = fullUrl;
                 }
+
+                // Load IDB thumbnail as interim placeholder
+                ArcPhotos.getPhotoById(photo.id).then(dbPhoto => {
+                    if (viewerIndex !== targetIndex || fullResLoaded) return;
+                    if (dbPhoto?.thumbnail) {
+                        const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
+                        if (thumbUrl) {
+                            img.src = thumbUrl;
+                            img.style.opacity = '1';
+                        }
+                    }
+                });
             }
 
             // Info line
