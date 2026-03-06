@@ -1,8 +1,8 @@
-// PhotoFetch — Download iCloud-evicted videos from Apple Photos via PhotoKit
+// PhotoFetch — Download iCloud-evicted media from Apple Photos via PhotoKit
 //
 // Usage: photo-fetch <UUID> <output-path> [--timeout <seconds>]
 //
-// Exit codes: 0=success, 1=not found, 2=download failed, 3=not a video, 4=permission denied, 5=bad args
+// Exit codes: 0=success, 1=not found, 2=download failed, 3=unsupported media, 4=permission denied, 5=bad args
 //
 // Stdout protocol (parsed by server):
 //   STATUS:FOUND | DOWNLOADING | COPYING | DONE
@@ -12,6 +12,7 @@
 import Foundation
 import Photos
 import AVFoundation
+import AppKit
 
 // MARK: - Helpers
 
@@ -67,96 +68,152 @@ guard let asset = fetchResult.firstObject else {
     fail("Asset not found for UUID \(uuid)", code: 1)
 }
 
-guard asset.mediaType == .video else {
-    fail("Asset is not a video (mediaType=\(asset.mediaType.rawValue))", code: 3)
-}
-
 emit("STATUS:FOUND")
-
-// MARK: - Request video from iCloud
-
-let options = PHVideoRequestOptions()
-options.isNetworkAccessAllowed = true
-options.deliveryMode = .highQualityFormat
-options.progressHandler = { progress, error, stop, info in
-    emit("PROGRESS:\(String(format: "%.2f", progress))")
-    if let error = error {
-        emit("ERROR:Download progress error: \(error.localizedDescription)")
-    }
-}
-
-emit("STATUS:DOWNLOADING")
-
 let sem = DispatchSemaphore(value: 0)
 var exitCode: Int32 = 2
 
-PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { avAsset, _, info in
-    defer { sem.signal() }
-
-    // Check for errors
-    if let error = info?[PHImageErrorKey] as? Error {
-        emit("ERROR:\(error.localizedDescription)")
-        return
+if asset.mediaType == .video {
+    // MARK: - Request video from iCloud
+    let options = PHVideoRequestOptions()
+    options.isNetworkAccessAllowed = true
+    options.deliveryMode = .highQualityFormat
+    options.progressHandler = { progress, error, stop, info in
+        emit("PROGRESS:\(String(format: "%.2f", progress))")
+        if let error = error {
+            emit("ERROR:Download progress error: \(error.localizedDescription)")
+        }
     }
 
-    // Check for cancellation
-    if let cancelled = info?[PHImageCancelledKey] as? Bool, cancelled {
-        emit("ERROR:Request was cancelled")
-        return
-    }
+    emit("STATUS:DOWNLOADING")
 
-    guard let urlAsset = avAsset as? AVURLAsset else {
-        // Could be an AVComposition (e.g. slo-mo video) — try export session instead
-        if let composition = avAsset {
-            emit("STATUS:EXPORTING")
-            guard let exportSession = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality) else {
-                emit("ERROR:Could not create export session for composition")
+    PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { avAsset, _, info in
+        defer { sem.signal() }
+
+        // Check for errors
+        if let error = info?[PHImageErrorKey] as? Error {
+            emit("ERROR:\(error.localizedDescription)")
+            return
+        }
+
+        // Check for cancellation
+        if let cancelled = info?[PHImageCancelledKey] as? Bool, cancelled {
+            emit("ERROR:Request was cancelled")
+            return
+        }
+
+        guard let urlAsset = avAsset as? AVURLAsset else {
+            // Could be an AVComposition (e.g. slo-mo video) — try export session instead
+            if let composition = avAsset {
+                emit("STATUS:EXPORTING")
+                guard let exportSession = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality) else {
+                    emit("ERROR:Could not create export session for composition")
+                    return
+                }
+                let dstURL = URL(fileURLWithPath: outputPath)
+                try? FileManager.default.removeItem(at: dstURL)
+                exportSession.outputURL = dstURL
+                exportSession.outputFileType = .mov
+                let exportSem = DispatchSemaphore(value: 0)
+                exportSession.exportAsynchronously {
+                    if exportSession.status == .completed {
+                        emit("STATUS:DONE")
+                        exitCode = 0
+                    } else {
+                        emit("ERROR:Export failed: \(exportSession.error?.localizedDescription ?? "unknown")")
+                    }
+                    exportSem.signal()
+                }
+                exportSem.wait()
                 return
             }
-            let dstURL = URL(fileURLWithPath: outputPath)
+            emit("ERROR:Could not get file URL from AVAsset")
+            return
+        }
+
+        emit("STATUS:COPYING")
+
+        // Copy the temporary file to the output path (temp file deleted after handler returns)
+        let srcURL = urlAsset.url
+        let dstURL = URL(fileURLWithPath: outputPath)
+
+        do {
             try? FileManager.default.removeItem(at: dstURL)
-            exportSession.outputURL = dstURL
-            exportSession.outputFileType = .mov
-            let exportSem = DispatchSemaphore(value: 0)
-            exportSession.exportAsynchronously {
-                if exportSession.status == .completed {
-                    emit("STATUS:DONE")
-                    exitCode = 0
-                } else {
-                    emit("ERROR:Export failed: \(exportSession.error?.localizedDescription ?? "unknown")")
-                }
-                exportSem.signal()
+            try FileManager.default.copyItem(at: srcURL, to: dstURL)
+
+            // Verify the copy succeeded and has content
+            let attrs = try FileManager.default.attributesOfItem(atPath: outputPath)
+            let size = attrs[.size] as? UInt64 ?? 0
+            if size == 0 {
+                emit("ERROR:Copied file is empty")
+                return
             }
-            exportSem.wait()
-            return
+
+            emit("STATUS:DONE")
+            exitCode = 0
+        } catch {
+            emit("ERROR:Copy failed: \(error.localizedDescription)")
         }
-        emit("ERROR:Could not get file URL from AVAsset")
-        return
+    }
+} else if asset.mediaType == .image {
+    // MARK: - Request still photo from iCloud
+    let options = PHImageRequestOptions()
+    options.isNetworkAccessAllowed = true
+    options.deliveryMode = .highQualityFormat
+    options.version = .current
+    options.isSynchronous = false
+    options.progressHandler = { progress, error, stop, info in
+        emit("PROGRESS:\(String(format: "%.2f", progress))")
+        if let error = error {
+            emit("ERROR:Download progress error: \(error.localizedDescription)")
+        }
     }
 
-    emit("STATUS:COPYING")
+    emit("STATUS:DOWNLOADING")
 
-    // Copy the temporary file to the output path (temp file deleted after handler returns)
-    let srcURL = urlAsset.url
-    let dstURL = URL(fileURLWithPath: outputPath)
+    PHImageManager.default().requestImageDataAndOrientation(for: asset, options: options) { data, _, _, info in
+        defer { sem.signal() }
 
-    do {
-        try? FileManager.default.removeItem(at: dstURL)
-        try FileManager.default.copyItem(at: srcURL, to: dstURL)
-
-        // Verify the copy succeeded and has content
-        let attrs = try FileManager.default.attributesOfItem(atPath: outputPath)
-        let size = attrs[.size] as? UInt64 ?? 0
-        if size == 0 {
-            emit("ERROR:Copied file is empty")
+        if let error = info?[PHImageErrorKey] as? Error {
+            emit("ERROR:\(error.localizedDescription)")
+            return
+        }
+        if let cancelled = info?[PHImageCancelledKey] as? Bool, cancelled {
+            emit("ERROR:Request was cancelled")
+            return
+        }
+        guard let data else {
+            emit("ERROR:No image data returned")
             return
         }
 
-        emit("STATUS:DONE")
-        exitCode = 0
-    } catch {
-        emit("ERROR:Copy failed: \(error.localizedDescription)")
+        emit("STATUS:COPYING")
+        let dstURL = URL(fileURLWithPath: outputPath)
+        do {
+            // Prefer writing JPEG for broad compatibility in browser preview.
+            var outData = data
+            if let nsImage = NSImage(data: data),
+               let tiff = nsImage.tiffRepresentation,
+               let rep = NSBitmapImageRep(data: tiff),
+               let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.9]) {
+                outData = jpeg
+            }
+            try? FileManager.default.removeItem(at: dstURL)
+            try outData.write(to: dstURL, options: .atomic)
+
+            let attrs = try FileManager.default.attributesOfItem(atPath: outputPath)
+            let size = attrs[.size] as? UInt64 ?? 0
+            if size == 0 {
+                emit("ERROR:Saved photo is empty")
+                return
+            }
+            emit("STATUS:DONE")
+            exitCode = 0
+        } catch {
+            emit("ERROR:Write failed: \(error.localizedDescription)")
+        }
     }
+} else {
+    fail("Unsupported media type \(asset.mediaType.rawValue)", code: 3)
 }
 
 // Wait with timeout

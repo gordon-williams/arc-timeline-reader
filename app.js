@@ -129,6 +129,16 @@ function moveMapSmart(latlng, zoom) {
             return div.innerHTML;
         }
 
+        // Escape for HTML attribute values (quotes must be encoded).
+        function escapeAttr(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
         // Validate CSS color values to prevent injection via style attributes
         function safeColor(color) {
             if (!color || typeof color !== 'string') return '#999';
@@ -1992,6 +2002,7 @@ function moveMapSmart(latlng, zoom) {
                 
                 // NOW update currentDayKey (after map has checked/rebuilt)
                 currentDayKey = dayKey;
+                syncPhotoViewerToDay(dayKey);
             }
             
             /**
@@ -11295,6 +11306,7 @@ scrollToDiaryDay(currentDayKey);
         let viewerPhotos = [];
         let viewerIndex = 0;
         let externalViewerTab = null; // reference to external browser tab for photo viewing
+        let photoViewerDaySyncToken = 0;
 
         // Inject photo thumbnail strips into rendered diary entries
         async function attachPhotoStrips() {
@@ -11349,7 +11361,10 @@ scrollToDiaryDay(currentDayKey);
                     const rawMatched = matches.get(key);
                     if (!rawMatched || rawMatched.length === 0) continue;
                     // Filter to valid thumbnails and exclude already-shown photos
-                    let matched = rawMatched.filter(p => p.thumbnail && p.thumbnail.size > 0 && !shownPhotoIds.has(p.id));
+                    let matched = rawMatched.filter(p =>
+                        ((p.thumbnail && p.thumbnail.size > 0) || p.thumbnailMissingReason) &&
+                        !shownPhotoIds.has(p.id)
+                    );
                     // 'videos' filter: only show video items
                     if (filter === 'videos') matched = matched.filter(p => p.type === 'video');
                     if (matched.length === 0) continue;
@@ -11429,7 +11444,7 @@ scrollToDiaryDay(currentDayKey);
             grid.innerHTML = '';
             // Filter to photos with valid thumbnails, respect diary view filter, sort chronologically
             const filter = getDiaryViewFilter();
-            let visiblePhotos = photos.filter(p => p.thumbnail && p.thumbnail.size > 0);
+            let visiblePhotos = photos.filter(p => (p.thumbnail && p.thumbnail.size > 0) || p.thumbnailMissingReason);
             if (filter === 'videos') visiblePhotos = visiblePhotos.filter(p => p.type === 'video');
             if (filter === 'hide-media' || filter === 'notes') visiblePhotos = [];
             visiblePhotos.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -11606,7 +11621,7 @@ scrollToDiaryDay(currentDayKey);
             // Guard: if the day changed while we were awaiting, discard results
             if (currentDayKey !== dayKey) return;
 
-            let gpsPhotos = photos.filter(p => p.latitude && p.longitude && p.thumbnail && p.thumbnail.size > 0);
+            let gpsPhotos = photos.filter(p => p.latitude && p.longitude && ((p.thumbnail && p.thumbnail.size > 0) || p.thumbnailMissingReason));
             if (filter === 'videos') gpsPhotos = gpsPhotos.filter(p => p.type === 'video');
             if (gpsPhotos.length === 0) return;
 
@@ -11755,7 +11770,8 @@ scrollToDiaryDay(currentDayKey);
         }
 
         // Photo Viewer (non-modal panel over map, or external browser tab)
-        function openPhotoViewer(photoId, photoList) {
+        function openPhotoViewer(photoId, photoList, options = {}) {
+            const shouldFocus = options.focus !== false;
             viewerPhotos = photoList || [];
             viewerIndex = viewerPhotos.findIndex(p => p.id === photoId);
             if (viewerIndex === -1) viewerIndex = 0;
@@ -11807,8 +11823,29 @@ scrollToDiaryDay(currentDayKey);
                 });
             }
 
-            // Focus the overlay so it receives keyboard events
-            overlay.focus();
+            // Focus only for explicit user opens; day-sync should not steal arrow-key focus.
+            if (shouldFocus) {
+                overlay.focus();
+            }
+        }
+
+        async function syncPhotoViewerToDay(dayKey) {
+            if (!window.ArcPhotos || !dayKey) return;
+            const overlay = document.getElementById('photoViewer');
+            if (!overlay || overlay.style.display === 'none') return; // viewer not open
+
+            const token = ++photoViewerDaySyncToken;
+            const photos = await ArcPhotos.getPhotosForDay(dayKey);
+            if (token !== photoViewerDaySyncToken) return; // superseded by another day change
+            if (!Array.isArray(photos) || photos.length === 0) return;
+
+            // Keep items that can be rendered (real thumbnail or metadata placeholder)
+            const renderable = photos.filter(p =>
+                (p.thumbnail && p.thumbnail.size > 0) || p.thumbnailMissingReason
+            );
+            if (renderable.length === 0) return;
+            renderable.sort((a, b) => new Date(a.date) - new Date(b.date));
+            openPhotoViewer(renderable[0].id, renderable, { focus: false });
         }
 
         // Helper: get full-res URL for a photo ID
@@ -12233,13 +12270,39 @@ scrollToDiaryDay(currentDayKey);
                 img.style.opacity = '0';
 
                 if (fullUrl) {
+                    // For placeholder-backed photos, trigger iCloud fetch/poll first.
+                    if (photo.thumbnailMissingReason) {
+                        try {
+                            if (info) info.textContent += ' • Downloading from iCloud…';
+                            const result = await ArcPhotos.requestICloudMedia(photo.id);
+                            if (viewerIndex !== targetIndex) return;
+                            if (result?.ready && result.url) {
+                                img.src = result.url;
+                                img.style.opacity = '1';
+                                return;
+                            }
+                            // Keep placeholder visible if fetch failed.
+                            const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
+                            if (dbPhoto && viewerIndex === targetIndex) {
+                                const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
+                                if (thumbUrl) {
+                                    img.src = thumbUrl;
+                                    img.style.opacity = '1';
+                                }
+                            }
+                            return;
+                        } catch (_) {
+                            // Fall through to normal full image attempt.
+                        }
+                    }
+
                     // Try to load full-res directly (skip thumbnail flash)
                     const fullImg = new Image();
                     const loadTimeout = setTimeout(async () => {
                         // Full-res taking too long — show thumbnail as fallback
                         if (viewerIndex !== targetIndex) return;
                         const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
-                        if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
+                        if (dbPhoto && viewerIndex === targetIndex) {
                             const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
                             if (thumbUrl) {
                                 img.src = thumbUrl;
@@ -12259,7 +12322,7 @@ scrollToDiaryDay(currentDayKey);
                         if (viewerIndex !== targetIndex) return;
                         // Fall back to thumbnail
                         const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
-                        if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
+                        if (dbPhoto && viewerIndex === targetIndex) {
                             const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
                             if (thumbUrl) {
                                 img.src = thumbUrl;
@@ -12271,7 +12334,7 @@ scrollToDiaryDay(currentDayKey);
                 } else {
                     // No server — show thumbnail directly
                     const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
-                    if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
+                    if (dbPhoto && viewerIndex === targetIndex) {
                         const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
                         if (thumbUrl) {
                             img.src = thumbUrl;
@@ -12345,6 +12408,29 @@ scrollToDiaryDay(currentDayKey);
             }
             await updateLocalStatus();
 
+            // Auto-fill photo date range inputs from Arc diary coverage when blank.
+            // Users can still override manually.
+            async function initializePhotoDateRangeInputs() {
+                const fromInput = document.getElementById('photoDateFrom');
+                const toInput = document.getElementById('photoDateTo');
+                if (!fromInput || !toInput) return;
+                if ((fromInput.value && fromInput.value.trim()) || (toInput.value && toInput.value.trim())) return;
+
+                try {
+                    const dayKeys = await getAllDayKeysFromDB();
+                    if (!Array.isArray(dayKeys) || dayKeys.length === 0) return;
+                    const sorted = [...dayKeys].sort();
+                    const earliestDay = sorted[0];
+                    const today = new Date();
+                    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                    fromInput.value = earliestDay;
+                    toInput.value = todayKey;
+                } catch (e) {
+                    // Leave inputs unchanged if date bounds can't be determined.
+                }
+            }
+            await initializePhotoDateRangeInputs();
+
             // Connect button — saved/active state pattern
             function setPhotoConnectedAppearance() {
                 if (!connectBtn) return;
@@ -12415,7 +12501,31 @@ scrollToDiaryDay(currentDayKey);
                     try {
                         const fromDate = document.getElementById('photoDateFrom')?.value;
                         const toDate = document.getElementById('photoDateTo')?.value;
-                        const importOpts = (fromDate && toDate) ? { startDate: fromDate, endDate: toDate } : {};
+                        const today = new Date();
+                        const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                        let importOpts = {};
+                        if (fromDate && toDate) {
+                            importOpts = { startDate: fromDate, endDate: toDate };
+                        } else if (fromDate && !toDate) {
+                            // Open-ended import from chosen start date through today.
+                            importOpts = { startDate: fromDate, endDate: todayKey };
+                        }
+                        // If no explicit photo range is set, bound import to Arc diary coverage.
+                        // This avoids importing years of unrelated legacy media before timeline data starts.
+                        if (!importOpts.startDate || !importOpts.endDate) {
+                            try {
+                                const dayKeys = await getAllDayKeysFromDB();
+                                if (Array.isArray(dayKeys) && dayKeys.length > 0) {
+                                    const sorted = [...dayKeys].sort();
+                                    const earliestDay = sorted[0];
+                                    if (!importOpts.startDate) importOpts.startDate = earliestDay;
+                                    if (!importOpts.endDate) importOpts.endDate = todayKey;
+                                    console.log(`📷 Photo import auto-range: ${earliestDay} to ${todayKey}`);
+                                }
+                            } catch (e) {
+                                // Fallback to existing import behavior if Arc day bounds are unavailable.
+                            }
+                        }
                         const result = await ArcPhotos.importPhotos((p) => {
                             if (progressFill) progressFill.style.width = `${p.percent || 0}%`;
                             if (progressText) {
@@ -12427,11 +12537,32 @@ scrollToDiaryDay(currentDayKey);
                             }
                         }, importOpts);
                         let doneMsg = `Done — ${result.imported} imported`;
+                        if (typeof result.importedWithPlaceholder === 'number' && result.importedWithPlaceholder > 0) {
+                            doneMsg += ` (${result.importedWithPlaceholder} placeholders)`;
+                        }
                         if (result.skipped > 0) {
                             doneMsg += `, ${result.skipped} skipped`;
                             const sb = result.skipBreakdown;
                             if (sb && sb.noOriginal > 0) {
                                 doneMsg += ` (${sb.noOriginal} not downloaded from iCloud)`;
+                                if (Array.isArray(sb.unavailableSample) && sb.unavailableSample.length > 0) {
+                                    console.log('Sample unavailable media (up to 20):');
+                                    console.table(sb.unavailableSample);
+                                }
+                                if (sb.unavailableByType && Object.keys(sb.unavailableByType).length > 0) {
+                                    console.log('Unavailable media by type:');
+                                    console.table(sb.unavailableByType);
+                                }
+                                if (sb.unavailableByUtiTop && Object.keys(sb.unavailableByUtiTop).length > 0) {
+                                    console.log('Unavailable media by UTI (top):');
+                                    console.table(sb.unavailableByUtiTop);
+                                }
+                                if (sb.unavailableByType && Object.keys(sb.unavailableByType).length > 0) {
+                                    const topType = Object.entries(sb.unavailableByType).sort((a, b) => b[1] - a[1])[0];
+                                    if (topType && topType[1] > 0) {
+                                        doneMsg += ` • top missing type: ${topType[0]} (${topType[1]})`;
+                                    }
+                                }
                             }
                         }
                         if (progressText) progressText.textContent = doneMsg;
@@ -12827,7 +12958,7 @@ scrollToDiaryDay(currentDayKey);
                     }
                     
                     if (note.latitude && note.longitude) {
-                        const escapedLocation = escapeHtml(note.location);
+                        const escapedLocation = escapeAttr(note.location);
                         // Create stable placeId from Arc's placeId or fallback to lat_lng
                         const placeId = note.placeId || `${note.latitude}_${note.longitude}`;
                         // Added data-daykey="${day}" and data-start-date/data-end-date for activities
@@ -12835,7 +12966,7 @@ scrollToDiaryDay(currentDayKey);
                         const endDateAttr = note.endDate ? ` data-end-date="${note.endDate}"` : '';
                         const isVisitAttr = note.isVisit ? ' data-is-visit="true"' : '';
                         const typeAttr = note.isVisit ? '' : ' data-type="activity"';
-                        const activityTypeAttr = note.activityType ? ` data-activity-type="${escapeHtml(note.activityType)}"` : '';
+                        const activityTypeAttr = note.activityType ? ` data-activity-type="${escapeAttr(note.activityType)}"` : '';
                         bulletHeader += `<span class="location-data" data-daykey="${day}" data-lat="${note.latitude}" data-lng="${note.longitude}" data-place-id="${placeId}" data-location="${escapedLocation}" data-date="${note.date}"${startDateAttr}${endDateAttr}${isVisitAttr}${typeAttr}${activityTypeAttr} style="display:none;"></span>`;
                         
                         // Show coalescing indicator when items were merged
@@ -12849,10 +12980,10 @@ scrollToDiaryDay(currentDayKey);
                         }
                     } else if (!note.isVisit && note.startDate) {
                         // For activities without coordinates, still add location-data with startDate for matching
-                        const escapedLocation = escapeHtml(note.location);
+                        const escapedLocation = escapeAttr(note.location);
                         // Create placeId from activity start time for activities without coordinates
                         const placeId = `activity_${note.startDate}`;
-                        const activityTypeAttr = note.activityType ? ` data-activity-type="${escapeHtml(note.activityType)}"` : '';
+                        const activityTypeAttr = note.activityType ? ` data-activity-type="${escapeAttr(note.activityType)}"` : '';
                         const endDateAttr = note.endDate ? ` data-end-date="${note.endDate}"` : '';
                         bulletHeader += `<span class="location-data" data-daykey="${day}" data-place-id="${placeId}" data-location="${escapedLocation}" data-date="${note.date}" data-start-date="${note.startDate}"${endDateAttr} data-type="activity"${activityTypeAttr} data-no-gps="true" style="display:none;"></span>`;
                         // Add "No GPS" label for entries without map coordinates (with leading space)

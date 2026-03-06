@@ -30,19 +30,20 @@ const LIBRARY_PATH = (function () {
 
 const DB_PATH = path.join(LIBRARY_PATH, 'database', 'Photos.sqlite');
 const ORIGINALS_PATH = path.join(LIBRARY_PATH, 'originals');
+const MASTERS_PATH = path.join(LIBRARY_PATH, 'Masters'); // legacy Photos/iPhoto libraries
 const DERIVATIVES_PATH = path.join(LIBRARY_PATH, 'resources', 'derivatives');
 const CACHE_DIR = path.join(__dirname, '.cache');
 const THUMB_CACHE = path.join(CACHE_DIR, 'thumbnails');
 const FULL_CACHE = path.join(CACHE_DIR, 'full');
 const ICLOUD_CACHE = path.join(CACHE_DIR, 'icloud-videos');
 
-// Swift PhotoKit helper for on-demand iCloud video fetch
+// Swift PhotoKit helper for on-demand iCloud media fetch
 const PHOTO_FETCH_DIR = path.join(__dirname, 'photo-fetch');
 const PHOTO_FETCH_BIN = path.join(PHOTO_FETCH_DIR, 'photo-fetch');
 const PHOTO_FETCH_SRC = path.join(PHOTO_FETCH_DIR, 'PhotoFetch.swift');
 const PHOTO_FETCH_TIMEOUT = 300; // 5 minutes max per download
 
-// In-flight iCloud download tracking: UUID → { progress, status, startTime, promise }
+// In-flight iCloud download tracking: UUID → { progress, status, startTime, error, mediaType }
 const activeFetches = new Map();
 const MAX_CONCURRENT_ICLOUD = 2;
 let activeICloudCount = 0;
@@ -230,7 +231,15 @@ function formatRow(row) {
 function resolveOriginalPath(row) {
     // Originals are stored at: originals/{ZDIRECTORY}/{ZFILENAME}
     if (!row._directory || !row.filename) return null;
-    return path.join(ORIGINALS_PATH, row._directory, row.filename);
+    const primary = path.join(ORIGINALS_PATH, row._directory, row.filename);
+    if (fs.existsSync(primary)) return primary;
+
+    // Legacy fallback: older/migrated libraries may still store assets under Masters/
+    const legacy = path.join(MASTERS_PATH, row._directory, row.filename);
+    if (fs.existsSync(legacy)) return legacy;
+
+    // Return primary path for downstream logging/debug even when missing.
+    return primary;
 }
 
 // Track IDs that permanently failed processing
@@ -615,7 +624,7 @@ async function generateThumbnail(photoId, maxSize) {
 }
 
 // ---------------------------------------------------------------------------
-// iCloud video fetch via Swift PhotoKit helper
+// iCloud media fetch via Swift PhotoKit helper
 // ---------------------------------------------------------------------------
 
 const { execSync } = require('child_process');
@@ -641,7 +650,7 @@ function ensurePhotoFetch() {
     console.log('photo-fetch: compiling Swift tool...');
     try {
         execSync(
-            `swiftc -O -o "${PHOTO_FETCH_BIN}" "${PHOTO_FETCH_SRC}" -framework Photos -framework AVFoundation 2>&1`,
+            `swiftc -O -o "${PHOTO_FETCH_BIN}" "${PHOTO_FETCH_SRC}" -framework Photos -framework AVFoundation -framework AppKit 2>&1`,
             { timeout: 120000, stdio: 'pipe' }
         );
         console.log('photo-fetch: compiled successfully');
@@ -755,7 +764,14 @@ function serveVideoFile(videoPath, req, res) {
 // ---------------------------------------------------------------------------
 
 const app = express();
-app.use(cors({ origin: /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/ }));
+app.use(cors({
+    origin: (origin, cb) => {
+        // Allow browser file:// pages (origin is null) and local dev hosts.
+        if (!origin || origin === 'null') return cb(null, true);
+        if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return cb(null, true);
+        return cb(new Error('Not allowed by CORS'));
+    }
+}));
 
 // Health check
 app.get('/api/status', (req, res) => {
@@ -840,10 +856,36 @@ app.post('/api/photos/check-available', express.json({ limit: '5mb' }), (req, re
 
     const available = [];
     const unavailable = { noOriginal: 0, notFound: 0, alreadyCached: 0 };
+    const unavailableByType = {};
+    const unavailableByUti = {};
+    const unavailableSample = [];
+    const SAMPLE_LIMIT = 20;
+    const TOP_UTI_LIMIT = 20;
+
+    function incCounter(obj, key) {
+        const k = key || 'unknown';
+        obj[k] = (obj[k] || 0) + 1;
+    }
+
+    function pushUnavailableSample(id, reason, formatted = null) {
+        if (unavailableSample.length >= SAMPLE_LIMIT) return;
+        unavailableSample.push({
+            id,
+            reason,
+            date: formatted?.date || null,
+            filename: formatted?.filename || null,
+            originalFilename: formatted?.originalFilename || null,
+            type: formatted?.type || null,
+            uti: formatted?._uti || null
+        });
+    }
 
     for (const id of ids) {
         // Validate ID is a positive integer to prevent path traversal
-        if (!Number.isInteger(id) || id <= 0) continue;
+        if (!Number.isInteger(id) || id <= 0) {
+            pushUnavailableSample(id, 'invalidId');
+            continue;
+        }
 
         // Already has a cached thumbnail? Definitely available
         const thumbPath = path.join(THUMB_CACHE, `${id}.jpg`);
@@ -857,6 +899,7 @@ app.post('/api/photos/check-available', express.json({ limit: '5mb' }), (req, re
         const row = stmts.photoById.get({ id });
         if (!row) {
             unavailable.notFound++;
+            pushUnavailableSample(id, 'notFound');
             continue;
         }
         const formatted = formatRow(row);
@@ -872,9 +915,23 @@ app.post('/api/photos/check-available', express.json({ limit: '5mb' }), (req, re
             continue;
         }
         unavailable.noOriginal++;
+        incCounter(unavailableByType, formatted.type || 'unknown');
+        incCounter(unavailableByUti, formatted._uti || 'unknown');
+        pushUnavailableSample(id, 'noOriginal', formatted);
     }
 
-    res.json({ available, unavailable });
+    const unavailableByUtiTop = Object.entries(unavailableByUti)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, TOP_UTI_LIMIT)
+        .reduce((acc, [k, v]) => { acc[k] = v; return acc; }, {});
+
+    res.json({
+        available,
+        unavailable,
+        unavailableByType,
+        unavailableByUtiTop,
+        unavailableSample
+    });
 });
 
 // Thumbnail (200px)
@@ -883,17 +940,19 @@ app.get('/api/thumbnail/:id', async (req, res) => {
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid photo ID' });
 
     const cachePath = await generateThumbnail(id, 200);
-    if (!cachePath) return res.status(404).json({ error: 'Photo not found or unsupported format' });
+    // Return 204 instead of 404 to avoid noisy browser console "Failed to load resource"
+    // spam during bulk imports where missing originals are expected.
+    if (!cachePath) return res.status(204).end();
 
     // Safety net: never serve empty files
     try {
         const stat = fs.statSync(cachePath);
         if (stat.size === 0) {
             try { fs.unlinkSync(cachePath); } catch (_) {}
-            return res.status(404).json({ error: 'Generated thumbnail was empty' });
+            return res.status(204).end();
         }
     } catch (e) {
-        return res.status(404).json({ error: 'Thumbnail file missing' });
+        return res.status(204).end();
     }
 
     res.set('Cache-Control', 'public, max-age=300');
@@ -923,19 +982,25 @@ app.get('/api/full/:id', async (req, res) => {
     const hasOriginal = originalPath && fs.existsSync(originalPath);
 
     if (!hasOriginal) {
-        // For videos: try iCloud fetch if available
+        // Try iCloud fetch for both photos and videos when UUID is available.
         // ?poster=1 skips iCloud fetch — serves derivative still image as placeholder
-        if (formatted.type === 'video' && photoFetchAvailable && formatted._uuid && !req.query.poster) {
+        if (photoFetchAvailable && formatted._uuid && !req.query.poster) {
             const uuid = formatted._uuid.toUpperCase();
-            const cachedVideoPath = path.join(ICLOUD_CACHE, `${uuid}.mov`);
+            const isVideo = formatted.type === 'video';
+            const cacheExt = isVideo ? '.mov' : '.jpg';
+            const cachedMediaPath = path.join(ICLOUD_CACHE, `${uuid}${cacheExt}`);
 
             // Already cached from previous iCloud fetch?
-            if (fs.existsSync(cachedVideoPath)) {
+            if (fs.existsSync(cachedMediaPath)) {
                 try {
-                    const stat = fs.statSync(cachedVideoPath);
-                    if (stat.size > 0) return serveVideoFile(cachedVideoPath, req, res);
+                    const stat = fs.statSync(cachedMediaPath);
+                    if (stat.size > 0) {
+                        if (isVideo) return serveVideoFile(cachedMediaPath, req, res);
+                        res.set('Cache-Control', 'public, max-age=300');
+                        return res.sendFile(cachedMediaPath);
+                    }
                     // Corrupt cache — remove and re-fetch
-                    fs.unlinkSync(cachedVideoPath);
+                    fs.unlinkSync(cachedMediaPath);
                 } catch (_) {}
             }
 
@@ -945,7 +1010,7 @@ app.get('/api/full/:id', async (req, res) => {
                 return res.status(202).json({
                     status: state.status || 'downloading',
                     progress: state.progress || 0,
-                    message: 'Video is being downloaded from iCloud'
+                    message: `${state.mediaType || 'Media'} is being downloaded from iCloud`
                 });
             }
 
@@ -958,13 +1023,19 @@ app.get('/api/full/:id', async (req, res) => {
             }
 
             // Launch iCloud fetch in background — return 202 immediately
-            const fetchState = { progress: 0, status: 'starting', startTime: Date.now(), error: null };
+            const fetchState = {
+                progress: 0,
+                status: 'starting',
+                startTime: Date.now(),
+                error: null,
+                mediaType: isVideo ? 'Video' : 'Photo'
+            };
             activeFetches.set(uuid, fetchState);
             activeICloudCount++;
 
-            console.log(`iCloud: fetching video ${uuid} (${formatted.filename || 'unknown'})`);
+            console.log(`iCloud: fetching ${isVideo ? 'video' : 'photo'} ${uuid} (${formatted.filename || 'unknown'})`);
 
-            fetchFromICloud(uuid, cachedVideoPath, fetchState).then(() => {
+            fetchFromICloud(uuid, cachedMediaPath, fetchState).then(() => {
                 console.log(`iCloud: downloaded ${uuid} successfully`);
             }).catch((err) => {
                 console.error(`iCloud: fetch failed for ${uuid} — ${err.message}`);
@@ -976,7 +1047,7 @@ app.get('/api/full/:id', async (req, res) => {
             return res.status(202).json({
                 status: 'downloading',
                 progress: 0,
-                message: 'Downloading video from iCloud...'
+                message: `Downloading ${isVideo ? 'video' : 'photo'} from iCloud...`
             });
         }
 
@@ -1035,9 +1106,11 @@ app.get('/api/icloud-status/:id', (req, res) => {
 
     const uuid = formatted._uuid.toUpperCase();
 
-    // Check if already cached
-    const cachedPath = path.join(ICLOUD_CACHE, `${uuid}.mov`);
-    if (fs.existsSync(cachedPath)) {
+    // Check if already cached (photo or video)
+    const cachedVideoPath = path.join(ICLOUD_CACHE, `${uuid}.mov`);
+    const cachedPhotoPath = path.join(ICLOUD_CACHE, `${uuid}.jpg`);
+    const cachedPath = fs.existsSync(cachedVideoPath) ? cachedVideoPath : (fs.existsSync(cachedPhotoPath) ? cachedPhotoPath : null);
+    if (cachedPath) {
         try {
             if (fs.statSync(cachedPath).size > 0) {
                 return res.json({ status: 'ready', progress: 1.0 });

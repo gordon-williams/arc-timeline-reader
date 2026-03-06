@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader - User Manual
 
-**Build 02.166**
+**Build 02.167**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and [Arc Editor](https://editor.arc.wiki) GPS tracking data. Generates interactive diaries with maps from your location history, stored locally in your browser. No server required.
 
@@ -734,11 +734,11 @@ Display photos and videos from your Apple Photos library alongside your timeline
 
 1. **macOS** with Apple Photos (any recent version).
 2. **Node.js** (version 18 or later).
-3. **Xcode Command Line Tools** — required for the iCloud video download feature. The server uses a small Swift helper tool that is compiled automatically at startup. Install with:
+3. **Xcode Command Line Tools** — required for the iCloud media download feature. The server uses a small Swift helper tool that is compiled automatically at startup. Install with:
    ```
    xcode-select --install
    ```
-   If you already have Xcode or the Command Line Tools installed, this step is not needed. The server still works without them, but videos offloaded to iCloud will not be playable.
+   If you already have Xcode or the Command Line Tools installed, this step is not needed. The server still works without them, but photos and videos offloaded to iCloud will not be downloadable on demand.
 
 ### Installing Node.js
 
@@ -788,9 +788,9 @@ The photo server is a small Node.js application included in the `photo-server/` 
 
    Ready. Keep this running while using Arc Diary Reader.
    ```
-   On first startup, the server compiles a small Swift helper tool (`photo-fetch`) that enables on-demand downloading of videos stored in iCloud. This compilation takes 5–10 seconds and only happens once — subsequent starts reuse the compiled binary. If the Command Line Tools are not installed, you will see `photo-fetch: not available` instead, and iCloud videos will not be playable.
+   On first startup, the server compiles a small Swift helper tool (`photo-fetch`) that enables on-demand downloading of photos and videos stored in iCloud. This compilation takes 5–10 seconds and only happens once — subsequent starts reuse the compiled binary. If the Command Line Tools are not installed, you will see `photo-fetch: not available` instead, and iCloud media will not be downloadable on demand.
 
-4. **Grant Photos access (first time only):** The first time a video is downloaded from iCloud, macOS will show a permission dialog asking you to allow `photo-fetch` to access your Photos library. Click **Allow** — this is a one-time prompt and the permission persists across restarts. You can review or change this in **System Settings → Privacy & Security → Photos**.
+4. **Grant Photos access (first time only):** The first time a photo or video is downloaded from iCloud, macOS will show a permission dialog asking you to allow `photo-fetch` to access your Photos library. Click **Allow** — this is a one-time prompt and the permission persists across restarts. You can review or change this in **System Settings → Privacy & Security → Photos**.
 
 5. **Keep the terminal window open** while using the diary reader. The server must be running for photo and video features to work.
 
@@ -815,9 +815,9 @@ The import process fetches metadata and thumbnails from the photo server and sto
 
 - **First import** downloads thumbnails for all available photos and videos. This can take several minutes for large libraries (10,000+ items).
 - **Subsequent imports** are incremental — only new items added since the last import are fetched.
-- **Date range import** lets you import only photos and videos from a specific period.
-- Items without local originals (offloaded to iCloud) are automatically skipped.
-- Progress is shown during import with counts of imported, skipped, and total items.
+- **Date range import** lets you import only photos and videos from a specific period. The date range is auto-populated from your Arc diary coverage (earliest day to today).
+- Items not downloaded from iCloud appear as **placeholder thumbnails** (camera or film icon) so you can see they exist and trigger on-demand download from the viewer.
+- Progress is shown during import with counts of imported, skipped, placeholders, and total items.
 
 After import, photos and videos appear in the diary reader immediately.
 
@@ -843,7 +843,8 @@ A non-modal viewer panel that overlays the map area. Features:
 
 - **Photos** load at full resolution (up to 1600px) from the server, with a fast thumbnail fallback while loading.
 - **Videos** play inline with native browser controls (play, pause, seek, volume, fullscreen). Videos stream from the server with seeking support.
-- **iCloud videos** — videos that have been offloaded to iCloud are downloaded automatically when you open them in the viewer. A progress overlay shows the download status with the video's still image as a backdrop. Downloaded videos are cached locally so they play instantly on subsequent views.
+- **iCloud media** — photos and videos that have been offloaded to iCloud are downloaded automatically when you open them in the viewer. A progress overlay shows the download status. Downloaded media is cached locally so it loads instantly on subsequent views.
+- **Day sync** — when the viewer is open and you navigate to a different day, the viewer automatically updates to show that day's photos without stealing keyboard focus.
 - **Navigation** — use the left/right arrow buttons or keyboard arrow keys to step through media. Videos automatically pause when navigating away.
 - **Info bar** — shows the date, time, camera model, video duration, and position counter.
 - **Draggable** — grab the header bar to reposition the viewer on screen.

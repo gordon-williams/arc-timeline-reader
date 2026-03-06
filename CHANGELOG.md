@@ -1,5 +1,28 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.167 (2026-03-06)
+
+### iCloud Photo Placeholders
+- **Placeholder thumbnails for unavailable media** — Photos and videos not downloaded from iCloud now appear as styled placeholder thumbnails (camera icon for photos, film icon for videos) instead of being silently skipped. They show up in diary strips, the gallery, and map markers.
+- **On-demand iCloud photo download** — Clicking a placeholder photo in the viewer triggers an iCloud download via PhotoKit, the same as already existed for videos. The Swift `PhotoFetch` helper now handles both photos (converted to JPEG for browser compatibility) and videos.
+- **Import diagnostics** — The photo import result now reports placeholder count separately, and logs detailed unavailability breakdowns by media type and UTI to the console.
+
+### Photo Viewer Day Sync
+- **Auto-sync viewer to current day** — When navigating to a new day with the photo viewer open, it automatically updates to show that day's photos without stealing keyboard focus.
+
+### Photo Import Improvements
+- **Auto-fill date range** — The photo date range inputs are automatically populated from your Arc diary coverage (earliest day to today) so you don't import years of unrelated media.
+- **Fallback date bounds** — If no date range is set, the import automatically bounds to your Arc diary coverage.
+
+### Photo Server Enhancements
+- **Legacy library support** — The server now checks both `originals/` and `Masters/` directories for older/migrated Photos libraries.
+- **CORS for file:// protocol** — Allows the app to connect to the photo server when opened directly as a local file.
+- **Quieter thumbnail errors** — Missing thumbnails return HTTP 204 instead of 404, reducing browser console noise during bulk imports.
+
+### Security & Code Quality
+- **Attribute escaping** — Location names and activity types in diary HTML now use proper attribute escaping (`escapeAttr`) instead of `escapeHtml`, preventing quote characters from breaking data attributes.
+- **CSP updated** — Content Security Policy now allows `127.0.0.1` origins alongside `localhost`, matching the server's localhost binding.
+
 ## Build 02.166 (2026-03-06)
 
 ### Photo Map Markers

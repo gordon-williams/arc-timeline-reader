@@ -8,6 +8,48 @@
     const LS_KEY_SHOW_MAP_MARKERS = 'arcPhotoShowMapMarkers';
     const BATCH_SIZE = 50;  // IDB write batch size
     const FETCH_CONCURRENCY = 3;  // concurrent thumbnail fetches
+    const PHOTO_PLACEHOLDER_THUMBNAIL = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+            <defs>
+                <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#1f2630"/>
+                    <stop offset="100%" stop-color="#3b4758"/>
+                </linearGradient>
+            </defs>
+            <rect width="400" height="300" fill="url(#bg)"/>
+            <g fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="96" y="92" width="208" height="128" rx="18"/>
+                <path d="M138 92l18-26h88l18 26"/>
+                <circle cx="200" cy="156" r="30"/>
+                <circle cx="200" cy="156" r="12"/>
+            </g>
+            <text x="200" y="262" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#ffffff">Photo Unavailable</text>
+        </svg>`
+    );
+    const VIDEO_PLACEHOLDER_THUMBNAIL = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+            <defs>
+                <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#20232b"/>
+                    <stop offset="100%" stop-color="#374353"/>
+                </linearGradient>
+            </defs>
+            <rect width="400" height="300" fill="url(#bg)"/>
+            <rect x="92" y="76" width="216" height="148" rx="18" fill="none" stroke="#ffffff" stroke-width="10"/>
+            <g fill="#ffffff">
+                <rect x="106" y="96" width="12" height="14" rx="2"/>
+                <rect x="106" y="122" width="12" height="14" rx="2"/>
+                <rect x="106" y="148" width="12" height="14" rx="2"/>
+                <rect x="106" y="174" width="12" height="14" rx="2"/>
+                <rect x="282" y="96" width="12" height="14" rx="2"/>
+                <rect x="282" y="122" width="12" height="14" rx="2"/>
+                <rect x="282" y="148" width="12" height="14" rx="2"/>
+                <rect x="282" y="174" width="12" height="14" rx="2"/>
+                <polygon points="178,126 178,174 228,150"/>
+            </g>
+            <text x="200" y="262" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#ffffff">Video Unavailable</text>
+        </svg>`
+    );
 
     let serverUrl = localStorage.getItem(LS_KEY_SERVER) || 'http://localhost:3000';
     let serverAvailable = false;
@@ -324,6 +366,9 @@
         const allIds = allPhotos.map(p => p.id);
         let availableSet = null;
         let unavailableStats = null;
+        let unavailableSample = [];
+        let unavailableByType = null;
+        let unavailableByUtiTop = null;
         progressCb?.({ phase: 'metadata', percent: 40, message: `Checking availability of ${allPhotos.length.toLocaleString()} items...` });
         try {
             const checkResp = await fetch(`${serverUrl}/api/photos/check-available`, {
@@ -335,6 +380,11 @@
                 const checkData = await checkResp.json();
                 availableSet = new Set(checkData.available);
                 unavailableStats = checkData.unavailable;
+                if (Array.isArray(checkData.unavailableSample)) {
+                    unavailableSample = checkData.unavailableSample;
+                }
+                unavailableByType = checkData.unavailableByType || null;
+                unavailableByUtiTop = checkData.unavailableByUtiTop || null;
             }
         } catch (e) {
             // Server may not support batch check — fall back to individual requests
@@ -344,13 +394,38 @@
         const photosToFetch = availableSet
             ? allPhotos.filter(p => availableSet.has(p.id))
             : allPhotos;
+        const unavailablePhotos = availableSet
+            ? allPhotos.filter(p => !availableSet.has(p.id))
+            : [];
         const skippedUpfront = allPhotos.length - photosToFetch.length;
 
         // Fetch thumbnails with controlled concurrency
         let imported = 0;
+        let importedWithThumb = 0;
+        let importedWithPlaceholder = 0;
         let skipped = skippedUpfront;
         let skipHttp = 0, skipEmptyBlob = 0, skipError = 0;
         const total = allPhotos.length;
+
+        function makePhotoRecord(photo, thumbnailBlob = null, missingReason = null) {
+            return {
+                id: photo.id,
+                dayKey: photo.dayKey,
+                date: photo.date,
+                latitude: photo.latitude,
+                longitude: photo.longitude,
+                width: photo.width,
+                height: photo.height,
+                filename: photo.filename,
+                originalFilename: photo.originalFilename,
+                cameraMake: photo.cameraMake,
+                cameraModel: photo.cameraModel,
+                type: photo.type || 'photo',
+                duration: photo.duration || null,
+                thumbnail: thumbnailBlob,
+                thumbnailMissingReason: missingReason || null
+            };
+        }
 
         // Fetch one thumbnail — returns record or null
         async function fetchOne(photo) {
@@ -359,30 +434,18 @@
                 if (!thumbResp.ok) {
                     skipped++;
                     skipHttp++;
+                    if (thumbResp.status === 204) {
+                        return makePhotoRecord(photo, null, 'noLocalMedia');
+                    }
                     return null;
                 }
                 const blob = await thumbResp.blob();
                 if (!blob || blob.size === 0) {
                     skipped++;
                     skipEmptyBlob++;
-                    return null;
+                    return makePhotoRecord(photo, null, 'emptyThumbnail');
                 }
-                return {
-                    id: photo.id,
-                    dayKey: photo.dayKey,
-                    date: photo.date,
-                    latitude: photo.latitude,
-                    longitude: photo.longitude,
-                    width: photo.width,
-                    height: photo.height,
-                    filename: photo.filename,
-                    originalFilename: photo.originalFilename,
-                    cameraMake: photo.cameraMake,
-                    cameraModel: photo.cameraModel,
-                    type: photo.type || 'photo',
-                    duration: photo.duration || null,
-                    thumbnail: blob
-                };
+                return makePhotoRecord(photo, blob);
             } catch (e) {
                 skipped++;
                 skipError++;
@@ -398,8 +461,24 @@
             if (pendingRecords.length > 0) {
                 await storePhotoBatch(pendingRecords);
                 imported += pendingRecords.length;
+                for (const rec of pendingRecords) {
+                    if (rec.thumbnail && rec.thumbnail.size > 0) importedWithThumb++;
+                    else importedWithPlaceholder++;
+                }
                 pendingRecords = [];
             }
+        }
+
+        // Persist metadata-only placeholders for known unavailable media.
+        if (unavailablePhotos.length > 0) {
+            progressCb?.({ phase: 'metadata', percent: 48, message: `Saving ${unavailablePhotos.length.toLocaleString()} unavailable items as placeholders...` });
+            for (const photo of unavailablePhotos) {
+                pendingRecords.push(makePhotoRecord(photo, null, 'noLocalMedia'));
+                if (pendingRecords.length >= BATCH_SIZE) {
+                    await drainToIDB();
+                }
+            }
+            await drainToIDB();
         }
 
         // Worker function — pulls next photo, fetches, pushes to pendingRecords
@@ -455,10 +534,13 @@
             notFound: unavailableStats?.notFound || 0,
             processingFailed: skipHttp,
             emptyBlob: skipEmptyBlob,
-            networkError: skipError
+            networkError: skipError,
+            unavailableSample,
+            unavailableByType,
+            unavailableByUtiTop
         };
 
-        return { imported, skipped, total, skipBreakdown };
+        return { imported, skipped, total, importedWithThumb, importedWithPlaceholder, skipBreakdown };
     }
 
     // ---------------------------------------------------------------------------
@@ -524,7 +606,10 @@
     // ---------------------------------------------------------------------------
 
     function getThumbnailUrl(photo) {
-        if (!photo || !photo.thumbnail || photo.thumbnail.size === 0) return null;
+        if (!photo) return null;
+        if (!photo.thumbnail || photo.thumbnail.size === 0) {
+            return photo.type === 'video' ? VIDEO_PLACEHOLDER_THUMBNAIL : PHOTO_PLACEHOLDER_THUMBNAIL;
+        }
         const url = URL.createObjectURL(photo.thumbnail);
         activeObjectUrls.add(url);
         return url;
@@ -628,10 +713,10 @@
     }
 
     // ---------------------------------------------------------------------------
-    // iCloud video fetch (on-demand download via server's PhotoKit helper)
+    // iCloud media fetch (on-demand download via server's PhotoKit helper)
     // ---------------------------------------------------------------------------
 
-    async function requestICloudVideo(photoId, progressCb) {
+    async function requestICloudMedia(photoId, progressCb) {
         if (!serverAvailable) return { ready: false, error: 'Server not available' };
 
         const fullUrl = `${serverUrl}/api/full/${photoId}`;
@@ -730,6 +815,7 @@
         getThumbnailUrl,
         getFullResUrl,
         getVideoUrl,
+        requestICloudMedia,
         requestICloudVideo,
         revokeUrls,
 
@@ -773,4 +859,9 @@
             return results;
         }
     };
+
+    // Backward compatibility — existing call sites use requestICloudVideo.
+    async function requestICloudVideo(photoId, progressCb) {
+        return requestICloudMedia(photoId, progressCb);
+    }
 })();
