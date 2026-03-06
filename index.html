@@ -36,7 +36,7 @@ SOFTWARE.
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = '02.170';
+  window.__ARC_BUILD__ = '02.171';
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -622,6 +622,14 @@ SOFTWARE.
                         <div class="photo-viewer-header" id="photoViewerHeader">
                             <span class="photo-viewer-info" id="photoViewerInfo"></span>
                             <div class="photo-viewer-controls">
+                                <button class="photo-viewer-btn" id="photoViewerFilenameBtn" onclick="toggleFilenameOverlay()" title="Show filename">&#x1F5B9;</button>
+                                <button class="photo-viewer-btn" id="photoViewerSlideshowBtn" onclick="toggleSlideshow()" title="Slideshow">&#9654;</button>
+                                <select class="photo-viewer-speed-select" id="photoViewerSpeedSelect" onchange="setSlideshowSpeed(this.value)" title="Slideshow speed" style="display:none;">
+                                    <option value="3000">3s</option>
+                                    <option value="5000" selected>5s</option>
+                                    <option value="8000">8s</option>
+                                    <option value="12000">12s</option>
+                                </select>
                                 <button class="photo-viewer-btn" onclick="openPhotoInNewTab()" title="Open in new tab">↗</button>
                                 <button class="photo-viewer-btn" id="photoViewerFitBtn" onclick="fitPhotoViewerToContent()" title="Fit to content">⊞</button>
                                 <button class="photo-viewer-btn" onclick="togglePhotoViewerMaximize()" title="Maximize">⛶</button>
@@ -631,6 +639,7 @@ SOFTWARE.
                         <div class="photo-viewer-body">
                             <button class="photo-viewer-nav photo-viewer-prev" onclick="navigatePhoto(-1)">&#8249;</button>
                             <img id="photoViewerImg" src="" alt="Photo">
+                            <img id="photoViewerImgB" src="" alt="Photo" style="display:none;">
                             <video id="photoViewerVideo" controls style="display:none;"></video>
                             <div id="photoViewerICloudOverlay" class="icloud-download-overlay" style="display:none;">
                                 <div class="icloud-download-content">
@@ -645,6 +654,9 @@ SOFTWARE.
                                 </div>
                             </div>
                             <button class="photo-viewer-nav photo-viewer-next" onclick="navigatePhoto(1)">&#8250;</button>
+                            <div class="photo-viewer-filename-bar" id="photoViewerFilenameBar" style="display:none;">
+                                <span id="photoViewerFilename"></span>
+                            </div>
                         </div>
                     </div>
                 </div>

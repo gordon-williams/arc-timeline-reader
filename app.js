@@ -11307,6 +11307,11 @@ scrollToDiaryDay(currentDayKey);
         let viewerIndex = 0;
         let externalViewerTab = null; // reference to external browser tab for photo viewing
         let photoViewerDaySyncToken = 0;
+        let slideshowTimer = null;
+        let slideshowPlaying = false;
+        let slideshowSpeed = 5000;
+        let showFilenameOverlay = false;
+        let crossFadeFront = 'A'; // which <img> is currently in front: 'A' or 'B'
 
         // Inject photo thumbnail strips into rendered diary entries
         async function attachPhotoStrips() {
@@ -11791,6 +11796,23 @@ scrollToDiaryDay(currentDayKey);
 
             // Restore saved size before showing content
             restoreViewerSize();
+
+            // Restore filename overlay preference
+            const savedFilename = localStorage.getItem('arcPhotoViewerShowFilename');
+            showFilenameOverlay = savedFilename === '1';
+            const fnBar = document.getElementById('photoViewerFilenameBar');
+            const fnBtn = document.getElementById('photoViewerFilenameBtn');
+            if (fnBar) fnBar.style.display = showFilenameOverlay ? '' : 'none';
+            if (fnBtn) fnBtn.classList.toggle('active', showFilenameOverlay);
+
+            // Restore slideshow speed preference
+            const savedSpeed = localStorage.getItem('arcPhotoViewerSlideshowSpeed');
+            if (savedSpeed) {
+                slideshowSpeed = parseInt(savedSpeed, 10) || 5000;
+                const sel = document.getElementById('photoViewerSpeedSelect');
+                if (sel) sel.value = String(slideshowSpeed);
+            }
+
             showViewerPhoto();
 
             // Init draggable once
@@ -11811,6 +11833,7 @@ scrollToDiaryDay(currentDayKey);
                     if (e.target && e.target.tagName === 'VIDEO') return;
                     if (e.key === 'ArrowLeft') { e.preventDefault(); navigatePhoto(-1); }
                     else if (e.key === 'ArrowRight') { e.preventDefault(); navigatePhoto(1); }
+                    else if (e.key === ' ') { e.preventDefault(); toggleSlideshow(); }
                 };
                 overlay.addEventListener('keydown', overlay._keyHandler);
                 // Re-focus overlay on click so arrow keys work after clicking nav buttons, etc.
@@ -11920,6 +11943,12 @@ scrollToDiaryDay(currentDayKey);
         function closePhotoViewer() {
             const overlay = document.getElementById('photoViewer');
             if (!overlay) return;
+            // Stop slideshow if playing
+            if (slideshowPlaying) stopSlideshow();
+            // Reset cross-fade state
+            crossFadeFront = 'A';
+            const imgB = document.getElementById('photoViewerImgB');
+            if (imgB) { imgB.style.display = 'none'; imgB.src = ''; imgB.style.opacity = '0'; }
             // Save size before resetting
             saveViewerSize();
             overlay.style.display = 'none';
@@ -12036,6 +12065,7 @@ scrollToDiaryDay(currentDayKey);
 
         function navigatePhoto(dir) {
             if (viewerPhotos.length === 0) return;
+            if (slideshowPlaying) stopSlideshow();
             viewerIndex = (viewerIndex + dir + viewerPhotos.length) % viewerPhotos.length;
             showViewerPhoto();
         }
@@ -12211,6 +12241,9 @@ scrollToDiaryDay(currentDayKey);
                 // VIDEO: hide both elements initially — only show the right one when ready
                 img.style.display = 'none';
                 video.style.display = 'none';
+                // Hide cross-fade partner during normal navigation
+                const imgB = document.getElementById('photoViewerImgB');
+                if (imgB) { imgB.style.display = 'none'; imgB.src = ''; }
 
                 const videoUrl = getPhotoFullUrl(photo.id);
                 if (videoUrl) {
@@ -12257,6 +12290,9 @@ scrollToDiaryDay(currentDayKey);
                 // PHOTO: show <img>, hide <video>
                 if (video) video.style.display = 'none';
                 img.style.display = '';
+                // Hide cross-fade partner during normal navigation
+                const imgB = document.getElementById('photoViewerImgB');
+                if (imgB) { imgB.style.display = 'none'; imgB.src = ''; }
 
                 // Build full-res URL (try server first)
                 const fullUrl = getPhotoFullUrl(photo.id);
@@ -12321,6 +12357,9 @@ scrollToDiaryDay(currentDayKey);
             const next = document.querySelector('.photo-viewer-next');
             if (prev) prev.style.display = viewerPhotos.length > 1 ? 'flex' : 'none';
             if (next) next.style.display = viewerPhotos.length > 1 ? 'flex' : 'none';
+
+            // Update filename overlay if visible
+            updateFilenameBar();
         }
 
         // Photo import UI setup (start screen)
@@ -12608,6 +12647,159 @@ scrollToDiaryDay(currentDayKey);
             }
         }
 
+        // --- Filename overlay ---
+
+        function toggleFilenameOverlay() {
+            showFilenameOverlay = !showFilenameOverlay;
+            localStorage.setItem('arcPhotoViewerShowFilename', showFilenameOverlay ? '1' : '0');
+            const bar = document.getElementById('photoViewerFilenameBar');
+            const btn = document.getElementById('photoViewerFilenameBtn');
+            if (bar) bar.style.display = showFilenameOverlay ? '' : 'none';
+            if (btn) btn.classList.toggle('active', showFilenameOverlay);
+            if (showFilenameOverlay) updateFilenameBar();
+        }
+
+        function updateFilenameBar() {
+            const span = document.getElementById('photoViewerFilename');
+            if (!span || !showFilenameOverlay) return;
+            const photo = viewerPhotos[viewerIndex];
+            if (!photo) { span.textContent = ''; return; }
+            span.textContent = photo.filename || photo.originalFilename || '';
+        }
+
+        // --- Slideshow ---
+
+        function toggleSlideshow() {
+            if (slideshowPlaying) {
+                stopSlideshow();
+            } else {
+                startSlideshow();
+            }
+        }
+
+        function startSlideshow() {
+            if (viewerPhotos.length <= 1) return;
+            slideshowPlaying = true;
+            const btn = document.getElementById('photoViewerSlideshowBtn');
+            const sel = document.getElementById('photoViewerSpeedSelect');
+            if (btn) { btn.textContent = '\u23F8'; btn.classList.add('active'); } // ⏸
+            if (sel) sel.style.display = '';
+            slideshowTimer = setInterval(() => slideshowAdvance(), slideshowSpeed);
+        }
+
+        function stopSlideshow() {
+            slideshowPlaying = false;
+            if (slideshowTimer) { clearInterval(slideshowTimer); slideshowTimer = null; }
+            const btn = document.getElementById('photoViewerSlideshowBtn');
+            const sel = document.getElementById('photoViewerSpeedSelect');
+            if (btn) { btn.textContent = '\u25B6'; btn.classList.remove('active'); } // ▶
+            if (sel) sel.style.display = 'none';
+        }
+
+        function slideshowAdvance() {
+            if (viewerPhotos.length === 0) return;
+            // Find next non-video photo (skip videos)
+            let nextIndex = viewerIndex;
+            let attempts = 0;
+            do {
+                nextIndex = (nextIndex + 1) % viewerPhotos.length;
+                attempts++;
+                if (attempts > viewerPhotos.length) { stopSlideshow(); return; } // all videos
+            } while (viewerPhotos[nextIndex].type === 'video');
+            viewerIndex = nextIndex;
+            crossFadeToCurrentPhoto();
+        }
+
+        function crossFadeToCurrentPhoto() {
+            const photo = viewerPhotos[viewerIndex];
+            if (!photo) return;
+
+            const imgA = document.getElementById('photoViewerImg');
+            const imgB = document.getElementById('photoViewerImgB');
+            const video = document.getElementById('photoViewerVideo');
+            if (!imgA || !imgB) return;
+
+            // Hide video if it was showing
+            if (video) { video.pause(); video.style.display = 'none'; }
+
+            const front = crossFadeFront === 'A' ? imgA : imgB;
+            const back  = crossFadeFront === 'A' ? imgB : imgA;
+            const targetIndex = viewerIndex;
+
+            // Prepare back image: visible but transparent, temporarily on top
+            back.style.display = '';
+            back.style.opacity = '0';
+            back.style.zIndex = '3';
+            front.style.zIndex = '2';
+
+            const fullUrl = getPhotoFullUrl(photo.id);
+
+            const loadAndFade = (url) => {
+                if (viewerIndex !== targetIndex) return;
+                back.src = url;
+                requestAnimationFrame(() => {
+                    back.style.transition = 'opacity 0.8s ease';
+                    back.style.opacity = '1';
+                    setTimeout(() => {
+                        if (viewerIndex !== targetIndex) return;
+                        front.style.opacity = '0';
+                        front.style.display = 'none';
+                        front.style.transition = 'opacity 0.3s';
+                        back.style.zIndex = '2';
+                        back.style.transition = 'opacity 0.3s';
+                        crossFadeFront = crossFadeFront === 'A' ? 'B' : 'A';
+                    }, 850);
+                });
+            };
+
+            if (fullUrl) {
+                const preload = new Image();
+                preload.onload = () => loadAndFade(fullUrl);
+                preload.onerror = async () => {
+                    const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
+                    if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
+                        const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
+                        if (thumbUrl) loadAndFade(thumbUrl);
+                    }
+                };
+                preload.src = fullUrl;
+            } else {
+                ArcPhotos.getPhotoById(photo.id).then(dbPhoto => {
+                    if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
+                        const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
+                        if (thumbUrl) loadAndFade(thumbUrl);
+                    }
+                });
+            }
+
+            // Update info bar immediately
+            const info = document.getElementById('photoViewerInfo');
+            if (info) {
+                const d = new Date(photo.date);
+                const dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                const camera = photo.cameraModel || '';
+                const counter = viewerPhotos.length > 1 ? ` \u00B7 ${viewerIndex + 1} / ${viewerPhotos.length}` : '';
+                let durationStr = '';
+                if (photo.type === 'video' && photo.duration) {
+                    const mins = Math.floor(photo.duration / 60);
+                    const secs = Math.floor(photo.duration % 60);
+                    durationStr = ` \u00B7 ${mins}:${secs.toString().padStart(2, '0')}`;
+                }
+                info.textContent = `${dateStr} ${timeStr}${camera ? ' \u00B7 ' + camera : ''}${durationStr}${counter}`;
+            }
+            updateFilenameBar();
+        }
+
+        function setSlideshowSpeed(value) {
+            slideshowSpeed = parseInt(value, 10) || 5000;
+            localStorage.setItem('arcPhotoViewerSlideshowSpeed', String(slideshowSpeed));
+            if (slideshowPlaying && slideshowTimer) {
+                clearInterval(slideshowTimer);
+                slideshowTimer = setInterval(() => slideshowAdvance(), slideshowSpeed);
+            }
+        }
+
         // Expose photo functions to window for onclick handlers
         window.closePhotoSlider = closePhotoSlider;
         window.togglePhotoSlider = togglePhotoSlider;
@@ -12619,6 +12811,9 @@ scrollToDiaryDay(currentDayKey);
         window.fitPhotoViewerToContent = fitPhotoViewerToContent;
         window.navigatePhoto = navigatePhoto;
         window.openPhotoInNewTab = openPhotoInNewTab;
+        window.toggleFilenameOverlay = toggleFilenameOverlay;
+        window.toggleSlideshow = toggleSlideshow;
+        window.setSlideshowSpeed = setSlideshowSpeed;
 
 		  function generateMarkdown(monthData, includeAllLocations = false, includeAllActivities = true) {
 

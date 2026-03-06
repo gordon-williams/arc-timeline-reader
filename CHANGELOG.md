@@ -1,5 +1,13 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.171 (2026-03-06)
+
+### Photo Viewer
+- **Filename overlay** — New toolbar button (🖹) toggles a semi-transparent bar at the bottom of the viewer showing the current photo's filename. Preference is saved to localStorage.
+- **Slideshow auto-play** — New toolbar play button (▶) starts an automatic slideshow that cycles through photos with smooth cross-fade transitions. Videos are skipped during playback.
+- **Adjustable slideshow speed** — When the slideshow is active, a speed selector appears with 3s / 5s / 8s / 12s options (default 5s). Speed preference is saved to localStorage.
+- **Slideshow keyboard shortcut** — Space bar toggles slideshow play/pause. Arrow keys stop the slideshow and resume manual navigation.
+
 ## Build 02.170 (2026-03-06)
 
 ### Photo Viewer
