@@ -12290,48 +12290,67 @@ scrollToDiaryDay(currentDayKey);
                 // PHOTO: show <img>, hide <video>
                 if (video) video.style.display = 'none';
                 img.style.display = '';
-                // Hide cross-fade partner during normal navigation
                 const imgB = document.getElementById('photoViewerImgB');
-                if (imgB) { imgB.style.display = 'none'; imgB.src = ''; }
 
-                // Build full-res URL (try server first)
                 const fullUrl = getPhotoFullUrl(photo.id);
 
                 // Fade out current image while loading
                 img.style.opacity = '0';
+                if (imgB) { imgB.style.display = 'none'; imgB.src = ''; }
+
+                // Show IDB thumbnail immediately (blurry) while full-res loads
+                const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
+                if (viewerIndex !== targetIndex) return;
+                let thumbShown = false;
+                if (dbPhoto?.thumbnail) {
+                    const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
+                    if (thumbUrl) {
+                        img.src = thumbUrl;
+                        img.style.opacity = '1';
+                        thumbShown = true;
+                    }
+                }
 
                 if (fullUrl) {
-                    // Load full-res directly — only fall back to thumbnail on error
+                    // Preload full-res in background
                     const fullImg = new Image();
                     fullImg.onload = () => {
-                        if (viewerIndex === targetIndex) {
+                        if (viewerIndex !== targetIndex) return;
+                        if (thumbShown && imgB) {
+                            // Cross-fade from thumbnail to full-res
+                            imgB.style.display = '';
+                            imgB.src = fullUrl;
+                            imgB.style.opacity = '0';
+                            imgB.style.zIndex = '3';
+                            img.style.zIndex = '2';
+                            requestAnimationFrame(() => {
+                                imgB.style.transition = 'opacity 0.3s ease';
+                                imgB.style.opacity = '1';
+                                setTimeout(() => {
+                                    if (viewerIndex !== targetIndex) return;
+                                    // Swap: full-res becomes primary img
+                                    img.src = fullUrl;
+                                    img.style.opacity = '1';
+                                    img.style.zIndex = '2';
+                                    imgB.style.display = 'none';
+                                    imgB.src = '';
+                                    imgB.style.zIndex = '1';
+                                    imgB.style.transition = 'opacity 0.3s';
+                                }, 350);
+                            });
+                        } else {
+                            // No thumbnail was shown — just fade in full-res
                             img.src = fullUrl;
                             img.style.opacity = '1';
                         }
                     };
-                    fullImg.onerror = async () => {
-                        if (viewerIndex !== targetIndex) return;
-                        // Full-res failed — fall back to thumbnail
-                        const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
-                        if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
-                            const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
-                            if (thumbUrl) {
-                                img.src = thumbUrl;
-                                img.style.opacity = '1';
-                            }
+                    fullImg.onerror = () => {
+                        // Full-res failed — thumbnail already showing if available
+                        if (!thumbShown && viewerIndex === targetIndex) {
+                            // No thumbnail either — nothing to show
                         }
                     };
                     fullImg.src = fullUrl;
-                } else {
-                    // No server — show thumbnail directly
-                    const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
-                    if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
-                        const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
-                        if (thumbUrl) {
-                            img.src = thumbUrl;
-                            img.style.opacity = '1';
-                        }
-                    }
                 }
             }
 
