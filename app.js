@@ -12659,6 +12659,14 @@ scrollToDiaryDay(currentDayKey);
             if (showFilenameOverlay) updateFilenameBar();
         }
 
+        function photoDisplayName(photo) {
+            // Title from Apple Photos if set, otherwise filename without extension
+            if (photo.title) return photo.title;
+            const raw = photo.filename || photo.originalFilename || '';
+            // Strip file extension (e.g. IMG_1234.HEIC → IMG_1234)
+            return raw.replace(/\.[^.]+$/, '');
+        }
+
         function updateFilenameBar() {
             const span = document.getElementById('photoViewerFilename');
             if (!span || !showFilenameOverlay) return;
@@ -12667,12 +12675,12 @@ scrollToDiaryDay(currentDayKey);
 
             if (photo.title !== undefined) {
                 // Title already known (fetched or confirmed absent)
-                span.textContent = photo.title || photo.filename || photo.originalFilename || '';
+                span.textContent = photoDisplayName(photo);
                 return;
             }
 
-            // Show filename immediately while fetching title from server
-            span.textContent = photo.filename || photo.originalFilename || '';
+            // Show clean filename immediately while fetching title from server
+            span.textContent = photoDisplayName(photo);
             const serverUrl = window.ArcPhotos && ArcPhotos.getServerUrl();
             if (!serverUrl) { photo.title = null; return; }
 
@@ -12680,12 +12688,9 @@ scrollToDiaryDay(currentDayKey);
             fetch(`${serverUrl}/api/photos/info/${photoId}`, { signal: AbortSignal.timeout(3000) })
                 .then(r => r.ok ? r.json() : null)
                 .then(info => {
-                    const title = info && info.title ? info.title : null;
-                    // Cache on the photo object so we don't re-fetch
-                    photo.title = title;
-                    // Update display if still viewing this photo
+                    photo.title = info && info.title ? info.title : null;
                     if (viewerPhotos[viewerIndex] === photo && showFilenameOverlay) {
-                        span.textContent = title || photo.filename || photo.originalFilename || '';
+                        span.textContent = photoDisplayName(photo);
                     }
                 })
                 .catch(() => { photo.title = null; });
