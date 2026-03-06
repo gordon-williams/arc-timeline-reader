@@ -1,5 +1,10 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.170 (2026-03-06)
+
+### Photo Viewer
+- **Fix thumbnail flash** — Removed the 300ms preload timeout that briefly showed a small IDB thumbnail before the full-resolution photo loaded. The viewer now loads the full-res image directly and only falls back to the IDB thumbnail if the full-res load fails entirely.
+
 ## Build 02.167 (2026-03-06)
 
 ### iCloud Photo Placeholders

@@ -12265,33 +12265,19 @@ scrollToDiaryDay(currentDayKey);
                 img.style.opacity = '0';
 
                 if (fullUrl) {
-                    // Try to load full-res directly (skip thumbnail flash)
+                    // Load full-res directly — only fall back to thumbnail on error
                     const fullImg = new Image();
-                    const loadTimeout = setTimeout(async () => {
-                        // Full-res taking too long — show thumbnail as fallback
-                        if (viewerIndex !== targetIndex) return;
-                        const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
-                        if (dbPhoto && viewerIndex === targetIndex) {
-                            const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
-                            if (thumbUrl) {
-                                img.src = thumbUrl;
-                                img.style.opacity = '1';
-                            }
-                        }
-                    }, 300);
                     fullImg.onload = () => {
-                        clearTimeout(loadTimeout);
                         if (viewerIndex === targetIndex) {
                             img.src = fullUrl;
                             img.style.opacity = '1';
                         }
                     };
                     fullImg.onerror = async () => {
-                        clearTimeout(loadTimeout);
                         if (viewerIndex !== targetIndex) return;
-                        // Fall back to thumbnail
+                        // Full-res failed — fall back to thumbnail
                         const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
-                        if (dbPhoto && viewerIndex === targetIndex) {
+                        if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
                             const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
                             if (thumbUrl) {
                                 img.src = thumbUrl;
@@ -12303,7 +12289,7 @@ scrollToDiaryDay(currentDayKey);
                 } else {
                     // No server — show thumbnail directly
                     const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
-                    if (dbPhoto && viewerIndex === targetIndex) {
+                    if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
                         const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
                         if (thumbUrl) {
                             img.src = thumbUrl;
