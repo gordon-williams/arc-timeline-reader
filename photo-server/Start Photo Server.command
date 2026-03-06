@@ -41,8 +41,14 @@ echo "  Starting server..."
 echo "  ─────────────────────"
 echo ""
 
+# Persist server output for crash diagnosis
+mkdir -p logs
+LOG_FILE="logs/photo-server-$(date +%Y%m%d-%H%M%S).log"
+echo "  Logging to: $LOG_FILE"
+echo ""
+
 # Start the server
-node server.js
+node server.js 2>&1 | tee "$LOG_FILE"
 
 # If server exits, keep window open so user can see errors
 echo ""

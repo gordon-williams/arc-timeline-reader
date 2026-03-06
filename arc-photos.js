@@ -646,8 +646,37 @@
     async function requestICloudMedia(photoId, progressCb) {
         if (!serverAvailable) return { ready: false, error: 'Server not available' };
 
-        const fullUrl = `${serverUrl}/api/full/${photoId}`;
-        const statusUrl = `${serverUrl}/api/icloud-status/${photoId}`;
+        let baseUrl = serverUrl;
+        let fullUrl = `${baseUrl}/api/full/${photoId}`;
+        let statusUrl = `${baseUrl}/api/icloud-status/${photoId}`;
+
+        function altServerBase(url) {
+            if (url.includes('127.0.0.1')) return url.replace('127.0.0.1', 'localhost');
+            if (url.includes('localhost')) return url.replace('localhost', '127.0.0.1');
+            return null;
+        }
+
+        async function tryReconnect() {
+            const candidates = [baseUrl];
+            const alt = altServerBase(baseUrl);
+            if (alt && !candidates.includes(alt)) candidates.push(alt);
+            for (const candidate of candidates) {
+                try {
+                    const r = await fetch(`${candidate}/api/status`, { signal: AbortSignal.timeout(2500), cache: 'no-cache' });
+                    if (!r.ok) continue;
+                    const d = await r.json();
+                    if (d && d.ok === true) {
+                        baseUrl = candidate;
+                        serverUrl = candidate;
+                        localStorage.setItem(LS_KEY_SERVER, candidate);
+                        fullUrl = `${baseUrl}/api/full/${photoId}`;
+                        statusUrl = `${baseUrl}/api/icloud-status/${photoId}`;
+                        return true;
+                    }
+                } catch (_) {}
+            }
+            return false;
+        }
 
         // First request: triggers the download if needed, or returns 200 if already available
         try {
@@ -663,20 +692,53 @@
                 return { ready: false, error: `Server returned ${resp.status}` };
             }
         } catch (e) {
-            logDebug(`[iCloud] HEAD request failed: ${e.message}`);
-            return { ready: false, error: e.message };
+            logDebug(`[iCloud] HEAD request failed: ${e.message} (trying reconnect)`);
+            const reconnected = await tryReconnect();
+            if (!reconnected) return { ready: false, error: e.message };
+            try {
+                const resp = await fetch(fullUrl, { method: 'HEAD' });
+                if (resp.status === 200) return { ready: true, url: fullUrl };
+                if (resp.status !== 202 && resp.status !== 503) {
+                    return { ready: false, error: `Server returned ${resp.status}` };
+                }
+            } catch (e2) {
+                return { ready: false, error: e2.message };
+            }
         }
 
         // Poll for progress until ready or timeout
         logDebug(`[iCloud] Starting download poll for photo ${photoId}`);
         return new Promise((resolve) => {
             let attempts = 0;
+            let finished = false;
+            let oneHundredPercentStreak = 0;
+            let sameStatusStreak = 0;
+            let lastStatus = '';
+            const pollEveryMs = 1500;
             const maxAttempts = 240; // 240 × 1.5s = 6 minutes
+            const hardTimeoutMs = maxAttempts * pollEveryMs;
+
+            const finish = (result) => {
+                if (finished) return;
+                finished = true;
+                clearInterval(poll);
+                clearTimeout(hardTimeout);
+                resolve(result);
+            };
+
+            const hardTimeout = setTimeout(() => {
+                logDebug('[iCloud] Hard timeout reached');
+                finish({ ready: false, error: 'Timeout waiting for iCloud download' });
+            }, hardTimeoutMs);
 
             const poll = setInterval(async () => {
                 attempts++;
                 try {
-                    const resp = await fetch(statusUrl);
+                    // Prevent a stuck network request from stalling completion forever.
+                    const controller = new AbortController();
+                    const fetchTimeout = setTimeout(() => controller.abort(), 5000);
+                    const resp = await fetch(statusUrl, { signal: controller.signal, cache: 'no-cache' });
+                    clearTimeout(fetchTimeout);
                     const data = await resp.json();
 
                     if (attempts <= 3 || attempts % 10 === 0) {
@@ -685,30 +747,88 @@
 
                     progressCb?.(data);
 
-                    if (data.status === 'ready') {
-                        logDebug(`[iCloud] Video ready after ${attempts} polls`);
-                        clearInterval(poll);
-                        resolve({ ready: true, url: fullUrl });
+                    if (data.status === lastStatus) {
+                        sameStatusStreak++;
+                    } else {
+                        lastStatus = data.status || '';
+                        sameStatusStreak = 1;
+                    }
+
+                    if (data.status === 'ready' || data.status === 'done') {
+                        // Compatibility path: older/partially-updated servers may report "done"
+                        // before/without flipping to "ready". Probe /api/full to confirm.
+                        let mediaReady = data.status === 'ready';
+                        if (!mediaReady) {
+                            try {
+                                const headResp = await fetch(fullUrl, { method: 'HEAD', cache: 'no-cache' });
+                                mediaReady = headResp.status === 200;
+                            } catch (_) {}
+                        }
+                        if (mediaReady) {
+                            logDebug(`[iCloud] Media ready after ${attempts} polls (status=${data.status})`);
+                            finish({ ready: true, url: fullUrl });
+                            return;
+                        }
+                        if (data.status === 'done' && attempts > 5) {
+                            // Final fallback: don't stay stuck forever at 100% if helper reports done
+                            // but the status endpoint never transitions to ready.
+                            logDebug(`[iCloud] Accepting done state after ${attempts} polls`);
+                            finish({ ready: true, url: fullUrl });
+                            return;
+                        }
+                    } else if (data.status === 'downloading' || data.status === 'copying' || data.status === 'exporting') {
+                        // Some iCloud transfers get stuck at 100% while still reporting a transitional status.
+                        // Probe /api/full and complete as soon as the media endpoint is actually ready.
+                        if ((data.progress || 0) >= 1) {
+                            oneHundredPercentStreak++;
+                            if (oneHundredPercentStreak >= 3) {
+                                try {
+                                    const headResp = await fetch(fullUrl, { method: 'HEAD', cache: 'no-cache' });
+                                    if (headResp.status === 200) {
+                                        logDebug(`[iCloud] Media endpoint ready during ${data.status} state`);
+                                        finish({ ready: true, url: fullUrl });
+                                        return;
+                                    }
+                                } catch (_) {}
+                            }
+                        } else {
+                            oneHundredPercentStreak = 0;
+                        }
+                        // Additional fallback for photo fetches that never report progress but stay in copying/exporting.
+                        if ((data.status === 'copying' || data.status === 'exporting') && sameStatusStreak >= 5) {
+                            try {
+                                const headResp = await fetch(fullUrl, { method: 'HEAD', cache: 'no-cache' });
+                                if (headResp.status === 200) {
+                                    logDebug(`[iCloud] Media endpoint ready after stalled ${data.status} status`);
+                                    finish({ ready: true, url: fullUrl });
+                                    return;
+                                }
+                            } catch (_) {}
+                        }
                     } else if (data.status === 'not_started' && attempts > 3) {
                         // Fetch was attempted but failed — give up
                         logDebug(`[iCloud] Download not started after ${attempts} polls, giving up`);
-                        clearInterval(poll);
-                        resolve({ ready: false, error: data.error || 'Download failed' });
+                        finish({ ready: false, error: data.error || 'Download failed' });
                     } else if (data.error && data.status !== 'downloading') {
                         logDebug(`[iCloud] Download error: ${data.error}`);
-                        clearInterval(poll);
-                        resolve({ ready: false, error: data.error });
+                        finish({ ready: false, error: data.error });
                     } else if (attempts >= maxAttempts) {
                         logDebug(`[iCloud] Timeout after ${maxAttempts} polls`);
-                        clearInterval(poll);
-                        resolve({ ready: false, error: 'Timeout waiting for iCloud download' });
+                        finish({ ready: false, error: 'Timeout waiting for iCloud download' });
                     }
                 } catch (e) {
                     logDebug(`[iCloud] Poll error: ${e.message}`);
-                    clearInterval(poll);
-                    resolve({ ready: false, error: e.message });
+                    const isConnError = /Failed to fetch|ERR_CONNECTION_REFUSED|NetworkError|aborted/i.test(String(e && e.message || e));
+                    if (isConnError && attempts < 20) {
+                        const reconnected = await tryReconnect();
+                        if (reconnected) {
+                            logDebug('[iCloud] Reconnected to photo server, continuing poll');
+                            return;
+                        }
+                    }
+                    finish({ ready: false, error: e.message });
                 }
-            }, 1500);
+            }, pollEveryMs);
         });
     }
 

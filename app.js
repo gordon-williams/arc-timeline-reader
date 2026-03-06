@@ -11312,6 +11312,8 @@ scrollToDiaryDay(currentDayKey);
         let slideshowSpeed = 5000;
         let showFilenameOverlay = false;
         let crossFadeFront = 'A'; // which <img> is currently in front: 'A' or 'B'
+        let photoICloudBusyUntil = 0; // pause iCloud preflight HEADs after 503 bursts
+        let photoICloudBusyLogAt = 0;
 
         // Inject photo thumbnail strips into rendered diary entries
         async function attachPhotoStrips() {
@@ -12121,11 +12123,13 @@ scrollToDiaryDay(currentDayKey);
             fill.style.width = '0%';
             pctText.textContent = '0%';
             statusText.textContent = 'Downloading from iCloud\u2026';
-            console.log('[iCloud] Overlay shown with placeholder, polling for photo', photo.id);
+            logDebug('[iCloud] Overlay shown with placeholder, polling for photo', photo.id);
 
             let result;
+            const overlayTimeoutMs = 180000; // 3 minutes hard cap for viewer overlay
+            let overlayTimeoutHandle = null;
             try {
-                result = await ArcPhotos.requestICloudVideo(photo.id, (status) => {
+                const requestPromise = ArcPhotos.requestICloudVideo(photo.id, (status) => {
                     if (viewerIndex !== targetIdx) return; // user navigated away
                     const pct = Math.round((status.progress || 0) * 100);
                     fill.style.width = pct + '%';
@@ -12134,21 +12138,30 @@ scrollToDiaryDay(currentDayKey);
                     } else {
                         pctText.textContent = `${pct}%`;
                     }
+                    const isVid = photo.type === 'video';
                     if (status.status === 'copying' || status.status === 'done') {
-                        statusText.textContent = 'Saving video\u2026';
+                        statusText.textContent = isVid ? 'Saving video\u2026' : 'Saving photo\u2026';
                     } else if (status.status === 'exporting') {
-                        statusText.textContent = 'Exporting video\u2026';
+                        statusText.textContent = isVid ? 'Exporting video\u2026' : 'Processing photo\u2026';
                     }
                 });
+                const timeoutPromise = new Promise((resolve) => {
+                    overlayTimeoutHandle = setTimeout(() => {
+                        resolve({ ready: false, error: 'iCloud download timed out in viewer' });
+                    }, overlayTimeoutMs);
+                });
+                result = await Promise.race([requestPromise, timeoutPromise]);
             } catch (err) {
                 console.error('[iCloud] requestICloudVideo error:', err);
                 result = { ready: false, error: err.message };
+            } finally {
+                if (overlayTimeoutHandle) clearTimeout(overlayTimeoutHandle);
             }
 
             // Hide overlay but keep placeholder visible for crossfade
             overlay.style.display = 'none';
             imgEl.onerror = null;
-            console.log('[iCloud] Download result:', result);
+            logDebug('[iCloud] Download result:', result);
 
             // User navigated away during download
             if (viewerIndex !== targetIdx) {
@@ -12159,51 +12172,73 @@ scrollToDiaryDay(currentDayKey);
             }
 
             if (result && result.ready) {
-                // Video now available — crossfade from placeholder to video.
-                // Position video absolutely so it overlays the placeholder image
-                // (both are flex items, so without this they'd split the space).
-                videoEl.style.position = 'absolute';
-                videoEl.style.top = '0';
-                videoEl.style.left = '0';
-                videoEl.style.display = 'block';
-                videoEl.style.opacity = '0'; // start invisible
-                const restoreVideoLayout = () => {
-                    videoEl.style.position = '';
-                    videoEl.style.top = '';
-                    videoEl.style.left = '';
-                    imgEl.style.display = 'none';
-                    imgEl.style.width = '';
-                    imgEl.style.height = '';
-                    imgEl.style.objectFit = '';
-                };
-                videoEl.onerror = () => {
-                    console.warn('[iCloud] Video element failed to play, falling back to image');
-                    videoEl.style.display = 'none';
-                    videoEl.style.position = '';
-                    videoEl.style.top = '';
-                    videoEl.style.left = '';
-                    imgEl.style.width = '';
-                    imgEl.style.height = '';
-                    imgEl.style.objectFit = '';
-                    imgEl.src = result.url;
-                    imgEl.style.opacity = '1';
-                };
-                videoEl.src = result.url;
+                const isVid = photo.type === 'video';
 
-                // Wait for the first decoded frame before fading in
-                const startFade = () => {
-                    videoEl.style.opacity = '1'; // CSS transition handles the fade
-                    // After fade completes, clean up overlay positioning
-                    setTimeout(restoreVideoLayout, 600);
-                };
-                videoEl.onloadeddata = () => {
-                    videoEl.onloadeddata = null;
-                    if ('requestVideoFrameCallback' in videoEl) {
-                        videoEl.requestVideoFrameCallback(startFade);
-                    } else {
-                        requestAnimationFrame(() => requestAnimationFrame(startFade));
-                    }
-                };
+                if (isVid) {
+                    // VIDEO: crossfade from placeholder to video.
+                    videoEl.style.position = 'absolute';
+                    videoEl.style.top = '0';
+                    videoEl.style.left = '0';
+                    videoEl.style.display = 'block';
+                    videoEl.style.opacity = '0'; // start invisible
+                    const restoreVideoLayout = () => {
+                        videoEl.style.position = '';
+                        videoEl.style.top = '';
+                        videoEl.style.left = '';
+                        imgEl.style.display = 'none';
+                        imgEl.style.width = '';
+                        imgEl.style.height = '';
+                        imgEl.style.objectFit = '';
+                    };
+                    videoEl.onerror = () => {
+                        console.warn('[iCloud] Video element failed to play, falling back to image');
+                        videoEl.style.display = 'none';
+                        videoEl.style.position = '';
+                        videoEl.style.top = '';
+                        videoEl.style.left = '';
+                        imgEl.style.width = '';
+                        imgEl.style.height = '';
+                        imgEl.style.objectFit = '';
+                        imgEl.src = result.url;
+                        imgEl.style.opacity = '1';
+                    };
+                    videoEl.src = result.url;
+
+                    // Wait for the first decoded frame before fading in
+                    const startFade = () => {
+                        videoEl.style.opacity = '1'; // CSS transition handles the fade
+                        setTimeout(restoreVideoLayout, 600);
+                    };
+                    videoEl.onloadeddata = () => {
+                        videoEl.onloadeddata = null;
+                        if ('requestVideoFrameCallback' in videoEl) {
+                            videoEl.requestVideoFrameCallback(startFade);
+                        } else {
+                            requestAnimationFrame(() => requestAnimationFrame(startFade));
+                        }
+                    };
+                } else {
+                    // PHOTO: crossfade from poster/thumbnail to full-res photo.
+                    const fullImg = new Image();
+                    fullImg.onload = () => {
+                        if (viewerIndex !== targetIdx) return;
+                        // Swap src to full-res — already at opacity 1 from the poster
+                        imgEl.style.width = '';
+                        imgEl.style.height = '';
+                        imgEl.style.objectFit = '';
+                        imgEl.src = result.url;
+                        imgEl.style.opacity = '1';
+                        logDebug('[iCloud] Photo loaded after iCloud download');
+                    };
+                    fullImg.onerror = () => {
+                        // Full-res failed — poster/thumbnail stays visible
+                        imgEl.style.width = '';
+                        imgEl.style.height = '';
+                        imgEl.style.objectFit = '';
+                        console.warn('[iCloud] Full-res photo failed to load after download');
+                    };
+                    fullImg.src = result.url;
+                }
             } else {
                 // Download failed — restore normal img styling, placeholder stays visible
                 imgEl.style.width = '';
@@ -12224,6 +12259,7 @@ scrollToDiaryDay(currentDayKey);
 
             // Track which photo we're loading to prevent race conditions
             const targetIndex = viewerIndex;
+            let showingPosterFallback = false;
 
             // Pause any playing video when navigating away and hide iCloud overlay
             if (video) {
@@ -12291,66 +12327,107 @@ scrollToDiaryDay(currentDayKey);
                 if (video) video.style.display = 'none';
                 img.style.display = '';
                 const imgB = document.getElementById('photoViewerImgB');
-
-                const fullUrl = getPhotoFullUrl(photo.id);
-
-                // Fade out current image while loading
-                img.style.opacity = '0';
                 if (imgB) { imgB.style.display = 'none'; imgB.src = ''; }
 
-                // Start full-res and IDB thumbnail loading in parallel
-                let fullResLoaded = false;
+                const fullUrl = getPhotoFullUrl(photo.id);
+                const serverUrl = ArcPhotos.getServerUrl();
+                const posterUrl = serverUrl ? `${serverUrl}/api/full/${photo.id}?poster=1` : null;
+                img.style.opacity = '0';
+                const iCloudBusy = Date.now() < photoICloudBusyUntil;
 
-                if (fullUrl) {
-                    const fullImg = new Image();
-                    fullImg.onload = () => {
+                // Fast path: metadata says original is not local, so avoid /api/full preflight that
+                // would enqueue iCloud fetches and can return 503 under concurrency pressure.
+                if (photo.noOriginal && posterUrl) {
+                    img.src = posterUrl;
+                    img.style.opacity = '1';
+                    showingPosterFallback = true;
+                    logDebug('[iCloud] noOriginal photo, using poster directly for photo', photo.id);
+                } else if (iCloudBusy && posterUrl) {
+                    img.src = posterUrl;
+                    img.style.opacity = '1';
+                    showingPosterFallback = true;
+                    if (Date.now() - photoICloudBusyLogAt > 10000) {
+                        photoICloudBusyLogAt = Date.now();
+                        logDebug('[iCloud] Busy cooldown active, using poster fallback for photos');
+                    }
+                } else if (fullUrl) {
+                    // Pre-flight check: is the photo available or does it need iCloud download?
+                    try {
+                        const checkResp = await fetch(fullUrl, { method: 'HEAD' });
                         if (viewerIndex !== targetIndex) return;
-                        fullResLoaded = true;
-                        if (img.style.opacity === '1' && imgB) {
-                            // Thumbnail is already showing — cross-fade to full-res
-                            imgB.style.display = '';
-                            imgB.src = fullUrl;
-                            imgB.style.opacity = '0';
-                            imgB.style.zIndex = '3';
-                            img.style.zIndex = '2';
-                            requestAnimationFrame(() => {
-                                imgB.style.transition = 'opacity 0.3s ease';
-                                imgB.style.opacity = '1';
-                                setTimeout(() => {
-                                    if (viewerIndex !== targetIndex) return;
-                                    img.src = fullUrl;
-                                    img.style.opacity = '1';
-                                    img.style.zIndex = '2';
-                                    imgB.style.display = 'none';
-                                    imgB.src = '';
-                                    imgB.style.zIndex = '1';
-                                    imgB.style.transition = 'opacity 0.3s';
-                                }, 350);
-                            });
+                        if (checkResp.status === 202) {
+                            // Photo original is in iCloud. Show poster derivative immediately instead of
+                            // blocking the viewer on an iCloud fetch that may hang for some assets.
+                            const serverUrl = ArcPhotos.getServerUrl();
+                            const posterUrl = serverUrl ? `${serverUrl}/api/full/${photo.id}?poster=1` : null;
+                            if (posterUrl) {
+                                img.src = posterUrl;
+                                img.style.opacity = '1';
+                                showingPosterFallback = true;
+                            } else {
+                                const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
+                                if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
+                                    const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
+                                    if (thumbUrl) { img.src = thumbUrl; img.style.opacity = '1'; }
+                                }
+                            }
+                            logDebug('[iCloud] Photo original unavailable locally, showing poster for photo', photo.id);
+                        } else if (checkResp.status === 503) {
+                            // iCloud fetch queue is full (or helper unavailable). Show poster fallback immediately.
+                            photoICloudBusyUntil = Date.now() + 30000; // 30s cooldown
+                            if (posterUrl) {
+                                img.src = posterUrl;
+                                img.style.opacity = '1';
+                                showingPosterFallback = true;
+                            } else {
+                                const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
+                                if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
+                                    const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
+                                    if (thumbUrl) { img.src = thumbUrl; img.style.opacity = '1'; }
+                                }
+                            }
+                            logDebug('[iCloud] /api/full returned 503, showing poster for photo', photo.id);
+                        } else if (checkResp.ok) {
+                            // Photo available — load it
+                            const fullImg = new Image();
+                            fullImg.onload = () => {
+                                if (viewerIndex !== targetIndex) return;
+                                img.src = fullUrl;
+                                img.style.opacity = '1';
+                            };
+                            fullImg.onerror = async () => {
+                                if (viewerIndex !== targetIndex) return;
+                                const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
+                                if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
+                                    const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
+                                    if (thumbUrl) { img.src = thumbUrl; img.style.opacity = '1'; }
+                                }
+                            };
+                            fullImg.src = fullUrl;
                         } else {
-                            // No thumbnail yet — show full-res directly
-                            img.src = fullUrl;
-                            img.style.opacity = '1';
+                            // Server error — fall back to thumbnail
+                            const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
+                            if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
+                                const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
+                                if (thumbUrl) { img.src = thumbUrl; img.style.opacity = '1'; }
+                            }
                         }
-                    };
-                    fullImg.onerror = () => {
-                        if (viewerIndex !== targetIndex) return;
-                        console.warn(`[Viewer] Full-res failed for photo ${photo.id}, keeping thumbnail`);
-                    };
-                    fullImg.src = fullUrl;
-                }
-
-                // Load IDB thumbnail as interim placeholder
-                ArcPhotos.getPhotoById(photo.id).then(dbPhoto => {
-                    if (viewerIndex !== targetIndex || fullResLoaded) return;
-                    if (dbPhoto?.thumbnail) {
-                        const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
-                        if (thumbUrl) {
-                            img.src = thumbUrl;
-                            img.style.opacity = '1';
+                    } catch (e) {
+                        // Network error — fall back to thumbnail
+                        const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
+                        if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
+                            const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
+                            if (thumbUrl) { img.src = thumbUrl; img.style.opacity = '1'; }
                         }
                     }
-                });
+                } else {
+                    // No server — show thumbnail directly
+                    const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
+                    if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
+                        const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
+                        if (thumbUrl) { img.src = thumbUrl; img.style.opacity = '1'; }
+                    }
+                }
             }
 
             // Info line
@@ -12360,6 +12437,7 @@ scrollToDiaryDay(currentDayKey);
                 const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
                 const camera = photo.cameraModel || '';
                 const counter = viewerPhotos.length > 1 ? ` · ${viewerIndex + 1} / ${viewerPhotos.length}` : '';
+                const sourceBadge = (photo.type !== 'video' && showingPosterFallback) ? ' · Poster only' : '';
                 // Duration display for videos
                 let durationStr = '';
                 if (photo.type === 'video' && photo.duration) {
@@ -12367,7 +12445,7 @@ scrollToDiaryDay(currentDayKey);
                     const secs = Math.floor(photo.duration % 60);
                     durationStr = ` · ${mins}:${secs.toString().padStart(2, '0')}`;
                 }
-                info.textContent = `${dateStr} ${timeStr}${camera ? ' · ' + camera : ''}${durationStr}${counter}`;
+                info.textContent = `${dateStr} ${timeStr}${camera ? ' · ' + camera : ''}${durationStr}${counter}${sourceBadge}`;
             }
 
             // Update prev/next visibility

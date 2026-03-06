@@ -10,6 +10,26 @@ const cors = require('cors');
 const Database = require('better-sqlite3');
 const sharp = require('sharp');
 
+process.on('unhandledRejection', (reason) => {
+    console.error('[fatal] unhandledRejection:', reason && reason.stack ? reason.stack : reason);
+});
+
+process.on('uncaughtException', (err) => {
+    console.error('[fatal] uncaughtException:', err && err.stack ? err.stack : err);
+});
+
+process.on('exit', (code) => {
+    console.error(`[process] exit code=${code}`);
+});
+
+process.on('SIGTERM', () => {
+    console.error('[process] received SIGTERM');
+});
+
+process.on('SIGINT', () => {
+    console.error('[process] received SIGINT');
+});
+
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
@@ -667,11 +687,61 @@ function ensurePhotoFetch() {
 function fetchFromICloud(uuid, outputPath, fetchState) {
     return new Promise((resolve, reject) => {
         const tmpPath = outputPath + '.downloading';
+        let settled = false;
+        let doneAt = 0;
+
+        const finishOk = () => {
+            if (settled) return;
+            settled = true;
+            clearInterval(watchdog);
+            resolve({ success: true, path: outputPath });
+        };
+
+        const finishErr = (err) => {
+            if (settled) return;
+            settled = true;
+            clearInterval(watchdog);
+            reject(err instanceof Error ? err : new Error(String(err)));
+        };
+
+        const tryPromoteTmp = () => {
+            try {
+                if (fs.existsSync(outputPath)) {
+                    const outStat = fs.statSync(outputPath);
+                    if (outStat.size > 0) return true;
+                }
+            } catch (_) {}
+            try {
+                if (!fs.existsSync(tmpPath)) return false;
+                const stat = fs.statSync(tmpPath);
+                if (stat.size <= 0) return false;
+                fs.renameSync(tmpPath, outputPath);
+                return true;
+            } catch (_) {
+                return false;
+            }
+        };
+
         const proc = execFile(
             PHOTO_FETCH_BIN,
             [uuid, tmpPath, '--timeout', String(PHOTO_FETCH_TIMEOUT)],
             { timeout: (PHOTO_FETCH_TIMEOUT + 30) * 1000 }
         );
+
+        // If helper reports DONE but process doesn't exit cleanly, finalize from temp cache.
+        const watchdog = setInterval(() => {
+            if (settled) return;
+            const status = fetchState.status || '';
+            if ((status === 'done' || status === 'ready') && doneAt === 0) {
+                doneAt = Date.now();
+            }
+            if (doneAt > 0 && Date.now() - doneAt > 5000) {
+                if (tryPromoteTmp()) {
+                    try { proc.kill('SIGTERM'); } catch (_) {}
+                    finishOk();
+                }
+            }
+        }, 1000);
 
         proc.stdout.on('data', (data) => {
             const lines = data.toString().split('\n');
@@ -681,6 +751,15 @@ function fetchFromICloud(uuid, outputPath, fetchState) {
                     fetchState.status = 'downloading';
                 } else if (line.startsWith('STATUS:')) {
                     fetchState.status = line.substring(7).toLowerCase();
+                    if (fetchState.status === 'done') {
+                        fetchState.progress = 1.0;
+                        doneAt = Date.now();
+                        if (tryPromoteTmp()) {
+                            try { proc.kill('SIGTERM'); } catch (_) {}
+                            finishOk();
+                            return;
+                        }
+                    }
                 } else if (line.startsWith('ERROR:')) {
                     fetchState.error = line.substring(6);
                 }
@@ -694,31 +773,39 @@ function fetchFromICloud(uuid, outputPath, fetchState) {
         });
 
         proc.on('close', (code) => {
-            if (code === 0 && fs.existsSync(tmpPath)) {
-                try {
-                    const stat = fs.statSync(tmpPath);
-                    if (stat.size === 0) {
-                        try { fs.unlinkSync(tmpPath); } catch (_) {}
-                        reject(new Error('Downloaded file is empty'));
-                        return;
-                    }
-                    fs.renameSync(tmpPath, outputPath);
-                    resolve({ success: true, path: outputPath });
-                } catch (err) {
-                    reject(new Error(`Failed to move downloaded video: ${err.message}`));
+            if (settled) return;
+            if (code === 0) {
+                if (tryPromoteTmp()) {
+                    finishOk();
+                    return;
                 }
-            } else {
-                try { fs.unlinkSync(tmpPath); } catch (_) {}
-                const errorMsg = fetchState.error || `photo-fetch exited with code ${code}`;
-                reject(new Error(errorMsg));
+                finishErr(new Error('Downloaded file missing or empty'));
+                return;
             }
+            try { fs.unlinkSync(tmpPath); } catch (_) {}
+            const errorMsg = fetchState.error || `photo-fetch exited with code ${code}`;
+            finishErr(new Error(errorMsg));
         });
 
         proc.on('error', (err) => {
+            if (settled) return;
             try { fs.unlinkSync(tmpPath); } catch (_) {}
-            reject(err);
+            finishErr(err);
         });
     });
+}
+
+function promoteTmpIfComplete(outputPath) {
+    const tmpPath = outputPath + '.downloading';
+    try {
+        if (!fs.existsSync(tmpPath)) return false;
+        const stat = fs.statSync(tmpPath);
+        if (!stat || stat.size <= 0) return false;
+        fs.renameSync(tmpPath, outputPath);
+        return true;
+    } catch (_) {
+        return false;
+    }
 }
 
 // Stream a video file with Range support (reusable for originals and iCloud cache)
@@ -953,27 +1040,32 @@ app.get('/api/photos/info/:id', (req, res) => {
 
 // Thumbnail (200px)
 app.get('/api/thumbnail/:id', async (req, res) => {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) return res.status(400).json({ error: 'Invalid photo ID' });
-
-    const cachePath = await generateThumbnail(id, 200);
-    // Return 204 instead of 404 to avoid noisy browser console "Failed to load resource"
-    // spam during bulk imports where missing originals are expected.
-    if (!cachePath) return res.status(204).end();
-
-    // Safety net: never serve empty files
     try {
-        const stat = fs.statSync(cachePath);
-        if (stat.size === 0) {
-            try { fs.unlinkSync(cachePath); } catch (_) {}
+        const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) return res.status(400).json({ error: 'Invalid photo ID' });
+
+        const cachePath = await generateThumbnail(id, 200);
+        // Return 204 instead of 404 to avoid noisy browser console "Failed to load resource"
+        // spam during bulk imports where missing originals are expected.
+        if (!cachePath) return res.status(204).end();
+
+        // Safety net: never serve empty files
+        try {
+            const stat = fs.statSync(cachePath);
+            if (stat.size === 0) {
+                try { fs.unlinkSync(cachePath); } catch (_) {}
+                return res.status(204).end();
+            }
+        } catch (e) {
             return res.status(204).end();
         }
-    } catch (e) {
-        return res.status(204).end();
-    }
 
-    res.set('Cache-Control', 'public, max-age=300');
-    res.sendFile(cachePath);
+        res.set('Cache-Control', 'public, max-age=300');
+        res.sendFile(cachePath);
+    } catch (err) {
+        console.error(`[thumbnail] unhandled error: ${err?.stack || err}`);
+        if (!res.headersSent) res.status(500).json({ error: 'Thumbnail generation failed' });
+    }
 });
 
 // Content-type mapping for video files
@@ -987,18 +1079,19 @@ const VIDEO_CONTENT_TYPES = {
 
 // Full resolution (1600px max for photos, or stream original for videos)
 app.get('/api/full/:id', async (req, res) => {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) return res.status(400).json({ error: 'Invalid photo ID' });
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) return res.status(400).json({ error: 'Invalid photo ID' });
 
-    // Look up the media item
-    const row = stmts.photoById.get({ id });
-    if (!row) return res.status(404).json({ error: 'Media not found' });
+        // Look up the media item
+        const row = stmts.photoById.get({ id });
+        if (!row) return res.status(404).json({ error: 'Media not found' });
 
-    const formatted = formatRow(row);
-    const originalPath = resolveOriginalPath(formatted);
-    const hasOriginal = originalPath && fs.existsSync(originalPath);
+        const formatted = formatRow(row);
+        const originalPath = resolveOriginalPath(formatted);
+        const hasOriginal = originalPath && fs.existsSync(originalPath);
 
-    if (!hasOriginal) {
+        if (!hasOriginal) {
         // Try iCloud fetch for both photos and videos when UUID is available.
         // ?poster=1 skips iCloud fetch — serves derivative still image as placeholder
         if (photoFetchAvailable && formatted._uuid && !req.query.poster) {
@@ -1024,6 +1117,19 @@ app.get('/api/full/:id', async (req, res) => {
             // Check if fetch is already in progress for this UUID
             if (activeFetches.has(uuid)) {
                 const state = activeFetches.get(uuid);
+                // Recovery path: helper may have written a complete temp file but not exited yet.
+                if ((state.status === 'done' || state.status === 'ready' || (state.progress || 0) >= 1)) {
+                    if (promoteTmpIfComplete(cachedMediaPath) || fs.existsSync(cachedMediaPath)) {
+                        try {
+                            const stat = fs.statSync(cachedMediaPath);
+                            if (stat.size > 0) {
+                                if (isVideo) return serveVideoFile(cachedMediaPath, req, res);
+                                res.set('Cache-Control', 'public, max-age=300');
+                                return res.sendFile(cachedMediaPath);
+                            }
+                        } catch (_) {}
+                    }
+                }
                 return res.status(202).json({
                     status: state.status || 'downloading',
                     progress: state.progress || 0,
@@ -1054,8 +1160,14 @@ app.get('/api/full/:id', async (req, res) => {
 
             fetchFromICloud(uuid, cachedMediaPath, fetchState).then(() => {
                 console.log(`iCloud: downloaded ${uuid} successfully`);
+                // Mark as ready BEFORE cleanup so the status endpoint
+                // returns 'ready' immediately — not 'done' or 'downloading'.
+                fetchState.status = 'ready';
+                fetchState.progress = 1.0;
             }).catch((err) => {
                 console.error(`iCloud: fetch failed for ${uuid} — ${err.message}`);
+                fetchState.status = 'failed';
+                fetchState.error = err.message;
             }).finally(() => {
                 activeFetches.delete(uuid);
                 activeICloudCount--;
@@ -1069,45 +1181,49 @@ app.get('/api/full/:id', async (req, res) => {
         }
 
         // No original and not a fetchable video — generate resized derivative (up to 1600px)
-        const posterPath = await generateThumbnail(id, 1600);
-        if (!posterPath) {
-            return res.status(404).json({ error: 'Original file not found (may be in iCloud)' });
+            const posterPath = await generateThumbnail(id, 1600);
+            if (!posterPath) {
+                return res.status(404).json({ error: 'Original file not found (may be in iCloud)' });
+            }
+            try {
+                const stat = fs.statSync(posterPath);
+                if (stat.size === 0) {
+                    try { fs.unlinkSync(posterPath); } catch (_) {}
+                    return res.status(404).json({ error: 'Generated image was empty' });
+                }
+            } catch (e) {
+                return res.status(404).json({ error: 'Image file missing' });
+            }
+            res.set('Cache-Control', 'public, max-age=300');
+            return res.sendFile(posterPath);
         }
+
+        // Video: stream the original file with Range support for seeking
+        if (isVideoFile(originalPath)) {
+            return serveVideoFile(originalPath, req, res);
+        }
+
+        // Photo: generate resized version (existing behaviour)
+        const cachePath = await generateThumbnail(id, 1600);
+        if (!cachePath) return res.status(404).json({ error: 'Photo not found or unsupported format' });
+
+        // Safety net: never serve empty files
         try {
-            const stat = fs.statSync(posterPath);
+            const stat = fs.statSync(cachePath);
             if (stat.size === 0) {
-                try { fs.unlinkSync(posterPath); } catch (_) {}
+                try { fs.unlinkSync(cachePath); } catch (_) {}
                 return res.status(404).json({ error: 'Generated image was empty' });
             }
         } catch (e) {
             return res.status(404).json({ error: 'Image file missing' });
         }
+
         res.set('Cache-Control', 'public, max-age=300');
-        return res.sendFile(posterPath);
+        res.sendFile(cachePath);
+    } catch (err) {
+        console.error(`[full] unhandled error: ${err?.stack || err}`);
+        if (!res.headersSent) res.status(500).json({ error: 'Media fetch failed' });
     }
-
-    // Video: stream the original file with Range support for seeking
-    if (isVideoFile(originalPath)) {
-        return serveVideoFile(originalPath, req, res);
-    }
-
-    // Photo: generate resized version (existing behaviour)
-    const cachePath = await generateThumbnail(id, 1600);
-    if (!cachePath) return res.status(404).json({ error: 'Photo not found or unsupported format' });
-
-    // Safety net: never serve empty files
-    try {
-        const stat = fs.statSync(cachePath);
-        if (stat.size === 0) {
-            try { fs.unlinkSync(cachePath); } catch (_) {}
-            return res.status(404).json({ error: 'Generated image was empty' });
-        }
-    } catch (e) {
-        return res.status(404).json({ error: 'Image file missing' });
-    }
-
-    res.set('Cache-Control', 'public, max-age=300');
-    res.sendFile(cachePath);
 });
 
 // iCloud download status polling endpoint
@@ -1144,6 +1260,12 @@ app.get('/api/icloud-status/:id', (req, res) => {
     // Check if fetch is in progress
     if (activeFetches.has(uuid)) {
         const state = activeFetches.get(uuid);
+        // Recovery path for stuck helper process after writing the temp file.
+        const outputPath = (state.mediaType === 'Video') ? cachedVideoPath : cachedPhotoPath;
+        if ((state.status === 'done' || state.status === 'ready' || (state.progress || 0) >= 1)
+            && (promoteTmpIfComplete(outputPath) || (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0))) {
+            return res.json({ status: 'ready', progress: 1.0 });
+        }
         return res.json({
             status: state.status || 'downloading',
             progress: state.progress || 0,
