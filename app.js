@@ -11361,10 +11361,7 @@ scrollToDiaryDay(currentDayKey);
                     const rawMatched = matches.get(key);
                     if (!rawMatched || rawMatched.length === 0) continue;
                     // Filter to valid thumbnails and exclude already-shown photos
-                    let matched = rawMatched.filter(p =>
-                        ((p.thumbnail && p.thumbnail.size > 0) || p.thumbnailMissingReason) &&
-                        !shownPhotoIds.has(p.id)
-                    );
+                    let matched = rawMatched.filter(p => p.thumbnail && p.thumbnail.size > 0 && !shownPhotoIds.has(p.id));
                     // 'videos' filter: only show video items
                     if (filter === 'videos') matched = matched.filter(p => p.type === 'video');
                     if (matched.length === 0) continue;
@@ -11444,7 +11441,7 @@ scrollToDiaryDay(currentDayKey);
             grid.innerHTML = '';
             // Filter to photos with valid thumbnails, respect diary view filter, sort chronologically
             const filter = getDiaryViewFilter();
-            let visiblePhotos = photos.filter(p => (p.thumbnail && p.thumbnail.size > 0) || p.thumbnailMissingReason);
+            let visiblePhotos = photos.filter(p => p.thumbnail && p.thumbnail.size > 0);
             if (filter === 'videos') visiblePhotos = visiblePhotos.filter(p => p.type === 'video');
             if (filter === 'hide-media' || filter === 'notes') visiblePhotos = [];
             visiblePhotos.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -11621,7 +11618,7 @@ scrollToDiaryDay(currentDayKey);
             // Guard: if the day changed while we were awaiting, discard results
             if (currentDayKey !== dayKey) return;
 
-            let gpsPhotos = photos.filter(p => p.latitude && p.longitude && ((p.thumbnail && p.thumbnail.size > 0) || p.thumbnailMissingReason));
+            let gpsPhotos = photos.filter(p => p.latitude && p.longitude && p.thumbnail && p.thumbnail.size > 0);
             if (filter === 'videos') gpsPhotos = gpsPhotos.filter(p => p.type === 'video');
             if (gpsPhotos.length === 0) return;
 
@@ -11839,10 +11836,8 @@ scrollToDiaryDay(currentDayKey);
             if (token !== photoViewerDaySyncToken) return; // superseded by another day change
             if (!Array.isArray(photos) || photos.length === 0) return;
 
-            // Keep items that can be rendered (real thumbnail or metadata placeholder)
-            const renderable = photos.filter(p =>
-                (p.thumbnail && p.thumbnail.size > 0) || p.thumbnailMissingReason
-            );
+            // Keep items that have real thumbnails
+            const renderable = photos.filter(p => p.thumbnail && p.thumbnail.size > 0);
             if (renderable.length === 0) return;
             renderable.sort((a, b) => new Date(a.date) - new Date(b.date));
             openPhotoViewer(renderable[0].id, renderable, { focus: false });
@@ -12270,32 +12265,6 @@ scrollToDiaryDay(currentDayKey);
                 img.style.opacity = '0';
 
                 if (fullUrl) {
-                    // For placeholder-backed photos, trigger iCloud fetch/poll first.
-                    if (photo.thumbnailMissingReason) {
-                        try {
-                            if (info) info.textContent += ' • Downloading from iCloud…';
-                            const result = await ArcPhotos.requestICloudMedia(photo.id);
-                            if (viewerIndex !== targetIndex) return;
-                            if (result?.ready && result.url) {
-                                img.src = result.url;
-                                img.style.opacity = '1';
-                                return;
-                            }
-                            // Keep placeholder visible if fetch failed.
-                            const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
-                            if (dbPhoto && viewerIndex === targetIndex) {
-                                const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
-                                if (thumbUrl) {
-                                    img.src = thumbUrl;
-                                    img.style.opacity = '1';
-                                }
-                            }
-                            return;
-                        } catch (_) {
-                            // Fall through to normal full image attempt.
-                        }
-                    }
-
                     // Try to load full-res directly (skip thumbnail flash)
                     const fullImg = new Image();
                     const loadTimeout = setTimeout(async () => {
@@ -12537,9 +12506,6 @@ scrollToDiaryDay(currentDayKey);
                             }
                         }, importOpts);
                         let doneMsg = `Done — ${result.imported} imported`;
-                        if (typeof result.importedWithPlaceholder === 'number' && result.importedWithPlaceholder > 0) {
-                            doneMsg += ` (${result.importedWithPlaceholder} placeholders)`;
-                        }
                         if (result.skipped > 0) {
                             doneMsg += `, ${result.skipped} skipped`;
                             const sb = result.skipBreakdown;
