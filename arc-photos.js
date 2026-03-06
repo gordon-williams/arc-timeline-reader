@@ -101,6 +101,25 @@
         });
     }
 
+    // Fast key-only scan — returns Set of all photo IDs currently stored in IDB.
+    // Uses getAllKeys() which avoids reading blob data, so it stays fast even for
+    // large libraries. Used during import to avoid overwriting existing records.
+    function getExistingPhotoIds() {
+        return new Promise((resolve) => {
+            const db = getDb();
+            if (!db) return resolve(new Set());
+            try {
+                const tx = db.transaction('photos', 'readonly');
+                const store = tx.objectStore('photos');
+                const req = store.getAllKeys();
+                req.onsuccess = () => resolve(new Set(req.result));
+                req.onerror = () => resolve(new Set());
+            } catch (e) {
+                resolve(new Set());
+            }
+        });
+    }
+
     function getPhotoCount() {
         return new Promise((resolve) => {
             const db = getDb();
@@ -407,6 +426,10 @@
         let skipHttp = 0, skipEmptyBlob = 0, skipError = 0;
         const total = allPhotos.length;
 
+        // Pre-load existing IDB photo IDs to avoid overwriting records that already
+        // have real thumbnails with placeholder records during re-import.
+        const existingIds = await getExistingPhotoIds();
+
         function makePhotoRecord(photo, thumbnailBlob = null, missingReason = null) {
             return {
                 id: photo.id,
@@ -434,7 +457,7 @@
                 if (!thumbResp.ok) {
                     skipped++;
                     skipHttp++;
-                    if (thumbResp.status === 204) {
+                    if (thumbResp.status === 204 && !existingIds.has(photo.id)) {
                         return makePhotoRecord(photo, null, 'noLocalMedia');
                     }
                     return null;
@@ -443,7 +466,10 @@
                 if (!blob || blob.size === 0) {
                     skipped++;
                     skipEmptyBlob++;
-                    return makePhotoRecord(photo, null, 'emptyThumbnail');
+                    if (!existingIds.has(photo.id)) {
+                        return makePhotoRecord(photo, null, 'emptyThumbnail');
+                    }
+                    return null;
                 }
                 return makePhotoRecord(photo, blob);
             } catch (e) {
@@ -470,15 +496,21 @@
         }
 
         // Persist metadata-only placeholders for known unavailable media.
+        // Only create placeholders for photos not already stored in IDB — this
+        // prevents overwriting existing records that have real thumbnails when a
+        // photo has been evicted to iCloud since the last import.
         if (unavailablePhotos.length > 0) {
-            progressCb?.({ phase: 'metadata', percent: 48, message: `Saving ${unavailablePhotos.length.toLocaleString()} unavailable items as placeholders...` });
-            for (const photo of unavailablePhotos) {
-                pendingRecords.push(makePhotoRecord(photo, null, 'noLocalMedia'));
-                if (pendingRecords.length >= BATCH_SIZE) {
-                    await drainToIDB();
+            const newUnavailable = unavailablePhotos.filter(p => !existingIds.has(p.id));
+            if (newUnavailable.length > 0) {
+                progressCb?.({ phase: 'metadata', percent: 48, message: `Saving ${newUnavailable.length.toLocaleString()} unavailable items as placeholders...` });
+                for (const photo of newUnavailable) {
+                    pendingRecords.push(makePhotoRecord(photo, null, 'noLocalMedia'));
+                    if (pendingRecords.length >= BATCH_SIZE) {
+                        await drainToIDB();
+                    }
                 }
+                await drainToIDB();
             }
-            await drainToIDB();
         }
 
         // Worker function — pulls next photo, fetches, pushes to pendingRecords
