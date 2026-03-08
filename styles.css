@@ -6935,6 +6935,17 @@ li.route-clickable:hover {
     object-fit: cover !important;
 }
 
+/* Interactive zoom/pan cursor */
+.photo-viewer-body.viewer-zoomed {
+    cursor: grab;
+}
+.photo-viewer-body.viewer-zoomed:active {
+    cursor: grabbing;
+}
+.photo-viewer-body.viewer-zoomed img {
+    transition: none !important;
+}
+
 /* Disabled sub-options */
 .slideshow-settings-row.disabled {
     opacity: 0.4;

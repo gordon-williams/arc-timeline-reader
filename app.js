@@ -11337,6 +11337,75 @@ scrollToDiaryDay(currentDayKey);
         let slideshowAutoFit = true;
         let kenBurnsAnimations = [];      // active Web Animation objects for cleanup
         let navDirection = 1;             // 1 = forward (next), -1 = backward (prev)
+        let pendingVideoLoadTimer = null; // delayed video load after rapid navigation
+
+        // Interactive zoom & pan state
+        let viewerZoom = 1;
+        let viewerPanX = 0;          // px offset from centre
+        let viewerPanY = 0;
+        let viewerDragging = false;
+        let viewerDragStartX = 0;
+        let viewerDragStartY = 0;
+        let viewerDragPanX = 0;
+        let viewerDragPanY = 0;
+        const VIEWER_MAX_ZOOM = 10;
+        const VIEWER_ZOOM_STEP = 1.15; // 15% per wheel tick
+
+        // Apply current zoom/pan transform to the front image
+        function applyViewerZoom() {
+            const img = crossFadeFront === 'A'
+                ? document.getElementById('photoViewerImg')
+                : document.getElementById('photoViewerImgB');
+            const body = img && img.closest('.photo-viewer-body');
+            if (viewerZoom <= 1) {
+                viewerZoom = 1;
+                viewerPanX = 0;
+                viewerPanY = 0;
+                if (img) { img.style.transform = 'none'; img.style.transition = 'opacity 0.3s'; }
+                if (body) body.classList.remove('viewer-zoomed');
+                return;
+            }
+            if (img) {
+                img.style.transition = 'none'; // no lag while zooming
+                img.style.transform = `translate(${viewerPanX}px, ${viewerPanY}px) scale(${viewerZoom})`;
+            }
+            if (body) body.classList.add('viewer-zoomed');
+        }
+
+        // Reset zoom/pan to defaults on both images
+        function resetViewerZoom() {
+            viewerZoom = 1;
+            viewerPanX = 0;
+            viewerPanY = 0;
+            viewerDragging = false;
+            const imgA = document.getElementById('photoViewerImg');
+            const imgB = document.getElementById('photoViewerImgB');
+            if (imgA) { imgA.style.transform = 'none'; imgA.style.transition = 'opacity 0.3s'; }
+            if (imgB) { imgB.style.transform = 'none'; imgB.style.transition = 'opacity 0.3s'; }
+            const body = imgA && imgA.closest('.photo-viewer-body');
+            if (body) body.classList.remove('viewer-zoomed');
+        }
+
+        // Clamp pan so the image can't be dragged entirely off-screen
+        function clampViewerPan() {
+            if (viewerZoom <= 1) { viewerPanX = 0; viewerPanY = 0; return; }
+            const img = crossFadeFront === 'A'
+                ? document.getElementById('photoViewerImg')
+                : document.getElementById('photoViewerImgB');
+            const body = img && img.closest('.photo-viewer-body');
+            if (!body) return;
+            // Scaled half-dimensions of the element (which fills the container)
+            const hw = body.clientWidth * viewerZoom / 2;
+            const hh = body.clientHeight * viewerZoom / 2;
+            // Container half-dimensions
+            const chw = body.clientWidth / 2;
+            const chh = body.clientHeight / 2;
+            // Allow panning until the image edge just reaches the container centre
+            const maxPanX = Math.max(0, hw - chw);
+            const maxPanY = Math.max(0, hh - chh);
+            viewerPanX = Math.max(-maxPanX, Math.min(maxPanX, viewerPanX));
+            viewerPanY = Math.max(-maxPanY, Math.min(maxPanY, viewerPanY));
+        }
 
         // Inject photo thumbnail strips into rendered diary entries
         async function attachPhotoStrips() {
@@ -11887,6 +11956,21 @@ scrollToDiaryDay(currentDayKey);
                     if (e.key === 'ArrowLeft') { e.preventDefault(); navigatePhoto(-1); }
                     else if (e.key === 'ArrowRight') { e.preventDefault(); navigatePhoto(1); }
                     else if (e.key === ' ') { e.preventDefault(); toggleSlideshow(); }
+                    else if ((e.key === '+' || e.key === '=') && !slideshowPlaying) {
+                        e.preventDefault();
+                        viewerZoom = Math.min(VIEWER_MAX_ZOOM, viewerZoom * VIEWER_ZOOM_STEP);
+                        clampViewerPan(); applyViewerZoom();
+                    }
+                    else if (e.key === '-' && !slideshowPlaying) {
+                        e.preventDefault();
+                        const newZoom = viewerZoom / VIEWER_ZOOM_STEP;
+                        viewerZoom = newZoom < 1.01 ? 1 : newZoom;
+                        if (viewerZoom <= 1) { viewerPanX = 0; viewerPanY = 0; }
+                        clampViewerPan(); applyViewerZoom();
+                    }
+                    else if (e.key === '0' && !slideshowPlaying) {
+                        e.preventDefault(); resetViewerZoom();
+                    }
                 };
                 overlay.addEventListener('keydown', overlay._keyHandler);
                 // Re-focus overlay on click so arrow keys work after clicking nav buttons, etc.
@@ -11905,6 +11989,150 @@ scrollToDiaryDay(currentDayKey);
                         }
                     }
                 });
+
+                // ── Zoom / pan event handlers ──
+                const viewerBody = modal.querySelector('.photo-viewer-body');
+                if (viewerBody && !viewerBody._zoomInit) {
+                    viewerBody._zoomInit = true;
+
+                    // Mouse wheel → zoom at cursor position
+                    viewerBody.addEventListener('wheel', (e) => {
+                        if (slideshowPlaying) return;
+                        if (e.target.tagName === 'VIDEO') return;
+                        e.preventDefault();
+                        const rect = viewerBody.getBoundingClientRect();
+                        const mx = e.clientX - rect.left - rect.width / 2;
+                        const my = e.clientY - rect.top  - rect.height / 2;
+                        const factor = e.deltaY < 0 ? VIEWER_ZOOM_STEP : 1 / VIEWER_ZOOM_STEP;
+                        const newZoom = Math.min(VIEWER_MAX_ZOOM, Math.max(1, viewerZoom * factor));
+                        if (newZoom === 1) {
+                            viewerPanX = 0; viewerPanY = 0;
+                        } else {
+                            const ratio = newZoom / viewerZoom;
+                            viewerPanX = mx - (mx - viewerPanX) * ratio;
+                            viewerPanY = my - (my - viewerPanY) * ratio;
+                        }
+                        viewerZoom = newZoom;
+                        clampViewerPan();
+                        applyViewerZoom();
+                    }, { passive: false });
+
+                    // Double-click → toggle 1x ↔ 2x at click point
+                    viewerBody.addEventListener('dblclick', (e) => {
+                        if (slideshowPlaying) return;
+                        if (e.target.tagName === 'VIDEO') return;
+                        if (e.target.closest('.photo-viewer-nav')) return;
+                        e.preventDefault();
+                        if (viewerZoom > 1) {
+                            // Reset to fit
+                            viewerZoom = 1; viewerPanX = 0; viewerPanY = 0;
+                        } else {
+                            // Zoom to 2x at click point
+                            const rect = viewerBody.getBoundingClientRect();
+                            const mx = e.clientX - rect.left - rect.width / 2;
+                            const my = e.clientY - rect.top  - rect.height / 2;
+                            const newZoom = 2;
+                            const ratio = newZoom / viewerZoom;
+                            viewerPanX = mx - (mx - viewerPanX) * ratio;
+                            viewerPanY = my - (my - viewerPanY) * ratio;
+                            viewerZoom = newZoom;
+                        }
+                        clampViewerPan();
+                        applyViewerZoom();
+                    });
+
+                    // Drag to pan (mouse)
+                    viewerBody.addEventListener('mousedown', (e) => {
+                        if (viewerZoom <= 1 || slideshowPlaying) return;
+                        if (e.target.tagName === 'VIDEO') return;
+                        if (e.target.closest('.photo-viewer-nav')) return;
+                        if (e.button !== 0) return; // left button only
+                        viewerDragging = true;
+                        viewerDragStartX = e.clientX;
+                        viewerDragStartY = e.clientY;
+                        viewerDragPanX = viewerPanX;
+                        viewerDragPanY = viewerPanY;
+                        e.preventDefault();
+                    });
+                    viewerBody.addEventListener('mousemove', (e) => {
+                        if (!viewerDragging) return;
+                        viewerPanX = viewerDragPanX + (e.clientX - viewerDragStartX);
+                        viewerPanY = viewerDragPanY + (e.clientY - viewerDragStartY);
+                        clampViewerPan();
+                        applyViewerZoom();
+                    });
+                    const endDrag = () => { viewerDragging = false; };
+                    viewerBody.addEventListener('mouseup', endDrag);
+                    viewerBody.addEventListener('mouseleave', endDrag);
+
+                    // Touch: pinch-to-zoom + one-finger pan
+                    let touchStartDist = 0;
+                    let touchStartZoom = 1;
+                    let touchStartMid = { x: 0, y: 0 };
+                    let touchStartPan = { x: 0, y: 0 };
+                    let touchIsPinch = false;
+
+                    viewerBody.addEventListener('touchstart', (e) => {
+                        if (slideshowPlaying) return;
+                        if (e.touches.length === 2) {
+                            // Pinch start
+                            touchIsPinch = true;
+                            const dx = e.touches[0].clientX - e.touches[1].clientX;
+                            const dy = e.touches[0].clientY - e.touches[1].clientY;
+                            touchStartDist = Math.hypot(dx, dy);
+                            touchStartZoom = viewerZoom;
+                            const rect = viewerBody.getBoundingClientRect();
+                            touchStartMid = {
+                                x: (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left - rect.width / 2,
+                                y: (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top  - rect.height / 2
+                            };
+                            touchStartPan = { x: viewerPanX, y: viewerPanY };
+                            e.preventDefault();
+                        } else if (e.touches.length === 1 && viewerZoom > 1) {
+                            // One-finger pan start
+                            touchIsPinch = false;
+                            viewerDragging = true;
+                            viewerDragStartX = e.touches[0].clientX;
+                            viewerDragStartY = e.touches[0].clientY;
+                            viewerDragPanX = viewerPanX;
+                            viewerDragPanY = viewerPanY;
+                            e.preventDefault();
+                        }
+                    }, { passive: false });
+
+                    viewerBody.addEventListener('touchmove', (e) => {
+                        if (slideshowPlaying) return;
+                        if (touchIsPinch && e.touches.length === 2) {
+                            const dx = e.touches[0].clientX - e.touches[1].clientX;
+                            const dy = e.touches[0].clientY - e.touches[1].clientY;
+                            const dist = Math.hypot(dx, dy);
+                            const scale = dist / touchStartDist;
+                            const newZoom = Math.min(VIEWER_MAX_ZOOM, Math.max(1, touchStartZoom * scale));
+                            const ratio = newZoom / touchStartZoom;
+                            if (newZoom <= 1) {
+                                viewerPanX = 0; viewerPanY = 0;
+                            } else {
+                                viewerPanX = touchStartMid.x - (touchStartMid.x - touchStartPan.x) * ratio;
+                                viewerPanY = touchStartMid.y - (touchStartMid.y - touchStartPan.y) * ratio;
+                            }
+                            viewerZoom = newZoom;
+                            clampViewerPan();
+                            applyViewerZoom();
+                            e.preventDefault();
+                        } else if (viewerDragging && e.touches.length === 1) {
+                            viewerPanX = viewerDragPanX + (e.touches[0].clientX - viewerDragStartX);
+                            viewerPanY = viewerDragPanY + (e.touches[0].clientY - viewerDragStartY);
+                            clampViewerPan();
+                            applyViewerZoom();
+                            e.preventDefault();
+                        }
+                    }, { passive: false });
+
+                    viewerBody.addEventListener('touchend', (e) => {
+                        if (e.touches.length < 2) touchIsPinch = false;
+                        if (e.touches.length === 0) viewerDragging = false;
+                    });
+                }
             }
 
             // Focus only for explicit user opens; day-sync should not steal arrow-key focus.
@@ -11938,6 +12166,14 @@ scrollToDiaryDay(currentDayKey);
                 if (savedUrl) url = `${savedUrl.replace(/\/+$/, '')}/api/full/${photoId}`;
             }
             return url;
+        }
+
+        function getPhotoPosterUrl(photoId) {
+            const serverUrl = window.ArcPhotos && ArcPhotos.getServerUrl
+                ? ArcPhotos.getServerUrl()
+                : localStorage.getItem('arcPhotoServerUrl');
+            if (!serverUrl) return null;
+            return `${serverUrl.replace(/\/+$/, '')}/api/full/${photoId}?poster=1`;
         }
 
         function initPhotoViewerDrag(modal) {
@@ -12134,6 +12370,8 @@ scrollToDiaryDay(currentDayKey);
         function closePhotoViewer() {
             const overlay = document.getElementById('photoViewer');
             if (!overlay) return;
+            // Cancel any pending delayed video load
+            if (pendingVideoLoadTimer) { clearTimeout(pendingVideoLoadTimer); pendingVideoLoadTimer = null; }
             // Exit fullscreen if active
             if (document.fullscreenElement) {
                 document.exitFullscreen().catch(() => {});
@@ -12143,6 +12381,7 @@ scrollToDiaryDay(currentDayKey);
             // Stop slideshow if playing
             if (slideshowPlaying) stopSlideshow();
             cancelAllKenBurns();
+            resetViewerZoom();
             closeSlideshowSettings();
             // Reset cross-fade state
             crossFadeFront = 'A';
@@ -12292,17 +12531,23 @@ scrollToDiaryDay(currentDayKey);
                 modal.classList.remove('maximized');
             }
 
-            // Get content dimensions
+            // Get content dimensions — use whichever image is currently in front
             const video = document.getElementById('photoViewerVideo');
-            const img = document.getElementById('photoViewerImg');
+            const imgA = document.getElementById('photoViewerImg');
+            const imgB = document.getElementById('photoViewerImgB');
+            const img = crossFadeFront === 'A' ? imgA : imgB;
             let contentW = 0, contentH = 0;
 
             if (video && video.style.display !== 'none' && video.videoWidth) {
                 contentW = video.videoWidth;
                 contentH = video.videoHeight;
-            } else if (img && img.style.display !== 'none' && img.naturalWidth) {
+            } else if (img && img.naturalWidth) {
                 contentW = img.naturalWidth;
                 contentH = img.naturalHeight;
+            } else if (imgA && imgA.naturalWidth) {
+                // Fallback to imgA (e.g., before first transition)
+                contentW = imgA.naturalWidth;
+                contentH = imgA.naturalHeight;
             }
 
             if (!contentW || !contentH) return;
@@ -12386,17 +12631,46 @@ scrollToDiaryDay(currentDayKey);
             if (viewerPhotos.length === 0) return;
             if (slideshowPlaying) stopSlideshow();
             cancelAllKenBurns();
+            resetViewerZoom();
+
+            // Cancel any pending delayed video load from a previous navigation
+            if (pendingVideoLoadTimer) {
+                clearTimeout(pendingVideoLoadTimer);
+                pendingVideoLoadTimer = null;
+            }
+
             viewerIndex = (viewerIndex + dir + viewerPhotos.length) % viewerPhotos.length;
+            navDirection = dir;
+
+            // Hide iCloud overlay if it was showing from a previous video
+            const icloudOvl = document.getElementById('photoViewerICloudOverlay');
+            if (icloudOvl) icloudOvl.style.display = 'none';
+
+            // Pause any playing video immediately so it doesn't keep playing behind the next image
+            const video = document.getElementById('photoViewerVideo');
+            if (video && video.style.display !== 'none') {
+                video.pause();
+                video.removeAttribute('src');
+                video.load();
+                video.style.display = 'none';
+            }
+
+            // Always use crossfade transition — for videos this shows the poster image,
+            // giving instant visual feedback and letting the user flick past quickly.
+            crossFadeToCurrentPhoto();
+
+            // If landing on a video, schedule the actual video element load after a
+            // short settle delay.  If the user navigates away before the timer fires
+            // the load is cancelled, avoiding wasted network/decode work.
             const photo = viewerPhotos[viewerIndex];
-            // Videos need full showViewerPhoto handling (video element, iCloud overlay, etc.)
             if (photo && photo.type === 'video') {
-                showViewerPhoto();
-            } else {
-                navDirection = dir;
-                // Hide iCloud overlay if it was showing from a previous video
-                const icloudOvl = document.getElementById('photoViewerICloudOverlay');
-                if (icloudOvl) icloudOvl.style.display = 'none';
-                crossFadeToCurrentPhoto();
+                const targetIdx = viewerIndex;
+                pendingVideoLoadTimer = setTimeout(() => {
+                    pendingVideoLoadTimer = null;
+                    if (viewerIndex === targetIdx) {
+                        loadVideoForCurrentPhoto(targetIdx);
+                    }
+                }, 600);
             }
         }
 
@@ -12527,7 +12801,8 @@ scrollToDiaryDay(currentDayKey);
                         imgEl.style.width = '';
                         imgEl.style.height = '';
                         imgEl.style.objectFit = '';
-                        imgEl.src = result.url;
+                        const posterUrl = getPhotoPosterUrl(photo.id);
+                        if (posterUrl) imgEl.src = posterUrl;
                         imgEl.style.opacity = '1';
                     };
                     videoEl.src = result.url;
@@ -12579,6 +12854,10 @@ scrollToDiaryDay(currentDayKey);
         async function showViewerPhoto() {
             const photo = viewerPhotos[viewerIndex];
             if (!photo) return;
+            resetViewerZoom();
+
+            // Cancel any pending delayed video load from navigatePhoto
+            if (pendingVideoLoadTimer) { clearTimeout(pendingVideoLoadTimer); pendingVideoLoadTimer = null; }
 
             // Clear fit-by-button flag so the fit button recalculates
             // for new content instead of toggling off
@@ -12618,12 +12897,24 @@ scrollToDiaryDay(currentDayKey);
                 if (imgB) { imgB.style.display = 'none'; imgB.src = ''; }
 
                 const videoUrl = getPhotoFullUrl(photo.id);
+                const posterUrl = getPhotoPosterUrl(photo.id);
                 if (videoUrl) {
                     // Pre-flight check: is the video available or does it need iCloud download?
                     try {
                         const checkResp = await fetch(videoUrl, { method: 'HEAD' });
                         if (viewerIndex !== targetIndex) return; // user navigated away during fetch
-                        if (checkResp.status === 202) {
+
+                        // Some items are ZKIND=1 (video) in Apple Photos but the server
+                        // only has a still image.  Detect via Content-Type and reclassify.
+                        // Check status===200 specifically — 202 also satisfies .ok but
+                        // has application/json content (iCloud download in progress).
+                        const ct = checkResp.headers.get('Content-Type') || '';
+                        if (checkResp.status === 200 && !ct.startsWith('video/')) {
+                            photo.type = 'photo';
+                            img.style.display = '';
+                            img.src = videoUrl;  // server already returned the image
+                            img.style.opacity = '1';
+                        } else if (checkResp.status === 202) {
                             // Video needs iCloud download — show progress overlay (no video/img visible)
                             console.log('[iCloud] Video needs download, showing overlay for photo', photo.id);
                             showICloudDownloadOverlay(photo, video, img, targetIndex);
@@ -12634,7 +12925,7 @@ scrollToDiaryDay(currentDayKey);
                             video.onerror = () => {
                                 video.style.display = 'none';
                                 img.style.display = '';
-                                img.src = videoUrl;
+                                if (posterUrl) img.src = posterUrl;
                                 img.style.opacity = '1';
                             };
                             video.src = videoUrl;
@@ -12642,7 +12933,7 @@ scrollToDiaryDay(currentDayKey);
                         } else {
                             // 404 or other error — fall back to still image
                             img.style.display = '';
-                            img.src = videoUrl;
+                            if (posterUrl) img.src = posterUrl;
                             img.style.opacity = '1';
                         }
                     } catch (e) {
@@ -12651,7 +12942,7 @@ scrollToDiaryDay(currentDayKey);
                         video.onerror = () => {
                             video.style.display = 'none';
                             img.style.display = '';
-                            img.src = videoUrl;
+                            if (posterUrl) img.src = posterUrl;
                             img.style.opacity = '1';
                         };
                         video.src = videoUrl;
@@ -13159,9 +13450,28 @@ scrollToDiaryDay(currentDayKey);
 
         function startSlideshow() {
             if (viewerPhotos.length <= 1) return;
+            resetViewerZoom();
+            // Cancel any pending delayed video load
+            if (pendingVideoLoadTimer) { clearTimeout(pendingVideoLoadTimer); pendingVideoLoadTimer = null; }
 
-            // Auto-fit viewer when slideshow starts (skip if already fullscreen)
-            if (slideshowAutoFit && !document.fullscreenElement) fitPhotoViewerToContent();
+            // Sort photos chronologically so slideshow order is predictable
+            // (map popup opens can leave viewerPhotos in arbitrary order)
+            const currentId = viewerPhotos[viewerIndex]?.id;
+            viewerPhotos.sort((a, b) => new Date(a.date) - new Date(b.date));
+            if (currentId != null) {
+                const newIdx = viewerPhotos.findIndex(p => p.id === currentId);
+                if (newIdx !== -1) viewerIndex = newIdx;
+            }
+
+            // Auto-fit viewer when slideshow starts (skip if already fullscreen
+            // or if the user already explicitly fitted via the Fit button —
+            // calling fitPhotoViewerToContent when fittedByBtn is set would
+            // trigger its toggle-off logic and undo the user's portrait fit)
+            const _modal = document.getElementById('photoViewerModal');
+            const alreadyUserFitted = _modal && _modal.classList.contains('fitted') && _modal.dataset.fittedByBtn === '1';
+            if (slideshowAutoFit && !document.fullscreenElement && !alreadyUserFitted) {
+                fitPhotoViewerToContent();
+            }
 
             slideshowPlaying = true;
             const btn = document.getElementById('photoViewerSlideshowBtn');
@@ -13169,11 +13479,10 @@ scrollToDiaryDay(currentDayKey);
             if (btn) { btn.textContent = '\u23F8'; btn.classList.add('active'); } // ⏸
             if (speedBtn) { speedBtn.style.display = ''; speedBtn.textContent = (slideshowSpeed / 1000) + 's'; }
 
-            // Start Ken Burns on the currently displayed image
-            const curImg = crossFadeFront === 'A'
-                ? document.getElementById('photoViewerImg')
-                : document.getElementById('photoViewerImgB');
-            if (curImg) startKenBurns(curImg);
+            // Ken Burns on the first displayed image is handled by the first
+            // slideshowAdvance → crossFadeToCurrentPhoto transition.  Starting it
+            // here would cause a jarring object-fit: contain → cover jump because
+            // the image is already visible at its letterboxed size.
 
             slideshowTimer = setInterval(() => slideshowAdvance(), slideshowSpeed);
         }
@@ -13261,8 +13570,19 @@ scrollToDiaryDay(currentDayKey);
                 ready.src = url;
             };
 
-            // Check if this slide was already preloaded
-            if (slideshowPreloaded.index === targetIndex && slideshowPreloaded.url) {
+            // For video items, use poster URL directly — don't send the video URL
+            // through resolvePhotoUrl which would try to preload it as an Image.
+            if (photo.type === 'video') {
+                if (posterUrl) {
+                    applyTransition(posterUrl);
+                } else {
+                    // No server — try thumbnail from IndexedDB
+                    fallbackThumbnailUrl(photo, targetIndex).then(url => {
+                        if (url && viewerIndex === targetIndex) applyTransition(url);
+                    });
+                }
+            } else if (slideshowPreloaded.index === targetIndex && slideshowPreloaded.url) {
+                // Check if this slide was already preloaded
                 applyTransition(slideshowPreloaded.url);
                 slideshowPreloaded = { index: -1, url: null };
             } else {
@@ -13289,6 +13609,86 @@ scrollToDiaryDay(currentDayKey);
                 info.textContent = `${dateStr} ${timeStr}${camera ? ' \u00B7 ' + camera : ''}${durationStr}${counter}`;
             }
             updateFilenameBar();
+        }
+
+        // Load the actual video element for the current photo after the poster is
+        // already visible via crossFadeToCurrentPhoto.  Called on a timer from
+        // navigatePhoto() so rapid flicking skips the video load entirely.
+        function loadVideoForCurrentPhoto(targetIdx) {
+            const photo = viewerPhotos[targetIdx];
+            if (!photo || photo.type !== 'video') return;
+            if (viewerIndex !== targetIdx) return;
+
+            const video = document.getElementById('photoViewerVideo');
+            const imgA = document.getElementById('photoViewerImg');
+            const imgB = document.getElementById('photoViewerImgB');
+            if (!video) return;
+
+            const videoUrl = getPhotoFullUrl(photo.id);
+            if (!videoUrl) return;
+
+            // Pre-flight HEAD check (same as showViewerPhoto)
+            fetch(videoUrl, { method: 'HEAD' }).then(resp => {
+                if (viewerIndex !== targetIdx) return;
+
+                // Some items are ZKIND=1 (video) in Apple Photos but the server
+                // only has a still image (Live Photo, derivative-only, etc.).
+                // Detect via Content-Type and reclassify so future interactions
+                // treat the item as a photo (no video badge, no load attempts).
+                // IMPORTANT: check status===200 specifically — 202 (iCloud download
+                // in progress) also satisfies resp.ok but has application/json content.
+                const ct = resp.headers.get('Content-Type') || '';
+                if (resp.status === 200 && !ct.startsWith('video/')) {
+                    photo.type = 'photo';
+                    // Poster is already visible from crossFadeToCurrentPhoto — nothing else to do
+                    return;
+                }
+
+                if (resp.status === 202) {
+                    // Video needs iCloud download — hand off to the overlay system.
+                    // Use the current front image element as the poster backdrop.
+                    const frontImg = crossFadeFront === 'A' ? imgA : imgB;
+                    showICloudDownloadOverlay(photo, video, frontImg, targetIdx);
+                } else if (resp.ok) {
+                    // Video available — fade it in over the poster image
+                    video.style.display = 'block';
+                    video.style.opacity = '0';
+                    video.style.zIndex = '4'; // above both img layers
+                    video.src = videoUrl;
+
+                    const revealVideo = () => {
+                        if (viewerIndex !== targetIdx) {
+                            video.style.display = 'none';
+                            video.style.zIndex = '';
+                            return;
+                        }
+                        video.style.transition = 'opacity 0.3s';
+                        video.style.opacity = '1';
+                        setTimeout(() => {
+                            video.style.zIndex = '';
+                            video.style.transition = '';
+                        }, 350);
+                    };
+
+                    video.onloadeddata = () => {
+                        video.onloadeddata = null;
+                        if ('requestVideoFrameCallback' in video) {
+                            video.requestVideoFrameCallback(revealVideo);
+                        } else {
+                            requestAnimationFrame(() => requestAnimationFrame(revealVideo));
+                        }
+                    };
+                    video.onerror = () => {
+                        // Video failed to load — poster stays visible, no disruption
+                        video.style.display = 'none';
+                        video.style.zIndex = '';
+                        video.onerror = null;
+                    };
+                }
+                // Other statuses (404, 503) — poster stays visible, no action needed
+            }).catch(() => {
+                // Network error — poster stays visible
+            });
         }
 
         // Resolve the best available URL for a photo (full → poster → thumbnail)

@@ -1180,7 +1180,14 @@ app.get('/api/full/:id', async (req, res) => {
             });
         }
 
-        // No original and not a fetchable video — generate resized derivative (up to 1600px)
+        // No original and not fetchable — generate resized derivative (up to 1600px)
+            if (formatted.type === 'video' && !req.query.poster) {
+                // Only warn when a non-poster request for a video falls through to
+                // serving a derivative image — poster requests are expected to land here.
+                console.warn(`[video-as-photo] ID ${id} "${formatted.filename}" is ZKIND=1 (video) but serving derivative image.`
+                    + ` originalPath=${originalPath}, hasOriginal=${hasOriginal}`
+                    + `, photoFetchAvailable=${photoFetchAvailable}, uuid=${formatted._uuid || 'null'}`);
+            }
             const posterPath = await generateThumbnail(id, 1600);
             if (!posterPath) {
                 return res.status(404).json({ error: 'Original file not found (may be in iCloud)' });
