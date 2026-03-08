@@ -3954,6 +3954,12 @@
         page-break-after: avoid;
     }
 
+    /* Photo thumbnails: wrap for print, <img> elements print natively */
+    .diary-photo-strip {
+        overflow: visible !important;
+        flex-wrap: wrap !important;
+    }
+
     /* Ensure Japanese / CJK text prints correctly */
     body,
     .markdown-body {
@@ -6226,18 +6232,22 @@ li.route-clickable:hover {
     width: 48px;
     height: 48px;
     border-radius: 6px;
-    background-size: cover;
-    background-position: center;
+    object-fit: cover;
     background-color: var(--bg-app);
     cursor: pointer;
     flex-shrink: 0;
     border: 1px solid var(--border-subtle, rgba(128,128,128,0.2));
     transition: transform 0.15s, box-shadow 0.15s;
 }
-.diary-photo-thumb:hover {
+.diary-photo-thumb:hover:not(.diary-photo-thumb-active) {
     transform: scale(1.15);
     z-index: 1;
     box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+.diary-photo-thumb-active {
+    border: 3px solid #FFA500;
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.9);
+    z-index: 2;
 }
 
 .diary-photo-more {
@@ -6257,6 +6267,13 @@ li.route-clickable:hover {
 }
 .diary-photo-more:hover {
     background: var(--border-medium, #444);
+}
+.diary-photo-more-active {
+    border: 3px solid #FFA500;
+    background-size: cover;
+    background-position: center;
+    background-color: var(--bg-app);
+    color: transparent;
 }
 
 /* Floating Photo Gallery Panel */
@@ -6340,6 +6357,11 @@ li.route-clickable:hover {
 }
 .photo-slider-item:hover {
     opacity: 0.8;
+}
+.photo-slider-item-active {
+    border: 3px solid #FFA500;
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.9);
+    z-index: 1;
 }
 /* Video play icon overlay on slider thumbnails */
 .photo-slider-play-icon {
@@ -6550,7 +6572,7 @@ li.route-clickable:hover {
     pointer-events: auto;
 }
 .photo-viewer-modal.fitted {
-    transition: width 0.3s ease, height 0.3s ease;
+    transition: width 0.3s ease, height 0.3s ease, transform 0.3s ease;
 }
 .photo-viewer-modal.maximized {
     width: 100% !important;

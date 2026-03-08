@@ -1077,8 +1077,9 @@
             // Calculate cumulative statistics for each activity type in the month
             const stats = {};
             
-            const notesOnly = document.getElementById('notesOnly')?.checked ?? false;
-            const includeAll = !notesOnly;
+            // Stats always use the full activity set — the diary view filter
+            // controls which text entries appear, not which stats are counted
+            const includeAll = true;
             
             // Track ALL activities to detect midnight-spanning duplicates (not just airplanes!)
             const seenActivities = new Map(); // key: "activityType-startTime-duration-distance", value: true

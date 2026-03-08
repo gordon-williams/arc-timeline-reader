@@ -728,31 +728,39 @@ Typical costs are very low — a single question-and-answer exchange costs aroun
 
 Display photos and videos from your Apple Photos library alongside your timeline entries. Thumbnails appear inline in diary entries, in a slide-out gallery, and as map markers at their GPS locations. Videos play inline in the viewer with native controls.
 
-> **macOS only.** This feature requires a local server that reads directly from the Apple Photos library database. It is not currently available on Windows, Linux, or mobile platforms.
+> **macOS and Windows.** The photo server runs on macOS (reading from the Apple Photos library) and Windows (reading from the iCloud for Windows photo folder). Linux and mobile platforms are not currently supported.
 
 ### Prerequisites
 
+**macOS:**
+
 1. **macOS** with Apple Photos (any recent version).
-2. **Node.js** (version 18 or later).
+2. **Node.js** (version 18 or later) — see [Installing Node.js](#installing-nodejs) below.
 3. **Xcode Command Line Tools** — required for the iCloud media download feature. The server uses a small Swift helper tool that is compiled automatically at startup. Install with:
    ```
    xcode-select --install
    ```
    If you already have Xcode or the Command Line Tools installed, this step is not needed. The server still works without them, but photos and videos offloaded to iCloud will not be downloadable on demand.
 
+**Windows:**
+
+1. **Windows 10 or later** with [iCloud for Windows](https://apps.microsoft.com/detail/icloud/9PKTQ5699M62) installed and photos synced.
+2. **Node.js** (version 18 or later) — see [Installing Node.js](#installing-nodejs) below.
+3. **FFmpeg** (optional) — needed for video thumbnail generation. Download from [ffmpeg.org](https://ffmpeg.org/) and add to your system PATH. Without it, videos are still served but thumbnails show a fallback icon.
+
 ### Installing Node.js
 
 If you don't have Node.js installed:
 
-1. **Download** the macOS installer from [nodejs.org](https://nodejs.org/) — choose the **LTS** (Long Term Support) version.
+1. **Download** the installer from [nodejs.org](https://nodejs.org/) — choose the **LTS** (Long Term Support) version. Select the macOS or Windows installer as appropriate.
 2. **Run** the installer and follow the prompts. The defaults are fine.
-3. **Verify** the installation by opening Terminal and running:
+3. **Verify** the installation by opening Terminal (macOS) or Command Prompt (Windows) and running:
    ```
    node --version
    ```
    You should see a version number like `v22.x.x`.
 
-Alternatively, if you use Homebrew:
+On macOS, you can alternatively install via Homebrew:
 
 ```
 brew install node
@@ -801,6 +809,70 @@ node server.js --library "/path/to/Photos Library.photoslibrary"
 ```
 
 **Note:** If Photos.app is running, the server may report a database lock error. Quit Photos.app and try again.
+
+### Setting Up the Photo Server (Windows)
+
+Windows users with **iCloud for Windows** installed can use the Windows photo server. It reads photos directly from the iCloud Photos folder using EXIF metadata (no Apple Photos database needed).
+
+**Requirements:**
+
+- [Node.js](https://nodejs.org/) LTS (v18 or later)
+- iCloud for Windows with photos synced to your PC
+- Optional: [FFmpeg](https://ffmpeg.org/) for video thumbnail generation
+
+**Quick start (double-click):**
+
+1. Open the `photo-server/` folder.
+2. Double-click **`Start Photo Server (Windows).bat`**.
+3. The launcher checks for Node.js, installs dependencies on first run, and starts the server.
+4. Keep the window open while using Arc Diary Reader.
+
+**Manual start (command line):**
+
+1. **Open Command Prompt** or PowerShell and navigate to the photo-server directory:
+   ```
+   cd C:\path\to\arc-diary-reader\photo-server
+   ```
+
+2. **Install dependencies** (first time only):
+   ```
+   npm install
+   ```
+
+3. **Start the server:**
+   ```
+   node server-windows.js
+   ```
+   You should see output like:
+   ```
+   Arc Photo Server (Windows)
+   Folder: C:\Users\You\Pictures\iCloud Photos\Photos
+   Scanning photos...
+   Indexed 3,456 items (3,200 photos, 256 videos)
+   Server: http://localhost:3000
+
+   Ready. Keep this running while using Arc Diary Reader.
+   ```
+
+**Custom photo folder:** If your iCloud Photos are not in the default location (`%USERPROFILE%\Pictures\iCloud Photos\Photos`), specify the path with:
+
+```
+node server-windows.js --folder "D:\My Photos\iCloud"
+```
+
+**Custom port:**
+
+```
+node server-windows.js --port 3001
+```
+
+**How it works:**
+
+- The server scans your iCloud Photos folder and reads EXIF metadata from each image file (date, GPS, dimensions, camera info).
+- Files smaller than 1 KB are skipped as iCloud placeholders — these are cloud-only files that haven't been downloaded to your PC yet. To make them available, open iCloud for Windows settings and enable "Download and keep originals", or right-click individual files in File Explorer and choose "Always keep on this device".
+- An index cache (`.cache/index.json`) is saved after the first scan. Subsequent starts only process new or modified files, making restarts fast.
+- Video metadata requires FFmpeg/FFprobe. If not installed, videos are still served but thumbnails show a fallback icon.
+- The Windows server exposes the same API as the macOS server, so the diary reader works identically with either one.
 
 ### Connecting the Diary Reader
 

@@ -11229,17 +11229,19 @@ scrollToDiaryDay(currentDayKey);
                 if (generatedDiaries[monthKey]?.monthData?.days?.[selectedDayKey]) {
                     const dayData = generatedDiaries[monthKey].monthData.days[selectedDayKey];
                     
-                    // Get filtered notes (respects diary view filter)
-                    const includeAll = !isNotesOnlyFilter();
-                    const visibleNotes = getFilteredNotesForDay(dayData, includeAll, includeAll);
-
-                    // When filter hides entries, show month stats if day has no visible notes
-                    if (isNotesOnlyFilter() && visibleNotes.length === 0) {
-                        showMonthStatsForCurrent();
-                        return;
+                    // When Notes Only filter hides all entries for this day, fall back to month stats
+                    if (isNotesOnlyFilter()) {
+                        const visibleNotes = getFilteredNotesForDay(dayData, false, false);
+                        if (visibleNotes.length === 0) {
+                            showMonthStatsForCurrent();
+                            return;
+                        }
                     }
-                    
-                    const dayStats = calculateDailyActivityStats(visibleNotes);
+
+                    // Stats panel always shows the full day's activity summary
+                    // (not filtered by diary view — the filter controls diary text, not stats)
+                    const allNotes = getFilteredNotesForDay(dayData, true, true);
+                    const dayStats = calculateDailyActivityStats(allNotes);
                     
                     if (dayStats && Object.keys(dayStats).length > 0) {
                         const date = new Date(selectedDayKey);
@@ -11377,15 +11379,19 @@ scrollToDiaryDay(currentDayKey);
                     const strip = document.createElement('div');
                     strip.className = 'diary-photo-strip';
                     strip.dataset.daykey = dayKey;
+                    // Store all photo IDs (including overflow) so highlight can find the right strip
+                    strip.dataset.photoIds = matched.map(p => p.id).join(',');
 
                     const maxInline = 8;
                     const shown = matched.slice(0, maxInline);
                     for (const photo of shown) {
-                        const thumb = document.createElement('span');
+                        const thumb = document.createElement('img');
                         thumb.className = 'diary-photo-thumb';
                         thumb.dataset.photoId = photo.id;
+                        thumb.draggable = false;
                         const url = ArcPhotos.getThumbnailUrl(photo);
-                        if (url) thumb.style.backgroundImage = `url(${url})`;
+                        if (url) thumb.src = url;
+                        thumb.alt = '';
                         thumb.onclick = (e) => {
                             e.stopPropagation();
                             openPhotoViewer(photo.id, matched);
@@ -11466,6 +11472,7 @@ scrollToDiaryDay(currentDayKey);
                 for (const photo of visiblePhotos) {
                     const item = document.createElement('div');
                     item.className = 'photo-slider-item';
+                    item.dataset.photoId = photo.id;
                     const url = ArcPhotos.getThumbnailUrl(photo);
                     if (url) item.style.backgroundImage = `url(${url})`;
                     item.onclick = () => openPhotoViewer(photo.id, visiblePhotos);
@@ -11894,6 +11901,8 @@ scrollToDiaryDay(currentDayKey);
                 startLeft = rect.left - parentRect.left;
                 startTop = rect.top - parentRect.top;
                 // Switch from centered to absolute positioning
+                // Clear transform first — getBoundingClientRect already baked it in
+                modal.style.transform = '';
                 modal.style.position = 'absolute';
                 modal.style.margin = '0';
                 modal.style.left = startLeft + 'px';
@@ -11916,11 +11925,19 @@ scrollToDiaryDay(currentDayKey);
             let state = 'default';
             if (modal.classList.contains('maximized')) state = 'maximized';
             else if (modal.classList.contains('fitted')) state = 'fitted';
-            const rect = modal.getBoundingClientRect();
+            // For fitted state, use the inline-style target values instead of
+            // getBoundingClientRect() which may return mid-transition dimensions.
+            let width, height;
+            if (state === 'fitted' && modal.style.width && modal.style.height) {
+                width = modal.style.width;
+                height = modal.style.height;
+            } else {
+                const rect = modal.getBoundingClientRect();
+                width = Math.round(rect.width) + 'px';
+                height = Math.round(rect.height) + 'px';
+            }
             localStorage.setItem('arcPhotoViewerSize', JSON.stringify({
-                width: Math.round(rect.width) + 'px',
-                height: Math.round(rect.height) + 'px',
-                state: state
+                width, height, state
             }));
         }
 
@@ -11942,9 +11959,104 @@ scrollToDiaryDay(currentDayKey);
             } catch (e) { /* ignore corrupt data */ }
         }
 
+        // Highlight the diary thumbnail and gallery slider item for the currently-viewed photo
+
+        // Find the strip that owns a given photo ID (checks data-photo-ids, not just dayKey)
+        function findStripForPhoto(photoId) {
+            // First try direct thumbnail match (photos 1-8 are in the DOM)
+            const thumb = markdownContent.querySelector(`.diary-photo-thumb[data-photo-id="${photoId}"]`);
+            if (thumb) return { strip: thumb.closest('.diary-photo-strip'), thumb };
+            // Overflow photo — search strips by their full photo ID list
+            const allStrips = markdownContent.querySelectorAll('.diary-photo-strip[data-photo-ids]');
+            for (const strip of allStrips) {
+                const ids = strip.dataset.photoIds.split(',');
+                if (ids.includes(String(photoId))) {
+                    return { strip, thumb: null };
+                }
+            }
+            return { strip: null, thumb: null };
+        }
+
+        // Saved strip scroll positions — restored when viewer closes
+        const savedStripScrolls = new Map(); // strip element → original scrollLeft
+
+        // Horizontally scroll a strip to centre a child element
+        function scrollStripToChild(strip, el) {
+            if (!strip || !el) return;
+            // Save original scroll position on first interaction with this strip
+            if (!savedStripScrolls.has(strip)) {
+                savedStripScrolls.set(strip, strip.scrollLeft);
+            }
+            const stripRect = strip.getBoundingClientRect();
+            const elRect = el.getBoundingClientRect();
+            // Element's centre relative to strip's scroll content
+            const elCentre = (elRect.left - stripRect.left) + strip.scrollLeft + (elRect.width / 2);
+            const target = elCentre - (strip.clientWidth / 2);
+            strip.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+        }
+
+        function highlightDiaryThumb(photo) {
+            // Remove previous highlights — diary strip thumbnails and "+more" badges
+            const prevThumb = markdownContent.querySelector('.diary-photo-thumb-active');
+            if (prevThumb) prevThumb.classList.remove('diary-photo-thumb-active');
+            const prevMore = markdownContent.querySelector('.diary-photo-more-active');
+            if (prevMore) {
+                // Restore original "+N" text
+                if (prevMore.dataset.originalText) {
+                    prevMore.textContent = prevMore.dataset.originalText;
+                    prevMore.style.backgroundImage = '';
+                }
+                prevMore.classList.remove('diary-photo-more-active');
+            }
+            // Remove previous highlights — gallery slider
+            const prevSlider = document.querySelector('.photo-slider-item-active');
+            if (prevSlider) prevSlider.classList.remove('photo-slider-item-active');
+
+            if (!photo) {
+                // Viewer closed — restore all strips to their original scroll positions
+                for (const [strip, scrollLeft] of savedStripScrolls) {
+                    strip.scrollTo({ left: scrollLeft, behavior: 'smooth' });
+                }
+                savedStripScrolls.clear();
+                return;
+            }
+
+            const { strip, thumb } = findStripForPhoto(photo.id);
+
+            if (thumb) {
+                // Photo is in the visible 8 — highlight it and scroll strip horizontally
+                thumb.classList.add('diary-photo-thumb-active');
+                scrollStripToChild(strip, thumb);
+            } else if (strip) {
+                // Photo is in overflow — show its thumbnail in the "+more" badge
+                const moreBtn = strip.querySelector('.diary-photo-more');
+                if (moreBtn) {
+                    if (!moreBtn.dataset.originalText) {
+                        moreBtn.dataset.originalText = moreBtn.textContent;
+                    }
+                    const url = ArcPhotos.getThumbnailUrl(photo);
+                    if (url) {
+                        moreBtn.style.backgroundImage = `url(${url})`;
+                        moreBtn.textContent = '';
+                    }
+                    moreBtn.classList.add('diary-photo-more-active');
+                    scrollStripToChild(strip, moreBtn);
+                }
+            }
+
+            // Highlight gallery slider item
+            const sliderItem = document.querySelector(`.photo-slider-item[data-photo-id="${photo.id}"]`);
+            if (sliderItem) {
+                sliderItem.classList.add('photo-slider-item-active');
+                sliderItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+        }
+
         function closePhotoViewer() {
             const overlay = document.getElementById('photoViewer');
             if (!overlay) return;
+            // Clear thumbnail highlight
+            highlightDiaryThumb(null);
             // Stop slideshow if playing
             if (slideshowPlaying) stopSlideshow();
             // Reset cross-fade state
@@ -11967,9 +12079,11 @@ scrollToDiaryDay(currentDayKey);
                 modal.style.left = '';
                 modal.style.top = '';
                 modal.style.margin = '';
+                modal.style.transform = '';
                 modal.style.width = '';
                 modal.style.height = '';
                 modal.classList.remove('maximized', 'fitted');
+                delete modal.dataset.fittedByBtn;
             }
         }
 
@@ -11978,8 +12092,10 @@ scrollToDiaryDay(currentDayKey);
             if (!modal) return;
             // Clear fitted state
             modal.classList.remove('fitted');
+            delete modal.dataset.fittedByBtn;
             modal.style.width = '';
             modal.style.height = '';
+            modal.style.transform = '';
             if (modal.classList.contains('maximized')) {
                 modal.classList.remove('maximized');
             } else {
@@ -11996,11 +12112,20 @@ scrollToDiaryDay(currentDayKey);
             const modal = document.getElementById('photoViewerModal');
             if (!modal) return;
 
-            // If already fitted, revert to default
-            if (modal.classList.contains('fitted')) {
+            // Toggle off only if this fitted state was explicitly set by
+            // this button press (not restored from storage or from a
+            // previous photo).  The data attribute is cleared whenever a
+            // new photo is loaded (see showViewerPhoto).
+            if (modal.classList.contains('fitted') && modal.dataset.fittedByBtn === '1') {
                 modal.classList.remove('fitted');
                 modal.style.width = '';
                 modal.style.height = '';
+                modal.style.position = '';
+                modal.style.left = '';
+                modal.style.top = '';
+                modal.style.margin = '';
+                modal.style.transform = '';
+                delete modal.dataset.fittedByBtn;
                 saveViewerSize();
                 return;
             }
@@ -12031,37 +12156,72 @@ scrollToDiaryDay(currentDayKey);
             const header = document.getElementById('photoViewerHeader');
             const headerH = header ? header.offsetHeight : 40;
 
-            // Available viewport space (with 5% padding on each side)
-            const vpW = window.innerWidth * 0.90;
-            const vpH = window.innerHeight * 0.90;
-            const bodyMaxH = vpH - headerH;
+            // Determine available space by avoiding the diary panel and slide-outs
+            // on the left, and the stats panel on the right.
+            const pad = 20; // gap between photo viewer and panels
+            const ww = window.innerWidth;
+            const wh = window.innerHeight;
 
-            // Calculate optimal body size that fits the aspect ratio within the viewport
+            // Left boundary — right edge of diary or any open slider
+            let leftBound = 0;
+            const diary = document.querySelector('.diary-float');
+            if (diary && diary.offsetWidth > 0) {
+                leftBound = diary.getBoundingClientRect().right;
+            }
+            // Slide-out panels (search results, photos, events) extend further right
+            for (const sel of ['#searchResultsSlider', '#photoSlider', '#eventSlider']) {
+                const el = document.querySelector(sel);
+                if (el && el.classList.contains('open')) {
+                    leftBound = Math.max(leftBound, el.getBoundingClientRect().right);
+                }
+            }
+
+            // Right boundary — left edge of stats panel (if visible)
+            let rightBound = ww;
+            const stats = document.getElementById('statsFloat');
+            if (stats && stats.style.display !== 'none' && stats.offsetWidth > 0) {
+                rightBound = stats.getBoundingClientRect().left;
+            }
+
+            // Available space with padding
+            const availW = Math.max(400, rightBound - leftBound - pad * 2);
+            const availH = wh * 0.90;
+            const bodyMaxH = availH - headerH;
+
+            // Calculate optimal body size that fits the aspect ratio
             let bodyW, bodyH;
-            if (bodyMaxH * aspectRatio <= vpW) {
+            if (bodyMaxH * aspectRatio <= availW) {
                 // Height-limited: use full available height
                 bodyH = bodyMaxH;
                 bodyW = bodyH * aspectRatio;
             } else {
                 // Width-limited: use full available width
-                bodyW = vpW;
+                bodyW = availW;
                 bodyH = bodyW / aspectRatio;
             }
 
             // Enforce minimums
-            const modalW = Math.max(400, bodyW);
-            const modalH = Math.max(300, bodyH + headerH);
+            const modalW = Math.round(Math.max(400, bodyW));
+            const modalH = Math.round(Math.max(300, bodyH + headerH));
+
+            // Centre the modal in the available map area (between panels).
+            // The overlay uses flex centering on the full viewport, so we
+            // shift from viewport centre to the midpoint of the open area.
+            const areaCenter = (leftBound + rightBound) / 2;
+            const offsetX = Math.round(areaCenter - ww / 2);
 
             // Apply with transition
             modal.classList.add('fitted');
-            modal.style.width = Math.round(modalW) + 'px';
-            modal.style.height = Math.round(modalH) + 'px';
+            modal.dataset.fittedByBtn = '1';
+            modal.style.width = modalW + 'px';
+            modal.style.height = modalH + 'px';
 
-            // Re-centre (clear any drag offset)
+            // Position in the centre of the available map area
             modal.style.position = '';
             modal.style.left = '';
             modal.style.top = '';
             modal.style.margin = '';
+            modal.style.transform = offsetX ? `translateX(${offsetX}px)` : '';
             saveViewerSize();
         }
 
@@ -12251,6 +12411,14 @@ scrollToDiaryDay(currentDayKey);
         async function showViewerPhoto() {
             const photo = viewerPhotos[viewerIndex];
             if (!photo) return;
+
+            // Clear fit-by-button flag so the fit button recalculates
+            // for new content instead of toggling off
+            const modal = document.getElementById('photoViewerModal');
+            if (modal) delete modal.dataset.fittedByBtn;
+
+            // Highlight the matching diary thumbnail (or show in "+more" badge if beyond visible 8)
+            highlightDiaryThumb(photo);
 
             const img = document.getElementById('photoViewerImg');
             const video = document.getElementById('photoViewerVideo');
@@ -12715,7 +12883,18 @@ scrollToDiaryDay(currentDayKey);
             if (clearBtn) {
                 clearBtn.onclick = async () => {
                     if (!confirm('Remove all imported photos from the browser database?')) return;
-                    await ArcPhotos.clearPhotos();
+                    const origText = clearBtn.textContent;
+                    clearBtn.disabled = true;
+                    clearBtn.textContent = 'Clearing...';
+                    try {
+                        await ArcPhotos.clearPhotos((deleted, total) => {
+                            clearBtn.textContent = `Clearing ${deleted.toLocaleString()} / ${total.toLocaleString()}`;
+                        });
+                    } catch (e) {
+                        console.error('Photo clear error:', e);
+                    }
+                    clearBtn.disabled = false;
+                    clearBtn.textContent = origText;
                     await updateLocalStatus();
                     const menuItem = document.getElementById('photoGalleryMenuItem');
                     if (menuItem) menuItem.style.display = 'none';

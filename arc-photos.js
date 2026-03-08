@@ -113,31 +113,59 @@
         });
     }
 
-    function clearPhotos() {
-        return new Promise((resolve, reject) => {
-            const db = getDb();
-            if (!db) return resolve();
-            try {
+    /**
+     * Clear all photos from IndexedDB, with optional progress callback.
+     * @param {function} [onProgress] - Called with (deleted, total) during deletion.
+     */
+    async function clearPhotos(onProgress) {
+        const db = getDb();
+        if (!db) return;
+
+        const total = await getPhotoCount();
+        if (total === 0) return;
+
+        // Delete in batches using a cursor so we can report progress.
+        const BATCH = 500;
+        let deleted = 0;
+
+        while (deleted < total) {
+            await new Promise((resolve, reject) => {
                 const tx = db.transaction('photos', 'readwrite');
                 const store = tx.objectStore('photos');
-                const request = store.clear();
-                request.onsuccess = () => {
-                    // Also clear import state
-                    try {
-                        const metaTx = db.transaction('metadata', 'readwrite');
-                        const metaStore = metaTx.objectStore('metadata');
-                        metaStore.delete('lastPhotoImport');
-                        metaStore.delete('videoImportDone');  // legacy key
-                        metaStore.delete('lastServerVideoCount');
-                        metaTx.oncomplete = () => resolve();
-                        metaTx.onerror = () => resolve();
-                    } catch (e) {
-                        resolve();
+                let batchCount = 0;
+                const req = store.openCursor();
+                req.onsuccess = () => {
+                    const cursor = req.result;
+                    if (!cursor || batchCount >= BATCH) {
+                        // batch done — let the transaction commit
+                        return;
                     }
+                    cursor.delete();
+                    batchCount++;
+                    cursor.continue();
                 };
-                request.onerror = () => reject(request.error);
+                req.onerror = () => reject(req.error);
+                tx.oncomplete = () => {
+                    deleted += batchCount;
+                    if (onProgress) onProgress(Math.min(deleted, total), total);
+                    resolve();
+                };
+                tx.onerror = () => reject(tx.error);
+            });
+        }
+
+        // Clear import state metadata
+        await new Promise((resolve) => {
+            try {
+                const metaTx = db.transaction('metadata', 'readwrite');
+                const metaStore = metaTx.objectStore('metadata');
+                metaStore.delete('lastPhotoImport');
+                metaStore.delete('videoImportDone');
+                metaStore.delete('lastServerVideoCount');
+                metaTx.oncomplete = () => resolve();
+                metaTx.onerror = () => resolve();
             } catch (e) {
-                reject(e);
+                resolve();
             }
         });
     }

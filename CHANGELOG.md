@@ -1,5 +1,39 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.188 (2026-03-08)
+
+### Photo Viewer
+- **Fix "Fit to content" two-click bug** — Previously, if you navigated to a different photo while in fitted mode and pressed the fit button, it toggled off instead of refitting to the new photo — requiring two clicks. The button now always recalculates for new content and only toggles off on a deliberate second press for the same photo.
+- **Fit to content avoids panels** — The fit calculation now measures the diary panel, any open slide-out (search results, photo gallery, events), and the stats panel, then constrains and centres the photo viewer in the remaining map area instead of the full viewport.
+- **Thumbnail highlight in diary** — The currently-viewed photo is highlighted with an orange border in the diary strip. Overflow photos (beyond the visible 8) show their thumbnail in the "+more" badge. The photo gallery slider also highlights the active photo.
+- **Gallery slider highlight** — The currently-viewed photo is highlighted in the slide-out photo gallery, with auto-scroll to keep it visible.
+- **Diary thumbnails use `<img>` elements** — Photo strip thumbnails switched from CSS `background-image` on `<span>` to native `<img>` elements, improving print output and accessibility.
+
+### Statistics
+- **Stats panel always shows full day** — The floating stats panel now always shows the complete day's activity summary, regardless of the diary view filter (Notes Only). Previously, filtering to notes-only would also hide activities from the stats panel.
+- **Month stats unaffected by filter** — Monthly cumulative statistics no longer change when the Notes Only diary filter is active.
+
+### Photo Management
+- **Batched photo deletion with progress** — Clearing photos from IndexedDB now deletes in batches of 500 with a progress callback, preventing browser UI freezes on large libraries.
+
+### Windows Photo Server
+- **HEIC support** — Added a three-tier fallback chain for HEIC metadata: Sharp reads the HEIC container and extracts the raw EXIF buffer for `exifr` to parse, falling back to `ffprobe` for basic date/dimensions, then indexing anyway without dimensions. Thumbnail generation falls back to `ffmpeg` conversion when Sharp fails.
+- **Sharp HEIC capability check** — Startup diagnostics report whether Sharp can decode HEIC files.
+
+### Bug Fixes
+- **Fix `saveViewerSize` mid-transition values** — When the photo viewer is in fitted mode, the saved size now uses the target inline-style dimensions instead of `getBoundingClientRect()`, which could return mid-animation values during CSS transitions.
+
+## Build 02.184 (2026-03-07)
+
+### Windows Photo Server
+- **New: `server-windows.js`** — A Windows-compatible photo server for users with iCloud for Windows. Scans the iCloud Photos folder (or any folder of photos), reads EXIF metadata, and serves the same REST API as the macOS server. The existing client (`arc-photos.js`) works without modification.
+- **Folder auto-detection** — Automatically finds the default iCloud Photos path (`Pictures\iCloud Photos\Photos`). Override with `--folder` CLI arg.
+- **EXIF-based metadata** — Extracts dates, GPS coordinates, dimensions, camera info, and titles from EXIF/XMP tags using the `exifr` library.
+- **Persistent index cache** — Builds a `.cache/index.json` on first scan. Subsequent starts do a fast differential scan (only new/modified files), making restarts near-instant.
+- **Placeholder skipping** — Files under 1KB (iCloud placeholders) are automatically skipped. Photos that fail Sharp validation are also skipped.
+- **Video support** — Video metadata via `ffprobe`, thumbnails via `ffmpeg`, streaming with Range headers.
+- **Windows launcher** — `Start Photo Server (Windows).bat` double-click launcher.
+
 ## Build 02.183 (2026-03-07)
 
 ### iCloud Photo Download
