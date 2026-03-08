@@ -735,10 +735,16 @@ function moveMapSmart(latlng, zoom) {
             
             // Clear selection state - we're jumping to a new month via dropdown
             NavigationController.reset();
-            
+
             await NavigationController.selectMonth(monthKey);
+
+            // Auto-select the first day of the new month
+            const days = getDaysInCurrentMonth();
+            if (days.length > 0) {
+                NavigationController.selectDay(days[0], { instant: true });
+            }
         }
-        
+
         // Handle month change
         async function switchMonth() {
             const selectedYear = yearSelector.value;
@@ -749,6 +755,12 @@ function moveMapSmart(latlng, zoom) {
             NavigationController.reset();
 
             await NavigationController.selectMonth(monthKey);
+
+            // Auto-select the first day of the new month
+            const days = getDaysInCurrentMonth();
+            if (days.length > 0) {
+                NavigationController.selectDay(days[0], { instant: true });
+            }
         }
         
         // Helper function to load and display a month
@@ -11317,6 +11329,15 @@ scrollToDiaryDay(currentDayKey);
         let photoICloudBusyUntil = 0; // pause iCloud preflight HEADs after 503 bursts
         let photoICloudBusyLogAt = 0;
 
+        // Ken Burns & slideshow transition settings
+        let kenBurnsEnabled = true;
+        let kenBurnsZoom = 1.12;          // scale factor 1.02–1.40
+        let kenBurnsPan = 'random';       // 'random','lr','rl','ud','du','none'
+        let slideshowTransition = 'crossfade'; // 'crossfade','slide','zoom','fade-black'
+        let slideshowAutoFit = true;
+        let kenBurnsAnimations = [];      // active Web Animation objects for cleanup
+        let navDirection = 1;             // 1 = forward (next), -1 = backward (prev)
+
         // Inject photo thumbnail strips into rendered diary entries
         async function attachPhotoStrips() {
             if (!window.ArcPhotos) return;
@@ -11820,6 +11841,18 @@ scrollToDiaryDay(currentDayKey);
                 slideshowSpeed = parseInt(savedSpeed, 10) || 5000;
             }
 
+            // Restore Ken Burns / transition preferences
+            const savedKB = localStorage.getItem('arcPhotoViewerKenBurns');
+            if (savedKB !== null) kenBurnsEnabled = savedKB !== '0';
+            const savedKBZoom = localStorage.getItem('arcPhotoViewerKBZoom');
+            if (savedKBZoom) kenBurnsZoom = parseFloat(savedKBZoom) || 1.12;
+            const savedKBPan = localStorage.getItem('arcPhotoViewerKBPan');
+            if (savedKBPan) kenBurnsPan = savedKBPan;
+            const savedTrans = localStorage.getItem('arcPhotoViewerTransition');
+            if (savedTrans) slideshowTransition = savedTrans;
+            const savedAutoFit = localStorage.getItem('arcPhotoViewerAutoFit');
+            if (savedAutoFit !== null) slideshowAutoFit = savedAutoFit !== '0';
+
             showViewerPhoto();
 
             // Init draggable once
@@ -11835,7 +11868,19 @@ scrollToDiaryDay(currentDayKey);
             // so only navigate photos when the overlay itself has focus.
             if (!overlay._keyHandler) {
                 overlay._keyHandler = (e) => {
-                    if (e.key === 'Escape') { closePhotoViewer(); return; }
+                    if (e.key === 'Escape') {
+                        // If settings popup is open, close it first
+                        const popup = document.getElementById('slideshowSettingsPopup');
+                        if (popup && popup.style.display !== 'none') {
+                            closeSlideshowSettings();
+                            return;
+                        }
+                        // If fullscreen, Escape exits fullscreen first (browser handles it);
+                        // our fullscreenchange listener removes the maximized class.
+                        // If not fullscreen, close the viewer.
+                        if (!document.fullscreenElement) closePhotoViewer();
+                        return;
+                    }
                     // Let form controls and video handle their own keys
                     const tag = e.target && e.target.tagName;
                     if (tag === 'VIDEO') return;
@@ -11847,8 +11892,18 @@ scrollToDiaryDay(currentDayKey);
                 // Re-focus overlay on click so arrow keys work after clicking nav buttons, etc.
                 // (Clicks on <video> and form controls keep their own focus.)
                 overlay.addEventListener('click', (e) => {
+                    // Don't steal focus from form controls inside the settings popup
+                    const popup = document.getElementById('slideshowSettingsPopup');
+                    const inPopup = popup && popup.contains(e.target);
                     const tag = e.target.tagName;
-                    if (tag !== 'VIDEO') overlay.focus();
+                    if (tag !== 'VIDEO' && !inPopup) overlay.focus();
+                    // Close settings popup when clicking on the photo body
+                    if (popup && popup.style.display !== 'none' && !inPopup) {
+                        const header = document.getElementById('photoViewerHeader');
+                        if (!(header && header.contains(e.target))) {
+                            closeSlideshowSettings();
+                        }
+                    }
                 });
             }
 
@@ -11995,6 +12050,21 @@ scrollToDiaryDay(currentDayKey);
             strip.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
         }
 
+        // Vertically scroll the diary panel to reveal a highlighted photo strip
+        function scrollDiaryToElement(el) {
+            if (!el) return;
+            const panel = document.getElementById('diaryPanel');
+            if (!panel) return;
+            const panelRect = panel.getBoundingClientRect();
+            const elRect = el.getBoundingClientRect();
+            // Already fully visible — nothing to do
+            if (elRect.top >= panelRect.top && elRect.bottom <= panelRect.bottom) return;
+            // Scroll so the strip is centred vertically in the diary panel
+            const elCentre = (elRect.top - panelRect.top) + panel.scrollTop + (elRect.height / 2);
+            const target = elCentre - (panel.clientHeight / 2);
+            panel.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+        }
+
         function highlightDiaryThumb(photo) {
             // Remove previous highlights — diary strip thumbnails and "+more" badges
             const prevThumb = markdownContent.querySelector('.diary-photo-thumb-active');
@@ -12027,6 +12097,7 @@ scrollToDiaryDay(currentDayKey);
                 // Photo is in the visible 8 — highlight it and scroll strip horizontally
                 thumb.classList.add('diary-photo-thumb-active');
                 scrollStripToChild(strip, thumb);
+                scrollDiaryToElement(strip);
             } else if (strip) {
                 // Photo is in overflow — show its thumbnail in the "+more" badge
                 const moreBtn = strip.querySelector('.diary-photo-more');
@@ -12041,24 +12112,38 @@ scrollToDiaryDay(currentDayKey);
                     }
                     moreBtn.classList.add('diary-photo-more-active');
                     scrollStripToChild(strip, moreBtn);
+                    scrollDiaryToElement(strip);
                 }
             }
 
-            // Highlight gallery slider item
+            // Highlight gallery slider item and centre it in the gallery scroll
             const sliderItem = document.querySelector(`.photo-slider-item[data-photo-id="${photo.id}"]`);
             if (sliderItem) {
                 sliderItem.classList.add('photo-slider-item-active');
-                sliderItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                const grid = document.getElementById('photoSliderGrid');
+                if (grid) {
+                    const gridRect = grid.getBoundingClientRect();
+                    const elRect = sliderItem.getBoundingClientRect();
+                    const elCentre = (elRect.top - gridRect.top) + grid.scrollTop + (elRect.height / 2);
+                    const target = elCentre - (grid.clientHeight / 2);
+                    grid.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+                }
             }
         }
 
         function closePhotoViewer() {
             const overlay = document.getElementById('photoViewer');
             if (!overlay) return;
+            // Exit fullscreen if active
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {});
+            }
             // Clear thumbnail highlight
             highlightDiaryThumb(null);
             // Stop slideshow if playing
             if (slideshowPlaying) stopSlideshow();
+            cancelAllKenBurns();
+            closeSlideshowSettings();
             // Reset cross-fade state
             crossFadeFront = 'A';
             const imgB = document.getElementById('photoViewerImgB');
@@ -12088,29 +12173,101 @@ scrollToDiaryDay(currentDayKey);
         }
 
         function togglePhotoViewerMaximize() {
+            const overlay = document.getElementById('photoViewer');
             const modal = document.getElementById('photoViewerModal');
-            if (!modal) return;
+            if (!modal || !overlay) return;
+
+            // If currently in fullscreen, exit
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {});
+                return; // fullscreenchange handler will clean up the class
+            }
+
             // Clear fitted state
             modal.classList.remove('fitted');
             delete modal.dataset.fittedByBtn;
             modal.style.width = '';
             modal.style.height = '';
             modal.style.transform = '';
-            if (modal.classList.contains('maximized')) {
-                modal.classList.remove('maximized');
-            } else {
-                modal.classList.add('maximized');
-                modal.style.position = '';
-                modal.style.left = '';
-                modal.style.top = '';
-                modal.style.margin = '';
+
+            // Request true fullscreen on the overlay
+            modal.classList.add('maximized');
+            modal.style.position = '';
+            modal.style.left = '';
+            modal.style.top = '';
+            modal.style.margin = '';
+            const el = overlay.requestFullscreen ? overlay :
+                       overlay.webkitRequestFullscreen ? overlay : null;
+            if (el) {
+                (el.requestFullscreen || el.webkitRequestFullscreen).call(el).catch(() => {
+                    // Fullscreen denied (e.g. file:// protocol) — keep CSS-only maximize
+                });
             }
             saveViewerSize();
         }
 
+        // Sync state when user exits fullscreen via Escape or browser UI
+        document.addEventListener('fullscreenchange', () => {
+            const overlay = document.getElementById('photoViewer');
+            if (!document.fullscreenElement) {
+                const modal = document.getElementById('photoViewerModal');
+                if (modal) {
+                    modal.classList.remove('maximized');
+                    saveViewerSize();
+                }
+                if (overlay) overlay.classList.remove('fs-controls-visible');
+                if (fsControlsTimer) { clearTimeout(fsControlsTimer); fsControlsTimer = null; }
+            }
+        });
+
+        // Fullscreen controls auto-hide: show on mouse move, hide after idle.
+        // Controls stay visible while the cursor is over the header or nav buttons.
+        let fsControlsTimer = null;
+        let fsMouseOverControls = false;
+
+        function showFsControls() {
+            const overlay = document.getElementById('photoViewer');
+            if (!overlay || !document.fullscreenElement) return;
+            overlay.classList.add('fs-controls-visible');
+            scheduleFsHide();
+        }
+
+        function scheduleFsHide() {
+            if (fsControlsTimer) clearTimeout(fsControlsTimer);
+            fsControlsTimer = setTimeout(() => {
+                if (fsMouseOverControls) {
+                    // Cursor still over controls — postpone
+                    scheduleFsHide();
+                    return;
+                }
+                const overlay = document.getElementById('photoViewer');
+                if (overlay) overlay.classList.remove('fs-controls-visible');
+                fsControlsTimer = null;
+            }, 2500);
+        }
+
+        document.addEventListener('mousemove', () => {
+            if (document.fullscreenElement) showFsControls();
+        });
+
+        // Track whether cursor is over the header or nav buttons
+        (function initFsHoverTracking() {
+            const track = (el) => {
+                if (!el) return;
+                el.addEventListener('mouseenter', () => { fsMouseOverControls = true; });
+                el.addEventListener('mouseleave', () => { fsMouseOverControls = false; });
+            };
+            // Wait for DOM — these elements exist from page load
+            track(document.getElementById('photoViewerHeader'));
+            document.querySelectorAll('.photo-viewer-nav').forEach(track);
+        })();
+
         function fitPhotoViewerToContent() {
             const modal = document.getElementById('photoViewerModal');
             if (!modal) return;
+
+            // Don't resize while in fullscreen
+            if (document.fullscreenElement) return;
 
             // Toggle off only if this fitted state was explicitly set by
             // this button press (not restored from storage or from a
@@ -12228,8 +12385,19 @@ scrollToDiaryDay(currentDayKey);
         function navigatePhoto(dir) {
             if (viewerPhotos.length === 0) return;
             if (slideshowPlaying) stopSlideshow();
+            cancelAllKenBurns();
             viewerIndex = (viewerIndex + dir + viewerPhotos.length) % viewerPhotos.length;
-            showViewerPhoto();
+            const photo = viewerPhotos[viewerIndex];
+            // Videos need full showViewerPhoto handling (video element, iCloud overlay, etc.)
+            if (photo && photo.type === 'video') {
+                showViewerPhoto();
+            } else {
+                navDirection = dir;
+                // Hide iCloud overlay if it was showing from a previous video
+                const icloudOvl = document.getElementById('photoViewerICloudOverlay');
+                if (icloudOvl) icloudOvl.style.display = 'none';
+                crossFadeToCurrentPhoto();
+            }
         }
 
         function openPhotoInNewTab() {
@@ -12622,6 +12790,12 @@ scrollToDiaryDay(currentDayKey);
             if (prev) prev.style.display = viewerPhotos.length > 1 ? 'flex' : 'none';
             if (next) next.style.display = viewerPhotos.length > 1 ? 'flex' : 'none';
 
+            // Show/hide slideshow-related buttons
+            const slideshowBtn = document.getElementById('photoViewerSlideshowBtn');
+            const settingsBtn = document.getElementById('photoViewerSettingsBtn');
+            if (slideshowBtn) slideshowBtn.style.display = viewerPhotos.length > 1 ? '' : 'none';
+            if (settingsBtn) settingsBtn.style.display = viewerPhotos.length > 1 ? '' : 'none';
+
             // Update filename overlay if visible
             updateFilenameBar();
         }
@@ -12985,11 +13159,22 @@ scrollToDiaryDay(currentDayKey);
 
         function startSlideshow() {
             if (viewerPhotos.length <= 1) return;
+
+            // Auto-fit viewer when slideshow starts (skip if already fullscreen)
+            if (slideshowAutoFit && !document.fullscreenElement) fitPhotoViewerToContent();
+
             slideshowPlaying = true;
             const btn = document.getElementById('photoViewerSlideshowBtn');
             const speedBtn = document.getElementById('photoViewerSpeedBtn');
             if (btn) { btn.textContent = '\u23F8'; btn.classList.add('active'); } // ⏸
             if (speedBtn) { speedBtn.style.display = ''; speedBtn.textContent = (slideshowSpeed / 1000) + 's'; }
+
+            // Start Ken Burns on the currently displayed image
+            const curImg = crossFadeFront === 'A'
+                ? document.getElementById('photoViewerImg')
+                : document.getElementById('photoViewerImgB');
+            if (curImg) startKenBurns(curImg);
+
             slideshowTimer = setInterval(() => slideshowAdvance(), slideshowSpeed);
         }
 
@@ -13000,6 +13185,8 @@ scrollToDiaryDay(currentDayKey);
             const speedBtn = document.getElementById('photoViewerSpeedBtn');
             if (btn) { btn.textContent = '\u25B6'; btn.classList.remove('active'); } // ▶
             if (speedBtn) speedBtn.style.display = 'none';
+            cancelAllKenBurns();
+            slideshowPreloaded = { index: -1, url: null };
         }
 
         function slideshowAdvance() {
@@ -13013,12 +13200,19 @@ scrollToDiaryDay(currentDayKey);
                 if (attempts > viewerPhotos.length) { stopSlideshow(); return; } // all videos
             } while (viewerPhotos[nextIndex].type === 'video');
             viewerIndex = nextIndex;
+            navDirection = 1; // slideshow always advances forward
             crossFadeToCurrentPhoto();
         }
+
+        // Preloaded image cache for slideshow look-ahead
+        let slideshowPreloaded = { index: -1, url: null };
 
         function crossFadeToCurrentPhoto() {
             const photo = viewerPhotos[viewerIndex];
             if (!photo) return;
+
+            // Update diary/gallery highlights
+            highlightDiaryThumb(photo);
 
             const imgA = document.getElementById('photoViewerImg');
             const imgB = document.getElementById('photoViewerImgB');
@@ -13031,52 +13225,50 @@ scrollToDiaryDay(currentDayKey);
             const front = crossFadeFront === 'A' ? imgA : imgB;
             const back  = crossFadeFront === 'A' ? imgB : imgA;
             const targetIndex = viewerIndex;
-
-            // Prepare back image: visible but transparent, temporarily on top
-            back.style.display = '';
-            back.style.opacity = '0';
-            back.style.zIndex = '3';
-            front.style.zIndex = '2';
-
             const fullUrl = getPhotoFullUrl(photo.id);
+            const serverUrl = ArcPhotos.getServerUrl();
+            const posterUrl = serverUrl ? `${serverUrl}/api/full/${photo.id}?poster=1` : null;
 
-            const loadAndFade = (url) => {
+            const applyTransition = (url) => {
                 if (viewerIndex !== targetIndex) return;
-                back.src = url;
-                requestAnimationFrame(() => {
-                    // Fade in new and fade out old simultaneously
-                    back.style.transition = 'opacity 0.8s ease';
-                    back.style.opacity = '1';
-                    front.style.transition = 'opacity 0.8s ease';
-                    front.style.opacity = '0';
-                    setTimeout(() => {
-                        if (viewerIndex !== targetIndex) return;
-                        front.style.display = 'none';
-                        front.style.transition = 'opacity 0.3s';
-                        back.style.zIndex = '2';
-                        back.style.transition = 'opacity 0.3s';
-                        crossFadeFront = crossFadeFront === 'A' ? 'B' : 'A';
-                    }, 850);
-                });
-            };
-
-            if (fullUrl) {
-                const preload = new Image();
-                preload.onload = () => loadAndFade(fullUrl);
-                preload.onerror = async () => {
-                    const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
-                    if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
-                        const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
-                        if (thumbUrl) loadAndFade(thumbUrl);
+                // Set cover mode on incoming image before it becomes visible
+                if (kenBurnsEnabled) back.classList.add('ken-burns-active');
+                // Preload into an Image object first, only transition when fully decoded
+                const ready = new Image();
+                ready.onload = () => {
+                    if (viewerIndex !== targetIndex) return;
+                    back.src = url;
+                    switch (slideshowTransition) {
+                        case 'slide':      transitionSlide(front, back, targetIndex); break;
+                        case 'zoom':       transitionZoom(front, back, targetIndex); break;
+                        case 'fade-black': transitionFadeBlack(front, back, targetIndex); break;
+                        default:           transitionCrossfade(front, back, targetIndex);
+                    }
+                    // Preload next slide in background
+                    preloadNextSlide(targetIndex);
+                };
+                ready.onerror = () => {
+                    // URL failed to decode — transition anyway (better than nothing)
+                    if (viewerIndex !== targetIndex) return;
+                    back.src = url;
+                    switch (slideshowTransition) {
+                        case 'slide':      transitionSlide(front, back, targetIndex); break;
+                        case 'zoom':       transitionZoom(front, back, targetIndex); break;
+                        case 'fade-black': transitionFadeBlack(front, back, targetIndex); break;
+                        default:           transitionCrossfade(front, back, targetIndex);
                     }
                 };
-                preload.src = fullUrl;
+                ready.src = url;
+            };
+
+            // Check if this slide was already preloaded
+            if (slideshowPreloaded.index === targetIndex && slideshowPreloaded.url) {
+                applyTransition(slideshowPreloaded.url);
+                slideshowPreloaded = { index: -1, url: null };
             } else {
-                ArcPhotos.getPhotoById(photo.id).then(dbPhoto => {
-                    if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
-                        const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
-                        if (thumbUrl) loadAndFade(thumbUrl);
-                    }
+                // Resolve the best URL, mirroring showViewerPhoto's iCloud-aware logic
+                resolvePhotoUrl(photo, fullUrl, posterUrl, targetIndex).then(url => {
+                    if (url && viewerIndex === targetIndex) applyTransition(url);
                 });
             }
 
@@ -13099,6 +13291,202 @@ scrollToDiaryDay(currentDayKey);
             updateFilenameBar();
         }
 
+        // Resolve the best available URL for a photo (full → poster → thumbnail)
+        // Mirrors the iCloud-aware logic from showViewerPhoto
+        async function resolvePhotoUrl(photo, fullUrl, posterUrl, targetIndex) {
+            const iCloudBusy = Date.now() < photoICloudBusyUntil;
+
+            // Fast path: metadata says original is not local — use poster directly
+            if (photo.noOriginal && posterUrl) return posterUrl;
+
+            // iCloud busy cooldown — use poster to avoid 503 pressure
+            if (iCloudBusy && posterUrl) return posterUrl;
+
+            if (fullUrl) {
+                try {
+                    const resp = await fetch(fullUrl, { method: 'HEAD' });
+                    if (viewerIndex !== targetIndex && targetIndex !== -1) return null;
+
+                    if (resp.status === 202) {
+                        // Original in iCloud — use poster
+                        if (posterUrl) return posterUrl;
+                        return await fallbackThumbnailUrl(photo, targetIndex);
+                    }
+                    if (resp.status === 503) {
+                        // Queue full — cooldown + poster
+                        photoICloudBusyUntil = Date.now() + 30000;
+                        if (posterUrl) return posterUrl;
+                        return await fallbackThumbnailUrl(photo, targetIndex);
+                    }
+                    if (resp.ok) {
+                        // Available — preload the full image to confirm it decodes
+                        return await new Promise((resolve) => {
+                            const img = new Image();
+                            img.onload = () => resolve(fullUrl);
+                            img.onerror = async () => {
+                                resolve(await fallbackThumbnailUrl(photo, targetIndex));
+                            };
+                            img.src = fullUrl;
+                        });
+                    }
+                    // Other error — thumbnail
+                    return await fallbackThumbnailUrl(photo, targetIndex);
+                } catch (_) {
+                    return await fallbackThumbnailUrl(photo, targetIndex);
+                }
+            }
+            // No server — thumbnail from IndexedDB
+            return await fallbackThumbnailUrl(photo, targetIndex);
+        }
+
+        async function fallbackThumbnailUrl(photo, targetIndex) {
+            const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
+            if (dbPhoto?.thumbnail && (viewerIndex === targetIndex || targetIndex === -1)) {
+                return ArcPhotos.getThumbnailUrl(dbPhoto) || null;
+            }
+            return null;
+        }
+
+        // Preload the next slideshow photo so it's ready when the timer fires
+        function preloadNextSlide(currentIndex) {
+            if (!slideshowPlaying || viewerPhotos.length < 2) return;
+            let nextIdx = currentIndex;
+            let attempts = 0;
+            do {
+                nextIdx = (nextIdx + 1) % viewerPhotos.length;
+                attempts++;
+                if (attempts > viewerPhotos.length) return;
+            } while (viewerPhotos[nextIdx].type === 'video');
+
+            const nextPhoto = viewerPhotos[nextIdx];
+            const nextFullUrl = getPhotoFullUrl(nextPhoto.id);
+            const serverUrl = ArcPhotos.getServerUrl();
+            const nextPosterUrl = serverUrl ? `${serverUrl}/api/full/${nextPhoto.id}?poster=1` : null;
+
+            // Resolve URL in background (targetIndex -1 = don't check viewerIndex)
+            resolvePhotoUrl(nextPhoto, nextFullUrl, nextPosterUrl, -1).then(url => {
+                if (url) {
+                    slideshowPreloaded = { index: nextIdx, url };
+                    // Warm browser cache
+                    const warm = new Image();
+                    warm.src = url;
+                }
+            });
+        }
+
+        // ─── Transition implementations ─────────────────────
+
+        function transitionFinalize(front, back, targetIndex) {
+            if (viewerIndex !== targetIndex) return;
+            // Clean up outgoing image (now hidden)
+            cancelKenBurns(front);
+            front.style.display = 'none';
+            front.style.transition = 'opacity 0.3s';
+            front.style.opacity = '1'; // reset for next use
+            back.style.zIndex = '2';
+            back.style.transition = 'opacity 0.3s';
+            // Don't reset back.style.transform — the Web Animation overrides it while running
+            crossFadeFront = crossFadeFront === 'A' ? 'B' : 'A';
+        }
+
+        function transitionCrossfade(front, back, targetIndex) {
+            back.style.display = '';
+            back.style.opacity = '0';
+            back.style.zIndex = '3';
+            back.style.transform = 'none';
+            front.style.zIndex = '2';
+
+            requestAnimationFrame(() => {
+                back.style.transition = 'opacity 0.8s ease';
+                back.style.opacity = '1';
+                front.style.transition = 'opacity 0.8s ease';
+                front.style.opacity = '0';
+                startKenBurns(back);
+                setTimeout(() => transitionFinalize(front, back, targetIndex), 850);
+            });
+        }
+
+        function transitionSlide(front, back, targetIndex) {
+            const fwd = navDirection >= 0; // forward: in from right, out to left
+            back.style.display = '';
+            back.style.opacity = '1';
+            back.style.zIndex = '3';
+            back.style.transition = 'none';
+            back.style.transform = fwd ? 'translateX(100%)' : 'translateX(-100%)';
+            front.style.zIndex = '2';
+            front.style.transition = 'none';
+            front.style.transform = 'translateX(0)';
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    back.style.transition = 'transform 0.6s ease-in-out';
+                    back.style.transform = 'translateX(0)';
+                    front.style.transition = 'transform 0.6s ease-in-out';
+                    front.style.transform = fwd ? 'translateX(-100%)' : 'translateX(100%)';
+                    // Start Ken Burns after the slide completes
+                    setTimeout(() => {
+                        transitionFinalize(front, back, targetIndex);
+                        startKenBurns(back);
+                    }, 650);
+                });
+            });
+        }
+
+        function transitionZoom(front, back, targetIndex) {
+            back.style.display = '';
+            back.style.opacity = '0';
+            back.style.zIndex = '3';
+            back.style.transition = 'none';
+            back.style.transform = 'scale(0.8)';
+            front.style.zIndex = '2';
+
+            requestAnimationFrame(() => {
+                back.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+                back.style.opacity = '1';
+                back.style.transform = 'scale(1)';
+                front.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                front.style.opacity = '0';
+                front.style.transform = 'scale(1.2)';
+                // Start Ken Burns after CSS zoom completes to avoid transform conflict
+                setTimeout(() => {
+                    transitionFinalize(front, back, targetIndex);
+                    startKenBurns(back);
+                }, 650);
+            });
+        }
+
+        function transitionFadeBlack(front, back, targetIndex) {
+            // Phase 1: fade front to black (body background is #000)
+            front.style.transition = 'opacity 0.4s ease';
+            front.style.opacity = '0';
+
+            setTimeout(() => {
+                if (viewerIndex !== targetIndex) return;
+                // Phase 2: swap while both hidden — clean up outgoing
+                cancelKenBurns(front);
+                front.style.display = 'none';
+                front.style.opacity = '1'; // reset for next use
+                back.style.display = '';
+                back.style.opacity = '0';
+                back.style.zIndex = '2';
+                back.style.transform = 'none';
+                front.style.zIndex = '1';
+
+                requestAnimationFrame(() => {
+                    // Phase 3: fade in from black
+                    back.style.transition = 'opacity 0.4s ease';
+                    back.style.opacity = '1';
+                    startKenBurns(back);
+                    setTimeout(() => {
+                        if (viewerIndex !== targetIndex) return;
+                        front.style.transition = 'opacity 0.3s';
+                        back.style.transition = 'opacity 0.3s';
+                        crossFadeFront = crossFadeFront === 'A' ? 'B' : 'A';
+                    }, 450);
+                });
+            }, 450);
+        }
+
         const SLIDESHOW_SPEEDS = [3000, 5000, 8000, 12000];
 
         function cycleSlideshowSpeed() {
@@ -13112,6 +13500,184 @@ scrollToDiaryDay(currentDayKey);
                 slideshowTimer = setInterval(() => slideshowAdvance(), slideshowSpeed);
             }
         }
+
+        // ─── Ken Burns engine ───────────────────────────────
+
+        function startKenBurns(img) {
+            if (!img) return;
+            cancelKenBurns(img);
+            if (!kenBurnsEnabled || !slideshowPlaying) return;
+
+            img.classList.add('ken-burns-active');
+            const zoom = kenBurnsZoom;
+            const mag = 6; // max pan percentage
+            let from = [0, 0], to = [0, 0];
+            const r = () => (Math.random() * 2 - 1) * mag;
+
+            switch (kenBurnsPan) {
+                case 'lr':   from = [-mag, 0]; to = [mag, 0]; break;
+                case 'rl':   from = [mag, 0]; to = [-mag, 0]; break;
+                case 'ud':   from = [0, -mag]; to = [0, mag]; break;
+                case 'du':   from = [0, mag]; to = [0, -mag]; break;
+                case 'none': break; // both stay [0,0]
+                default:     from = [r(), r()]; to = [r(), r()];
+            }
+
+            // With object-fit:cover the image fills the frame, but translate(X%)
+            // moves the element itself — we need enough scale bleed so the pan
+            // never exposes the black container edge.
+            // Math: (scale - 1) / 2 * 100 must be >= max |translate%| at that point.
+            const margin = 1.5; // safety margin %
+            const maxPanStart = Math.max(Math.abs(from[0]), Math.abs(from[1]));
+            const maxPanEnd   = Math.max(Math.abs(to[0]),   Math.abs(to[1]));
+            const scaleForStart = 1 + 2 * (maxPanStart + margin) / 100;
+            const scaleForEnd   = (1 + 2 * (maxPanEnd + margin) / 100) / zoom;
+            const baseScale = Math.max(scaleForStart, scaleForEnd, 1.0);
+
+            const totalMs = Math.max(500, slideshowSpeed + 800);
+            const anim = img.animate([
+                { transform: `translate(${from[0]}%, ${from[1]}%) scale(${baseScale})` },
+                { transform: `translate(${to[0]}%, ${to[1]}%) scale(${baseScale * zoom})` }
+            ], { duration: totalMs, easing: 'linear', fill: 'forwards' });
+
+            kenBurnsAnimations.push({ img, anim });
+        }
+
+        function cancelKenBurns(img) {
+            if (!img) return;
+            img.getAnimations().forEach(a => a.cancel());
+            img.style.transform = 'none';
+            img.classList.remove('ken-burns-active');
+            kenBurnsAnimations = kenBurnsAnimations.filter(e => e.img !== img);
+        }
+
+        function cancelAllKenBurns() {
+            for (const entry of kenBurnsAnimations) {
+                try {
+                    entry.anim.cancel();
+                    entry.img.style.transform = 'none';
+                    entry.img.classList.remove('ken-burns-active');
+                } catch (_) {}
+            }
+            kenBurnsAnimations = [];
+        }
+
+        // ── Slideshow settings popup ──
+        function toggleSlideshowSettings() {
+            const popup = document.getElementById('slideshowSettingsPopup');
+            if (!popup) return;
+            if (popup.style.display !== 'none') {
+                closeSlideshowSettings();
+                return;
+            }
+            // Position near the gear button, clamped to viewport
+            const btn = document.getElementById('photoViewerSettingsBtn');
+            if (btn) {
+                // Show off-screen briefly to measure
+                popup.style.visibility = 'hidden';
+                popup.style.display = '';
+                popup.style.top = '0';
+                popup.style.left = '0';
+                popup.style.right = 'auto';
+                const pW = popup.offsetWidth;
+                const pH = popup.offsetHeight;
+                popup.style.display = 'none';
+                popup.style.visibility = '';
+
+                const r = btn.getBoundingClientRect();
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+                const gap = 6;
+                const margin = 8; // min distance from viewport edge
+
+                // Vertical: prefer below the button, flip above if it overflows
+                let top = r.bottom + gap;
+                if (top + pH > vh - margin) {
+                    top = r.top - gap - pH;
+                }
+                top = Math.max(margin, Math.min(top, vh - pH - margin));
+
+                // Horizontal: prefer right-aligned with the button, shift left if needed
+                let left = r.right - pW;
+                if (left < margin) {
+                    left = margin;
+                }
+                if (left + pW > vw - margin) {
+                    left = vw - pW - margin;
+                }
+
+                popup.style.top = top + 'px';
+                popup.style.left = left + 'px';
+                popup.style.right = 'auto';
+            }
+            // Sync UI controls with current state
+            const kbToggle = document.getElementById('kenBurnsToggle');
+            if (kbToggle) kbToggle.checked = kenBurnsEnabled;
+            const zoomRange = document.getElementById('kenBurnsZoomRange');
+            if (zoomRange) zoomRange.value = kenBurnsZoom;
+            const zoomVal = document.getElementById('kenBurnsZoomVal');
+            if (zoomVal) zoomVal.textContent = kenBurnsZoom.toFixed(2) + '×';
+            const panSelect = document.getElementById('kenBurnsPanSelect');
+            if (panSelect) panSelect.value = kenBurnsPan;
+            const transSelect = document.getElementById('slideshowTransitionSelect');
+            if (transSelect) transSelect.value = slideshowTransition;
+            const afToggle = document.getElementById('autoFitToggle');
+            if (afToggle) afToggle.checked = slideshowAutoFit;
+            updateKenBurnsSubOptions();
+            popup.style.display = '';
+        }
+
+        function updateKenBurnsSubOptions() {
+            const zoomRow = document.getElementById('kenBurnsZoomRow');
+            const panRow = document.getElementById('kenBurnsPanRow');
+            if (zoomRow) zoomRow.classList.toggle('disabled', !kenBurnsEnabled);
+            if (panRow) panRow.classList.toggle('disabled', !kenBurnsEnabled);
+        }
+
+        function closeSlideshowSettings() {
+            const popup = document.getElementById('slideshowSettingsPopup');
+            if (popup) popup.style.display = 'none';
+        }
+
+        // Bind settings controls (called once during init)
+        function initSlideshowSettings() {
+            const kbToggle = document.getElementById('kenBurnsToggle');
+            if (kbToggle) kbToggle.addEventListener('change', () => {
+                kenBurnsEnabled = kbToggle.checked;
+                localStorage.setItem('arcPhotoViewerKenBurns', kenBurnsEnabled ? '1' : '0');
+                updateKenBurnsSubOptions();
+            });
+
+            const zoomRange = document.getElementById('kenBurnsZoomRange');
+            const zoomVal = document.getElementById('kenBurnsZoomVal');
+            if (zoomRange) zoomRange.addEventListener('input', () => {
+                kenBurnsZoom = parseFloat(zoomRange.value);
+                if (zoomVal) zoomVal.textContent = kenBurnsZoom.toFixed(2) + '×';
+                localStorage.setItem('arcPhotoViewerKBZoom', kenBurnsZoom);
+            });
+
+            const panSelect = document.getElementById('kenBurnsPanSelect');
+            if (panSelect) panSelect.addEventListener('change', () => {
+                kenBurnsPan = panSelect.value;
+                localStorage.setItem('arcPhotoViewerKBPan', kenBurnsPan);
+            });
+
+            const transSelect = document.getElementById('slideshowTransitionSelect');
+            if (transSelect) transSelect.addEventListener('change', () => {
+                slideshowTransition = transSelect.value;
+                localStorage.setItem('arcPhotoViewerTransition', slideshowTransition);
+            });
+
+            const afToggle = document.getElementById('autoFitToggle');
+            if (afToggle) afToggle.addEventListener('change', () => {
+                slideshowAutoFit = afToggle.checked;
+                localStorage.setItem('arcPhotoViewerAutoFit', slideshowAutoFit ? '1' : '0');
+            });
+
+        }
+
+        // Initialize settings bindings
+        initSlideshowSettings();
 
         // Expose photo functions to window for onclick handlers
         window.closePhotoSlider = closePhotoSlider;
@@ -13127,6 +13693,7 @@ scrollToDiaryDay(currentDayKey);
         window.toggleFilenameOverlay = toggleFilenameOverlay;
         window.toggleSlideshow = toggleSlideshow;
         window.cycleSlideshowSpeed = cycleSlideshowSpeed;
+        window.toggleSlideshowSettings = toggleSlideshowSettings;
 
 		  function generateMarkdown(monthData, includeAllLocations = false, includeAllActivities = true) {
 

@@ -36,7 +36,7 @@ SOFTWARE.
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = '02.188';
+  window.__ARC_BUILD__ = '02.207';
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -625,10 +625,49 @@ SOFTWARE.
                                 <button class="photo-viewer-btn" id="photoViewerFilenameBtn" onclick="toggleFilenameOverlay()" title="Show filename">&#x1F5B9;</button>
                                 <button class="photo-viewer-btn" id="photoViewerSlideshowBtn" onclick="toggleSlideshow()" title="Slideshow">&#9654;</button>
                                 <button class="photo-viewer-btn photo-viewer-speed-btn" id="photoViewerSpeedBtn" onclick="cycleSlideshowSpeed()" title="Slideshow speed" style="display:none;">5s</button>
+                                <button class="photo-viewer-btn" id="photoViewerSettingsBtn" onclick="toggleSlideshowSettings()" title="Slideshow settings" style="display:none;">&#x2699;</button>
                                 <button class="photo-viewer-btn" onclick="openPhotoInNewTab()" title="Open in new tab">↗</button>
                                 <button class="photo-viewer-btn" id="photoViewerFitBtn" onclick="fitPhotoViewerToContent()" title="Fit to content">⊞</button>
                                 <button class="photo-viewer-btn" onclick="togglePhotoViewerMaximize()" title="Maximize">⛶</button>
                                 <button class="photo-viewer-btn" onclick="closePhotoViewer()" title="Close">&times;</button>
+                            </div>
+                        </div>
+                        <!-- Slideshow settings popup (inside modal for pointer-events inheritance) -->
+                        <div class="slideshow-settings-popup" id="slideshowSettingsPopup" style="display:none;">
+                            <div class="slideshow-settings-row">
+                                <span class="slideshow-settings-label">Ken Burns</span>
+                                <label class="slideshow-toggle"><input type="checkbox" id="kenBurnsToggle" checked><span class="slideshow-toggle-track"><span class="slideshow-toggle-knob"></span></span></label>
+                            </div>
+                            <div class="slideshow-settings-row" id="kenBurnsZoomRow">
+                                <span class="slideshow-settings-label">Zoom</span>
+                                <input type="range" id="kenBurnsZoomRange" min="1.02" max="1.40" step="0.01" value="1.12">
+                                <span class="slideshow-settings-value" id="kenBurnsZoomVal">1.12×</span>
+                            </div>
+                            <div class="slideshow-settings-row" id="kenBurnsPanRow">
+                                <span class="slideshow-settings-label">Pan</span>
+                                <select id="kenBurnsPanSelect">
+                                    <option value="random">Random</option>
+                                    <option value="lr">Left → Right</option>
+                                    <option value="rl">Right → Left</option>
+                                    <option value="ud">Up → Down</option>
+                                    <option value="du">Down → Up</option>
+                                    <option value="none">None (zoom only)</option>
+                                </select>
+                            </div>
+                            <div class="slideshow-settings-divider"></div>
+                            <div class="slideshow-settings-row">
+                                <span class="slideshow-settings-label">Transition</span>
+                                <select id="slideshowTransitionSelect">
+                                    <option value="crossfade">Crossfade</option>
+                                    <option value="slide">Slide</option>
+                                    <option value="zoom">Zoom</option>
+                                    <option value="fade-black">Fade to Black</option>
+                                </select>
+                            </div>
+                            <div class="slideshow-settings-divider"></div>
+                            <div class="slideshow-settings-row">
+                                <span class="slideshow-settings-label">Auto-fit on play</span>
+                                <label class="slideshow-toggle"><input type="checkbox" id="autoFitToggle" checked><span class="slideshow-toggle-track"><span class="slideshow-toggle-knob"></span></span></label>
                             </div>
                         </div>
                         <div class="photo-viewer-body">
