@@ -1,5 +1,24 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.207 (2026-03-08)
+
+### Photo Viewer — Slideshow & Presentation
+- **Slideshow mode** — Play button (▶) starts automatic photo cycling with smooth transitions. Speed selector (3s / 5s / 8s / 12s) and Space bar toggle. Videos are skipped during playback.
+- **Ken Burns effect** — Optional zoom-and-pan animation during slideshow, using the Web Animations API. Configurable zoom intensity (1.02×–1.40×) and pan direction (random, L→R, R→L, U→D, D→U, or none). Images use `object-fit: cover` with calculated base scale to prevent black edges.
+- **Transition effects** — Four transition types: crossfade (default), slide, zoom, and fade-to-black. Applied to both automatic slideshow playback and manual prev/next navigation. The slide transition is direction-aware — slides from the right when going forward, from the left when going back.
+- **Auto-fit on play** — Viewer automatically fits to the map content area when slideshow starts (skipped when already fullscreen).
+- **Settings popup** — Gear button (⚙) opens a dark-themed popup with controls for Ken Burns toggle, zoom intensity, pan direction, transition type, and auto-fit. All settings persist to localStorage across sessions.
+- **Fullscreen mode** — Maximize button enters true browser fullscreen via the Fullscreen API. Controls auto-hide after 2.5 seconds and reappear on mouse movement. Controls stay visible while the cursor hovers over them.
+
+### Photo Viewer — iCloud-Aware Slideshow Loading
+- **High-resolution slideshow photos** — Slideshow now uses the same iCloud-aware loading strategy as the main viewer: HEAD preflight to detect iCloud status, poster/derivative fallback for offloaded originals, 503 cooldown to avoid overloading the download queue.
+- **Look-ahead preloading** — After each slideshow transition, the next photo's URL is resolved and warmed in the browser cache, so transitions are instant even for large originals.
+
+### Navigation & UX
+- **Auto-select first day on month/year change** — Changing the year or month via the dropdown selectors now automatically selects and scrolls to the first day of the new month.
+- **Diary scrolls to highlighted thumbnail** — When opening a photo from a map marker popup, the diary panel scrolls vertically to reveal the photo strip containing the highlighted thumbnail.
+- **Gallery centres highlighted thumbnail** — The photo gallery slider now centres the active thumbnail in its scroll area instead of only scrolling the minimum to make it visible.
+
 ## Build 02.188 (2026-03-08)
 
 ### Photo Viewer

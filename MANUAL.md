@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader - User Manual
 
-**Build 02.167**
+**Build 02.207**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and [Arc Editor](https://editor.arc.wiki) GPS tracking data. Generates interactive diaries with maps from your location history, stored locally in your browser. No server required.
 
@@ -921,8 +921,14 @@ A non-modal viewer panel that overlays the map area. Features:
 - **Info bar** — shows the date, time, camera model, video duration, and position counter.
 - **Draggable** — grab the header bar to reposition the viewer on screen.
 - **Resizable** — drag the edges to resize, or click the maximize button to fill the viewport.
+- **Fullscreen** — the maximize button enters true browser fullscreen via the Fullscreen API. Controls auto-hide after a few seconds and reappear on mouse movement. Press Escape or click the button again to exit.
 - **Open in new tab** — click ↗ to open the current photo or video in a separate browser tab. Subsequent clicks in the gallery update the same tab.
-- **Keyboard shortcuts** — Escape to close, Left/Right to navigate.
+- **Slideshow** — click the play button (▶) to start an automatic slideshow that cycles through photos with smooth transitions. Press Space to toggle play/pause. Use the speed button to cycle between 3s, 5s, 8s, and 12s intervals. Videos are skipped during playback. Arrow keys stop the slideshow and return to manual navigation.
+- **Transition effects** — four styles for moving between photos: crossfade (default), slide, zoom, and fade-to-black. Transitions apply to both automatic slideshow playback and manual prev/next navigation. The slide transition is direction-aware, matching the navigation direction.
+- **Ken Burns effect** — an optional cinematic zoom-and-pan that animates each photo during slideshow playback. Configurable zoom intensity and pan direction (random, left-right, right-left, up-down, down-up, or none).
+- **Slideshow settings** — click the gear button (⚙) to open a settings popup where you can toggle Ken Burns, adjust zoom intensity, choose pan direction, select transition type, and enable/disable auto-fit on play. All settings are remembered across sessions.
+- **Thumbnail tracking** — the currently viewed photo is highlighted in both the diary strip and the gallery slider. The diary panel scrolls to reveal the highlighted strip, and the gallery centres the active thumbnail.
+- **Keyboard shortcuts** — Escape to close, Left/Right to navigate, Space to toggle slideshow.
 
 #### Map Markers
 
@@ -1106,8 +1112,9 @@ In the Analysis page, click the **Rebuild** button to reconstruct analysis data 
 
 | Key | Action |
 |-----|--------|
-| Left / Right | Previous / Next photo or video |
-| Escape | Close viewer |
+| Left / Right | Previous / Next photo or video (stops slideshow if playing) |
+| Space | Toggle slideshow play / pause |
+| Escape | Close settings popup, exit fullscreen, or close viewer |
 
 ### Location Search (Analysis Page)
 

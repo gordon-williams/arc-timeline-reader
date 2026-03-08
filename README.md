@@ -40,6 +40,14 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracki
 - **Analysis Integration** - Select events to auto-fill date range in Analysis page
 - **Export/Import** - Events included in data export for backup and sync
 
+### Apple Photos & Videos
+- **Photo Server** - Local Node.js server reads your Apple Photos library and serves thumbnails and full-resolution images
+- **Map Markers** - Photos and videos appear as thumbnail markers on the map at their GPS coordinates
+- **Photo Viewer** - Non-modal overlay panel with full-resolution photos, inline video playback, and iCloud download support
+- **Slideshow** - Automatic photo cycling with four transition effects (crossfade, slide, zoom, fade-to-black) and Ken Burns zoom-and-pan
+- **Fullscreen** - True browser fullscreen with auto-hiding controls
+- **Gallery & Diary Sync** - Active photo highlighted in both the diary strip and gallery slider with auto-scroll
+
 ### Day Trip Replay
 - **Animated Playback** - Watch your day's journey animated on the map
 - **Activity Icons** - Marker changes based on transport mode (walking, cycling, car, etc.)
