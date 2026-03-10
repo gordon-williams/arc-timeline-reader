@@ -1,5 +1,31 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.244 (2026-03-10)
+
+### Photo Viewer
+- **Loading spinner grace period** — The thumbnail placeholder and loading spinner now wait 400ms before appearing (up from 150ms), so fast-loading photos (cached JPEGs, local files) never flash the spinner.
+- **Fix drag-after-fit-to-content jump** — Clicking the viewer header to drag after using fit-to-content no longer causes the window to jump right and slide back. The CSS transition on the `.fitted` class was animating the transform removal; drag now suppresses transitions before switching to absolute positioning.
+- **Rapid video navigation** — Flicking through photos past a video no longer forces a wait for the video to load. Videos show their poster thumbnail instantly during navigation, with a 600ms delayed load that is cancelled if you navigate away.
+- **False-positive video reclassification** — Videos served by iCloud as images (ZKIND=1 but non-video Content-Type) are reclassified as photos. Strictly based on HTTP 200 + Content-Type header from the server — 202 (iCloud downloading) responses no longer trigger reclassification.
+
+### Photo Gallery & Thumbnails
+- **Gallery highlight after async rebuild** — Clicking a diary thumbnail from a different day now correctly highlights it in the photo gallery. Previously the gallery grid was being rebuilt asynchronously while the highlight ran, causing it to miss.
+- **Diary thumbnail click preserves scroll position** — Clicking a diary thumbnail from a different day no longer scrolls the diary to the day header. The diary stays at the thumbnail strip position so the clicked photo remains visible.
+- **Same-day thumbnail click optimised** — Clicking a thumbnail on the already-selected day skips the redundant day selection (map reload, scroll, state update) and just opens the viewer.
+
+### Slide-out Panel Management
+- **Search closes photo gallery** — Starting a search (text, tag, or date) now closes the photo gallery slider to make room for search results.
+- **Photo gallery closes search results** — Opening the photo gallery now closes the search results slider. The three slide-out panels (gallery, search, events) are now mutually exclusive.
+
+### Photo Server (Windows)
+- **EXIF enrichment pipeline** — The Windows server now processes photos in background batches, extracting EXIF metadata (GPS, dates, dimensions, camera info) progressively after startup. The diary reader fetches enriched photos automatically as they become available.
+- **Month/day enrichment priority** — When the user navigates to a month or day, the server is asked to prioritise enriching photos from that period, so thumbnails and metadata appear faster for the content being viewed.
+- **Progressive photo display** — Photo strips in the diary update automatically as newly enriched photos arrive from the server, without requiring a manual re-import.
+
+### Photo Server (macOS)
+- **Video-as-photo diagnostic** — Added `[video-as-photo]` server log when a ZKIND=1 item serves a non-video derivative (excludes poster requests).
+- **Camera column discovery** — If `ZCAMERAMAKE` is missing from the Apple Photos database (newer macOS versions), the server logs which camera-related columns are available.
+
 ## Build 02.207 (2026-03-08)
 
 ### Photo Viewer — Slideshow & Presentation

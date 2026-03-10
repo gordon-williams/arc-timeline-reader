@@ -6710,6 +6710,56 @@ li.route-clickable:hover {
     position: relative;
     z-index: 2;
 }
+/* Loading spinner overlay for the photo viewer */
+.photo-viewer-loading {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+.photo-viewer-loading::after {
+    content: '';
+    width: 36px;
+    height: 36px;
+    border: 3px solid rgba(255, 255, 255, 0.15);
+    border-top-color: rgba(255, 255, 255, 0.7);
+    border-radius: 50%;
+    animation: pvSpinner 0.8s linear infinite;
+}
+@keyframes pvSpinner {
+    to { transform: rotate(360deg); }
+}
+/* Thumbnail preview — shown blurred while full-res loads */
+#photoViewerPreview {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    z-index: 1;
+    filter: blur(8px);
+    transform: scale(1.05); /* hide blur edges */
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+#photoViewerPreview.visible {
+    opacity: 1;
+}
+
+/* Loading skeleton pulse for photo slider items */
+.photo-slider-item.loading {
+    background: linear-gradient(110deg, #1a1a2e 30%, #252545 50%, #1a1a2e 70%);
+    background-size: 200% 100%;
+    animation: sliderSkeleton 1.5s ease-in-out infinite;
+}
+@keyframes sliderSkeleton {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
 .photo-viewer-nav {
     position: absolute;
     top: 0;

@@ -178,7 +178,12 @@ function prepareStatements() {
 
     // Log discovered schema
     console.log(`Schema:  ZASSET has ${assetCols.size} columns, ZADDITIONALASSETATTRIBUTES has ${attrCols.size} columns`);
-    if (!attrCols.has('ZCAMERAMAKE')) console.log('  Note: ZCAMERAMAKE not found — camera info will be unavailable');
+    if (!attrCols.has('ZCAMERAMAKE')) {
+        // ZCAMERAMAKE may have been renamed in newer macOS versions — look for alternatives
+        const cameraRelated = [...attrCols].filter(c => /camera|make|model|lens|device/i.test(c)).sort();
+        console.log('  Note: ZCAMERAMAKE not found in ZADDITIONALASSETATTRIBUTES');
+        console.log('  Camera-related columns found:', cameraRelated.length ? cameraRelated.join(', ') : 'none');
+    }
 
     const BASE_SELECT = `
         SELECT
@@ -861,6 +866,10 @@ app.use(cors({
         return cb(new Error('Not allowed by CORS'));
     }
 }));
+
+// ---------------------------------------------------------------------------
+//  REST API — see API.md for the full endpoint and response schema reference
+// ---------------------------------------------------------------------------
 
 // Health check
 app.get('/api/status', (req, res) => {

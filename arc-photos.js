@@ -278,10 +278,61 @@
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const data = await resp.json();
             serverAvailable = data.ok === true;
+
+            // Cache version check: if the server's thumbnail cache was rebuilt
+            // (e.g. HEIC fix), clear client-side photo IDB so thumbnails re-download.
+            if (serverAvailable && data.cacheVersion) {
+                await checkCacheVersion(data.cacheVersion);
+            }
+
             return data;
         } catch (e) {
             serverAvailable = false;
             throw e;
+        }
+    }
+
+    /**
+     * Compare server cacheVersion with what we stored in IDB metadata.
+     * If the server version is newer, clear all photos so they re-download
+     * with corrected thumbnails.
+     */
+    async function checkCacheVersion(serverVersion) {
+        const db = getDb();
+        if (!db) return;
+        try {
+            const stored = await new Promise((resolve) => {
+                const tx = db.transaction('metadata', 'readonly');
+                const req = tx.objectStore('metadata').get('photoCacheVersion');
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => resolve(null);
+            });
+            const currentVersion = stored?.value || 0;
+            if (currentVersion >= serverVersion) return; // up to date
+
+            logDebug(`[photos] Server cache version ${serverVersion} > client ${currentVersion} — clearing photo cache for re-download`);
+
+            // Clear all photos from IDB
+            await new Promise((resolve, reject) => {
+                const tx = db.transaction('photos', 'readwrite');
+                const store = tx.objectStore('photos');
+                const req = store.clear();
+                req.onsuccess = () => resolve();
+                req.onerror = () => reject(req.error);
+                tx.oncomplete = () => resolve();
+            });
+
+            // Store new version
+            await new Promise((resolve) => {
+                const tx = db.transaction('metadata', 'readwrite');
+                tx.objectStore('metadata').put({ key: 'photoCacheVersion', value: serverVersion });
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => resolve();
+            });
+
+            logDebug('[photos] Photo cache cleared — thumbnails will re-download as you browse');
+        } catch (err) {
+            logDebug('[photos] Cache version check failed:', err.message);
         }
     }
 
@@ -601,15 +652,29 @@
     }
 
     // ---------------------------------------------------------------------------
-    // Repair — re-fetch thumbnails that are missing or corrupt
+    // Repair — re-fetch thumbnails that are missing, corrupt, or bad (HEIC tile bug)
     // ---------------------------------------------------------------------------
+
+    /**
+     * Check a thumbnail blob's pixel dimensions by loading it as an Image.
+     * Returns { width, height } or null on failure.
+     */
+    function getThumbnailDimensions(blob) {
+        return new Promise((resolve) => {
+            const url = URL.createObjectURL(blob);
+            const img = new Image();
+            img.onload = () => { URL.revokeObjectURL(url); resolve({ width: img.naturalWidth, height: img.naturalHeight }); };
+            img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+            img.src = url;
+        });
+    }
 
     async function repairThumbnails(progressCb) {
         if (!serverAvailable) throw new Error('Photo server not connected');
         const db = getDb();
         if (!db) throw new Error('Database not available');
 
-        // Scan all photos for missing/empty thumbnails
+        // Scan all photos
         const allPhotos = await new Promise((resolve, reject) => {
             const tx = db.transaction('photos', 'readonly');
             const store = tx.objectStore('photos');
@@ -618,10 +683,45 @@
             request.onerror = () => reject(request.error);
         });
 
-        const broken = allPhotos.filter(p => !p.thumbnail || p.thumbnail.size === 0);
-        logDebug(`📷 Repair: ${broken.length} of ${allPhotos.length} photos need thumbnail repair`);
+        // Phase 1: missing or empty thumbnails
+        const missing = allPhotos.filter(p => !p.thumbnail || p.thumbnail.size === 0);
 
-        if (broken.length === 0) return { repaired: 0, failed: 0, total: allPhotos.length };
+        // Phase 2: detect bad HEIC tile thumbnails — the old ffmpeg fallback grabbed
+        // a single 512×512 tile instead of the full image, producing square thumbnails
+        // for photos that should be non-square (e.g. 4032×3024 → 200×200 instead of 200×150).
+        // Check HEIC photos where source dimensions are non-square.
+        const heicCandidates = allPhotos.filter(p => {
+            if (!p.thumbnail || p.thumbnail.size === 0) return false; // already in missing
+            if (!p.filename) return false;
+            const ext = p.filename.split('.').pop().toLowerCase();
+            if (ext !== 'heic' && ext !== 'heif') return false;
+            // Source dimensions must be non-square (with some tolerance for rounding)
+            if (!p.width || !p.height) return false;
+            const ratio = p.width / p.height;
+            return ratio < 0.95 || ratio > 1.05; // non-square source
+        });
+
+        let badHeic = [];
+        if (heicCandidates.length > 0) {
+            progressCb?.({ phase: 'scanning', message: `Checking ${heicCandidates.length} HEIC thumbnails for tile bug...` });
+            for (const photo of heicCandidates) {
+                const dims = await getThumbnailDimensions(photo.thumbnail);
+                if (dims && dims.width === dims.height) {
+                    // Square thumbnail from a non-square source — bad tile
+                    badHeic.push(photo);
+                }
+            }
+        }
+
+        const broken = [...missing, ...badHeic];
+        const missingCount = missing.length;
+        const badHeicCount = badHeic.length;
+
+        logDebug(`📷 Repair: ${broken.length} of ${allPhotos.length} photos need repair` +
+            (missingCount > 0 ? ` (${missingCount} missing)` : '') +
+            (badHeicCount > 0 ? ` (${badHeicCount} bad HEIC tiles)` : ''));
+
+        if (broken.length === 0) return { repaired: 0, failed: 0, total: allPhotos.length, badHeic: 0 };
 
         let repaired = 0;
         let failed = 0;
@@ -656,15 +756,18 @@
             failed += batch.length - good.length;
 
             progressCb?.({
+                phase: 'repairing',
                 repaired,
                 failed,
                 total: broken.length,
+                badHeic: badHeicCount,
                 percent: Math.round(((i + batch.length) / broken.length) * 100)
             });
         }
 
-        logDebug(`📷 Repair complete: ${repaired} fixed, ${failed} still broken`);
-        return { repaired, failed, total: allPhotos.length };
+        logDebug(`📷 Repair complete: ${repaired} fixed, ${failed} still broken` +
+            (badHeicCount > 0 ? ` (${badHeicCount} bad HEIC tiles detected)` : ''));
+        return { repaired, failed, total: allPhotos.length, badHeic: badHeicCount };
     }
 
     // ---------------------------------------------------------------------------
@@ -861,6 +964,357 @@
     }
 
     // ---------------------------------------------------------------------------
+    // Priority EXIF enrichment — ask the server to prioritise a date range
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Request the photo server to prioritise EXIF enrichment for a month.
+     * Called automatically when the user navigates to a month in the diary.
+     * Fire-and-forget — does not block navigation.
+     * @param {string} monthKey  "YYYY-MM" format
+     */
+    async function requestEnrichment(monthKey) {
+        if (!serverAvailable || !monthKey) return;
+        try {
+            // Expand monthKey "YYYY-MM" to a full-month date range
+            const [year, month] = monthKey.split('-').map(Number);
+            const start = `${year}-${String(month).padStart(2, '0')}-01`;
+            // Last day of month
+            const lastDay = new Date(year, month, 0).getDate();
+            const end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+            const resp = await fetch(`${serverUrl}/api/photos/enrich`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ start, end }),
+                signal: AbortSignal.timeout(3000),
+            });
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.boosted > 0) {
+                    logDebug(`[photos] Boosted EXIF enrichment for ${monthKey}: ${data.boosted} records prioritised`);
+                }
+            }
+        } catch (_) {
+            // Non-critical — server may not support this endpoint or enrichment may be done
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Auto-fetch photos for a month from the server (progressive display)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Fetch enriched photos for a month from the server, download thumbnails
+     * for any that aren't already in IndexedDB, and store them.
+     * Called automatically when the user navigates to a month.
+     *
+     * Only fetches photos where EXIF enrichment is complete (dates are correct).
+     *
+     * @param {string} monthKey  "YYYY-MM" format
+     * @returns {{ added: number, total: number, enrichmentRunning: boolean }}
+     */
+    async function fetchAndCacheMonthPhotos(monthKey) {
+        if (!serverAvailable || !monthKey) return { added: 0, total: 0, enrichmentRunning: false };
+        const db = getDb();
+        if (!db) return { added: 0, total: 0, enrichmentRunning: false };
+
+        try {
+            // Build full-month date range from "YYYY-MM"
+            const [year, month] = monthKey.split('-').map(Number);
+            const start = `${year}-${String(month).padStart(2, '0')}-01`;
+            const lastDay = new Date(year, month, 0).getDate();
+            const end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+            // 1. Fetch enriched metadata for this month
+            const metaResp = await fetch(
+                `${serverUrl}/api/photos/metadata?start=${start}&end=${end}&enriched=true`,
+                { signal: AbortSignal.timeout(10000) }
+            );
+            if (!metaResp.ok) return { added: 0, total: 0, enrichmentRunning: false };
+            const serverPhotos = await metaResp.json();
+            if (serverPhotos.length === 0) {
+                // Check if enrichment is still running
+                const enrichmentRunning = await isEnrichmentRunning();
+                return { added: 0, total: 0, enrichmentRunning };
+            }
+
+            // 2. Find which IDs are already in IndexedDB
+            const existingIds = await new Promise((resolve) => {
+                try {
+                    const tx = db.transaction('photos', 'readonly');
+                    const store = tx.objectStore('photos');
+                    const index = store.index('dayKey');
+                    const ids = new Set();
+                    // Scan all days in the month range
+                    const range = IDBKeyRange.bound(start, end);
+                    const cursor = index.openCursor(range);
+                    cursor.onsuccess = (e) => {
+                        const c = e.target.result;
+                        if (c) {
+                            ids.add(c.value.id);
+                            c.continue();
+                        } else {
+                            resolve(ids);
+                        }
+                    };
+                    cursor.onerror = () => resolve(ids);
+                } catch (_) {
+                    resolve(new Set());
+                }
+            });
+
+            // 3. Filter to photos not yet in IDB
+            const newPhotos = serverPhotos.filter(p => !existingIds.has(p.id));
+            if (newPhotos.length === 0) {
+                const enrichmentRunning = await isEnrichmentRunning();
+                return { added: 0, total: serverPhotos.length, enrichmentRunning };
+            }
+
+            logDebug(`[photos] Auto-fetching ${newPhotos.length} new photos for ${monthKey}`);
+
+            // 4. Fetch thumbnails with controlled concurrency (reuse FETCH_CONCURRENCY)
+            let added = 0;
+            const pendingRecords = [];
+
+            async function fetchThumb(photo) {
+                try {
+                    const thumbResp = await fetch(
+                        `${serverUrl}/api/thumbnail/${photo.id}`,
+                        { cache: 'no-cache', signal: AbortSignal.timeout(15000) }
+                    );
+                    if (!thumbResp.ok) return null;
+                    const blob = await thumbResp.blob();
+                    if (!blob || blob.size === 0) return null;
+                    return {
+                        id: photo.id,
+                        dayKey: photo.dayKey,
+                        date: photo.date,
+                        latitude: photo.latitude,
+                        longitude: photo.longitude,
+                        width: photo.width,
+                        height: photo.height,
+                        filename: photo.filename,
+                        originalFilename: photo.originalFilename,
+                        title: photo.title,
+                        cameraMake: photo.cameraMake,
+                        cameraModel: photo.cameraModel,
+                        type: photo.type || 'photo',
+                        duration: photo.duration || null,
+                        thumbnail: blob,
+                    };
+                } catch (_) {
+                    return null;
+                }
+            }
+
+            // Process with FETCH_CONCURRENCY workers
+            let idx = 0;
+            async function worker() {
+                while (idx < newPhotos.length) {
+                    const photo = newPhotos[idx++];
+                    const record = await fetchThumb(photo);
+                    if (record) {
+                        pendingRecords.push(record);
+                        // Flush to IDB in batches
+                        if (pendingRecords.length >= BATCH_SIZE) {
+                            await storePhotoBatch(pendingRecords.splice(0));
+                        }
+                    }
+                }
+            }
+
+            const workers = [];
+            for (let i = 0; i < FETCH_CONCURRENCY; i++) workers.push(worker());
+            await Promise.all(workers);
+
+            // Flush remaining
+            if (pendingRecords.length > 0) {
+                await storePhotoBatch(pendingRecords);
+            }
+
+            added = newPhotos.length; // approximate — some may have failed
+            const enrichmentRunning = await isEnrichmentRunning();
+            logDebug(`[photos] Auto-fetch complete for ${monthKey}: ${added} photos cached`);
+            return { added, total: serverPhotos.length, enrichmentRunning };
+        } catch (err) {
+            logDebug(`[photos] Auto-fetch error for ${monthKey}: ${err.message}`);
+            return { added: 0, total: 0, enrichmentRunning: false };
+        }
+    }
+
+    /**
+     * Request priority EXIF enrichment for a single day.
+     * Used when the user clicks a specific day in the diary — the server
+     * moves that day's un-enriched records to the front of the queue.
+     * Fire-and-forget — does not block navigation.
+     * @param {string} dayKey  "YYYY-MM-DD" format
+     */
+    async function requestDayEnrichment(dayKey) {
+        if (!serverAvailable || !dayKey) return;
+        try {
+            const resp = await fetch(`${serverUrl}/api/photos/enrich`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ start: dayKey, end: dayKey }),
+                signal: AbortSignal.timeout(3000),
+            });
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.boosted > 0) {
+                    logDebug(`[photos] Boosted EXIF enrichment for day ${dayKey}: ${data.boosted} records prioritised`);
+                }
+            }
+        } catch (_) {
+            // Non-critical
+        }
+    }
+
+    /**
+     * Fetch enriched photos for a single day from the server, download
+     * thumbnails for any that aren't already in IndexedDB, and store them.
+     * Called automatically when the user selects a day.
+     *
+     * Only fetches photos where EXIF enrichment is complete (dates are correct).
+     *
+     * @param {string} dayKey  "YYYY-MM-DD" format
+     * @returns {{ added: number, total: number, enrichmentRunning: boolean }}
+     */
+    async function fetchAndCacheDayPhotos(dayKey) {
+        if (!serverAvailable || !dayKey) return { added: 0, total: 0, enrichmentRunning: false };
+        const db = getDb();
+        if (!db) return { added: 0, total: 0, enrichmentRunning: false };
+
+        try {
+            // 1. Fetch enriched metadata for this single day
+            const metaResp = await fetch(
+                `${serverUrl}/api/photos/metadata?start=${dayKey}&end=${dayKey}&enriched=true`,
+                { signal: AbortSignal.timeout(10000) }
+            );
+            if (!metaResp.ok) return { added: 0, total: 0, enrichmentRunning: false };
+            const serverPhotos = await metaResp.json();
+            if (serverPhotos.length === 0) {
+                const enrichmentRunning = await isEnrichmentRunning();
+                return { added: 0, total: 0, enrichmentRunning };
+            }
+
+            // 2. Find which IDs are already in IndexedDB for this day
+            const existingIds = await new Promise((resolve) => {
+                try {
+                    const tx = db.transaction('photos', 'readonly');
+                    const store = tx.objectStore('photos');
+                    const index = store.index('dayKey');
+                    const ids = new Set();
+                    const range = IDBKeyRange.only(dayKey);
+                    const cursor = index.openCursor(range);
+                    cursor.onsuccess = (e) => {
+                        const c = e.target.result;
+                        if (c) {
+                            ids.add(c.value.id);
+                            c.continue();
+                        } else {
+                            resolve(ids);
+                        }
+                    };
+                    cursor.onerror = () => resolve(ids);
+                } catch (_) {
+                    resolve(new Set());
+                }
+            });
+
+            // 3. Filter to photos not yet in IDB
+            const newPhotos = serverPhotos.filter(p => !existingIds.has(p.id));
+            if (newPhotos.length === 0) {
+                const enrichmentRunning = await isEnrichmentRunning();
+                return { added: 0, total: serverPhotos.length, enrichmentRunning };
+            }
+
+            logDebug(`[photos] Auto-fetching ${newPhotos.length} new photos for day ${dayKey}`);
+
+            // 4. Fetch thumbnails with controlled concurrency
+            let added = 0;
+            const pendingRecords = [];
+
+            async function fetchThumb(photo) {
+                try {
+                    const thumbResp = await fetch(
+                        `${serverUrl}/api/thumbnail/${photo.id}`,
+                        { cache: 'no-cache', signal: AbortSignal.timeout(15000) }
+                    );
+                    if (!thumbResp.ok) return null;
+                    const blob = await thumbResp.blob();
+                    if (!blob || blob.size === 0) return null;
+                    return {
+                        id: photo.id,
+                        dayKey: photo.dayKey,
+                        date: photo.date,
+                        latitude: photo.latitude,
+                        longitude: photo.longitude,
+                        width: photo.width,
+                        height: photo.height,
+                        filename: photo.filename,
+                        originalFilename: photo.originalFilename,
+                        title: photo.title,
+                        cameraMake: photo.cameraMake,
+                        cameraModel: photo.cameraModel,
+                        type: photo.type || 'photo',
+                        duration: photo.duration || null,
+                        thumbnail: blob,
+                    };
+                } catch (_) {
+                    return null;
+                }
+            }
+
+            // Process with FETCH_CONCURRENCY workers
+            let idx = 0;
+            async function worker() {
+                while (idx < newPhotos.length) {
+                    const photo = newPhotos[idx++];
+                    const record = await fetchThumb(photo);
+                    if (record) {
+                        pendingRecords.push(record);
+                        if (pendingRecords.length >= BATCH_SIZE) {
+                            await storePhotoBatch(pendingRecords.splice(0));
+                        }
+                    }
+                }
+            }
+
+            const workers = [];
+            for (let i = 0; i < FETCH_CONCURRENCY; i++) workers.push(worker());
+            await Promise.all(workers);
+
+            // Flush remaining
+            if (pendingRecords.length > 0) {
+                await storePhotoBatch(pendingRecords);
+            }
+
+            added = newPhotos.length;
+            const enrichmentRunning = await isEnrichmentRunning();
+            logDebug(`[photos] Auto-fetch complete for day ${dayKey}: ${added} photos cached`);
+            return { added, total: serverPhotos.length, enrichmentRunning };
+        } catch (err) {
+            logDebug(`[photos] Auto-fetch error for day ${dayKey}: ${err.message}`);
+            return { added: 0, total: 0, enrichmentRunning: false };
+        }
+    }
+
+    /**
+     * Quick check: is the server still running EXIF enrichment?
+     */
+    async function isEnrichmentRunning() {
+        try {
+            const resp = await fetch(`${serverUrl}/api/status`, { signal: AbortSignal.timeout(3000) });
+            if (resp.ok) {
+                const data = await resp.json();
+                return data.exifEnrichment === 'running';
+            }
+        } catch (_) {}
+        return false;
+    }
+
+    // ---------------------------------------------------------------------------
     // Public API
     // ---------------------------------------------------------------------------
 
@@ -893,6 +1347,12 @@
         requestICloudMedia,
         requestICloudVideo,
         revokeUrls,
+
+        // Enrichment & auto-fetch
+        requestEnrichment,
+        requestDayEnrichment,
+        fetchAndCacheMonthPhotos,
+        fetchAndCacheDayPhotos,
 
         // Preferences
         showMapMarkers,

@@ -1,6 +1,6 @@
 # Arc Timeline Diary Reader - User Manual
 
-**Build 02.207**
+**Build 02.244**
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and [Arc Editor](https://editor.arc.wiki) GPS tracking data. Generates interactive diaries with maps from your location history, stored locally in your browser. No server required.
 
@@ -820,6 +820,21 @@ Windows users with **iCloud for Windows** installed can use the Windows photo se
 - iCloud for Windows with photos synced to your PC
 - Optional: [FFmpeg](https://ffmpeg.org/) for video thumbnail generation
 
+**Recommended: Install HEIC codec extensions** for fast iPhone photo support:
+
+Most iPhone photos use the HEIC format. Windows doesn't decode these natively — you need two free/cheap extensions from the Microsoft Store. Without them, the server falls back to a slower software decoder.
+
+1. **[HEIF Image Extensions](https://apps.microsoft.com/detail/9pmmsr1cgpwg)** (free) — open the link in your browser and click "Get" to install from the Microsoft Store.
+2. **[HEVC Video Extensions](https://apps.microsoft.com/detail/9nmzlz57r3t7)** ($0.99) — decodes the HEVC-compressed image data inside HEIC files. Alternatively, search the Microsoft Store for **"HEVC Video Extensions from Device Manufacturer"** which is free on many OEM devices.
+
+With both installed, the photo server uses the same decoder as Microsoft Photos — including GPU hardware acceleration where available. Thumbnail generation drops from ~2–4 seconds per HEIC image to under 1 second. The server detects these automatically at startup and reports its HEIC decoder chain:
+
+```
+HEIC:    WIC (Windows-native, fastest) → heic-convert (WASM fallback)
+```
+
+If the extensions are not installed, you'll see only the fallback decoders — everything still works, just slower for HEIC files.
+
 **Quick start (double-click):**
 
 1. Open the `photo-server/` folder.
@@ -908,6 +923,7 @@ Click the camera button (📷) in the diary toolbar or click a day's photo count
 - Click any thumbnail to open it in the viewer.
 - The gallery updates automatically when you navigate to a different day.
 - The gallery moves with the diary panel when you resize it, and closes automatically when the diary is hidden.
+- Opening the gallery closes the search results panel, and vice versa — the slide-out panels (gallery, search, events) are mutually exclusive to avoid crowding.
 
 #### Photo & Video Viewer
 
@@ -927,7 +943,8 @@ A non-modal viewer panel that overlays the map area. Features:
 - **Transition effects** — four styles for moving between photos: crossfade (default), slide, zoom, and fade-to-black. Transitions apply to both automatic slideshow playback and manual prev/next navigation. The slide transition is direction-aware, matching the navigation direction.
 - **Ken Burns effect** — an optional cinematic zoom-and-pan that animates each photo during slideshow playback. Configurable zoom intensity and pan direction (random, left-right, right-left, up-down, down-up, or none).
 - **Slideshow settings** — click the gear button (⚙) to open a settings popup where you can toggle Ken Burns, adjust zoom intensity, choose pan direction, select transition type, and enable/disable auto-fit on play. All settings are remembered across sessions.
-- **Thumbnail tracking** — the currently viewed photo is highlighted in both the diary strip and the gallery slider. The diary panel scrolls to reveal the highlighted strip, and the gallery centres the active thumbnail.
+- **Fit to content** — click the fit button to resize the viewer to match the photo's aspect ratio, centred in the available map area (avoiding diary, gallery, and stats panels). Click again to toggle back to default size. Dragging the header after fitting snaps cleanly to the cursor without visual glitches.
+- **Thumbnail tracking** — the currently viewed photo is highlighted in both the diary strip and the gallery slider. Clicking a thumbnail from a different day scrolls to the strip (not the day header) so the clicked photo stays visible. The gallery centres the active thumbnail.
 - **Keyboard shortcuts** — Escape to close, Left/Right to navigate, Space to toggle slideshow.
 
 #### Map Markers

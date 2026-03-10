@@ -16,6 +16,21 @@ const cors = require('cors');
 const sharp = require('sharp');
 const exifr = require('exifr');
 
+// WIC HEIC converter — uses Windows-native HEIF/HEVC codec via PowerShell.
+// Same decoder as Microsoft Photos — supports GPU hardware acceleration and
+// correctly handles tiled iPhone HEIC files. Preferred over heic-convert.
+const { convertHeicToJpeg, convertHeicBatch, checkWicHeicSupport } = require('./heic-wic-converter');
+let wicHeicAvailable = false; // set at startup after checking installed extensions
+
+// heic-convert — pure-JS HEIC decoder (WebAssembly-based libheif)
+// Falls back gracefully if not installed. Used when WIC extensions are missing.
+let heicConvert = null;
+try {
+    heicConvert = require('heic-convert');
+} catch (_) {
+    // Will be installed via `npm install` from package.json
+}
+
 // ---------------------------------------------------------------------------
 // Process safety handlers
 // ---------------------------------------------------------------------------
@@ -94,6 +109,27 @@ for (const dir of [THUMB_CACHE, FULL_CACHE]) {
     if (purged > 0) console.log(`Purged ${purged} corrupt/temp files from ${path.basename(dir)} cache`);
 }
 
+// One-time cache migration: previous versions used ffmpeg for HEIC which grabbed a single
+// 512×512 tile from tiled iPhone HEIC files, producing incorrect square thumbnails/full-res.
+// If heic-convert is now available, purge ALL cached images so HEIC files get regenerated
+// correctly. Non-HEIC images will be re-cached on first access (fast — Sharp handles them).
+const HEIC_CACHE_VERSION_FILE = path.join(CACHE_DIR, '.heic-cache-v2');
+if (heicConvert && !fs.existsSync(HEIC_CACHE_VERSION_FILE)) {
+    let heicPurged = 0;
+    for (const dir of [THUMB_CACHE, FULL_CACHE]) {
+        for (const file of fs.readdirSync(dir)) {
+            if (!file.endsWith('.jpg')) continue;
+            const fp = path.join(dir, file);
+            try { fs.unlinkSync(fp); heicPurged++; } catch (_) {}
+        }
+    }
+    // Write version marker — won't purge again on next startup
+    fs.writeFileSync(HEIC_CACHE_VERSION_FILE, `heic-convert cache v2 — purged ${heicPurged} cached images at ${new Date().toISOString()}\n`);
+    if (heicPurged > 0) {
+        console.log(`Cache migration: purged ${heicPurged} cached images (HEIC files will regenerate with heic-convert)`);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // File type detection
 // ---------------------------------------------------------------------------
@@ -153,6 +189,30 @@ function dayKeyFromDate(d) {
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
+}
+
+// ---------------------------------------------------------------------------
+// Helper: format date as timezone-naive local ISO string
+// ---------------------------------------------------------------------------
+// Format a Date object as the server-local time WITHOUT a 'Z' suffix, so the
+// browser always displays the server's local time. Since the server runs on
+// the user's machine, server-local IS the user's display timezone.
+//
+// NOTE: We intentionally do NOT use EXIF OffsetTimeOriginal here. That tag
+// records the camera's timezone at capture, but it can be wrong if the
+// camera/phone had a misconfigured timezone. Apple Photos on macOS corrects
+// this via GPS data, but we don't have that capability. Using server-local
+// time is the safest default — it matches what the user expects when their
+// server and browser are on the same machine.
+
+function localISO(date) {
+    const y = date.getFullYear();
+    const mo = String(date.getMonth() + 1).padStart(2, '0');
+    const dy = String(date.getDate()).padStart(2, '0');
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    const ss = String(date.getSeconds()).padStart(2, '0');
+    return `${y}-${mo}-${dy}T${hh}:${mm}:${ss}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -500,11 +560,12 @@ function buildPlaceholderRecord(filename, attrInfo, dateTakenMs) {
     // Use the best available date — Shell DateTaken is the most reliable source
     // for iCloud placeholders because it comes from iCloud's metadata cache.
     const date = bestDateFromTimestamps(attrInfo.creationMs, attrInfo.lastWriteMs, filename, dateTakenMs);
+    const iso = localISO(date);
 
     return {
         id: 0,
-        date: date.toISOString(),
-        dayKey: dayKeyFromDate(date),
+        date: iso,
+        dayKey: iso.slice(0, 10),
         latitude: null,
         longitude: null,
         width: null,
@@ -693,12 +754,12 @@ async function buildRecordForFile(filename, filePath, stat) {
         date = stat.mtime;
     }
 
-    const iso = date.toISOString();
+    const iso = localISO(date);
 
     return {
         id: 0, // assigned by caller
         date: iso,
-        dayKey: dayKeyFromDate(date),
+        dayKey: iso.slice(0, 10),
         latitude,
         longitude,
         width,
@@ -725,7 +786,7 @@ async function scanFolder() {
     try {
         if (fs.existsSync(INDEX_PATH)) {
             cached = JSON.parse(fs.readFileSync(INDEX_PATH, 'utf8'));
-            if (cached.folder !== PHOTOS_FOLDER || cached.version !== 5) {
+            if (cached.folder !== PHOTOS_FOLDER || cached.version !== 7) {
                 cached = null;
             }
         }
@@ -828,16 +889,14 @@ async function scanFolder() {
                 }
             }
 
-            // New or modified file — read EXIF metadata
-            // This WILL read the file, but it's confirmed locally available by PowerShell
-            // Use best date for the mtime fallback (in case EXIF fails)
-            const bestFallback = bestDateFromTimestamps(attrInfo.creationMs, psMtime, filename);
-            const synthStat = { size: psSize, mtimeMs: psMtime, mtime: bestFallback };
-            const record = await buildRecordForFile(filename, filePath, synthStat);
-            if (!record) {
-                skippedCount++;
-                return;
-            }
+            // New or modified file — build record from PowerShell metadata only.
+            // Do NOT open the file here — on iCloud for Windows, files that appear
+            // "locally available" may still trigger cloud downloads when opened.
+            // EXIF enrichment (GPS, camera, dimensions) happens in the background
+            // after the server is already accepting requests.
+            const record = buildPlaceholderRecord(filename, attrInfo, 0);
+            record.available = true; // locally available, just not EXIF-enriched yet
+            record._needsExif = true;
 
             record.id = (cachedEntry && cachedEntry.metadata && cachedEntry.metadata.id) || nextId++;
             photoIndex.set(record.id, record);
@@ -887,7 +946,7 @@ function saveIndexCache() {
         };
     }
     const cache = {
-        version: 5,
+        version: 7,
         folder: PHOTOS_FOLDER,
         scannedAt: new Date().toISOString(),
         nextId,
@@ -930,7 +989,40 @@ function releaseSlot() {
 // ---------------------------------------------------------------------------
 
 /**
+ * Convert HEIC/HEIF to a resized JPEG file using heic-convert (pure-JS libheif decoder) + Sharp.
+ * This correctly decodes tiled iPhone HEIC files that ffmpeg mishandles (grabbing one tile instead
+ * of the full assembled image).
+ *
+ * Pipeline: heic-convert (HEIC → full JPEG buffer) → Sharp (resize + rotate) → file
+ */
+async function heicToJpeg(inputPath, outputPath, maxSize, isThumb = true) {
+    if (!heicConvert) throw new Error('heic-convert not installed');
+
+    const inputBuffer = fs.readFileSync(inputPath);
+    const jpegBuffer = await heicConvert({
+        buffer: inputBuffer,
+        format: 'JPEG',
+        quality: 0.92, // high quality — Sharp will re-compress after resize
+    });
+
+    await sharp(Buffer.from(jpegBuffer), { failOn: 'none' })
+        .rotate() // auto-rotate from EXIF orientation
+        .resize(maxSize, maxSize, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: isThumb ? 80 : 85 })
+        .toFile(outputPath);
+
+    const stat = fs.statSync(outputPath);
+    if (stat.size === 0) {
+        fs.unlinkSync(outputPath);
+        throw new Error('heicToJpeg produced 0-byte output');
+    }
+    return outputPath;
+}
+
+/**
  * Convert an image (HEIC/HEIF) to JPEG using ffmpeg as a fallback when Sharp can't decode it.
+ * NOTE: ffmpeg often grabs a single 512×512 tile from tiled iPhone HEIC files instead of the
+ * full assembled image. Prefer heicToJpeg() when heic-convert is available.
  */
 function ffmpegImageConvert(inputPath, outputPath, maxSize) {
     return new Promise((resolve, reject) => {
@@ -958,30 +1050,35 @@ function ffmpegImageConvert(inputPath, outputPath, maxSize) {
 }
 
 function ffmpegThumbnail(videoPath, outputPath, maxSize) {
-    return new Promise((resolve, reject) => {
-        if (!ffmpegPath) return reject(new Error('ffmpeg not installed'));
-        execFile(ffmpegPath, [
-            '-y',
-            '-ss', '1',
-            '-i', videoPath,
-            '-frames:v', '1',
-            '-vf', `scale=${maxSize}:${maxSize}:force_original_aspect_ratio=decrease`,
-            '-f', 'image2',
-            '-update', '1',
-            '-c:v', 'mjpeg',
-            '-q:v', '3',
-            outputPath
-        ], { timeout: 30000 }, (err) => {
-            if (err) return reject(err);
-            if (!fs.existsSync(outputPath)) return reject(new Error('ffmpeg produced no output'));
-            const stat = fs.statSync(outputPath);
-            if (stat.size === 0) {
-                fs.unlinkSync(outputPath);
-                return reject(new Error('ffmpeg produced 0-byte output'));
-            }
-            resolve(outputPath);
+    // Try with -ss 1 first; if that fails (short videos), retry with -ss 0
+    function attempt(seekSec) {
+        return new Promise((resolve, reject) => {
+            if (!ffmpegPath) return reject(new Error('ffmpeg not installed'));
+            execFile(ffmpegPath, [
+                '-y',
+                '-ss', String(seekSec),
+                '-i', videoPath,
+                '-frames:v', '1',
+                '-vf', `scale=${maxSize}:${maxSize}:force_original_aspect_ratio=decrease`,
+                '-f', 'image2',
+                '-update', '1',
+                '-c:v', 'mjpeg',
+                '-strict', 'unofficial',   // fix ffmpeg 7+/8+ "Non full-range YUV" error
+                '-q:v', '3',
+                outputPath
+            ], { timeout: 30000 }, (err) => {
+                if (err) return reject(err);
+                if (!fs.existsSync(outputPath)) return reject(new Error('ffmpeg produced no output'));
+                const stat = fs.statSync(outputPath);
+                if (stat.size === 0) {
+                    fs.unlinkSync(outputPath);
+                    return reject(new Error('ffmpeg produced 0-byte output'));
+                }
+                resolve(outputPath);
+            });
         });
-    });
+    }
+    return attempt(1).catch(() => attempt(0));
 }
 
 async function generateThumbnail(photoId, maxSize) {
@@ -1037,7 +1134,7 @@ async function generateThumbnail(photoId, maxSize) {
 
         // Image: resize with Sharp
         try {
-            await sharp(filePath, { failOn: 'none' })
+            await sharp(filePath, { failOn: 'none', sequentialRead: true })
                 .rotate()
                 .resize(maxSize, maxSize, { fit: 'inside', withoutEnlargement: true })
                 .jpeg({ quality: isThumb ? 80 : 85 })
@@ -1053,17 +1150,52 @@ async function generateThumbnail(photoId, maxSize) {
         } catch (sharpErr) {
             try { fs.unlinkSync(tmpPath); } catch (_) {}
 
-            // Fallback: use ffmpeg for HEIC/HEIF if Sharp can't decode them
+            // Fallback for HEIC/HEIF: Sharp can't decode tiled iPhone HEIC on Windows
             const ext = path.extname(filePath).toLowerCase();
-            if ((ext === '.heic' || ext === '.heif') && ffmpegPath) {
-                try {
-                    await ffmpegImageConvert(filePath, tmpPath, maxSize);
-                    fs.renameSync(tmpPath, cachePath);
-                    return cachePath;
-                } catch (ffErr) {
-                    try { fs.unlinkSync(tmpPath); } catch (_) {}
-                    console.warn(`Skipping HEIC ${record.filename}: Sharp: ${sharpErr.message}, ffmpeg: ${ffErr.message}`);
+            if (ext === '.heic' || ext === '.heif') {
+                // Fallback chain: WIC (Windows-native) → heic-convert (WASM) → ffmpeg
+                const errors = [`Sharp: ${sharpErr.message}`];
+
+                // 1. WIC via PowerShell — uses Windows-native HEIF/HEVC codec
+                //    Same decoder as Microsoft Photos. Fast, GPU-accelerated.
+                if (wicHeicAvailable) {
+                    try {
+                        await convertHeicToJpeg(filePath, tmpPath, maxSize, isThumb ? 80 : 85);
+                        const stat = fs.statSync(tmpPath);
+                        if (stat.size === 0) { fs.unlinkSync(tmpPath); throw new Error('WIC produced 0-byte output'); }
+                        fs.renameSync(tmpPath, cachePath);
+                        return cachePath;
+                    } catch (wicErr) {
+                        try { fs.unlinkSync(tmpPath); } catch (_) {}
+                        errors.push(`WIC: ${wicErr.message}`);
+                    }
                 }
+
+                // 2. heic-convert — pure-JS WASM libheif (slower but cross-platform)
+                if (heicConvert) {
+                    try {
+                        await heicToJpeg(filePath, tmpPath, maxSize, isThumb);
+                        fs.renameSync(tmpPath, cachePath);
+                        return cachePath;
+                    } catch (heicErr) {
+                        try { fs.unlinkSync(tmpPath); } catch (_) {}
+                        errors.push(`heic-convert: ${heicErr.message}`);
+                    }
+                }
+
+                // 3. ffmpeg — last resort (may produce cropped tiles for iPhone HEIC)
+                if (ffmpegPath) {
+                    try {
+                        await ffmpegImageConvert(filePath, tmpPath, maxSize);
+                        fs.renameSync(tmpPath, cachePath);
+                        return cachePath;
+                    } catch (ffErr) {
+                        try { fs.unlinkSync(tmpPath); } catch (_) {}
+                        errors.push(`ffmpeg: ${ffErr.message}`);
+                    }
+                }
+
+                console.warn(`Skipping HEIC ${record.filename}: ${errors.join(', ')}`);
             } else {
                 console.warn(`Skipping ${record.filename}: ${sharpErr.message}`);
             }
@@ -1123,7 +1255,8 @@ function serveVideoFile(videoPath, req, res) {
 // ---------------------------------------------------------------------------
 
 function stripInternal(record) {
-    const { _filePath, modDate, _shellDateMs, _hasShellDate, ...clean } = record;
+    const { _filePath, modDate, _shellDateMs, _hasShellDate, _needsExif, ...clean } = record;
+    clean.enriched = !_needsExif;
     return clean;
 }
 
@@ -1140,6 +1273,10 @@ app.use(cors({
     }
 }));
 
+// ---------------------------------------------------------------------------
+//  REST API — see API.md for the full endpoint and response schema reference
+// ---------------------------------------------------------------------------
+
 // --- Health check ---
 app.get('/api/status', (req, res) => {
     let placeholderCount = 0;
@@ -1154,15 +1291,29 @@ app.get('/api/status', (req, res) => {
         skippedCount: failedPhotos.size,
         activeHydrations: activeHydrations.size,
         datesCorrection: datesCorrectionStatus,
+        exifEnrichment: exifEnrichmentStatus,
+        exifEnrichmentProgress: exifEnrichmentStatus === 'running' ? {
+            done: enrichmentDone,
+            total: enrichmentTotal,
+            priorityRemaining: priorityQueue.length,
+            thumbsWarmed,
+            thumbsTotal: thumbWarmTotal,
+        } : null,
+        // Cache version — bump when thumbnail generation changes (e.g. HEIC fix).
+        // Client compares this to stored version and clears its photo IDB on mismatch.
+        cacheVersion: 2,
     });
 });
 
 // --- All metadata (for initial import) or incremental ---
+// ?enriched=true — only return records with confirmed EXIF dates (not _needsExif)
 app.get('/api/photos/metadata/all', (req, res) => {
     try {
         const after = req.query.after ? new Date(req.query.after).getTime() : null;
+        const enrichedOnly = req.query.enriched === 'true';
         const results = [];
         for (const record of photoIndex.values()) {
+            if (enrichedOnly && record._needsExif) continue;
             if (after) {
                 const recordTime = new Date(record.date).getTime();
                 const modTime = record.modDate || 0;
@@ -1178,14 +1329,17 @@ app.get('/api/photos/metadata/all', (req, res) => {
 });
 
 // --- Metadata for date range ---
+// ?enriched=true — only return records with confirmed EXIF dates
 app.get('/api/photos/metadata', (req, res) => {
     try {
         const { start, end } = req.query;
         if (!start || !end) {
             return res.status(400).json({ error: 'start and end query params required (YYYY-MM-DD)' });
         }
+        const enrichedOnly = req.query.enriched === 'true';
         const results = [];
         for (const record of photoIndex.values()) {
+            if (enrichedOnly && record._needsExif) continue;
             if (record.dayKey >= start && record.dayKey <= end) {
                 results.push(stripInternal(record));
             }
@@ -1263,6 +1417,7 @@ app.get('/api/photos/info/:id', (req, res) => {
 
 // --- Thumbnail (200px) ---
 app.get('/api/thumbnail/:id', async (req, res) => {
+    onDemandActive++;  // signal pre-warming to pause
     try {
         const id = parseInt(req.params.id, 10);
         if (isNaN(id)) return res.status(400).json({ error: 'Invalid photo ID' });
@@ -1290,6 +1445,8 @@ app.get('/api/thumbnail/:id', async (req, res) => {
     } catch (err) {
         console.error('[thumbnail] unhandled error:', err);
         res.status(500).json({ error: err.message });
+    } finally {
+        onDemandActive--;  // release pressure
     }
 });
 
@@ -1396,6 +1553,39 @@ app.get('/api/icloud-status/:id', async (req, res) => {
     return res.json({ status: 'not_started' });
 });
 
+// --- Priority EXIF enrichment for a date range ---
+app.post('/api/photos/enrich', express.json(), (req, res) => {
+    const { start, end } = req.body || {};
+    if (!start || !end) {
+        return res.status(400).json({ error: 'Expected { start: "YYYY-MM-DD", end: "YYYY-MM-DD" }' });
+    }
+    if (exifEnrichmentStatus !== 'running') {
+        // Enrichment already done or idle — nothing to prioritise
+        return res.json({
+            boosted: 0,
+            status: exifEnrichmentStatus,
+            message: exifEnrichmentStatus === 'done'
+                ? 'EXIF enrichment already complete'
+                : 'EXIF enrichment not yet started',
+        });
+    }
+    const boosted = boostEnrichmentForRange(start, end);
+
+    // Immediately batch-warm thumbnails for this month (fire-and-forget)
+    const monthKey = start.slice(0, 7); // "YYYY-MM"
+    batchWarmMonth(monthKey).catch(err => {
+        console.warn(`[thumbs] Month batch-warm failed for ${monthKey}:`, err.message);
+    });
+
+    res.json({
+        boosted,
+        status: exifEnrichmentStatus,
+        remaining: priorityQueue.length + enrichmentQueue.length,
+        done: enrichmentDone,
+        total: enrichmentTotal,
+    });
+});
+
 // ---------------------------------------------------------------------------
 // Background: correct placeholder dates using Windows Shell DateTaken
 // ---------------------------------------------------------------------------
@@ -1438,8 +1628,9 @@ async function correctPlaceholderDatesInBackground() {
             const d = new Date(dtMs);
             if (!isNaN(d.getTime())) {
                 const oldDayKey = record.dayKey;
-                record.date = d.toISOString();
-                record.dayKey = dayKeyFromDate(d);
+                const iso = localISO(d);
+                record.date = iso;
+                record.dayKey = iso.slice(0, 10);
                 record._shellDateMs = dtMs;
                 if (record.dayKey !== oldDayKey) corrected++;
 
@@ -1456,6 +1647,652 @@ async function correctPlaceholderDatesInBackground() {
     saveIndexCache();
     datesCorrectionStatus = 'done';
     console.log('[background] Date correction complete. Re-import photos in the app to pick up corrected dates.');
+}
+
+// ---------------------------------------------------------------------------
+// Background: enrich records with EXIF metadata (GPS, camera, dimensions)
+// ---------------------------------------------------------------------------
+// Uses a two-tier queue: priorityQueue (from API requests for specific date
+// ranges) is drained first, then the main enrichmentQueue (all remaining).
+// When the client navigates to a month, it calls POST /api/photos/enrich
+// with { start, end } — matching records jump to the front so that month's
+// GPS/camera data is ready sooner.
+
+let exifEnrichmentStatus = 'idle'; // idle | running | done
+
+// Two-tier queue: priority items (user-requested months) first, then bulk
+const priorityQueue = [];      // records boosted by /api/photos/enrich
+const enrichmentQueue = [];    // all remaining _needsExif records
+const prioritySet = new Set(); // track IDs already in priorityQueue to avoid dupes
+let enrichmentTotal = 0;       // total items that needed enrichment at start
+let enrichmentDone = 0;        // items processed so far (enriched + failed)
+
+// ---------------------------------------------------------------------------
+// Thumbnail pre-warming — runs independently of EXIF enrichment.
+// Scans all photos, queues those without cached thumbnails.
+// ALL WIC (HEIC) work is serialized through a single global queue — only
+// one PowerShell/WIC batch runs at a time. Month-priority batches jump to
+// the front of the queue. Sharp (non-HEIC) work runs separately and pauses
+// when on-demand thumbnail requests are active.
+// ---------------------------------------------------------------------------
+let thumbsWarmed = 0;
+let thumbsFailed = 0;
+let thumbWarmTotal = 0;
+let thumbWarmRunning = false;
+
+// Batch size for WIC batch conversion
+const WIC_BATCH_SIZE = 20;
+const SHARP_CONCURRENT = 4;
+
+// Video extensions to skip during pre-warming
+const VIDEO_EXTS = new Set(['.mov', '.mp4', '.m4v', '.avi', '.3gp', '.mkv', '.webm']);
+
+// On-demand pressure tracking — Sharp pre-warming pauses when > 0
+let onDemandActive = 0;
+
+// Background queues — populated by preWarmAllThumbnails(), consumed by workers
+let heicQueue = [];   // { id, filePath, cachePath }
+let sharpQueue = [];  // { id }
+
+// Track which months we've successfully batch-warmed (retry on failure)
+const monthBatchDone = new Set();
+
+// ---------------------------------------------------------------------------
+// Global WIC batch serialization
+// Only ONE WIC PowerShell batch conversion runs at a time. Both month-priority
+// and background pre-warming submit jobs to this queue. Month-priority jobs
+// are inserted at the front so they run as soon as the current batch finishes.
+// ---------------------------------------------------------------------------
+const wicJobQueue = [];  // { manifest, onResult, priority, source, resolve, reject }
+let wicQueueRunning = false;
+
+/**
+ * Submit a WIC batch job to the global serialized queue.
+ * Returns a promise that resolves when THIS batch completes conversion.
+ * Priority jobs (month batches) are inserted at the front of the queue.
+ */
+function submitWicBatch(manifest, onResult, { priority = false, source = 'background' } = {}) {
+    return new Promise((resolve, reject) => {
+        const job = { manifest, onResult, priority, source, resolve, reject };
+        if (priority) {
+            // Insert after any priority jobs already queued, before background jobs
+            const insertIdx = wicJobQueue.findIndex(j => !j.priority);
+            if (insertIdx === -1) wicJobQueue.push(job);
+            else wicJobQueue.splice(insertIdx, 0, job);
+        } else {
+            wicJobQueue.push(job);
+        }
+        // Ensure the queue processor is running
+        if (!wicQueueRunning) {
+            wicQueueRunning = true;
+            drainWicQueue().catch(err => {
+                console.warn('[WIC queue] processor error:', err.message);
+                wicQueueRunning = false;
+            });
+        }
+    });
+}
+
+/**
+ * Single WIC queue processor — runs ONE batch at a time, sequentially.
+ * No contention: each convertHeicBatch() gets full access to WIC/GPU resources.
+ */
+async function drainWicQueue() {
+    while (wicJobQueue.length > 0) {
+        const job = wicJobQueue.shift();
+
+        // Filter out items already cached (on-demand or priority may have done them)
+        const uncached = job.manifest.filter(item => {
+            try {
+                const cachePath = item.output.replace(/\.tmp$/, '');
+                return !fs.existsSync(cachePath) || fs.statSync(cachePath).size === 0;
+            } catch (_) { return true; }
+        });
+
+        if (uncached.length === 0) {
+            job.resolve({ succeeded: 0, failed: 0, skipped: job.manifest.length });
+            continue;
+        }
+
+        const batchStart = Date.now();
+        try {
+            const result = await convertHeicBatch(uncached, job.onResult);
+            const elapsed = Date.now() - batchStart;
+            const perFile = uncached.length > 0 ? Math.round(elapsed / uncached.length) : 0;
+            console.log(`  🖼️  WIC [${job.source}]: ${result.succeeded}/${uncached.length} OK in ${elapsed}ms (${perFile}ms/file)`);
+            job.resolve(result);
+        } catch (err) {
+            const elapsed = Date.now() - batchStart;
+            console.log(`  🖼️  WIC [${job.source}] FAILED after ${elapsed}ms: ${err.message}`);
+            job.reject(err);
+        }
+    }
+    wicQueueRunning = false;
+}
+
+/**
+ * Called when user navigates to a month — batch-converts all uncached
+ * thumbnails for that month. HEIC files go through the global WIC queue
+ * with priority (they jump to the front). Non-HEIC files use Sharp directly.
+ *
+ * monthBatchDone is only set on success — failed months can be retried
+ * on the next navigation.
+ */
+async function batchWarmMonth(monthKey) {
+    if (!monthKey) return;
+    if (monthBatchDone.has(monthKey)) return; // already succeeded
+
+    const [year, month] = monthKey.split('-').map(Number);
+    const startDay = `${monthKey}-01`;
+    const endDay = `${monthKey}-${new Date(year, month, 0).getDate()}`;
+
+    // Collect uncached photos for this month
+    const heicItems = [];  // { id, filePath, cachePath }
+    const sharpIds = [];   // photo IDs for Sharp
+    const allIds = new Set();
+
+    for (const [id, record] of photoIndex) {
+        if (!record._filePath || !record.date) continue;
+        if (record.available === false) continue;
+        if (record.type === 'video') continue;
+        if (failedPhotos.has(id)) continue;
+
+        const d = record.date.slice(0, 10);
+        if (d < startDay || d > endDay) continue;
+
+        const cachePath = path.join(THUMB_CACHE, `${id}.jpg`);
+        try {
+            if (fs.existsSync(cachePath) && fs.statSync(cachePath).size > 0) continue;
+        } catch (_) {}
+
+        const ext = path.extname(record._filePath).toLowerCase();
+        if (VIDEO_EXTS.has(ext)) continue;
+
+        allIds.add(id);
+        if ((ext === '.heic' || ext === '.heif') && wicHeicAvailable) {
+            heicItems.push({ id, filePath: record._filePath, cachePath });
+        } else {
+            sharpIds.push(id);
+        }
+    }
+
+    if (allIds.size === 0) {
+        monthBatchDone.add(monthKey);
+        return;
+    }
+
+    console.log(`[thumbs] 🎯 Batch-warming ${monthKey}: ${heicItems.length} HEIC + ${sharpIds.length} other = ${allIds.size} photos`);
+
+    // Pause background Sharp so month gets resources. WIC serialization
+    // is handled by the global queue — priority insertion, not pausing.
+    onDemandActive++;
+
+    // Remove these IDs from the background queues (avoid double-processing)
+    heicQueue = heicQueue.filter(item => !allIds.has(item.id));
+    sharpQueue = sharpQueue.filter(item => !allIds.has(item.id));
+
+    const startTime = Date.now();
+    let heicOk = true;
+
+    // --- HEIC: submit to global WIC queue with priority ---
+    const heicPromise = (async () => {
+        if (heicItems.length === 0) return;
+        for (let i = 0; i < heicItems.length; i += WIC_BATCH_SIZE) {
+            const batch = heicItems.slice(i, i + WIC_BATCH_SIZE);
+            const manifest = batch.map(item => ({
+                id: item.id,
+                input: item.filePath,
+                output: item.cachePath + '.tmp',
+                maxSize: 200,
+                quality: 80
+            }));
+
+            try {
+                await submitWicBatch(manifest, (result) => {
+                    const item = batch.find(h => h.id === result.id);
+                    if (!item) return;
+                    if (result.success) {
+                        try {
+                            const tmpPath = item.cachePath + '.tmp';
+                            if (fs.statSync(tmpPath).size > 0) {
+                                fs.renameSync(tmpPath, item.cachePath);
+                                thumbsWarmed++;
+                            } else {
+                                try { fs.unlinkSync(tmpPath); } catch (_) {}
+                                thumbsFailed++;
+                            }
+                        } catch (_) { thumbsFailed++; }
+                    } else {
+                        try { fs.unlinkSync(item.cachePath + '.tmp'); } catch (_) {}
+                        thumbsFailed++;
+                    }
+                }, { priority: true, source: `month:${monthKey}` });
+            } catch (err) {
+                console.warn(`[thumbs] 🎯 WIC batch for ${monthKey} failed: ${err.message}`);
+                thumbsFailed += batch.length;
+                heicOk = false;
+            }
+        }
+    })();
+
+    // --- Non-HEIC: Sharp in parallel ---
+    const sharpPromise = (async () => {
+        if (sharpIds.length === 0) return;
+        for (let i = 0; i < sharpIds.length; i += SHARP_CONCURRENT) {
+            const chunk = sharpIds.slice(i, i + SHARP_CONCURRENT);
+            await Promise.all(chunk.map(id =>
+                generateThumbnail(id, 200).then(() => { thumbsWarmed++; return true; })
+                    .catch(() => { thumbsFailed++; return false; })
+            ));
+        }
+    })();
+
+    await Promise.all([heicPromise, sharpPromise]);
+
+    // Resume background Sharp
+    onDemandActive--;
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[thumbs] 🎯 ${monthKey} done: ${allIds.size} thumbnails in ${elapsed}s`);
+
+    // Only mark as done if WIC batches all succeeded (allow retry on failure)
+    if (heicOk) {
+        monthBatchDone.add(monthKey);
+    } else {
+        console.log(`[thumbs] 🎯 ${monthKey} had WIC failures — will retry on next navigation`);
+    }
+
+    // Kick off background pre-warming if not already running
+    if (!thumbWarmRunning) {
+        preWarmAllThumbnails().catch(err => {
+            console.warn('[thumbs] Pre-warming failed:', err.message);
+        });
+    }
+}
+
+/**
+ * Wait until on-demand thumbnail requests are done, so we don't compete
+ * with the user's current view. Yields the event loop briefly.
+ */
+async function waitForOnDemand() {
+    while (onDemandActive > 0) {
+        await new Promise(r => setTimeout(r, 50));
+    }
+}
+
+/**
+ * Pre-warm ALL photo thumbnails. Called once at startup after scanFolder().
+ * Partitions into HEIC queue (batch WIC) and non-HEIC queue (Sharp),
+ * then processes both concurrently. Pauses when on-demand requests arrive.
+ */
+async function preWarmAllThumbnails() {
+    if (thumbWarmRunning) return;
+    thumbWarmRunning = true;
+
+    // Build separate queues for HEIC and non-HEIC
+    heicQueue = [];
+    sharpQueue = [];
+
+    for (const [id, record] of photoIndex) {
+        if (!record._filePath) continue;
+        if (record.available === false) continue;
+        if (record.type === 'video') continue;
+        if (failedPhotos.has(id)) continue;
+
+        const cachePath = path.join(THUMB_CACHE, `${id}.jpg`);
+        try {
+            if (fs.existsSync(cachePath) && fs.statSync(cachePath).size > 0) continue;
+        } catch (_) {}
+
+        const ext = path.extname(record._filePath).toLowerCase();
+        if (VIDEO_EXTS.has(ext)) continue;
+
+        if ((ext === '.heic' || ext === '.heif') && wicHeicAvailable) {
+            heicQueue.push({ id, filePath: record._filePath, cachePath });
+        } else {
+            sharpQueue.push({ id });
+        }
+    }
+
+    // Sort by date descending — most recent photos first (user likely viewing recent months)
+    const dateSorter = (a, b) => {
+        const aRec = photoIndex.get(typeof a === 'object' ? a.id : a);
+        const bRec = photoIndex.get(typeof b === 'object' ? b.id : b);
+        const aDate = aRec?.date || '0';
+        const bDate = bRec?.date || '0';
+        return bDate.localeCompare(aDate); // descending — newest first
+    };
+    heicQueue.sort(dateSorter);
+    sharpQueue.sort(dateSorter);
+
+    thumbWarmTotal = heicQueue.length + sharpQueue.length;
+    if (thumbWarmTotal === 0) {
+        console.log('[thumbs] All thumbnails already cached');
+        thumbWarmRunning = false;
+        return;
+    }
+
+    console.log(`[thumbs] Pre-warming ${thumbWarmTotal} thumbnails (${heicQueue.length} HEIC via WIC batch, ${sharpQueue.length} other via Sharp) — newest first`);
+
+    // --- Process HEIC batches and Sharp queue concurrently ---
+    const heicPromise = processHeicBatches();
+    const sharpPromise = processSharpQueue();
+    await Promise.all([heicPromise, sharpPromise]);
+
+    console.log(`[thumbs] Pre-warming complete: ${thumbsWarmed} cached, ${thumbsFailed} failed`);
+    thumbWarmRunning = false;
+}
+
+/**
+ * Process HEIC queue by submitting batches to the global WIC queue.
+ * Each batch is submitted as a background (non-priority) job.
+ * The global queue serializes all WIC work — only one batch runs at a time.
+ */
+async function processHeicBatches() {
+    if (heicQueue.length === 0) return;
+
+    let batchNum = 0;
+    const totalBatches = Math.ceil(heicQueue.length / WIC_BATCH_SIZE);
+
+    while (heicQueue.length > 0) {
+        // Pause for on-demand Sharp requests (WIC serialization handled by queue)
+        await waitForOnDemand();
+
+        const batch = heicQueue.splice(0, WIC_BATCH_SIZE);
+        if (batch.length === 0) break;
+
+        const myNum = ++batchNum;
+        const manifest = batch.map(item => ({
+            id: item.id,
+            input: item.filePath,
+            output: item.cachePath + '.tmp',
+            maxSize: 200,
+            quality: 80
+        }));
+
+        try {
+            await submitWicBatch(manifest, (result) => {
+                const item = batch.find(h => h.id === result.id);
+                if (!item) return;
+                if (result.success) {
+                    try {
+                        const tmpPath = item.cachePath + '.tmp';
+                        const stat = fs.statSync(tmpPath);
+                        if (stat.size > 0) {
+                            fs.renameSync(tmpPath, item.cachePath);
+                            thumbsWarmed++;
+                        } else {
+                            try { fs.unlinkSync(tmpPath); } catch (_) {}
+                            thumbsFailed++;
+                        }
+                    } catch (_) {
+                        thumbsFailed++;
+                    }
+                } else {
+                    try { fs.unlinkSync(item.cachePath + '.tmp'); } catch (_) {}
+                    thumbsFailed++;
+                }
+            }, { priority: false, source: `bg:${myNum}/${totalBatches}` });
+
+            const progress = `${thumbsWarmed + thumbsFailed}/${thumbWarmTotal}`;
+            console.log(`  🖼️  WIC bg batch ${myNum}/${totalBatches} done [${progress} total]`);
+        } catch (batchErr) {
+            console.log(`  🖼️  WIC bg batch ${myNum} FAILED: ${batchErr.message}`);
+            thumbsFailed += batch.length;
+        }
+    }
+}
+
+/**
+ * Process non-HEIC queue via Sharp. Pauses for on-demand requests.
+ */
+async function processSharpQueue() {
+    if (sharpQueue.length === 0) return;
+
+    let sharpDone = 0;
+    let lastLogTime = Date.now();
+
+    while (sharpQueue.length > 0) {
+        await waitForOnDemand();
+
+        const chunk = sharpQueue.splice(0, SHARP_CONCURRENT);
+        if (chunk.length === 0) break;
+
+        const results = await Promise.all(chunk.map(async (item) => {
+            // Skip if already cached (on-demand may have done it)
+            const cachePath = path.join(THUMB_CACHE, `${item.id}.jpg`);
+            try {
+                if (fs.existsSync(cachePath) && fs.statSync(cachePath).size > 0) return true;
+            } catch (_) {}
+
+            const t0 = Date.now();
+            try {
+                await generateThumbnail(item.id, 200);
+                const ms = Date.now() - t0;
+                if (ms > 2000) {
+                    const rec = photoIndex.get(item.id);
+                    const name = rec?._filePath ? path.basename(rec._filePath) : item.id;
+                    console.log(`  🖼️  Sharp SLOW: ${name} took ${ms}ms`);
+                }
+                return true;
+            } catch (err) {
+                return false;
+            }
+        }));
+        for (const ok of results) {
+            if (ok) thumbsWarmed++;
+            else thumbsFailed++;
+        }
+        sharpDone += chunk.length;
+
+        if (Date.now() - lastLogTime > 10000) {
+            const progress = `${thumbsWarmed + thumbsFailed}/${thumbWarmTotal}`;
+            console.log(`  🖼️  Sharp progress: ${sharpDone} done [${progress} total]`);
+            lastLogTime = Date.now();
+        }
+    }
+}
+
+/**
+ * Enrich a single record with EXIF/video metadata.
+ * Returns true if successfully enriched, false on failure.
+ */
+async function enrichRecord(record) {
+    try {
+        const filePath = record._filePath;
+        const ext = path.extname(filePath).toLowerCase();
+        const isVideo = record.type === 'video';
+
+        if (isVideo) {
+            // Video: use ffprobe for metadata
+            if (ffmpegPath || ffprobePath) {
+                const meta = await readVideoMeta(filePath);
+                if (meta) {
+                    if (meta.width) record.width = meta.width;
+                    if (meta.height) record.height = meta.height;
+                    if (meta.duration) record.duration = meta.duration;
+                    if (meta.date) {
+                        const d = meta.date instanceof Date ? meta.date : new Date(meta.date);
+                        if (!isNaN(d.getTime())) {
+                            const iso = localISO(d);
+                            record.date = iso;
+                            record.dayKey = iso.slice(0, 10);
+                        }
+                    }
+                }
+            }
+        } else {
+            // Image: try exifr first, Sharp for HEIC fallback
+            let gotExif = false;
+            const exif = await readImageExif(filePath);
+            if (exif) {
+                gotExif = true;
+                const d = exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate;
+                if (d) {
+                    const date = d instanceof Date ? d : new Date(d);
+                    if (!isNaN(date.getTime())) {
+                        const iso = localISO(date);
+                        record.date = iso;
+                        record.dayKey = iso.slice(0, 10);
+                    }
+                }
+                if (exif.latitude) record.latitude = exif.latitude;
+                if (exif.longitude) record.longitude = exif.longitude;
+                if (exif.ImageWidth || exif.ExifImageWidth) record.width = exif.ImageWidth || exif.ExifImageWidth;
+                if (exif.ImageHeight || exif.ExifImageHeight) record.height = exif.ImageHeight || exif.ExifImageHeight;
+                if (exif.Make) record.cameraMake = exif.Make;
+                if (exif.Model) record.cameraModel = exif.Model;
+                if (exif.ImageDescription || exif.title) record.title = exif.ImageDescription || exif.title;
+            }
+
+            // HEIC fallback via Sharp
+            const isHeic = ext === '.heic' || ext === '.heif';
+            if (!gotExif && isHeic) {
+                const heicMeta = await readHeicMetadata(filePath);
+                if (heicMeta) {
+                    if (heicMeta.width) record.width = heicMeta.width;
+                    if (heicMeta.height) record.height = heicMeta.height;
+                    if (heicMeta.date) {
+                        const d = heicMeta.date instanceof Date ? heicMeta.date : new Date(heicMeta.date);
+                        if (!isNaN(d.getTime())) {
+                            const iso = localISO(d);
+                            record.date = iso;
+                            record.dayKey = iso.slice(0, 10);
+                        }
+                    }
+                    if (heicMeta.latitude) record.latitude = heicMeta.latitude;
+                    if (heicMeta.longitude) record.longitude = heicMeta.longitude;
+                    if (heicMeta.cameraMake) record.cameraMake = heicMeta.cameraMake;
+                    if (heicMeta.cameraModel) record.cameraModel = heicMeta.cameraModel;
+                    if (heicMeta.title) record.title = heicMeta.title;
+                }
+            }
+
+            // Dimensions fallback via Sharp
+            if (!record.width || !record.height) {
+                const dims = await readImageDimensions(filePath);
+                if (dims) {
+                    record.width = dims.width;
+                    record.height = dims.height;
+                }
+            }
+        }
+
+        delete record._needsExif;
+        return true;
+    } catch (err) {
+        return false;
+    }
+}
+
+/**
+ * Boost records matching a date range to the front of the enrichment queue.
+ * Called by POST /api/photos/enrich when the client navigates to a month.
+ * Returns the number of records boosted.
+ */
+function boostEnrichmentForRange(startDate, endDate) {
+    let boosted = 0;
+
+    // Move matching records from enrichmentQueue to priorityQueue
+    for (let i = enrichmentQueue.length - 1; i >= 0; i--) {
+        const record = enrichmentQueue[i];
+        if (record.dayKey >= startDate && record.dayKey <= endDate && !prioritySet.has(record.id)) {
+            enrichmentQueue.splice(i, 1);
+            priorityQueue.push(record);
+            prioritySet.add(record.id);
+            boosted++;
+        }
+    }
+
+    if (boosted > 0) {
+        console.log(`[enrich] Boosted ${boosted} records for ${startDate} → ${endDate}`);
+    }
+    return boosted;
+}
+
+async function enrichExifInBackground() {
+    // Populate the main enrichment queue with all records that need EXIF
+    for (const [id, record] of photoIndex) {
+        if (record._needsExif) enrichmentQueue.push(record);
+    }
+    enrichmentTotal = enrichmentQueue.length;
+    if (enrichmentTotal === 0) {
+        exifEnrichmentStatus = 'done';
+        return;
+    }
+
+    exifEnrichmentStatus = 'running';
+    console.log(`\n[background] Reading EXIF metadata for ${enrichmentTotal} files...`);
+    console.log('[background] This runs in the background — the server is ready to use now.');
+    const startTime = Date.now();
+    let enriched = 0;
+    let failed = 0;
+
+    // Process in small batches, always draining priorityQueue first
+    const BATCH = 5;
+    const SAVE_INTERVAL = 200; // save index cache every N records
+    let sinceLastSave = 0;
+
+    while (priorityQueue.length > 0 || enrichmentQueue.length > 0) {
+        // Pause enrichment when month-batch thumbnail generation is active,
+        // so it gets exclusive disk I/O and CPU resources.
+        while (onDemandActive > 0) {
+            await new Promise(r => setTimeout(r, 200));
+        }
+
+        // Build the next batch — priorityQueue items first
+        const batch = [];
+        while (batch.length < BATCH && priorityQueue.length > 0) {
+            batch.push(priorityQueue.shift());
+        }
+        while (batch.length < BATCH && enrichmentQueue.length > 0) {
+            const record = enrichmentQueue.shift();
+            // Skip if already processed via priorityQueue
+            if (!record._needsExif) continue;
+            batch.push(record);
+        }
+        if (batch.length === 0) break;
+
+        const results = await Promise.all(batch.map(r => enrichRecord(r)));
+        for (const ok of results) {
+            if (ok) enriched++;
+            else failed++;
+        }
+
+        // Thumbnail pre-warming now runs independently at startup (preWarmAllThumbnails).
+        // No need to queue from enrichment — thumbnails don't depend on EXIF data.
+
+        enrichmentDone += batch.length;
+        sinceLastSave += batch.length;
+
+        // Periodic progress logging
+        if (enrichmentDone % 100 === 0 || (priorityQueue.length === 0 && enrichmentQueue.length === 0)) {
+            const pqLen = priorityQueue.length;
+            const pqMsg = pqLen > 0 ? ` [${pqLen} priority remaining]` : '';
+            const twMsg = thumbWarmRunning ? ` [${thumbsWarmed}/${thumbWarmTotal} thumbs]` : '';
+            process.stdout.write(`\r[background] EXIF: ${enrichmentDone}/${enrichmentTotal} (${enriched} enriched, ${failed} failed)${pqMsg}${twMsg}`);
+        }
+
+        // Periodic index save to persist progress
+        if (sinceLastSave >= SAVE_INTERVAL) {
+            saveIndexCache();
+            sinceLastSave = 0;
+        }
+    }
+
+    // Clean up priority tracking
+    prioritySet.clear();
+
+    process.stdout.write('\n');
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[background] EXIF enrichment complete: ${enriched} enriched, ${failed} failed in ${elapsed}s`);
+
+    // Thumbnail pre-warming runs independently — no need to wait here.
+
+    console.log('[background] Re-import photos in the app to pick up GPS coordinates and corrected dates.');
+    saveIndexCache();
+    exifEnrichmentStatus = 'done';
 }
 
 // ---------------------------------------------------------------------------
@@ -1499,7 +2336,23 @@ async function correctPlaceholderDatesInBackground() {
         else photoCount++;
     }
 
-    // Start server
+    // Check WIC HEIC support (Windows-native HEIF/HEVC codec)
+    try {
+        wicHeicAvailable = await checkWicHeicSupport();
+    } catch (_) {
+        wicHeicAvailable = false;
+    }
+
+    // Start server — build HEIC status line showing fallback chain
+    const heicDecoders = [];
+    if (wicHeicAvailable) heicDecoders.push('WIC (Windows-native, fastest)');
+    if (heicConvert) heicDecoders.push('heic-convert (WASM fallback)');
+    if (sharpHeicSupported) heicDecoders.push('Sharp/libheif');
+    if (ffmpegPath) heicDecoders.push('ffmpeg (last resort)');
+    const heicStatus = heicDecoders.length > 0
+        ? heicDecoders.join(' → ')
+        : 'no HEIC decoder — HEIC photos will fail';
+
     console.log('');
     console.log('Arc Photo Server (Windows)');
     console.log(`Folder:  ${PHOTOS_FOLDER}`);
@@ -1507,20 +2360,34 @@ async function correctPlaceholderDatesInBackground() {
         (placeholderCount > 0 ? `, ${placeholderCount.toLocaleString()} iCloud placeholders` : '') + ')');
     console.log(`Cache:   ${CACHE_DIR}`);
     console.log(`ffmpeg:  ${ffmpegPath || 'not found (video thumbnails will fail)'}`);
-    console.log(`HEIC:    ${sharpHeicSupported ? 'supported (Sharp/libheif)' : 'not detected — ' + (ffmpegPath ? 'using ffmpeg fallback' : 'HEIC photos will fail')}`);
+    console.log(`HEIC:    ${heicStatus}`);
 
     app.listen(PORT, '127.0.0.1', () => {
         console.log(`Server:  http://127.0.0.1:${PORT}`);
         console.log('\nReady. Keep this running while using Arc Diary Reader.');
 
-        // Correct placeholder dates in background — does NOT block the server.
-        // The Shell DateTaken extraction can take minutes for large libraries,
-        // so we run it after the server is already accepting requests.
+        // Background tasks — run AFTER the server is accepting requests.
+        // These do NOT block the server; photos are usable immediately.
+
+        // 1. Correct placeholder dates via Windows Shell DateTaken
         if (placeholderCount > 0) {
             correctPlaceholderDatesInBackground().catch(err => {
                 console.warn('[background] Date correction failed:', err.message);
                 datesCorrectionStatus = 'failed';
             });
         }
+
+        // 2. Thumbnail pre-warming does NOT auto-start. It begins after the
+        //    user's first month navigation (batchWarmMonth triggers it on
+        //    completion). This avoids resource contention at startup between
+        //    EXIF enrichment, WIC batch conversion, and Sharp processing.
+
+        // 3. Enrich records with EXIF metadata (GPS, camera, dimensions)
+        //    This reads actual file content, which may trigger iCloud downloads.
+        //    It runs slowly in small batches so it doesn't saturate bandwidth.
+        enrichExifInBackground().catch(err => {
+            console.warn('[background] EXIF enrichment failed:', err.message);
+            exifEnrichmentStatus = 'done';
+        });
     });
 })();

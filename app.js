@@ -766,10 +766,16 @@ function moveMapSmart(latlng, zoom) {
         // Helper function to load and display a month
         async function loadAndDisplayMonth(monthKey) {
             logDebug(`🔄 loadAndDisplayMonth: ${monthKey}`);
-            
+
             // Set currentMonth FIRST, unconditionally (fixes year selector bug)
             currentMonth = monthKey;
-            
+
+            // Ask photo server to prioritise EXIF enrichment for this month
+            // (fire-and-forget — does not block navigation)
+            if (window.ArcPhotos?.requestEnrichment) {
+                window.ArcPhotos.requestEnrichment(monthKey);
+            }
+
             // Load the month — from tour data if in tour mode, otherwise from database
             if (!generatedDiaries[monthKey]) {
                 if (window.ArcShare?.isTourActive()) {
@@ -810,6 +816,11 @@ function moveMapSmart(latlng, zoom) {
             if (currentMonthDisplay) {
                 currentMonthDisplay.textContent = formatMonthDisplay(monthKey);
             }
+
+            // Auto-fetch photos from server for this month (progressive display).
+            // Runs after diary is rendered — fetches enriched photos, stores in IDB,
+            // then refreshes photo strips if any new ones were added.
+            autoFetchPhotosForMonth(monthKey);
         }
         
         // Import More Files button handler
@@ -2009,12 +2020,15 @@ function moveMapSmart(latlng, zoom) {
                 // Render
                 clearDayHighlights();
                 clearLocationHighlights();
-                highlightAndScrollToDay(dayKey, { instant: !!options.instant });
+                highlightAndScrollToDay(dayKey, { instant: !!options.instant, skipScroll: !!options.skipScroll });
                 showDayMap(dayKey);
                 
                 // NOW update currentDayKey (after map has checked/rebuilt)
                 currentDayKey = dayKey;
-                syncPhotoViewerToDay(dayKey);
+                if (!options.skipPhotoSync) syncPhotoViewerToDay(dayKey);
+
+                // Auto-fetch photos for this day from the server (fire-and-forget)
+                autoFetchPhotosForDay(dayKey);
             }
             
             /**
@@ -2772,6 +2786,7 @@ function moveMapSmart(latlng, zoom) {
         
         function highlightAndScrollToDay(dayKey, options = {}) {
             const instant = !!options.instant;
+            const skipScroll = !!options.skipScroll;
             // Find and highlight the day title
             const dayTitle = markdownContent.querySelector(`.day-map-title[data-day="${dayKey}"]`);
             if (dayTitle) {
@@ -2779,39 +2794,43 @@ function moveMapSmart(latlng, zoom) {
                 if (h2) {
                     h2.classList.add('day-highlight');
                 }
-                
-                // Scroll to position with breathing room at top
-                const diaryPanel = markdownContent.closest('.diary-panel');
-                if (diaryPanel) {
-                    // Get the position of the h2 relative to the scrollable container
-                    const h2Rect = h2.getBoundingClientRect();
-                    const panelRect = diaryPanel.getBoundingClientRect();
-                    const currentScroll = diaryPanel.scrollTop;
-                    
-                    // Calculate how far down the h2 is from the current scroll position
-                    const h2OffsetFromViewport = h2Rect.top - panelRect.top;
-                    
-                    // Scroll so the h2 is 37px from the top (clean day start, previous day hidden)
-                    const targetScroll = currentScroll + h2OffsetFromViewport - 37;
-                    const nextTop = Math.max(0, targetScroll);
-                    if (instant) {
-                        // Hard jump to cancel any in-flight smooth scrolling.
-                        diaryPanel.scrollTop = nextTop;
+
+                // Scroll to day header (skipped when caller will scroll
+                // to a specific element, e.g. a clicked thumbnail strip)
+                if (!skipScroll) {
+                    // Scroll to position with breathing room at top
+                    const diaryPanel = markdownContent.closest('.diary-panel');
+                    if (diaryPanel) {
+                        // Get the position of the h2 relative to the scrollable container
+                        const h2Rect = h2.getBoundingClientRect();
+                        const panelRect = diaryPanel.getBoundingClientRect();
+                        const currentScroll = diaryPanel.scrollTop;
+
+                        // Calculate how far down the h2 is from the current scroll position
+                        const h2OffsetFromViewport = h2Rect.top - panelRect.top;
+
+                        // Scroll so the h2 is 37px from the top (clean day start, previous day hidden)
+                        const targetScroll = currentScroll + h2OffsetFromViewport - 37;
+                        const nextTop = Math.max(0, targetScroll);
+                        if (instant) {
+                            // Hard jump to cancel any in-flight smooth scrolling.
+                            diaryPanel.scrollTop = nextTop;
+                        } else {
+                            diaryPanel.scrollTo({
+                                top: nextTop,
+                                behavior: 'smooth'
+                            });
+                        }
                     } else {
-                        diaryPanel.scrollTo({
-                            top: nextTop,
-                            behavior: 'smooth'
-                        });
-                    }
-                } else {
-                    // Fallback to standard scrollIntoView
-                    if (instant) {
-                        dayTitle.scrollIntoView({ block: 'start' });
-                    } else {
-                        dayTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        // Fallback to standard scrollIntoView
+                        if (instant) {
+                            dayTitle.scrollIntoView({ block: 'start' });
+                        } else {
+                            dayTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
                     }
                 }
-                
+
                 // Show day on map
                 showDayMap(dayKey);
             }
@@ -8989,6 +9008,9 @@ scrollToDiaryDay(currentDayKey);
                 closeEventSlider();
             }
 
+            // Close photo gallery if open — search results need the reading space
+            if (photoSliderOpen) closePhotoSlider();
+
             // Check for tag search (#new, #updated, #event)
             if (query.startsWith('#')) {
                 performTagSearch(query);
@@ -11484,6 +11506,12 @@ scrollToDiaryDay(currentDayKey);
                         thumb.alt = '';
                         thumb.onclick = (e) => {
                             e.stopPropagation();
+                            // Only switch day if it's different — avoids redundant map/scroll work
+                            if (currentDayKey !== dayKey) {
+                                // skipScroll: let highlightDiaryThumb scroll to the strip
+                                // instead of highlightAndScrollToDay scrolling to the day header
+                                NavigationController.selectDay(dayKey, { skipPhotoSync: true, skipScroll: true });
+                            }
                             openPhotoViewer(photo.id, matched);
                         };
                         strip.appendChild(thumb);
@@ -11495,6 +11523,7 @@ scrollToDiaryDay(currentDayKey);
                         more.textContent = `+${matched.length - maxInline}`;
                         more.onclick = (e) => {
                             e.stopPropagation();
+                            NavigationController.selectDay(dayKey);
                             openPhotoSlider(dayKey);
                         };
                         strip.appendChild(more);
@@ -11502,6 +11531,78 @@ scrollToDiaryDay(currentDayKey);
 
                     entry.li.appendChild(strip);
                 }
+            }
+        }
+
+        // Auto-fetch photos from server for the current month (progressive display)
+        // Called after diary renders — fetches enriched photos, caches them in IDB,
+        // then re-renders photo strips if any new ones were added.
+        async function autoFetchPhotosForMonth(monthKey) {
+            if (!window.ArcPhotos?.fetchAndCacheMonthPhotos) return;
+            if (!window.ArcPhotos.isServerAvailable()) return;
+
+            try {
+                const result = await ArcPhotos.fetchAndCacheMonthPhotos(monthKey);
+                if (result.added > 0 && currentMonth === monthKey) {
+                    logDebug(`📸 Auto-fetched ${result.added} photos for ${monthKey}, refreshing strips`);
+                    await attachPhotoStrips();
+                }
+
+                // If enrichment is still running, retry once after a delay
+                // to pick up photos that just finished enriching
+                if (result.enrichmentRunning && currentMonth === monthKey) {
+                    setTimeout(async () => {
+                        if (currentMonth !== monthKey) return; // user navigated away
+                        try {
+                            const retry = await ArcPhotos.fetchAndCacheMonthPhotos(monthKey);
+                            if (retry.added > 0 && currentMonth === monthKey) {
+                                logDebug(`📸 Retry: ${retry.added} more photos for ${monthKey}`);
+                                await attachPhotoStrips();
+                            }
+                        } catch (_) {}
+                    }, 5000);
+                }
+            } catch (err) {
+                logDebug(`📸 Auto-fetch failed for ${monthKey}: ${err.message}`);
+            }
+        }
+
+        // Auto-fetch photos from server for a single day (day-level progressive display)
+        // Called when the user selects a day — prioritises EXIF enrichment for that
+        // specific day, then fetches and caches any newly-enriched photos.
+        async function autoFetchPhotosForDay(dayKey) {
+            if (!window.ArcPhotos?.fetchAndCacheDayPhotos) return;
+            if (!window.ArcPhotos.isServerAvailable()) return;
+
+            // 1. Request priority enrichment for this day
+            if (window.ArcPhotos.requestDayEnrichment) {
+                window.ArcPhotos.requestDayEnrichment(dayKey);
+            }
+
+            // 2. Fetch already-enriched photos for this day
+            try {
+                const result = await ArcPhotos.fetchAndCacheDayPhotos(dayKey);
+                if (result.added > 0 && currentMonth === dayKey.slice(0, 7)) {
+                    logDebug(`📸 Auto-fetched ${result.added} photos for day ${dayKey}, refreshing strips`);
+                    await attachPhotoStrips();
+                }
+
+                // If enrichment is still running, retry once after a delay
+                if (result.enrichmentRunning && currentMonth === dayKey.slice(0, 7)) {
+                    setTimeout(async () => {
+                        // Bail if user navigated away from this month or day
+                        if (currentMonth !== dayKey.slice(0, 7)) return;
+                        try {
+                            const retry = await ArcPhotos.fetchAndCacheDayPhotos(dayKey);
+                            if (retry.added > 0 && currentMonth === dayKey.slice(0, 7)) {
+                                logDebug(`📸 Retry: ${retry.added} more photos for day ${dayKey}`);
+                                await attachPhotoStrips();
+                            }
+                        } catch (_) {}
+                    }, 3000); // 3s — shorter than month retry since day enrichment is faster
+                }
+            } catch (err) {
+                logDebug(`📸 Auto-fetch failed for day ${dayKey}: ${err.message}`);
             }
         }
 
@@ -11522,7 +11623,7 @@ scrollToDiaryDay(currentDayKey);
             slider.style.height = 'auto';
         }
 
-        async function openPhotoSlider(dayKey) {
+        async function openPhotoSlider(dayKey, { skipAutoFetch = false } = {}) {
             if (!window.ArcPhotos) return;
             const slider = document.getElementById('photoSlider');
             const grid = document.getElementById('photoSliderGrid');
@@ -11531,6 +11632,9 @@ scrollToDiaryDay(currentDayKey);
 
             // Close event slider if open
             if (typeof closeEventSlider === 'function') closeEventSlider();
+
+            // Close search results if open — gallery needs the space
+            closeSearchResults();
 
             const photos = await ArcPhotos.getPhotosForDay(dayKey);
             photoSliderDayKey = dayKey;
@@ -11594,6 +11698,42 @@ scrollToDiaryDay(currentDayKey);
             positionPhotoSlider();
             slider.classList.add('open');
             updateMapPaddingForSlider(true);
+
+            // Re-apply gallery highlight for the current viewer photo.
+            // When openPhotoSlider is triggered by showDayMap (async), the grid
+            // is cleared and rebuilt after the viewer has already set its photo,
+            // so highlightDiaryThumb's earlier attempt to find the gallery item
+            // would have missed. Re-highlight now that the grid is populated.
+            const viewerOverlay = document.getElementById('photoViewer');
+            if (viewerOverlay && viewerOverlay.style.display !== 'none' && viewerPhotos[viewerIndex]) {
+                const currentId = viewerPhotos[viewerIndex].id;
+                const sliderItem = grid.querySelector(`.photo-slider-item[data-photo-id="${currentId}"]`);
+                if (sliderItem) {
+                    const prev = grid.querySelector('.photo-slider-item-active');
+                    if (prev) prev.classList.remove('photo-slider-item-active');
+                    sliderItem.classList.add('photo-slider-item-active');
+                    const gridRect = grid.getBoundingClientRect();
+                    const elRect = sliderItem.getBoundingClientRect();
+                    const elCentre = (elRect.top - gridRect.top) + grid.scrollTop + (elRect.height / 2);
+                    const target = elCentre - (grid.clientHeight / 2);
+                    grid.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+                }
+            }
+
+            // Auto-fetch photos for this day from the server — if new photos arrive,
+            // re-populate the slider grid so the user sees them without re-opening
+            if (!skipAutoFetch && window.ArcPhotos?.fetchAndCacheDayPhotos && window.ArcPhotos.isServerAvailable()) {
+                (async () => {
+                    try {
+                        const result = await ArcPhotos.fetchAndCacheDayPhotos(dayKey);
+                        if (result.added > 0 && photoSliderOpen && photoSliderDayKey === dayKey) {
+                            logDebug(`📸 Photo slider: ${result.added} new photos fetched for ${dayKey}, refreshing`);
+                            await openPhotoSlider(dayKey, { skipAutoFetch: true });
+                            await attachPhotoStrips(); // also refresh diary strips
+                        }
+                    } catch (_) {}
+                })();
+            }
         }
 
         function closePhotoSlider() {
@@ -12191,13 +12331,18 @@ scrollToDiaryDay(currentDayKey);
                 const parentRect = modal.offsetParent?.getBoundingClientRect() || { left: 0, top: 0 };
                 startLeft = rect.left - parentRect.left;
                 startTop = rect.top - parentRect.top;
-                // Switch from centered to absolute positioning
-                // Clear transform first — getBoundingClientRect already baked it in
+                // Kill any fitted/maximized transition before switching to
+                // absolute positioning — otherwise clearing transform animates
+                // visibly (the modal slides instead of snapping).
+                modal.style.transition = 'none';
+                modal.classList.remove('fitted');
                 modal.style.transform = '';
                 modal.style.position = 'absolute';
                 modal.style.margin = '0';
                 modal.style.left = startLeft + 'px';
                 modal.style.top = startTop + 'px';
+                // Re-enable transitions after the layout is committed
+                requestAnimationFrame(() => { modal.style.transition = ''; });
                 e.preventDefault();
             });
             document.addEventListener('mousemove', (e) => {
@@ -12370,6 +12515,7 @@ scrollToDiaryDay(currentDayKey);
         function closePhotoViewer() {
             const overlay = document.getElementById('photoViewer');
             if (!overlay) return;
+            setViewerLoading(false); // clean up spinner
             // Cancel any pending delayed video load
             if (pendingVideoLoadTimer) { clearTimeout(pendingVideoLoadTimer); pendingVideoLoadTimer = null; }
             // Exit fullscreen if active
@@ -12851,6 +12997,72 @@ scrollToDiaryDay(currentDayKey);
             }
         }
 
+        /**
+         * Show/hide the loading spinner and thumbnail preview in the photo viewer.
+         * Called at the start of showViewerPhoto (show) and when the full-res image
+         * loads or an error fallback fires (hide).
+         *
+         * The preview and spinner only appear after a short grace period (400ms).
+         * If the full-res image loads before then, the user never sees either —
+         * avoiding a distracting flash for fast loads (cached JPEGs, non-HEIC).
+         */
+        let _viewerLoadingTimer = null;
+
+        function setViewerLoading(loading, photo) {
+            const body = document.querySelector('.photo-viewer-body');
+            const preview = document.getElementById('photoViewerPreview');
+            if (!body) return;
+
+            if (loading) {
+                // Cancel any pending show from a previous call
+                if (_viewerLoadingTimer) { clearTimeout(_viewerLoadingTimer); _viewerLoadingTimer = null; }
+
+                // Delay showing spinner + preview so fast loads never flash them
+                _viewerLoadingTimer = setTimeout(() => {
+                    _viewerLoadingTimer = null;
+                    // Re-check: full-res may have loaded during the grace period
+                    const img = document.getElementById('photoViewerImg');
+                    if (img && img.style.opacity === '1') return;
+
+                    // Show spinner
+                    if (!body.querySelector('.photo-viewer-loading')) {
+                        const spinner = document.createElement('div');
+                        spinner.className = 'photo-viewer-loading';
+                        body.appendChild(spinner);
+                    }
+
+                    // Show blurred thumbnail preview if available
+                    if (preview && photo) {
+                        (async () => {
+                            try {
+                                const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
+                                if (dbPhoto?.thumbnail) {
+                                    const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
+                                    if (thumbUrl) {
+                                        preview.src = thumbUrl;
+                                        preview.classList.add('visible');
+                                    }
+                                }
+                            } catch (_) {}
+                        })();
+                    }
+                }, 400);
+            } else {
+                // Cancel pending show — full-res arrived before grace period
+                if (_viewerLoadingTimer) { clearTimeout(_viewerLoadingTimer); _viewerLoadingTimer = null; }
+
+                // Remove spinner
+                const existing = body.querySelector('.photo-viewer-loading');
+                if (existing) existing.remove();
+
+                // Hide preview
+                if (preview) {
+                    preview.classList.remove('visible');
+                    preview.src = '';
+                }
+            }
+        }
+
         async function showViewerPhoto() {
             const photo = viewerPhotos[viewerIndex];
             if (!photo) return;
@@ -12872,6 +13084,9 @@ scrollToDiaryDay(currentDayKey);
             const info = document.getElementById('photoViewerInfo');
             if (!img) return;
 
+            // Hide spinner whenever an image finishes loading (covers all code paths)
+            img.onload = () => setViewerLoading(false);
+
             // Track which photo we're loading to prevent race conditions
             const targetIndex = viewerIndex;
             let showingPosterFallback = false;
@@ -12885,11 +13100,15 @@ scrollToDiaryDay(currentDayKey);
             const icloudOvl = document.getElementById('photoViewerICloudOverlay');
             if (icloudOvl) icloudOvl.style.display = 'none';
 
+            // Show loading spinner + thumbnail preview while full-res loads
+            setViewerLoading(true, photo);
+
             // Toggle between photo and video display
             const isVideo = photo.type === 'video';
 
             if (isVideo && video) {
                 // VIDEO: hide both elements initially — only show the right one when ready
+                setViewerLoading(false); // no loading indicator for video
                 img.style.display = 'none';
                 video.style.display = 'none';
                 // Hide cross-fade partner during normal navigation

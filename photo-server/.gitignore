@@ -1,3 +1,9 @@
 node_modules/
+deps-win32/
+deps-darwin/
 .cache/
+logs/
 photo-fetch/photo-fetch
+heic-convert.exe
+*.obj
+*.pdb
