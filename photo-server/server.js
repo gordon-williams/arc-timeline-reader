@@ -83,7 +83,7 @@ fs.mkdirSync(FULL_CACHE, { recursive: true });
 fs.mkdirSync(ICLOUD_CACHE, { recursive: true });
 
 // Full cache version — bump to invalidate when output size/quality changes
-const FULL_CACHE_VERSION = '3'; // v1=1600px/q85, v2=3200px/q90, v3=ImageIO RAW rendering
+const FULL_CACHE_VERSION = '4'; // v1=1600px/q85, v2=3200px/q90, v3=ImageIO via PhotoKit, v4=ImageIO --path for RAW
 const versionFile = path.join(FULL_CACHE, '.cache-version');
 try {
     const current = fs.existsSync(versionFile) ? fs.readFileSync(versionFile, 'utf8').trim() : '';
@@ -659,7 +659,41 @@ async function generateThumbnail(photoId, maxSize) {
     // Write to temp file first, rename on success (prevents corrupt cache entries)
     const tmpPath = cachePath + '.tmp';
 
-    // For full-res photos, prefer PhotoKit rendering (best RAW/HEIC quality via Core Image)
+    // For full-res RAW files with original on disk, render directly via ImageIO (--path mode)
+    // This bypasses PhotoKit which returns a pre-rendered JPEG for edited DNG/CR2 files.
+    // ImageIO applies proper camera colour profiles, tone curves, and demosaicing.
+    const origExt0 = originalPath ? path.extname(originalPath).slice(1).toLowerCase() : '';
+    const RAW_EXTS_SET = new Set(['cr2', 'cr3', 'nef', 'arw', 'raf', 'orf', 'rw2', 'pef', 'srw', 'dng', 'raw', '3fr', 'mos', 'mrw', 'x3f', 'iiq']);
+    if (!isThumb && photoThumbAvailable && hasOriginal && RAW_EXTS_SET.has(origExt0)) {
+        const fname = formatted.originalFilename || formatted.filename || `ID ${photoId}`;
+        try {
+            await new Promise((resolve, reject) => {
+                execFile(PHOTO_THUMB_BIN, [
+                    '--path', originalPath, tmpPath,
+                    '--size', String(maxSize)
+                ], { timeout: 30000 }, (err, stdout, stderr) => {
+                    if (stderr) {
+                        for (const line of stderr.split('\n').filter(l => l.trim())) {
+                            console.log(`[render] ${fname}: ${line}`);
+                        }
+                    }
+                    if (err) reject(err);
+                    else resolve();
+                });
+            });
+            if (fs.existsSync(tmpPath) && fs.statSync(tmpPath).size > 0) {
+                console.log(`[render] ${fname}: ImageIO --path (${maxSize}px, .${origExt0})`);
+                fs.renameSync(tmpPath, cachePath);
+                return cachePath;
+            }
+            console.log(`[render] ${fname}: ImageIO --path produced no output, falling back`);
+        } catch (pathErr) {
+            try { fs.unlinkSync(tmpPath); } catch (_e) {}
+            console.log(`[render] ${fname}: ImageIO --path failed: ${pathErr.message}, falling back`);
+        }
+    }
+
+    // For full-res photos, prefer PhotoKit rendering (best HEIC quality via Core Image)
     if (!isThumb && photoThumbAvailable && formatted._uuid) {
         const fname = formatted.originalFilename || formatted.filename || `ID ${photoId}`;
         try {
