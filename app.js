@@ -13855,10 +13855,13 @@ scrollToDiaryDay(currentDayKey);
 
             const rows = [];
 
-            // Filename
+            // Filename and ID
             const name = photo.originalFilename || photo.filename || '';
             if (name && !/^[0-9A-F]{8}-[0-9A-F]{4}-/i.test(name)) {
                 rows.push(['File', name]);
+            }
+            if (photo.id) {
+                rows.push(['ID', photo.id]);
             }
 
             // Date & time

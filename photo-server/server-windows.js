@@ -16,11 +16,12 @@ const cors = require('cors');
 const sharp = require('sharp');
 const exifr = require('exifr');
 
-// WIC HEIC converter — uses Windows-native HEIF/HEVC codec via PowerShell.
-// Same decoder as Microsoft Photos — supports GPU hardware acceleration and
-// correctly handles tiled iPhone HEIC files. Preferred over heic-convert.
-const { convertHeicToJpeg, convertHeicBatch, checkWicHeicSupport } = require('./heic-wic-converter');
+// WIC thumbnail generator — uses Windows-native codecs for ALL image formats.
+// Same decoder as Microsoft Photos — supports GPU hardware acceleration.
+// HEIC requires "HEIF Image Extensions" + "HEVC Video Extensions" from Store.
+const { wicConvertToJpeg, wicConvertBatch, convertHeicToJpeg, convertHeicBatch, checkWicHeicSupport } = require('./heic-wic-converter');
 let wicHeicAvailable = false; // set at startup after checking installed extensions
+let wicAvailable = false;     // true when native EXE exists (works for JPEG/PNG/etc even without HEIC extensions)
 
 // heic-convert — pure-JS HEIC decoder (WebAssembly-based libheif)
 // Falls back gracefully if not installed. Used when WIC extensions are missing.
@@ -88,6 +89,45 @@ const CACHE_DIR = process.platform === 'win32'
 const THUMB_CACHE = path.join(CACHE_DIR, 'thumbnails');
 const FULL_CACHE = path.join(CACHE_DIR, 'full');
 const INDEX_PATH = path.join(CACHE_DIR, 'index.json');
+
+// ---------------------------------------------------------------------------
+// Performance profiling — enable with: node server-windows.js --perf
+// ---------------------------------------------------------------------------
+
+const PERF = process.argv.includes('--perf');
+
+const perfStats = {
+    counters: {},
+    record(name, ms) {
+        let c = this.counters[name];
+        if (!c) {
+            c = { count: 0, totalMs: 0, minMs: Infinity, maxMs: 0 };
+            this.counters[name] = c;
+        }
+        c.count++;
+        c.totalMs += ms;
+        if (ms < c.minMs) c.minMs = ms;
+        if (ms > c.maxMs) c.maxMs = ms;
+    },
+    summary(name) {
+        const c = this.counters[name];
+        if (!c) return `${name}: no data`;
+        const avg = (c.totalMs / c.count).toFixed(1);
+        return `${name}: ${c.count} calls, avg ${avg}ms, min ${c.minMs.toFixed(1)}ms, max ${c.maxMs.toFixed(1)}ms, total ${c.totalMs.toFixed(0)}ms`;
+    },
+    dump() {
+        const sorted = Object.entries(this.counters)
+            .sort((a, b) => b[1].totalMs - a[1].totalMs);
+        console.log('\n[PERF] === Performance Summary ===');
+        for (const [name, c] of sorted) {
+            const avg = (c.totalMs / c.count).toFixed(1);
+            console.log(`[PERF]   ${name}: ${c.count} calls, avg ${avg}ms, min ${c.minMs.toFixed(1)}ms, max ${c.maxMs.toFixed(1)}ms, total ${c.totalMs.toFixed(0)}ms`);
+        }
+        console.log('[PERF] ==============================\n');
+    },
+};
+
+if (PERF) console.log('[PERF] Performance profiling enabled');
 
 // Ensure cache directories exist
 fs.mkdirSync(THUMB_CACHE, { recursive: true });
@@ -782,6 +822,7 @@ async function scanFolder() {
     console.log(`Scanning: ${PHOTOS_FOLDER}`);
 
     // Load existing index cache
+    const _perfCacheStart = PERF ? performance.now() : 0;
     let cached = null;
     try {
         if (fs.existsSync(INDEX_PATH)) {
@@ -793,6 +834,10 @@ async function scanFolder() {
     } catch (_) {
         cached = null;
     }
+    if (PERF) {
+        const ms = performance.now() - _perfCacheStart;
+        console.log(`[PERF] scanFolder: cache load ${ms.toFixed(1)}ms (${cached ? 'hit' : 'miss'})`);
+    }
 
     if (cached) {
         nextId = cached.nextId || 1;
@@ -803,7 +848,12 @@ async function scanFolder() {
     // Windows to start downloading them. PowerShell Get-ChildItem reads only
     // NTFS metadata without triggering hydration.
     console.log('  Enumerating files via PowerShell (avoids triggering iCloud downloads)...');
+    const _perfPsStart = PERF ? performance.now() : 0;
     const attrMap = await getFileAttributesBatch(PHOTOS_FOLDER);
+    if (PERF) {
+        const ms = performance.now() - _perfPsStart;
+        console.log(`[PERF] scanFolder: PowerShell enumeration ${ms.toFixed(1)}ms (${attrMap ? attrMap.size : 0} files)`);
+    }
 
     if (!attrMap) {
         console.error('  PowerShell enumeration failed — cannot safely scan iCloud folder.');
@@ -836,6 +886,7 @@ async function scanFolder() {
     let placeholderCount = 0;
 
     // Process in batches for controlled concurrency
+    const _perfIndexStart = PERF ? performance.now() : 0;
     const BATCH_SIZE = 20;
     for (let i = 0; i < mediaFiles.length; i += BATCH_SIZE) {
         const batch = mediaFiles.slice(i, i + BATCH_SIZE);
@@ -913,6 +964,10 @@ async function scanFolder() {
     }
 
     process.stdout.write('\n');
+    if (PERF) {
+        const ms = performance.now() - _perfIndexStart;
+        console.log(`[PERF] scanFolder: index building ${ms.toFixed(1)}ms (${mediaFiles.length} files, ${cachedCount} cached, ${newCount} new)`);
+    }
 
     // Count types
     let photoCount = 0;
@@ -932,7 +987,14 @@ async function scanFolder() {
         (newCount > 0 ? ` (${newCount} new)` : '') +
         ` in ${elapsed}s`);
 
+    const _perfSaveStart = PERF ? performance.now() : 0;
     saveIndexCache();
+    if (PERF) {
+        const saveMs = performance.now() - _perfSaveStart;
+        const totalMs = Date.now() - startTime;
+        console.log(`[PERF] scanFolder: cache save ${saveMs.toFixed(1)}ms`);
+        console.log(`[PERF] scanFolder: TOTAL ${totalMs}ms`);
+    }
 }
 
 function saveIndexCache() {
@@ -1087,9 +1149,11 @@ async function generateThumbnail(photoId, maxSize) {
     const record = photoIndex.get(photoId);
     if (!record) return null;
 
+    const _perfStart = PERF ? performance.now() : 0;
     const isThumb = maxSize <= 200;
     const cacheDir = isThumb ? THUMB_CACHE : FULL_CACHE;
     const cachePath = path.join(cacheDir, `${photoId}.jpg`);
+    const _perfLabel = isThumb ? 'thumb' : 'full';
 
     // Check cache — only trust files with actual content
     if (fs.existsSync(cachePath)) {
@@ -1100,6 +1164,10 @@ async function generateThumbnail(photoId, maxSize) {
                 if (record.modDate && record.modDate > stat.mtimeMs) {
                     fs.unlinkSync(cachePath);
                 } else {
+                    if (PERF) {
+                        const ms = performance.now() - _perfStart;
+                        perfStats.record(`gen:${_perfLabel}:cache-hit`, ms);
+                    }
                     return cachePath;
                 }
             } else {
@@ -1116,13 +1184,26 @@ async function generateThumbnail(photoId, maxSize) {
     const tmpPath = cachePath + '.tmp';
     const isVideo = record.type === 'video';
 
+    const _perfQueueStart = PERF ? performance.now() : 0;
     await acquireSlot();
+    const _perfQueueMs = PERF ? performance.now() - _perfQueueStart : 0;
+    let _perfDecoder = 'unknown';
+
     try {
         if (isVideo) {
             // Video thumbnail via ffmpeg
+            _perfDecoder = 'ffmpeg-video';
+            const _perfDecStart = PERF ? performance.now() : 0;
             try {
                 await ffmpegThumbnail(filePath, tmpPath, maxSize);
                 fs.renameSync(tmpPath, cachePath);
+                if (PERF) {
+                    const decMs = performance.now() - _perfDecStart;
+                    const totalMs = performance.now() - _perfStart;
+                    perfStats.record(`gen:${_perfLabel}:ffmpeg-video`, decMs);
+                    perfStats.record(`gen:${_perfLabel}:queue-wait`, _perfQueueMs);
+                    perfStats.record(`gen:${_perfLabel}:total`, totalMs);
+                }
                 return cachePath;
             } catch (err) {
                 try { fs.unlinkSync(tmpPath); } catch (_) {}
@@ -1132,12 +1213,43 @@ async function generateThumbnail(photoId, maxSize) {
             }
         }
 
-        // Image: resize with Sharp
+        // Image: try WIC first (fastest for all formats), fall back to Sharp
+        const ext = path.extname(filePath).toLowerCase();
+        const isHeic = ext === '.heic' || ext === '.heif';
+        const quality = isThumb ? 80 : 85;
+
+        // 1. WIC via native EXE — handles JPEG, PNG, TIFF, BMP, GIF, and HEIC
+        //    Uses Windows-native codecs, typically 2-10x faster than Sharp for PNGs.
+        if (wicAvailable && (isHeic ? wicHeicAvailable : true)) {
+            _perfDecoder = 'wic';
+            const _perfDecStart = PERF ? performance.now() : 0;
+            try {
+                await wicConvertToJpeg(filePath, tmpPath, maxSize, quality);
+                const stat = fs.statSync(tmpPath);
+                if (stat.size === 0) { fs.unlinkSync(tmpPath); throw new Error('WIC produced 0-byte output'); }
+                fs.renameSync(tmpPath, cachePath);
+                if (PERF) {
+                    const decMs = performance.now() - _perfDecStart;
+                    const totalMs = performance.now() - _perfStart;
+                    perfStats.record(`gen:${_perfLabel}:wic`, decMs);
+                    perfStats.record(`gen:${_perfLabel}:queue-wait`, _perfQueueMs);
+                    perfStats.record(`gen:${_perfLabel}:total`, totalMs);
+                }
+                return cachePath;
+            } catch (wicErr) {
+                try { fs.unlinkSync(tmpPath); } catch (_) {}
+                // Fall through to Sharp
+            }
+        }
+
+        // 2. Sharp (libvips) — reliable cross-platform fallback
+        _perfDecoder = 'sharp';
+        const _perfDecStart2 = PERF ? performance.now() : 0;
         try {
             await sharp(filePath, { failOn: 'none', sequentialRead: true })
                 .rotate()
                 .resize(maxSize, maxSize, { fit: 'inside', withoutEnlargement: true })
-                .jpeg({ quality: isThumb ? 80 : 85 })
+                .jpeg({ quality })
                 .toFile(tmpPath);
 
             const tmpStat = fs.statSync(tmpPath);
@@ -1146,36 +1258,35 @@ async function generateThumbnail(photoId, maxSize) {
                 throw new Error('Sharp produced 0-byte output');
             }
             fs.renameSync(tmpPath, cachePath);
+            if (PERF) {
+                const decMs = performance.now() - _perfDecStart2;
+                const totalMs = performance.now() - _perfStart;
+                perfStats.record(`gen:${_perfLabel}:sharp`, decMs);
+                perfStats.record(`gen:${_perfLabel}:queue-wait`, _perfQueueMs);
+                perfStats.record(`gen:${_perfLabel}:total`, totalMs);
+            }
             return cachePath;
         } catch (sharpErr) {
             try { fs.unlinkSync(tmpPath); } catch (_) {}
 
-            // Fallback for HEIC/HEIF: Sharp can't decode tiled iPhone HEIC on Windows
-            const ext = path.extname(filePath).toLowerCase();
-            if (ext === '.heic' || ext === '.heif') {
-                // Fallback chain: WIC (Windows-native) → heic-convert (WASM) → ffmpeg
+            // HEIC-specific fallback chain
+            if (isHeic) {
                 const errors = [`Sharp: ${sharpErr.message}`];
 
-                // 1. WIC via PowerShell — uses Windows-native HEIF/HEVC codec
-                //    Same decoder as Microsoft Photos. Fast, GPU-accelerated.
-                if (wicHeicAvailable) {
-                    try {
-                        await convertHeicToJpeg(filePath, tmpPath, maxSize, isThumb ? 80 : 85);
-                        const stat = fs.statSync(tmpPath);
-                        if (stat.size === 0) { fs.unlinkSync(tmpPath); throw new Error('WIC produced 0-byte output'); }
-                        fs.renameSync(tmpPath, cachePath);
-                        return cachePath;
-                    } catch (wicErr) {
-                        try { fs.unlinkSync(tmpPath); } catch (_) {}
-                        errors.push(`WIC: ${wicErr.message}`);
-                    }
-                }
-
-                // 2. heic-convert — pure-JS WASM libheif (slower but cross-platform)
+                // heic-convert — pure-JS WASM libheif (slower but cross-platform)
                 if (heicConvert) {
+                    _perfDecoder = 'heic-convert';
+                    const _perfHcStart = PERF ? performance.now() : 0;
                     try {
                         await heicToJpeg(filePath, tmpPath, maxSize, isThumb);
                         fs.renameSync(tmpPath, cachePath);
+                        if (PERF) {
+                            const decMs = performance.now() - _perfHcStart;
+                            const totalMs = performance.now() - _perfStart;
+                            perfStats.record(`gen:${_perfLabel}:heic-convert`, decMs);
+                            perfStats.record(`gen:${_perfLabel}:queue-wait`, _perfQueueMs);
+                            perfStats.record(`gen:${_perfLabel}:total`, totalMs);
+                        }
                         return cachePath;
                     } catch (heicErr) {
                         try { fs.unlinkSync(tmpPath); } catch (_) {}
@@ -1183,11 +1294,20 @@ async function generateThumbnail(photoId, maxSize) {
                     }
                 }
 
-                // 3. ffmpeg — last resort (may produce cropped tiles for iPhone HEIC)
+                // ffmpeg — last resort (may produce cropped tiles for iPhone HEIC)
                 if (ffmpegPath) {
+                    _perfDecoder = 'ffmpeg';
+                    const _perfFfStart = PERF ? performance.now() : 0;
                     try {
                         await ffmpegImageConvert(filePath, tmpPath, maxSize);
                         fs.renameSync(tmpPath, cachePath);
+                        if (PERF) {
+                            const decMs = performance.now() - _perfFfStart;
+                            const totalMs = performance.now() - _perfStart;
+                            perfStats.record(`gen:${_perfLabel}:ffmpeg`, decMs);
+                            perfStats.record(`gen:${_perfLabel}:queue-wait`, _perfQueueMs);
+                            perfStats.record(`gen:${_perfLabel}:total`, totalMs);
+                        }
                         return cachePath;
                     } catch (ffErr) {
                         try { fs.unlinkSync(tmpPath); } catch (_) {}
@@ -1272,6 +1392,28 @@ app.use(cors({
         return cb(new Error('Not allowed by CORS'));
     }
 }));
+
+// Request timing middleware — logs slow requests and all thumbnail/full requests
+if (PERF) {
+    app.use((req, res, next) => {
+        const start = performance.now();
+        const origEnd = res.end.bind(res);
+        res.end = function (...args) {
+            const ms = performance.now() - start;
+            const url = req.originalUrl || req.url;
+            const isThumbnail = url.startsWith('/api/thumbnail/');
+            const isFull = url.startsWith('/api/full/');
+            if (isThumbnail || isFull || ms > 50) {
+                console.log(`[PERF] ${req.method} ${url} ${res.statusCode} ${ms.toFixed(1)}ms`);
+            }
+            if (isThumbnail) perfStats.record('endpoint:thumbnail', ms);
+            else if (isFull) perfStats.record('endpoint:full', ms);
+            else perfStats.record(`endpoint:${url.split('?')[0]}`, ms);
+            return origEnd(...args);
+        };
+        next();
+    });
+}
 
 // ---------------------------------------------------------------------------
 //  REST API — see API.md for the full endpoint and response schema reference
@@ -1418,6 +1560,7 @@ app.get('/api/photos/info/:id', (req, res) => {
 // --- Thumbnail (200px) ---
 app.get('/api/thumbnail/:id', async (req, res) => {
     onDemandActive++;  // signal pre-warming to pause
+    const _perfT0 = PERF ? performance.now() : 0;
     try {
         const id = parseInt(req.params.id, 10);
         if (isNaN(id)) return res.status(400).json({ error: 'Invalid photo ID' });
@@ -1427,7 +1570,9 @@ app.get('/api/thumbnail/:id', async (req, res) => {
             return res.status(204).end(); // No thumbnail for iCloud placeholders
         }
 
+        const _perfGenStart = PERF ? performance.now() : 0;
         const cachePath = await generateThumbnail(id, 200);
+        const _perfGenMs = PERF ? performance.now() - _perfGenStart : 0;
         if (!cachePath) return res.status(204).end();
 
         try {
@@ -1441,6 +1586,10 @@ app.get('/api/thumbnail/:id', async (req, res) => {
         }
 
         res.set('Cache-Control', 'public, max-age=300');
+        if (PERF) {
+            const totalMs = performance.now() - _perfT0;
+            res.set('Server-Timing', `gen;dur=${_perfGenMs.toFixed(1)}, total;dur=${totalMs.toFixed(1)}`);
+        }
         res.sendFile(cachePath);
     } catch (err) {
         console.error('[thumbnail] unhandled error:', err);
@@ -1452,6 +1601,7 @@ app.get('/api/thumbnail/:id', async (req, res) => {
 
 // --- Full resolution (1600px for photos, stream for videos) ---
 app.get('/api/full/:id', async (req, res) => {
+    const _perfT0 = PERF ? performance.now() : 0;
     try {
         const id = parseInt(req.params.id, 10);
         if (isNaN(id)) return res.status(400).json({ error: 'Invalid photo ID' });
@@ -1498,7 +1648,9 @@ app.get('/api/full/:id', async (req, res) => {
         }
 
         // Photo: generate 1600px resized version
+        const _perfGenStart = PERF ? performance.now() : 0;
         const cachePath = await generateThumbnail(id, 1600);
+        const _perfGenMs = PERF ? performance.now() - _perfGenStart : 0;
         if (!cachePath) return res.status(404).json({ error: 'Photo not found or unsupported format' });
 
         try {
@@ -1512,11 +1664,26 @@ app.get('/api/full/:id', async (req, res) => {
         }
 
         res.set('Cache-Control', 'public, max-age=300');
+        if (PERF) {
+            const totalMs = performance.now() - _perfT0;
+            res.set('Server-Timing', `gen;dur=${_perfGenMs.toFixed(1)}, total;dur=${totalMs.toFixed(1)}`);
+        }
         res.sendFile(cachePath);
     } catch (err) {
         console.error('[full] unhandled error:', err);
         res.status(500).json({ error: err.message });
     }
+});
+
+// --- Performance stats (only when --perf) ---
+app.get('/api/perf', (req, res) => {
+    if (!PERF) return res.status(404).json({ error: 'Start server with --perf to enable profiling' });
+    // Also dump to console for convenience
+    perfStats.dump();
+    res.json({
+        enabled: true,
+        counters: perfStats.counters,
+    });
 });
 
 // --- iCloud download status ---
@@ -1670,18 +1837,17 @@ let enrichmentDone = 0;        // items processed so far (enriched + failed)
 // ---------------------------------------------------------------------------
 // Thumbnail pre-warming — runs independently of EXIF enrichment.
 // Scans all photos, queues those without cached thumbnails.
-// ALL WIC (HEIC) work is serialized through a single global queue — only
-// one PowerShell/WIC batch runs at a time. Month-priority batches jump to
-// the front of the queue. Sharp (non-HEIC) work runs separately and pauses
-// when on-demand thumbnail requests are active.
+// ALL image formats go through the WIC batch queue (serialized — one batch
+// at a time). Month-priority batches jump to the front of the queue.
+// Sharp is only used as a fallback when WIC is unavailable.
 // ---------------------------------------------------------------------------
 let thumbsWarmed = 0;
 let thumbsFailed = 0;
 let thumbWarmTotal = 0;
 let thumbWarmRunning = false;
 
-// Batch size for WIC batch conversion
-const WIC_BATCH_SIZE = 20;
+// Batch size for WIC batch conversion — larger for JPEG/PNG (faster than HEIC)
+const WIC_BATCH_SIZE = 50;
 const SHARP_CONCURRENT = 4;
 
 // Video extensions to skip during pre-warming
@@ -1691,17 +1857,17 @@ const VIDEO_EXTS = new Set(['.mov', '.mp4', '.m4v', '.avi', '.3gp', '.mkv', '.we
 let onDemandActive = 0;
 
 // Background queues — populated by preWarmAllThumbnails(), consumed by workers
-let heicQueue = [];   // { id, filePath, cachePath }
-let sharpQueue = [];  // { id }
+let wicQueue = [];    // { id, filePath, cachePath } — ALL image formats via WIC
+let sharpQueue = [];  // { id } — fallback when WIC not available
 
 // Track which months we've successfully batch-warmed (retry on failure)
 const monthBatchDone = new Set();
 
 // ---------------------------------------------------------------------------
 // Global WIC batch serialization
-// Only ONE WIC PowerShell batch conversion runs at a time. Both month-priority
-// and background pre-warming submit jobs to this queue. Month-priority jobs
-// are inserted at the front so they run as soon as the current batch finishes.
+// Only ONE WIC batch runs at a time (via wic-thumbnail.exe / heic-convert.exe).
+// ALL image formats (JPEG, PNG, HEIC, TIFF, BMP, GIF) go through this queue.
+// Month-priority jobs are inserted at the front of the queue.
 // ---------------------------------------------------------------------------
 const wicJobQueue = [];  // { manifest, onResult, priority, source, resolve, reject }
 let wicQueueRunning = false;
@@ -1735,7 +1901,7 @@ function submitWicBatch(manifest, onResult, { priority = false, source = 'backgr
 
 /**
  * Single WIC queue processor — runs ONE batch at a time, sequentially.
- * No contention: each convertHeicBatch() gets full access to WIC/GPU resources.
+ * No contention: each wicConvertBatch() gets full access to WIC/GPU resources.
  */
 async function drainWicQueue() {
     while (wicJobQueue.length > 0) {
@@ -1756,7 +1922,7 @@ async function drainWicQueue() {
 
         const batchStart = Date.now();
         try {
-            const result = await convertHeicBatch(uncached, job.onResult);
+            const result = await wicConvertBatch(uncached, job.onResult);
             const elapsed = Date.now() - batchStart;
             const perFile = uncached.length > 0 ? Math.round(elapsed / uncached.length) : 0;
             console.log(`  🖼️  WIC [${job.source}]: ${result.succeeded}/${uncached.length} OK in ${elapsed}ms (${perFile}ms/file)`);
@@ -1773,7 +1939,7 @@ async function drainWicQueue() {
 /**
  * Called when user navigates to a month — batch-converts all uncached
  * thumbnails for that month. HEIC files go through the global WIC queue
- * with priority (they jump to the front). Non-HEIC files use Sharp directly.
+ * with priority (they jump to the front of the WIC queue).
  *
  * monthBatchDone is only set on success — failed months can be retried
  * on the next navigation.
@@ -1787,8 +1953,8 @@ async function batchWarmMonth(monthKey) {
     const endDay = `${monthKey}-${new Date(year, month, 0).getDate()}`;
 
     // Collect uncached photos for this month
-    const heicItems = [];  // { id, filePath, cachePath }
-    const sharpIds = [];   // photo IDs for Sharp
+    const wicItems = [];   // { id, filePath, cachePath } — ALL formats via WIC
+    const sharpIds = [];   // photo IDs for Sharp fallback
     const allIds = new Set();
 
     for (const [id, record] of photoIndex) {
@@ -1809,8 +1975,9 @@ async function batchWarmMonth(monthKey) {
         if (VIDEO_EXTS.has(ext)) continue;
 
         allIds.add(id);
-        if ((ext === '.heic' || ext === '.heif') && wicHeicAvailable) {
-            heicItems.push({ id, filePath: record._filePath, cachePath });
+        const isHeic = ext === '.heic' || ext === '.heif';
+        if (wicAvailable && (isHeic ? wicHeicAvailable : true)) {
+            wicItems.push({ id, filePath: record._filePath, cachePath });
         } else {
             sharpIds.push(id);
         }
@@ -1821,24 +1988,24 @@ async function batchWarmMonth(monthKey) {
         return;
     }
 
-    console.log(`[thumbs] 🎯 Batch-warming ${monthKey}: ${heicItems.length} HEIC + ${sharpIds.length} other = ${allIds.size} photos`);
+    console.log(`[thumbs] 🎯 Batch-warming ${monthKey}: ${wicItems.length} via WIC + ${sharpIds.length} via Sharp = ${allIds.size} photos`);
 
-    // Pause background Sharp so month gets resources. WIC serialization
+    // Pause background queues so month gets resources. WIC serialization
     // is handled by the global queue — priority insertion, not pausing.
     onDemandActive++;
 
     // Remove these IDs from the background queues (avoid double-processing)
-    heicQueue = heicQueue.filter(item => !allIds.has(item.id));
+    wicQueue = wicQueue.filter(item => !allIds.has(item.id));
     sharpQueue = sharpQueue.filter(item => !allIds.has(item.id));
 
     const startTime = Date.now();
-    let heicOk = true;
+    let wicOk = true;
 
-    // --- HEIC: submit to global WIC queue with priority ---
-    const heicPromise = (async () => {
-        if (heicItems.length === 0) return;
-        for (let i = 0; i < heicItems.length; i += WIC_BATCH_SIZE) {
-            const batch = heicItems.slice(i, i + WIC_BATCH_SIZE);
+    // --- WIC: submit to global WIC queue with priority ---
+    const wicPromise = (async () => {
+        if (wicItems.length === 0) return;
+        for (let i = 0; i < wicItems.length; i += WIC_BATCH_SIZE) {
+            const batch = wicItems.slice(i, i + WIC_BATCH_SIZE);
             const manifest = batch.map(item => ({
                 id: item.id,
                 input: item.filePath,
@@ -1870,12 +2037,12 @@ async function batchWarmMonth(monthKey) {
             } catch (err) {
                 console.warn(`[thumbs] 🎯 WIC batch for ${monthKey} failed: ${err.message}`);
                 thumbsFailed += batch.length;
-                heicOk = false;
+                wicOk = false;
             }
         }
     })();
 
-    // --- Non-HEIC: Sharp in parallel ---
+    // --- Sharp fallback (only populated when WIC is unavailable) ---
     const sharpPromise = (async () => {
         if (sharpIds.length === 0) return;
         for (let i = 0; i < sharpIds.length; i += SHARP_CONCURRENT) {
@@ -1887,16 +2054,16 @@ async function batchWarmMonth(monthKey) {
         }
     })();
 
-    await Promise.all([heicPromise, sharpPromise]);
+    await Promise.all([wicPromise, sharpPromise]);
 
-    // Resume background Sharp
+    // Resume background queues
     onDemandActive--;
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(`[thumbs] 🎯 ${monthKey} done: ${allIds.size} thumbnails in ${elapsed}s`);
 
     // Only mark as done if WIC batches all succeeded (allow retry on failure)
-    if (heicOk) {
+    if (wicOk) {
         monthBatchDone.add(monthKey);
     } else {
         console.log(`[thumbs] 🎯 ${monthKey} had WIC failures — will retry on next navigation`);
@@ -1929,8 +2096,8 @@ async function preWarmAllThumbnails() {
     if (thumbWarmRunning) return;
     thumbWarmRunning = true;
 
-    // Build separate queues for HEIC and non-HEIC
-    heicQueue = [];
+    // Build queues — route ALL images through WIC when available, Sharp as fallback
+    wicQueue = [];
     sharpQueue = [];
 
     for (const [id, record] of photoIndex) {
@@ -1947,8 +2114,11 @@ async function preWarmAllThumbnails() {
         const ext = path.extname(record._filePath).toLowerCase();
         if (VIDEO_EXTS.has(ext)) continue;
 
-        if ((ext === '.heic' || ext === '.heif') && wicHeicAvailable) {
-            heicQueue.push({ id, filePath: record._filePath, cachePath });
+        const isHeic = ext === '.heic' || ext === '.heif';
+
+        // Route through WIC if available (HEIC needs extra codec check)
+        if (wicAvailable && (isHeic ? wicHeicAvailable : true)) {
+            wicQueue.push({ id, filePath: record._filePath, cachePath });
         } else {
             sharpQueue.push({ id });
         }
@@ -1962,43 +2132,44 @@ async function preWarmAllThumbnails() {
         const bDate = bRec?.date || '0';
         return bDate.localeCompare(aDate); // descending — newest first
     };
-    heicQueue.sort(dateSorter);
+    wicQueue.sort(dateSorter);
     sharpQueue.sort(dateSorter);
 
-    thumbWarmTotal = heicQueue.length + sharpQueue.length;
+    thumbWarmTotal = wicQueue.length + sharpQueue.length;
     if (thumbWarmTotal === 0) {
         console.log('[thumbs] All thumbnails already cached');
         thumbWarmRunning = false;
         return;
     }
 
-    console.log(`[thumbs] Pre-warming ${thumbWarmTotal} thumbnails (${heicQueue.length} HEIC via WIC batch, ${sharpQueue.length} other via Sharp) — newest first`);
+    console.log(`[thumbs] Pre-warming ${thumbWarmTotal} thumbnails (${wicQueue.length} via WIC batch, ${sharpQueue.length} via Sharp) — newest first`);
 
-    // --- Process HEIC batches and Sharp queue concurrently ---
-    const heicPromise = processHeicBatches();
+    // --- Process WIC batches and Sharp fallback queue concurrently ---
+    const wicPromise = processWicBatches();
     const sharpPromise = processSharpQueue();
-    await Promise.all([heicPromise, sharpPromise]);
+    await Promise.all([wicPromise, sharpPromise]);
 
     console.log(`[thumbs] Pre-warming complete: ${thumbsWarmed} cached, ${thumbsFailed} failed`);
     thumbWarmRunning = false;
 }
 
 /**
- * Process HEIC queue by submitting batches to the global WIC queue.
+ * Process WIC queue by submitting batches to the global WIC queue.
+ * Handles ALL image formats (JPEG, PNG, HEIC, TIFF, BMP, GIF).
  * Each batch is submitted as a background (non-priority) job.
  * The global queue serializes all WIC work — only one batch runs at a time.
  */
-async function processHeicBatches() {
-    if (heicQueue.length === 0) return;
+async function processWicBatches() {
+    if (wicQueue.length === 0) return;
 
     let batchNum = 0;
-    const totalBatches = Math.ceil(heicQueue.length / WIC_BATCH_SIZE);
+    const totalBatches = Math.ceil(wicQueue.length / WIC_BATCH_SIZE);
 
-    while (heicQueue.length > 0) {
-        // Pause for on-demand Sharp requests (WIC serialization handled by queue)
+    while (wicQueue.length > 0) {
+        // Pause for on-demand requests (WIC serialization handled by queue)
         await waitForOnDemand();
 
-        const batch = heicQueue.splice(0, WIC_BATCH_SIZE);
+        const batch = wicQueue.splice(0, WIC_BATCH_SIZE);
         if (batch.length === 0) break;
 
         const myNum = ++batchNum;
@@ -2102,11 +2273,14 @@ async function enrichRecord(record) {
         const filePath = record._filePath;
         const ext = path.extname(filePath).toLowerCase();
         const isVideo = record.type === 'video';
+        const _perfStart = PERF ? performance.now() : 0;
 
         if (isVideo) {
             // Video: use ffprobe for metadata
             if (ffmpegPath || ffprobePath) {
+                const _perfR = PERF ? performance.now() : 0;
                 const meta = await readVideoMeta(filePath);
+                if (PERF) perfStats.record('enrich:ffprobe', performance.now() - _perfR);
                 if (meta) {
                     if (meta.width) record.width = meta.width;
                     if (meta.height) record.height = meta.height;
@@ -2124,7 +2298,9 @@ async function enrichRecord(record) {
         } else {
             // Image: try exifr first, Sharp for HEIC fallback
             let gotExif = false;
+            const _perfExif = PERF ? performance.now() : 0;
             const exif = await readImageExif(filePath);
+            if (PERF) perfStats.record('enrich:exifr', performance.now() - _perfExif);
             if (exif) {
                 gotExif = true;
                 const d = exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate;
@@ -2148,7 +2324,9 @@ async function enrichRecord(record) {
             // HEIC fallback via Sharp
             const isHeic = ext === '.heic' || ext === '.heif';
             if (!gotExif && isHeic) {
+                const _perfHeic = PERF ? performance.now() : 0;
                 const heicMeta = await readHeicMetadata(filePath);
+                if (PERF) perfStats.record('enrich:heicMeta', performance.now() - _perfHeic);
                 if (heicMeta) {
                     if (heicMeta.width) record.width = heicMeta.width;
                     if (heicMeta.height) record.height = heicMeta.height;
@@ -2170,7 +2348,9 @@ async function enrichRecord(record) {
 
             // Dimensions fallback via Sharp
             if (!record.width || !record.height) {
+                const _perfDims = PERF ? performance.now() : 0;
                 const dims = await readImageDimensions(filePath);
+                if (PERF) perfStats.record('enrich:sharpDims', performance.now() - _perfDims);
                 if (dims) {
                     record.width = dims.width;
                     record.height = dims.height;
@@ -2178,6 +2358,7 @@ async function enrichRecord(record) {
             }
         }
 
+        if (PERF) perfStats.record(`enrich:total:${isVideo ? 'video' : ext.slice(1)}`, performance.now() - _perfStart);
         delete record._needsExif;
         return true;
     } catch (err) {
@@ -2336,11 +2517,21 @@ async function enrichExifInBackground() {
         else photoCount++;
     }
 
-    // Check WIC HEIC support (Windows-native HEIF/HEVC codec)
+    // Check WIC availability — the native EXE handles ALL image formats (JPEG, PNG, etc.)
+    // HEIC additionally requires Microsoft Store extensions.
     try {
         wicHeicAvailable = await checkWicHeicSupport();
     } catch (_) {
         wicHeicAvailable = false;
+    }
+    // WIC is available for JPEG/PNG/TIFF/BMP/GIF if the native EXE exists
+    try {
+        const { existsSync } = require('fs');
+        const wicExe = require('path').join(__dirname, 'wic-thumbnail.exe');
+        const heicExe = require('path').join(__dirname, 'heic-convert.exe');
+        wicAvailable = existsSync(wicExe) || existsSync(heicExe);
+    } catch (_) {
+        wicAvailable = false;
     }
 
     // Start server — build HEIC status line showing fallback chain
@@ -2360,6 +2551,7 @@ async function enrichExifInBackground() {
         (placeholderCount > 0 ? `, ${placeholderCount.toLocaleString()} iCloud placeholders` : '') + ')');
     console.log(`Cache:   ${CACHE_DIR}`);
     console.log(`ffmpeg:  ${ffmpegPath || 'not found (video thumbnails will fail)'}`);
+    console.log(`WIC:     ${wicAvailable ? 'available (all image formats)' : 'not available (using Sharp)'}`);
     console.log(`HEIC:    ${heicStatus}`);
 
     app.listen(PORT, '127.0.0.1', () => {

@@ -1,5 +1,21 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.275 (2026-03-17)
+
+### Photo Viewer
+- **EXIF metadata panel** — New toggle (ℹ button) displays EXIF metadata overlay with filename, photo ID, date/time, camera model, dimensions (with megapixel count), media type, GPS coordinates, and iCloud source status. The filename strip is automatically hidden while the EXIF panel is open to avoid redundancy. Both preferences persist to localStorage.
+
+### Photo Server (macOS)
+- **CIRAWFilter for RAW rendering** — RAW files (DNG, CR2, NEF, ARW, etc.) are now rendered through Core Image's `CIRAWFilter` instead of `CGImageSourceCreateThumbnailAtIndex`. This applies proper camera colour profiles, tone curves, and demosaicing — the same pipeline as Preview.app and Apple Photos. Fixes washed-out RAW photos in the viewer.
+- **RAW rendering in photo-fetch** — iCloud-downloaded RAW files also use CIRAWFilter for proper rendering during the download-and-cache pipeline.
+- **RAW rendering in photo-thumb** — Both `--path` mode (direct file) and `--hq` mode (PhotoKit data) detect RAW UTIs and route through CIRAWFilter automatically, falling back to ImageIO for non-RAW formats.
+- **Force re-render parameter** — Added `?rerender=1` query parameter to `/api/full/:id` endpoint to bypass the cache and regenerate full-resolution images on demand.
+- **Cache version management** — Full-res cache auto-clears when the cache version bumps, preventing stale washed-out renders from being served after pipeline improvements.
+- **Skip Sharp for RAW files** — RAW file extensions are detected and bypass Sharp (which produces garbage output for RAW via libvips) in the rendering pipeline.
+
+### Photo Server (Windows)
+- **Performance profiling** — Added `--perf` flag for toggle-gated timing instrumentation across startup, endpoints, thumbnail generation, and EXIF enrichment. Includes `/api/perf` summary endpoint, `Server-Timing` headers, and per-decoder aggregate stats.
+
 ## Build 02.269 (2026-03-17)
 
 ### Photo Viewer — iCloud Progressive Loading

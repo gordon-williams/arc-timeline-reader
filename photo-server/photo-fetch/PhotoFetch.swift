@@ -14,6 +14,7 @@ import Photos
 import AVFoundation
 import AppKit
 import ImageIO
+import CoreImage
 
 // MARK: - Helpers
 
@@ -195,25 +196,64 @@ if asset.mediaType == .video {
         emit("STATUS:COPYING")
         let dstURL = URL(fileURLWithPath: outputPath)
         do {
-            // Render through ImageIO (CGImageSource) for proper RAW colour profiles,
-            // tone curves, and demosaicing — same pipeline as Preview.app
             var outData = data
             if let source = CGImageSourceCreateWithData(data as CFData, nil) {
                 let uti = CGImageSourceGetType(source) as String? ?? "unknown"
                 emit("INFO:UTI=\(uti), dataSize=\(data.count)")
 
-                // Render at full resolution through ImageIO then convert to JPEG
-                let opts: [CFString: Any] = [
-                    kCGImageSourceCreateThumbnailFromImageAlways: true,
-                    kCGImageSourceThumbnailMaxPixelSize: 4096,
-                    kCGImageSourceCreateThumbnailWithTransform: true,
-                    kCGImageSourceShouldCacheImmediately: true
+                let rawUTIs: Set<String> = [
+                    "com.adobe.raw-image", "com.canon.cr2-raw-image", "com.canon.cr3-raw-image",
+                    "com.nikon.raw-image", "com.sony.raw-image", "com.fuji.raw-image",
+                    "com.olympus.raw-image", "com.panasonic.raw-image", "com.pentax.raw-image",
+                    "com.samsung.raw-image", "com.leica.raw-image", "com.hasselblad.fff-raw-image",
+                    "com.leafamerica.raw-image", "com.konicaminolta.raw-image",
+                    "com.sigma.x3f-raw-image", "com.phaseone.raw-image",
                 ]
-                if let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, opts as CFDictionary) {
-                    let rep = NSBitmapImageRep(cgImage: cgImage)
-                    if let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.92]) {
-                        outData = jpeg
-                        emit("INFO:rendered \(cgImage.width)×\(cgImage.height)")
+                let isRAW = rawUTIs.contains(uti) || uti.contains("raw")
+
+                if isRAW {
+                    // Use CIRAWFilter for proper tone curves + camera colour profiles
+                    emit("INFO:RAW data — using CIRAWFilter")
+                    let tempDir = FileManager.default.temporaryDirectory
+                    let tempFile = tempDir.appendingPathComponent("photo-fetch-raw-\(ProcessInfo.processInfo.processIdentifier).dng")
+                    try data.write(to: tempFile, options: .atomic)
+                    defer { try? FileManager.default.removeItem(at: tempFile) }
+
+                    if let rawFilter = CIFilter(imageURL: tempFile, options: [:]),
+                       let ciImage = rawFilter.outputImage {
+                        // Scale to max 4096px
+                        let maxDim = max(ciImage.extent.width, ciImage.extent.height)
+                        var finalImage = ciImage
+                        if maxDim > 4096 {
+                            let scale = 4096.0 / maxDim
+                            finalImage = ciImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+                        }
+                        let ctx = CIContext(options: [
+                            .workingColorSpace: CGColorSpace(name: CGColorSpace.displayP3)!,
+                            .outputColorSpace: CGColorSpace(name: CGColorSpace.sRGB)!
+                        ])
+                        if let cgImage = ctx.createCGImage(finalImage, from: finalImage.extent) {
+                            let rep = NSBitmapImageRep(cgImage: cgImage)
+                            if let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.92]) {
+                                outData = jpeg
+                                emit("INFO:rendered \(cgImage.width)×\(cgImage.height) via CIRAWFilter")
+                            }
+                        }
+                    }
+                } else {
+                    // Non-RAW: render through ImageIO
+                    let opts: [CFString: Any] = [
+                        kCGImageSourceCreateThumbnailFromImageAlways: true,
+                        kCGImageSourceThumbnailMaxPixelSize: 4096,
+                        kCGImageSourceCreateThumbnailWithTransform: true,
+                        kCGImageSourceShouldCacheImmediately: true
+                    ]
+                    if let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, opts as CFDictionary) {
+                        let rep = NSBitmapImageRep(cgImage: cgImage)
+                        if let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.92]) {
+                            outData = jpeg
+                            emit("INFO:rendered \(cgImage.width)×\(cgImage.height)")
+                        }
                     }
                 }
             }
