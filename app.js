@@ -12077,6 +12077,14 @@ scrollToDiaryDay(currentDayKey);
             if (fnBar) fnBar.style.display = showFilenameOverlay ? '' : 'none';
             if (fnBtn) fnBtn.classList.toggle('active', showFilenameOverlay);
 
+            // Restore EXIF panel preference
+            const savedExif = localStorage.getItem('arcPhotoViewerShowExif');
+            showExifPanel = savedExif === '1';
+            const exifPanel = document.getElementById('photoViewerExif');
+            const exifBtn = document.getElementById('photoViewerExifBtn');
+            if (exifPanel) exifPanel.style.display = showExifPanel ? '' : 'none';
+            if (exifBtn) exifBtn.classList.toggle('active', showExifPanel);
+
             // Restore slideshow speed preference
             const savedSpeed = localStorage.getItem('arcPhotoViewerSlideshowSpeed');
             if (savedSpeed) {
@@ -13461,8 +13469,9 @@ scrollToDiaryDay(currentDayKey);
             if (slideshowBtn) slideshowBtn.style.display = viewerPhotos.length > 1 ? '' : 'none';
             if (settingsBtn) settingsBtn.style.display = viewerPhotos.length > 1 ? '' : 'none';
 
-            // Update filename overlay if visible
+            // Update filename overlay and EXIF panel if visible
             updateFilenameBar();
+            updateExifPanel();
         }
 
         // Photo import UI setup (start screen)
@@ -13812,6 +13821,116 @@ scrollToDiaryDay(currentDayKey);
                 .catch(() => { photo.title = null; });
         }
 
+        // --- EXIF metadata panel ---
+
+        let showExifPanel = localStorage.getItem('arcPhotoViewerShowExif') === '1';
+
+        function toggleExifPanel() {
+            showExifPanel = !showExifPanel;
+            localStorage.setItem('arcPhotoViewerShowExif', showExifPanel ? '1' : '0');
+            const panel = document.getElementById('photoViewerExif');
+            const btn = document.getElementById('photoViewerExifBtn');
+            if (panel) panel.style.display = showExifPanel ? '' : 'none';
+            if (btn) btn.classList.toggle('active', showExifPanel);
+            if (showExifPanel) updateExifPanel();
+        }
+        window.toggleExifPanel = toggleExifPanel;
+
+        function updateExifPanel() {
+            const panel = document.getElementById('photoViewerExif');
+            if (!panel || !showExifPanel) return;
+            const photo = viewerPhotos[viewerIndex];
+            if (!photo) { panel.innerHTML = ''; return; }
+
+            const rows = [];
+
+            // Filename
+            const name = photo.originalFilename || photo.filename || '';
+            if (name && !/^[0-9A-F]{8}-[0-9A-F]{4}-/i.test(name)) {
+                rows.push(['File', name]);
+            }
+
+            // Date & time
+            if (photo.date) {
+                const d = new Date(photo.date);
+                rows.push(['Date', d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })]);
+                rows.push(['Time', d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })]);
+            }
+
+            // Camera
+            const make = photo.cameraMake || '';
+            const model = photo.cameraModel || '';
+            if (make || model) {
+                // Avoid duplication if model already contains make (e.g. "Apple iPhone 15 Pro")
+                let camera = model;
+                if (make && model && !model.toLowerCase().startsWith(make.toLowerCase())) {
+                    camera = `${make} ${model}`;
+                } else if (make && !model) {
+                    camera = make;
+                }
+                rows.push(['Camera', camera]);
+            }
+
+            // Dimensions
+            if (photo.width && photo.height) {
+                const mp = ((photo.width * photo.height) / 1e6).toFixed(1);
+                rows.push(['Size', `${photo.width} × ${photo.height}  (${mp} MP)`]);
+            }
+
+            // Type
+            if (photo.type === 'video') {
+                let typeStr = 'Video';
+                if (photo.duration) {
+                    const mins = Math.floor(photo.duration / 60);
+                    const secs = Math.floor(photo.duration % 60);
+                    typeStr += ` · ${mins}:${secs.toString().padStart(2, '0')}`;
+                }
+                rows.push(['Type', typeStr]);
+            }
+
+            // GPS
+            if (photo.latitude != null && photo.longitude != null) {
+                const lat = photo.latitude.toFixed(6);
+                const lng = photo.longitude.toFixed(6);
+                rows.push(['GPS', `${lat}, ${lng}`]);
+            }
+
+            // iCloud status
+            if (photo.icloud) {
+                rows.push(['Source', '☁ iCloud (no local original)']);
+            }
+
+            if (rows.length === 0) {
+                panel.innerHTML = '<span style="color:rgba(255,255,255,0.4);">No metadata available</span>';
+                return;
+            }
+
+            panel.innerHTML = '<table>' + rows.map(([label, value]) =>
+                `<tr><td>${label}</td><td>${value}</td></tr>`
+            ).join('') + '</table>';
+
+            // Lazy-fetch extra info from server (title, cameraMake if missing)
+            if (photo._exifFetched) return;
+            const serverUrl = window.ArcPhotos && ArcPhotos.getServerUrl();
+            if (!serverUrl) return;
+            photo._exifFetched = true;
+            fetch(`${serverUrl}/api/photos/info/${photo.id}`, { signal: AbortSignal.timeout(3000) })
+                .then(r => r.ok ? r.json() : null)
+                .then(info => {
+                    if (!info) return;
+                    // Merge in fields not yet on the photo object
+                    if (info.title && !photo.title) photo.title = info.title;
+                    if (info.cameraMake && !photo.cameraMake) photo.cameraMake = info.cameraMake;
+                    if (info.cameraModel && !photo.cameraModel) photo.cameraModel = info.cameraModel;
+                    if (info.width && !photo.width) photo.width = info.width;
+                    if (info.height && !photo.height) photo.height = info.height;
+                    if (info.originalFilename && !photo.originalFilename) photo.originalFilename = info.originalFilename;
+                    // Re-render if still on the same photo
+                    if (viewerPhotos[viewerIndex] === photo && showExifPanel) updateExifPanel();
+                })
+                .catch(() => {});
+        }
+
         // --- Slideshow ---
 
         function toggleSlideshow() {
@@ -14090,6 +14209,7 @@ scrollToDiaryDay(currentDayKey);
                 info.textContent = `${dateStr} ${timeStr}${camera ? ' \u00B7 ' + camera : ''}${durationStr}${counter}`;
             }
             updateFilenameBar();
+            updateExifPanel();
         }
 
         // Load the actual video element for the current photo after the poster is

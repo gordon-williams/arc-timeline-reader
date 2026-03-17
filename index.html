@@ -36,7 +36,7 @@ SOFTWARE.
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = '02.269';
+  window.__ARC_BUILD__ = '02.270';
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -623,6 +623,7 @@ SOFTWARE.
                             <span class="photo-viewer-info" id="photoViewerInfo"></span>
                             <div class="photo-viewer-controls">
                                 <button class="photo-viewer-btn" id="photoViewerFilenameBtn" onclick="toggleFilenameOverlay()" title="Show filename">&#x1F5B9;</button>
+                                <button class="photo-viewer-btn" id="photoViewerExifBtn" onclick="toggleExifPanel()" title="EXIF metadata">ℹ</button>
                                 <button class="photo-viewer-btn" id="photoViewerSlideshowBtn" onclick="toggleSlideshow()" title="Slideshow">&#9654;</button>
                                 <button class="photo-viewer-btn photo-viewer-speed-btn" id="photoViewerSpeedBtn" onclick="cycleSlideshowSpeed()" title="Slideshow speed" style="display:none;">5s</button>
                                 <button class="photo-viewer-btn" id="photoViewerSettingsBtn" onclick="toggleSlideshowSettings()" title="Slideshow settings" style="display:none;">&#x2699;</button>
@@ -697,6 +698,7 @@ SOFTWARE.
                             <div class="photo-viewer-filename-bar" id="photoViewerFilenameBar" style="display:none;">
                                 <span id="photoViewerFilename"></span>
                             </div>
+                            <div class="photo-viewer-exif" id="photoViewerExif" style="display:none;"></div>
                         </div>
                     </div>
                 </div>

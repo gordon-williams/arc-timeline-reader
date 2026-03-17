@@ -6634,7 +6634,9 @@ li.route-clickable:hover {
     pointer-events: none;
 }
 .photo-viewer-overlay:fullscreen .photo-viewer-filename-bar,
-.photo-viewer-overlay:-webkit-full-screen .photo-viewer-filename-bar {
+.photo-viewer-overlay:-webkit-full-screen .photo-viewer-filename-bar,
+.photo-viewer-overlay:fullscreen .photo-viewer-exif,
+.photo-viewer-overlay:-webkit-full-screen .photo-viewer-exif {
     opacity: 0;
     transition: opacity 0.3s ease;
 }
@@ -6651,7 +6653,9 @@ li.route-clickable:hover {
     pointer-events: auto;
 }
 .photo-viewer-overlay:fullscreen.fs-controls-visible .photo-viewer-filename-bar,
-.photo-viewer-overlay:-webkit-full-screen.fs-controls-visible .photo-viewer-filename-bar {
+.photo-viewer-overlay:-webkit-full-screen.fs-controls-visible .photo-viewer-filename-bar,
+.photo-viewer-overlay:fullscreen.fs-controls-visible .photo-viewer-exif,
+.photo-viewer-overlay:-webkit-full-screen.fs-controls-visible .photo-viewer-exif {
     opacity: 1;
 }
 /* Remove modal box-shadow and border-radius in fullscreen */
@@ -6929,6 +6933,45 @@ li.route-clickable:hover {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* ── EXIF metadata panel ── */
+.photo-viewer-exif {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 10px 14px;
+    border-radius: 10px;
+    z-index: 15;
+    pointer-events: none;
+    max-width: 320px;
+    font-variant-numeric: tabular-nums;
+}
+.photo-viewer-exif table {
+    border-collapse: collapse;
+    width: 100%;
+}
+.photo-viewer-exif td {
+    padding: 1px 0;
+    vertical-align: top;
+}
+.photo-viewer-exif td:first-child {
+    color: rgba(255, 255, 255, 0.45);
+    padding-right: 12px;
+    white-space: nowrap;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.photo-viewer-exif td:last-child {
+    color: rgba(255, 255, 255, 0.9);
+    word-break: break-word;
 }
 
 /* ── Slideshow settings popup ── */
