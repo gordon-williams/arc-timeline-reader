@@ -13777,7 +13777,8 @@ scrollToDiaryDay(currentDayKey);
             localStorage.setItem('arcPhotoViewerShowFilename', showFilenameOverlay ? '1' : '0');
             const bar = document.getElementById('photoViewerFilenameBar');
             const btn = document.getElementById('photoViewerFilenameBtn');
-            if (bar) bar.style.display = showFilenameOverlay ? '' : 'none';
+            // Don't show filename strip while EXIF panel is open (it already shows the filename)
+            if (bar) bar.style.display = (showFilenameOverlay && !showExifPanel) ? '' : 'none';
             if (btn) btn.classList.toggle('active', showFilenameOverlay);
             if (showFilenameOverlay) updateFilenameBar();
         }
@@ -13830,9 +13831,17 @@ scrollToDiaryDay(currentDayKey);
             localStorage.setItem('arcPhotoViewerShowExif', showExifPanel ? '1' : '0');
             const panel = document.getElementById('photoViewerExif');
             const btn = document.getElementById('photoViewerExifBtn');
+            const fnBar = document.getElementById('photoViewerFilenameBar');
             if (panel) panel.style.display = showExifPanel ? '' : 'none';
             if (btn) btn.classList.toggle('active', showExifPanel);
-            if (showExifPanel) updateExifPanel();
+            if (showExifPanel) {
+                // EXIF includes filename — hide the filename strip while EXIF is open
+                if (fnBar && showFilenameOverlay) fnBar.style.display = 'none';
+                updateExifPanel();
+            } else {
+                // Restore filename strip if it was enabled
+                if (fnBar && showFilenameOverlay) fnBar.style.display = '';
+            }
         }
         window.toggleExifPanel = toggleExifPanel;
 
