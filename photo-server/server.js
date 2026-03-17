@@ -83,7 +83,7 @@ fs.mkdirSync(FULL_CACHE, { recursive: true });
 fs.mkdirSync(ICLOUD_CACHE, { recursive: true });
 
 // Full cache version — bump to invalidate when output size/quality changes
-const FULL_CACHE_VERSION = '2'; // v1=1600px/q85, v2=3200px/q90
+const FULL_CACHE_VERSION = '3'; // v1=1600px/q85, v2=3200px/q90, v3=ImageIO RAW rendering
 const versionFile = path.join(FULL_CACHE, '.cache-version');
 try {
     const current = fs.existsSync(versionFile) ? fs.readFileSync(versionFile, 'utf8').trim() : '';
@@ -670,12 +670,18 @@ async function generateThumbnail(photoId, maxSize) {
                     '--size', String(maxSize),
                     '--hq'
                 ], { timeout: 30000 }, (err, stdout, stderr) => {
+                    if (stderr) {
+                        // Log diagnostic info from photo-thumb
+                        for (const line of stderr.split('\n').filter(l => l.trim())) {
+                            console.log(`[render] ${fname}: ${line}`);
+                        }
+                    }
                     if (err) reject(err);
                     else resolve();
                 });
             });
             if (fs.existsSync(tmpPath) && fs.statSync(tmpPath).size > 0) {
-                console.log(`[render] ${fname}: PhotoKit --hq (${maxSize}px)`);
+                console.log(`[render] ${fname}: PhotoKit/ImageIO --hq (${maxSize}px)`);
                 fs.renameSync(tmpPath, cachePath);
                 return cachePath;
             }
