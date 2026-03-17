@@ -82,6 +82,24 @@ fs.mkdirSync(THUMB_CACHE, { recursive: true });
 fs.mkdirSync(FULL_CACHE, { recursive: true });
 fs.mkdirSync(ICLOUD_CACHE, { recursive: true });
 
+// Full cache version — bump to invalidate when output size/quality changes
+const FULL_CACHE_VERSION = '2'; // v1=1600px/q85, v2=3200px/q90
+const versionFile = path.join(FULL_CACHE, '.cache-version');
+try {
+    const current = fs.existsSync(versionFile) ? fs.readFileSync(versionFile, 'utf8').trim() : '';
+    if (current !== FULL_CACHE_VERSION) {
+        let cleared = 0;
+        for (const file of fs.readdirSync(FULL_CACHE)) {
+            if (file.startsWith('.')) continue;
+            try { fs.unlinkSync(path.join(FULL_CACHE, file)); cleared++; } catch (_) {}
+        }
+        fs.writeFileSync(versionFile, FULL_CACHE_VERSION);
+        if (cleared > 0) console.log(`Full cache cleared (${cleared} files) — version ${FULL_CACHE_VERSION} (3200px, quality 90)`);
+    }
+} catch (e) {
+    console.warn('Failed to check full cache version:', e.message);
+}
+
 // Purge empty/corrupt cached files and stale temp files on startup
 for (const dir of [THUMB_CACHE, FULL_CACHE]) {
     let purged = 0;
@@ -468,7 +486,7 @@ function qlmanageThumbnail(videoPath, outputPath, maxSize) {
                     const isThumb = maxSize <= 200;
                     await sharp(qlOutput)
                         .resize(maxSize, maxSize, { fit: 'inside', withoutEnlargement: true })
-                        .jpeg({ quality: isThumb ? 80 : 85 })
+                        .jpeg({ quality: isThumb ? 80 : 90 })
                         .toFile(outputPath);
 
                     // Clean up qlmanage PNG
@@ -527,12 +545,12 @@ function ffmpegThumbnail(videoPath, outputPath, maxSize) {
 }
 
 // Use macOS sips as fallback for HEIC and other formats Sharp can't handle
-function sipsConvert(inputPath, outputPath, maxSize) {
+function sipsConvert(inputPath, outputPath, maxSize, quality = 85) {
     return new Promise((resolve, reject) => {
         // sips: resize to fit within maxSize, convert to JPEG
         execFile('sips', [
             '-s', 'format', 'jpeg',
-            '-s', 'formatOptions', '80',
+            '-s', 'formatOptions', String(quality),
             '-Z', String(maxSize),
             inputPath,
             '--out', outputPath
@@ -594,7 +612,7 @@ async function generateThumbnail(photoId, maxSize) {
                 await sharp(derivPath, { failOn: 'none' })
                     .rotate()
                     .resize(maxSize, maxSize, { fit: 'inside', withoutEnlargement: true })
-                    .jpeg({ quality: isThumb ? 80 : 85 })
+                    .jpeg({ quality: isThumb ? 80 : 90 })
                     .toFile(tmpPath);
 
                 const tmpStat = fs.statSync(tmpPath);
@@ -641,6 +659,30 @@ async function generateThumbnail(photoId, maxSize) {
     // Write to temp file first, rename on success (prevents corrupt cache entries)
     const tmpPath = cachePath + '.tmp';
 
+    // For full-res photos, prefer PhotoKit rendering (best RAW/HEIC quality via Core Image)
+    if (!isThumb && photoThumbAvailable && formatted._uuid) {
+        try {
+            await new Promise((resolve, reject) => {
+                execFile(PHOTO_THUMB_BIN, [
+                    formatted._uuid,
+                    tmpPath,
+                    '--size', String(maxSize),
+                    '--hq'
+                ], { timeout: 30000 }, (err, stdout, stderr) => {
+                    if (err) reject(err);
+                    else resolve();
+                });
+            });
+            if (fs.existsSync(tmpPath) && fs.statSync(tmpPath).size > 0) {
+                fs.renameSync(tmpPath, cachePath);
+                return cachePath;
+            }
+        } catch (_) {
+            try { fs.unlinkSync(tmpPath); } catch (_e) {}
+            // Fall through to Sharp/sips
+        }
+    }
+
     // Limit concurrent image processing to prevent resource exhaustion
     await acquireSlot();
     try {
@@ -673,7 +715,7 @@ async function generateThumbnail(photoId, maxSize) {
             await sharp(originalPath, { failOn: 'none' })
                 .rotate()
                 .resize(maxSize, maxSize, { fit: 'inside', withoutEnlargement: true })
-                .jpeg({ quality: isThumb ? 80 : 85 })
+                .jpeg({ quality: isThumb ? 80 : 90 })
                 .toFile(tmpPath);
 
             // Validate output before caching
@@ -691,7 +733,7 @@ async function generateThumbnail(photoId, maxSize) {
 
             // Fallback to macOS sips (handles HEIC and other native formats)
             try {
-                await sipsConvert(originalPath, tmpPath, maxSize);
+                await sipsConvert(originalPath, tmpPath, maxSize, isThumb ? 80 : 90);
 
                 // Validate output before caching
                 const tmpStat = fs.statSync(tmpPath);
@@ -1473,8 +1515,8 @@ app.get('/api/full/:id', async (req, res) => {
             return serveVideoFile(originalPath, req, res);
         }
 
-        // Photo: generate resized version (existing behaviour)
-        const cachePath = await generateThumbnail(id, 1600);
+        // Photo: generate resized version (3200px for sharp display on HiDPI screens)
+        const cachePath = await generateThumbnail(id, 3200);
         if (!cachePath) return res.status(404).json({ error: 'Photo not found or unsupported format' });
 
         // Safety net: never serve empty files
