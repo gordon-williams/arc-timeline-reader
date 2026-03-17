@@ -562,9 +562,10 @@ function sipsConvert(inputPath, outputPath, maxSize, quality = 85) {
     });
 }
 
-async function generateThumbnail(photoId, maxSize) {
-    // Skip photos that permanently failed
-    if (failedPhotos.has(photoId)) return null;
+async function generateThumbnail(photoId, maxSize, { forceRerender = false } = {}) {
+    // Skip photos that permanently failed (unless force re-rendering)
+    if (failedPhotos.has(photoId) && !forceRerender) return null;
+    if (forceRerender) failedPhotos.delete(photoId);
 
     const isThumb = maxSize <= 200;
     const cacheDir = isThumb ? THUMB_CACHE : FULL_CACHE;
@@ -577,6 +578,9 @@ async function generateThumbnail(photoId, maxSize) {
     const formatted = formatRow(row);
 
     // Check cache — only trust files with actual content that aren't stale
+    if (forceRerender && fs.existsSync(cachePath)) {
+        try { fs.unlinkSync(cachePath); } catch (_) {}
+    }
     if (fs.existsSync(cachePath)) {
         const stat = fs.statSync(cachePath);
         if (stat.size > 0) {
@@ -1574,7 +1578,8 @@ app.get('/api/full/:id', async (req, res) => {
         }
 
         // Photo: generate resized version (3200px for sharp display on HiDPI screens)
-        const cachePath = await generateThumbnail(id, 3200);
+        const forceRerender = req.query.rerender === '1';
+        const cachePath = await generateThumbnail(id, 3200, { forceRerender });
         if (!cachePath) return res.status(404).json({ error: 'Photo not found or unsupported format' });
 
         // Safety net: never serve empty files
@@ -1588,7 +1593,7 @@ app.get('/api/full/:id', async (req, res) => {
             return res.status(404).json({ error: 'Image file missing' });
         }
 
-        res.set('Cache-Control', 'public, max-age=300');
+        res.set('Cache-Control', forceRerender ? 'no-cache' : 'public, max-age=300');
         res.sendFile(cachePath);
     } catch (err) {
         console.error(`[full] unhandled error: ${err?.stack || err}`);
