@@ -13,6 +13,7 @@ import Foundation
 import Photos
 import AVFoundation
 import AppKit
+import ImageIO
 
 // MARK: - Helpers
 
@@ -194,13 +195,27 @@ if asset.mediaType == .video {
         emit("STATUS:COPYING")
         let dstURL = URL(fileURLWithPath: outputPath)
         do {
-            // Prefer writing JPEG for broad compatibility in browser preview.
+            // Render through ImageIO (CGImageSource) for proper RAW colour profiles,
+            // tone curves, and demosaicing — same pipeline as Preview.app
             var outData = data
-            if let nsImage = NSImage(data: data),
-               let tiff = nsImage.tiffRepresentation,
-               let rep = NSBitmapImageRep(data: tiff),
-               let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.9]) {
-                outData = jpeg
+            if let source = CGImageSourceCreateWithData(data as CFData, nil) {
+                let uti = CGImageSourceGetType(source) as String? ?? "unknown"
+                emit("INFO:UTI=\(uti), dataSize=\(data.count)")
+
+                // Render at full resolution through ImageIO then convert to JPEG
+                let opts: [CFString: Any] = [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceThumbnailMaxPixelSize: 4096,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceShouldCacheImmediately: true
+                ]
+                if let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, opts as CFDictionary) {
+                    let rep = NSBitmapImageRep(cgImage: cgImage)
+                    if let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.92]) {
+                        outData = jpeg
+                        emit("INFO:rendered \(cgImage.width)×\(cgImage.height)")
+                    }
+                }
             }
             try? FileManager.default.removeItem(at: dstURL)
             try outData.write(to: dstURL, options: .atomic)

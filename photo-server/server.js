@@ -1373,6 +1373,11 @@ app.get('/api/full/:id', async (req, res) => {
         const formatted = formatRow(row);
         const originalPath = resolveOriginalPath(formatted);
         const hasOriginal = originalPath && fs.existsSync(originalPath);
+        const fname = formatted.originalFilename || formatted.filename || `ID ${id}`;
+
+        if (req.query.rerender) {
+            console.log(`[full] ${fname}: rerender requested — hasOriginal=${hasOriginal}, path=${originalPath || 'null'}`);
+        }
 
         if (!hasOriginal) {
         // No original on disk. Strategy:
