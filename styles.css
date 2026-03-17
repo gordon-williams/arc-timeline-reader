@@ -6250,6 +6250,19 @@ li.route-clickable:hover {
     z-index: 2;
 }
 
+.diary-photo-icloud.diary-photo-thumb {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: var(--text-muted, #888);
+    background: var(--bg-surface, #f0f0f0);
+    opacity: 0.7;
+}
+.diary-photo-icloud.diary-photo-thumb:hover {
+    opacity: 1;
+}
+
 .diary-photo-more {
     display: flex;
     align-items: center;
@@ -6363,6 +6376,18 @@ li.route-clickable:hover {
     box-shadow: inset 0 0 0 2px rgba(255,255,255,0.9);
     z-index: 1;
 }
+/* iCloud placeholder in photo slider grid */
+.photo-slider-icloud {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: var(--text-muted, #888);
+    background: var(--bg-surface, #f0f0f0);
+    opacity: 0.6;
+}
+.photo-slider-icloud:hover { opacity: 0.9; }
+
 /* Video play icon overlay on slider thumbnails */
 .photo-slider-play-icon {
     position: absolute;
@@ -6784,6 +6809,52 @@ li.route-clickable:hover {
 .photo-viewer-nav:hover {
     background: rgba(255, 255, 255, 0.25);
 }
+.photo-viewer-nav.nav-flash {
+    animation: nav-btn-flash 0.25s ease-out;
+}
+@keyframes nav-btn-flash {
+    0%   { transform: translateY(3px); }
+    100% { transform: translateY(0); }
+}
+/* iCloud preview tag — shown when viewer displays a poster/thumbnail instead of full-res */
+.photo-viewer-poster-tag {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: rgba(0, 0, 0, 0.55);
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    z-index: 12;
+    pointer-events: none;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    letter-spacing: 0.3px;
+}
+
+.photo-viewer-unavailable {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    z-index: 12;
+    pointer-events: none;
+}
+.photo-viewer-unavailable-icon {
+    font-size: 48px;
+    opacity: 0.4;
+}
+.photo-viewer-unavailable-text {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 13px;
+    letter-spacing: 0.3px;
+}
+
 /* iCloud download overlay in photo viewer */
 .icloud-download-overlay {
     position: absolute;

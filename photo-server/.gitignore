@@ -5,5 +5,6 @@ deps-darwin/
 logs/
 photo-fetch/photo-fetch
 heic-convert.exe
+wic-thumbnail.exe
 *.obj
 *.pdb

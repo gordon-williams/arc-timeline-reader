@@ -57,17 +57,25 @@ const THUMB_CACHE = path.join(CACHE_DIR, 'thumbnails');
 const FULL_CACHE = path.join(CACHE_DIR, 'full');
 const ICLOUD_CACHE = path.join(CACHE_DIR, 'icloud-videos');
 
-// Swift PhotoKit helper for on-demand iCloud media fetch
+// Swift PhotoKit helpers
 const PHOTO_FETCH_DIR = path.join(__dirname, 'photo-fetch');
 const PHOTO_FETCH_BIN = path.join(PHOTO_FETCH_DIR, 'photo-fetch');
 const PHOTO_FETCH_SRC = path.join(PHOTO_FETCH_DIR, 'PhotoFetch.swift');
-const PHOTO_FETCH_TIMEOUT = 300; // 5 minutes max per download
+const PHOTO_FETCH_TIMEOUT = 120; // 2 minutes — derivative shown immediately, original swapped in when ready
+
+// PhotoKit thumbnail helper — gets local cached thumbnail without iCloud download
+const PHOTO_THUMB_BIN = path.join(PHOTO_FETCH_DIR, 'photo-thumb');
+let photoThumbAvailable = false;
 
 // In-flight iCloud download tracking: UUID → { progress, status, startTime, error, mediaType }
 const activeFetches = new Map();
 const MAX_CONCURRENT_ICLOUD = 2;
 let activeICloudCount = 0;
 let photoFetchAvailable = false;
+
+// Failed iCloud fetch cooldown: UUID → timestamp when retry is allowed
+const icloudFailCooldown = new Map();
+const ICLOUD_FAIL_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes before retrying a failed fetch
 
 // Ensure cache directories exist
 fs.mkdirSync(THUMB_CACHE, { recursive: true });
@@ -220,7 +228,7 @@ function prepareStatements() {
     `);
 
     stmts.metadataRange = db.prepare(`
-        ${BASE_SELECT} AND z.ZDATECREATED >= :startCoreData AND z.ZDATECREATED < :endCoreData
+        ${BASE_SELECT} AND z.ZDATECREATED >= :startCoreData AND z.ZDATECREATED <= :endCoreData
         ORDER BY z.ZDATECREATED
     `);
 
@@ -371,7 +379,7 @@ function buildDerivativeMap() {
         }
     }
 
-    // Also scan resources/renders/{0-9}/ (rendered thumbnails)
+    // Also scan resources/renders/ (rendered thumbnails)
     const rendersPath = path.join(LIBRARY_PATH, 'resources', 'renders');
     if (fs.existsSync(rendersPath)) {
         const beforeRenders = derivativeMap.size;
@@ -385,6 +393,38 @@ function buildDerivativeMap() {
         } catch (_) {}
         const rendersAdded = derivativeMap.size - beforeRenders;
         if (rendersAdded > 0) console.log(`  + ${rendersAdded.toLocaleString()} from renders/`);
+    }
+
+    // Scan resources/cpl/ — CloudPhoto Library thumbnails for iCloud-synced photos
+    const cplPath = path.join(LIBRARY_PATH, 'resources', 'cpl');
+    if (fs.existsSync(cplPath)) {
+        const beforeCpl = derivativeMap.size;
+        try {
+            const cplEntries = fs.readdirSync(cplPath, { withFileTypes: true });
+            for (const entry of cplEntries) {
+                if (entry.isDirectory()) {
+                    totalFiles += scanDerivativeDir(path.join(cplPath, entry.name));
+                }
+            }
+        } catch (_) {}
+        const cplAdded = derivativeMap.size - beforeCpl;
+        if (cplAdded > 0) console.log(`  + ${cplAdded.toLocaleString()} from cpl/`);
+    }
+
+    // Scan resources/cloudsharing/ — shared iCloud photo thumbnails
+    const cloudsharingPath = path.join(LIBRARY_PATH, 'resources', 'cloudsharing');
+    if (fs.existsSync(cloudsharingPath)) {
+        const beforeSharing = derivativeMap.size;
+        try {
+            const sharingEntries = fs.readdirSync(cloudsharingPath, { withFileTypes: true });
+            for (const entry of sharingEntries) {
+                if (entry.isDirectory()) {
+                    totalFiles += scanDerivativeDir(path.join(cloudsharingPath, entry.name));
+                }
+            }
+        } catch (_) {}
+        const sharingAdded = derivativeMap.size - beforeSharing;
+        if (sharingAdded > 0) console.log(`  + ${sharingAdded.toLocaleString()} from cloudsharing/`);
     }
 
     if (totalFiles === 0) {
@@ -543,34 +583,59 @@ async function generateThumbnail(photoId, maxSize) {
     const originalPath = resolveOriginalPath(formatted);
     const hasOriginal = originalPath && fs.existsSync(originalPath);
 
-    // No original? Try derivative (Apple Photos proxy image)
+    // No original? Try derivative (Apple Photos proxy image), then PhotoKit thumbnail
     if (!hasOriginal) {
         const derivPath = resolveDerivativePath(formatted);
-        if (!derivPath) return null;
+        if (derivPath) {
+            // Derivative is already a JPEG — just resize with Sharp
+            const tmpPath = cachePath + '.tmp';
+            await acquireSlot();
+            try {
+                await sharp(derivPath, { failOn: 'none' })
+                    .rotate()
+                    .resize(maxSize, maxSize, { fit: 'inside', withoutEnlargement: true })
+                    .jpeg({ quality: isThumb ? 80 : 85 })
+                    .toFile(tmpPath);
 
-        // Derivative is already a JPEG — just resize with Sharp
-        const tmpPath = cachePath + '.tmp';
-        await acquireSlot();
-        try {
-            await sharp(derivPath, { failOn: 'none' })
-                .rotate()
-                .resize(maxSize, maxSize, { fit: 'inside', withoutEnlargement: true })
-                .jpeg({ quality: isThumb ? 80 : 85 })
-                .toFile(tmpPath);
-
-            const tmpStat = fs.statSync(tmpPath);
-            if (tmpStat.size === 0) {
-                fs.unlinkSync(tmpPath);
+                const tmpStat = fs.statSync(tmpPath);
+                if (tmpStat.size === 0) {
+                    fs.unlinkSync(tmpPath);
+                    return null;
+                }
+                fs.renameSync(tmpPath, cachePath);
+                return cachePath;
+            } catch (err) {
+                try { fs.unlinkSync(tmpPath); } catch (_) {}
                 return null;
+            } finally {
+                releaseSlot();
             }
-            fs.renameSync(tmpPath, cachePath);
-            return cachePath;
-        } catch (err) {
-            try { fs.unlinkSync(tmpPath); } catch (_) {}
-            return null;
-        } finally {
-            releaseSlot();
         }
+
+        // No derivative either — use PhotoKit to get a local cached thumbnail
+        if (photoThumbAvailable && formatted._uuid) {
+            const tmpPath = cachePath + '.tmp';
+            try {
+                await new Promise((resolve, reject) => {
+                    execFile(PHOTO_THUMB_BIN, [
+                        formatted._uuid,
+                        tmpPath,
+                        '--size', String(maxSize)
+                    ], { timeout: 10000 }, (err, stdout, stderr) => {
+                        if (err) reject(err);
+                        else resolve();
+                    });
+                });
+                if (fs.existsSync(tmpPath) && fs.statSync(tmpPath).size > 0) {
+                    fs.renameSync(tmpPath, cachePath);
+                    return cachePath;
+                }
+            } catch (_) {
+                try { fs.unlinkSync(tmpPath); } catch (_e) {}
+            }
+        }
+
+        return null;
     }
 
     // Write to temp file first, rename on success (prevents corrupt cache entries)
@@ -864,7 +929,8 @@ app.use(cors({
         if (!origin || origin === 'null') return cb(null, true);
         if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return cb(null, true);
         return cb(new Error('Not allowed by CORS'));
-    }
+    },
+    exposedHeaders: ['X-Full-Res']
 }));
 
 // ---------------------------------------------------------------------------
@@ -887,6 +953,89 @@ app.get('/api/status', (req, res) => {
             hint: err.message.includes('locked') ? 'Quit Photos.app and try again.' : undefined
         });
     }
+});
+
+// Diagnostic: library directory structure and derivative coverage
+app.get('/api/library-dirs', (req, res) => {
+    const resourcesPath = path.join(LIBRARY_PATH, 'resources');
+    const dirs = {};
+
+    // List top-level library contents
+    try {
+        dirs.topLevel = fs.readdirSync(LIBRARY_PATH).map(name => {
+            const full = path.join(LIBRARY_PATH, name);
+            try {
+                const s = fs.statSync(full);
+                return { name, type: s.isDirectory() ? 'dir' : 'file', size: s.isDirectory() ? undefined : s.size };
+            } catch (_) { return { name, type: 'inaccessible' }; }
+        });
+    } catch (e) { dirs.topLevel = { error: e.message }; }
+
+    // List resources/ subdirectories with file counts
+    try {
+        dirs.resources = fs.readdirSync(resourcesPath).map(name => {
+            const full = path.join(resourcesPath, name);
+            try {
+                const s = fs.statSync(full);
+                if (!s.isDirectory()) return { name, type: 'file', size: s.size };
+                // Count files in first two levels
+                let fileCount = 0;
+                try {
+                    for (const sub of fs.readdirSync(full, { withFileTypes: true })) {
+                        if (sub.isFile()) fileCount++;
+                        else if (sub.isDirectory()) {
+                            try {
+                                fileCount += fs.readdirSync(path.join(full, sub.name)).length;
+                            } catch (_) {}
+                        }
+                    }
+                } catch (_) {}
+                return { name, type: 'dir', approxFiles: fileCount };
+            } catch (_) { return { name, type: 'inaccessible' }; }
+        });
+    } catch (e) { dirs.resources = { error: e.message }; }
+
+    // Derivative map stats
+    dirs.derivativeMap = {
+        totalUUIDs: derivativeMap.size,
+        withLarge: [...derivativeMap.values()].filter(v => v.large).length,
+        withThumbOnly: [...derivativeMap.values()].filter(v => v.thumb && !v.large).length,
+    };
+
+    // Total photos in DB vs derivatives available
+    try {
+        const { count } = stmts.count.get();
+        dirs.dbPhotoCount = count;
+        dirs.derivativeCoverage = `${derivativeMap.size}/${count} (${(derivativeMap.size / count * 100).toFixed(1)}%)`;
+    } catch (_) {}
+
+    // Check for iCloud-related columns in ZASSET
+    try {
+        const assetCols = db.pragma('table_info(ZASSET)').map(c => c.name);
+        dirs.icloudColumns = assetCols.filter(c =>
+            /cloud|local|thumb|miniature|placeholder|synced/i.test(c)
+        ).sort();
+    } catch (_) {}
+
+    // Count originals that exist vs iCloud stubs (.icloud files)
+    try {
+        let origCount = 0, stubCount = 0, missingDirs = 0;
+        if (fs.existsSync(ORIGINALS_PATH)) {
+            for (const dirEntry of fs.readdirSync(ORIGINALS_PATH, { withFileTypes: true })) {
+                if (!dirEntry.isDirectory()) continue;
+                const dirPath = path.join(ORIGINALS_PATH, dirEntry.name);
+                try {
+                    for (const f of fs.readdirSync(dirPath)) {
+                        if (f.startsWith('.') && f.endsWith('.icloud')) stubCount++;
+                        else origCount++;
+                    }
+                } catch (_) { missingDirs++; }
+            }
+        }
+        dirs.originals = { localFiles: origCount, icloudStubs: stubCount, inaccessibleDirs: missingDirs };
+    } catch (e) { dirs.originals = { error: e.message }; }
+
+    res.json(dirs);
 });
 
 // All metadata (for initial import) or incremental
@@ -916,8 +1065,10 @@ app.get('/api/photos/metadata', (req, res) => {
         if (!start || !end) {
             return res.status(400).json({ error: 'start and end query params required (YYYY-MM-DD)' });
         }
-        const startCoreData = isoToCoreData(start + 'T00:00:00Z');
-        const endCoreData = isoToCoreData(end + 'T23:59:59Z');
+        // Use local time (no Z suffix) so range boundaries match dayKeyFromISO,
+        // which assigns photos to days using local time
+        const startCoreData = isoToCoreData(start + 'T00:00:00');
+        const endCoreData = isoToCoreData(end + 'T23:59:59.999');
         const rows = stmts.metadataRange.all({ startCoreData, endCoreData });
         const photos = rows.map(formatRow);
         for (const p of photos) { delete p._directory; delete p._uti; delete p._uuid; delete p.modDate; }
@@ -974,7 +1125,9 @@ app.post('/api/photos/check-available', express.json({ limit: '5mb' }), (req, re
             filename: formatted?.filename || null,
             originalFilename: formatted?.originalFilename || null,
             type: formatted?.type || null,
-            uti: formatted?._uti || null
+            uti: formatted?._uti || null,
+            uuid: formatted?._uuid || null,
+            hasDerivative: formatted?._uuid ? derivativeMap.has(formatted._uuid.toUpperCase()) : false
         });
     }
 
@@ -1012,6 +1165,11 @@ app.post('/api/photos/check-available', express.json({ limit: '5mb' }), (req, re
             available.push(id);
             continue;
         }
+        // No derivative — if photo-thumb is available, PhotoKit can likely provide a thumbnail
+        if (photoThumbAvailable && formatted._uuid) {
+            available.push(id);
+            continue;
+        }
         unavailable.noOriginal++;
         incCounter(unavailableByType, formatted.type || 'unknown');
         incCounter(unavailableByUti, formatted._uti || 'unknown');
@@ -1022,6 +1180,18 @@ app.post('/api/photos/check-available', express.json({ limit: '5mb' }), (req, re
         .sort((a, b) => b[1] - a[1])
         .slice(0, TOP_UTI_LIMIT)
         .reduce((acc, [k, v]) => { acc[k] = v; return acc; }, {});
+
+    // Log unavailable photos to server console with filenames
+    if (unavailable.noOriginal > 0) {
+        console.log(`\n[check-available] ${available.length} available, ${unavailable.noOriginal} unavailable:`);
+        for (const s of unavailableSample) {
+            const name = s.originalFilename || s.filename || `ID ${s.id}`;
+            console.log(`  ✗ ${name} (${s.uti || s.type || '?'}) — ${s.reason}`);
+        }
+        if (unavailable.noOriginal > unavailableSample.length) {
+            console.log(`  ... and ${unavailable.noOriginal - unavailableSample.length} more`);
+        }
+    }
 
     res.json({
         available,
@@ -1101,8 +1271,13 @@ app.get('/api/full/:id', async (req, res) => {
         const hasOriginal = originalPath && fs.existsSync(originalPath);
 
         if (!hasOriginal) {
-        // Try iCloud fetch for both photos and videos when UUID is available.
-        // ?poster=1 skips iCloud fetch — serves derivative still image as placeholder
+        // No original on disk. Strategy:
+        //   Photos: serve derivative immediately + start iCloud fetch in background.
+        //           Response header X-Full-Res tells the viewer to poll for the original.
+        //   Videos: return 202 and let the viewer show the iCloud download overlay.
+        //   ?poster=1: serve derivative only (no iCloud fetch).
+
+        // Try iCloud fetch when UUID is available
         if (photoFetchAvailable && formatted._uuid && !req.query.poster) {
             const uuid = formatted._uuid.toUpperCase();
             const isVideo = formatted.type === 'video';
@@ -1139,22 +1314,83 @@ app.get('/api/full/:id', async (req, res) => {
                         } catch (_) {}
                     }
                 }
+                // Videos: 202 so viewer shows download overlay
+                if (isVideo) {
+                    return res.status(202).json({
+                        status: state.status || 'downloading',
+                        progress: state.progress || 0,
+                        message: 'Video is being downloaded from iCloud'
+                    });
+                }
+                // Photos: serve derivative with X-Full-Res so viewer shows image + polls
+                const inProgressPoster = await generateThumbnail(id, 2400);
+                if (inProgressPoster) {
+                    res.set('Cache-Control', 'no-cache');
+                    res.set('X-Full-Res', 'downloading');
+                    return res.sendFile(inProgressPoster);
+                }
+                // No derivative — fall back to 202
                 return res.status(202).json({
                     status: state.status || 'downloading',
                     progress: state.progress || 0,
-                    message: `${state.mediaType || 'Media'} is being downloaded from iCloud`
+                    message: 'Photo is being downloaded from iCloud'
                 });
             }
 
-            // Concurrency limit check
+            // Cooldown check — don't retry recently failed fetches
+            const cooldownUntil = icloudFailCooldown.get(uuid);
+            if (cooldownUntil) {
+                if (Date.now() < cooldownUntil) {
+                    // Re-check: macOS Photos may have completed the iCloud download in the background
+                    // (PhotoKit triggers the download, and macOS continues even after photo-fetch times out)
+                    const recheck = resolveOriginalPath(formatted);
+                    if (recheck && fs.existsSync(recheck)) {
+                        icloudFailCooldown.delete(uuid);
+                        console.log(`iCloud: original appeared during cooldown for ${formatted.originalFilename || uuid}`);
+                        res.set('Cache-Control', 'public, max-age=300');
+                        return res.sendFile(recheck);
+                    }
+                    // Also check iCloud cache (in case it was downloaded by a concurrent request)
+                    if (fs.existsSync(cachedMediaPath)) {
+                        try {
+                            const stat = fs.statSync(cachedMediaPath);
+                            if (stat.size > 0) {
+                                icloudFailCooldown.delete(uuid);
+                                res.set('Cache-Control', 'public, max-age=300');
+                                return res.sendFile(cachedMediaPath);
+                            }
+                        } catch (_) {}
+                    }
+                    // Still not available — serve derivative with X-Full-Res: failed
+                    const posterPath = await generateThumbnail(id, 2400);
+                    if (posterPath) {
+                        res.set('Cache-Control', 'no-cache');
+                        res.set('X-Full-Res', 'failed');
+                        return res.sendFile(posterPath);
+                    }
+                    return res.status(404).json({ error: 'iCloud fetch recently failed, in cooldown' });
+                }
+                icloudFailCooldown.delete(uuid); // cooldown expired
+            }
+
+            // Concurrency limit check — for photos, still serve derivative; for videos, return 503
             if (activeICloudCount >= MAX_CONCURRENT_ICLOUD) {
+                if (!isVideo) {
+                    // Photos: serve derivative immediately, skip iCloud fetch this time
+                    const posterPath = await generateThumbnail(id, 2400);
+                    if (posterPath) {
+                        res.set('Cache-Control', 'no-cache');
+                        res.set('X-Full-Res', 'busy');
+                        return res.sendFile(posterPath);
+                    }
+                }
                 return res.status(503).json({
                     error: 'Too many iCloud downloads in progress',
                     retryAfter: 10
                 });
             }
 
-            // Launch iCloud fetch in background — return 202 immediately
+            // Start iCloud fetch in background
             const fetchState = {
                 progress: 0,
                 status: 'starting',
@@ -1165,27 +1401,45 @@ app.get('/api/full/:id', async (req, res) => {
             activeFetches.set(uuid, fetchState);
             activeICloudCount++;
 
-            console.log(`iCloud: fetching ${isVideo ? 'video' : 'photo'} ${uuid} (${formatted.filename || 'unknown'})`);
+            const displayName = formatted.originalFilename || formatted.filename || uuid;
+            console.log(`iCloud: fetching ${isVideo ? 'video' : 'photo'} ${displayName}`);
 
             fetchFromICloud(uuid, cachedMediaPath, fetchState).then(() => {
-                console.log(`iCloud: downloaded ${uuid} successfully`);
-                // Mark as ready BEFORE cleanup so the status endpoint
-                // returns 'ready' immediately — not 'done' or 'downloading'.
+                console.log(`iCloud: downloaded ${displayName} successfully`);
                 fetchState.status = 'ready';
                 fetchState.progress = 1.0;
             }).catch((err) => {
-                console.error(`iCloud: fetch failed for ${uuid} — ${err.message}`);
+                console.error(`iCloud: fetch failed for ${displayName} — ${err.message}`);
                 fetchState.status = 'failed';
                 fetchState.error = err.message;
+                icloudFailCooldown.set(uuid, Date.now() + ICLOUD_FAIL_COOLDOWN_MS);
             }).finally(() => {
                 activeFetches.delete(uuid);
                 activeICloudCount--;
             });
 
+            // Videos: return 202 so the viewer shows the iCloud download overlay
+            if (isVideo) {
+                return res.status(202).json({
+                    status: 'downloading',
+                    progress: 0,
+                    message: 'Downloading video from iCloud...'
+                });
+            }
+
+            // Photos: serve derivative immediately while iCloud fetch runs in background
+            const posterPath = await generateThumbnail(id, 2400);
+            if (posterPath) {
+                res.set('Cache-Control', 'no-cache');
+                res.set('X-Full-Res', 'downloading');
+                return res.sendFile(posterPath);
+            }
+
+            // No derivative available — fall back to 202
             return res.status(202).json({
                 status: 'downloading',
                 progress: 0,
-                message: `Downloading ${isVideo ? 'video' : 'photo'} from iCloud...`
+                message: 'Downloading photo from iCloud...'
             });
         }
 
@@ -1302,6 +1556,7 @@ openDatabase();
 prepareStatements();
 buildDerivativeMap();
 photoFetchAvailable = ensurePhotoFetch();
+photoThumbAvailable = fs.existsSync(PHOTO_THUMB_BIN);
 
 const { count } = stmts.count.get();
 const byType = stmts.countByType.all();
@@ -1313,6 +1568,7 @@ console.log(`Media:   ${count.toLocaleString()} (${photoCount.toLocaleString()} 
 console.log(`Cache:   ${CACHE_DIR}`);
 console.log(`ffmpeg:  ${ffmpegPath || 'not found (video thumbnails may fail)'}`);
 console.log(`iCloud:  ${photoFetchAvailable ? 'photo-fetch available — on-demand video download enabled' : 'photo-fetch not available — iCloud videos will show stills only'}`);
+console.log(`Thumbs:  ${photoThumbAvailable ? 'photo-thumb available — PhotoKit thumbnail fallback enabled' : 'photo-thumb not found — iCloud-only photos will be unavailable'}`);
 
 app.listen(PORT, '127.0.0.1', () => {
     console.log(`Server:  http://127.0.0.1:${PORT}`);

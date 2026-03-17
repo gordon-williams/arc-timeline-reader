@@ -69,7 +69,9 @@ guard let asset = fetchResult.firstObject else {
 }
 
 emit("STATUS:FOUND")
-let sem = DispatchSemaphore(value: 0)
+
+// Shared state for RunLoop-based waiting
+var finished = false
 var exitCode: Int32 = 2
 
 if asset.mediaType == .video {
@@ -87,17 +89,17 @@ if asset.mediaType == .video {
     emit("STATUS:DOWNLOADING")
 
     PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { avAsset, _, info in
-        defer { sem.signal() }
-
         // Check for errors
         if let error = info?[PHImageErrorKey] as? Error {
             emit("ERROR:\(error.localizedDescription)")
+            finished = true
             return
         }
 
         // Check for cancellation
         if let cancelled = info?[PHImageCancelledKey] as? Bool, cancelled {
             emit("ERROR:Request was cancelled")
+            finished = true
             return
         }
 
@@ -107,13 +109,13 @@ if asset.mediaType == .video {
                 emit("STATUS:EXPORTING")
                 guard let exportSession = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality) else {
                     emit("ERROR:Could not create export session for composition")
+                    finished = true
                     return
                 }
                 let dstURL = URL(fileURLWithPath: outputPath)
                 try? FileManager.default.removeItem(at: dstURL)
                 exportSession.outputURL = dstURL
                 exportSession.outputFileType = .mov
-                let exportSem = DispatchSemaphore(value: 0)
                 exportSession.exportAsynchronously {
                     if exportSession.status == .completed {
                         emit("STATUS:DONE")
@@ -121,12 +123,12 @@ if asset.mediaType == .video {
                     } else {
                         emit("ERROR:Export failed: \(exportSession.error?.localizedDescription ?? "unknown")")
                     }
-                    exportSem.signal()
+                    finished = true
                 }
-                exportSem.wait()
                 return
             }
             emit("ERROR:Could not get file URL from AVAsset")
+            finished = true
             return
         }
 
@@ -145,6 +147,7 @@ if asset.mediaType == .video {
             let size = attrs[.size] as? UInt64 ?? 0
             if size == 0 {
                 emit("ERROR:Copied file is empty")
+                finished = true
                 return
             }
 
@@ -153,6 +156,7 @@ if asset.mediaType == .video {
         } catch {
             emit("ERROR:Copy failed: \(error.localizedDescription)")
         }
+        finished = true
     }
 } else if asset.mediaType == .image {
     // MARK: - Request still photo from iCloud
@@ -171,18 +175,19 @@ if asset.mediaType == .video {
     emit("STATUS:DOWNLOADING")
 
     PHImageManager.default().requestImageDataAndOrientation(for: asset, options: options) { data, _, _, info in
-        defer { sem.signal() }
-
         if let error = info?[PHImageErrorKey] as? Error {
             emit("ERROR:\(error.localizedDescription)")
+            finished = true
             return
         }
         if let cancelled = info?[PHImageCancelledKey] as? Bool, cancelled {
             emit("ERROR:Request was cancelled")
+            finished = true
             return
         }
         guard let data else {
             emit("ERROR:No image data returned")
+            finished = true
             return
         }
 
@@ -204,6 +209,7 @@ if asset.mediaType == .video {
             let size = attrs[.size] as? UInt64 ?? 0
             if size == 0 {
                 emit("ERROR:Saved photo is empty")
+                finished = true
                 return
             }
             emit("STATUS:DONE")
@@ -211,14 +217,21 @@ if asset.mediaType == .video {
         } catch {
             emit("ERROR:Write failed: \(error.localizedDescription)")
         }
+        finished = true
     }
 } else {
     fail("Unsupported media type \(asset.mediaType.rawValue)", code: 3)
 }
 
-// Wait with timeout
-let waitResult = sem.wait(timeout: .now() + timeout)
-if waitResult == .timedOut {
+// MARK: - RunLoop-based wait (required for iCloud network operations)
+// PhotoKit iCloud downloads need the RunLoop to process network events.
+// Using sem.wait() blocks the main thread and prevents downloads from starting.
+let deadline = Date(timeIntervalSinceNow: timeout)
+while !finished && Date() < deadline {
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.25))
+}
+
+if !finished {
     fail("Timeout after \(Int(timeout)) seconds", code: 2)
 }
 

@@ -36,7 +36,7 @@ SOFTWARE.
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = '02.244';
+  window.__ARC_BUILD__ = '02.269';
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -687,6 +687,11 @@ SOFTWARE.
                                     </div>
                                     <div class="icloud-download-percent" id="icloudProgressText">0%</div>
                                 </div>
+                            </div>
+                            <div id="photoViewerPosterTag" class="photo-viewer-poster-tag" style="display:none;">iCloud Preview</div>
+                            <div id="photoViewerUnavailable" class="photo-viewer-unavailable" style="display:none;">
+                                <span class="photo-viewer-unavailable-icon">☁</span>
+                                <span class="photo-viewer-unavailable-text">Photo not available locally</span>
                             </div>
                             <button class="photo-viewer-nav photo-viewer-next" onclick="navigatePhoto(1)">&#8250;</button>
                             <div class="photo-viewer-filename-bar" id="photoViewerFilenameBar" style="display:none;">

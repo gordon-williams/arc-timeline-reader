@@ -1,5 +1,27 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.269 (2026-03-17)
+
+### Photo Viewer — iCloud Progressive Loading
+- **Show preview immediately, swap original when ready** — iCloud photos now display a derivative or IDB thumbnail instantly while the original downloads in the background. When the download completes, the full-resolution image is swapped in automatically without requiring navigation.
+- **iCloud Preview tag** — Photos shown as derivatives display an "iCloud Preview" tag that disappears once the original loads.
+- **Unavailable photo feedback** — Photos that can't be loaded (no derivative, no thumbnail) now show a cloud icon with "Photo not available locally" instead of a black screen.
+- **Diary thumbnail update after iCloud download** — Cloud placeholder thumbnails in the diary strip are replaced with real thumbnails after a successful iCloud download.
+- **Poll generation counter** — Navigating away from a photo cancels any in-flight iCloud polls, preventing stale downloads from swapping images into the wrong photo.
+- **Blank preview fix** — When the server returns 202 (no derivative available), the viewer now falls back to the IDB thumbnail instead of requesting a poster URL that would also fail.
+
+### Photo Server (macOS)
+- **RunLoop-based iCloud downloads** — Rewrote `photo-fetch` Swift helper to use `RunLoop.main.run()` instead of `DispatchSemaphore.wait()`. The semaphore blocked the main thread, preventing PhotoKit from starting network operations. Downloads now complete reliably.
+- **CORS X-Full-Res header exposure** — Added `X-Full-Res` to `Access-Control-Expose-Headers` so the browser can read the iCloud status header.
+- **Derivative served during active downloads** — Photos with an active iCloud fetch now return a 2400px derivative with `X-Full-Res: downloading` header instead of a 202 JSON response that `<img>` elements can't render.
+- **Cooldown re-check for completed downloads** — The cooldown path now re-checks for the original file before serving a derivative, catching cases where macOS completed the download in the background.
+- **Increased derivative resolution** — iCloud derivative images increased from 1600px to 2400px for better preview quality.
+- **Fetch timeout increased** — `PHOTO_FETCH_TIMEOUT` increased from 30s to 120s for large files on slower connections.
+
+### Maintenance
+- **Disabled /api/photos/enrich 404 noise** — `requestEnrichment()` and `requestDayEnrichment()` disabled with early returns (endpoint was never implemented on macOS server).
+- **Human-readable filenames in logs** — iCloud console messages now show `IMG_1234.HEIC` (`originalFilename`) instead of UUID-based filenames.
+
 ## Build 02.244 (2026-03-10)
 
 ### Photo Viewer

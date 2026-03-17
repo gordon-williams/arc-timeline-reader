@@ -9,6 +9,9 @@
     const BATCH_SIZE = 50;  // IDB write batch size
     const FETCH_CONCURRENCY = 3;  // concurrent thumbnail fetches
 
+    // Performance profiling — enable with: localStorage.setItem('arcPerf', '1')
+    const PERF = localStorage.getItem('arcPerf') === '1';
+
     let serverUrl = localStorage.getItem(LS_KEY_SERVER) || 'http://localhost:3000';
     let serverAvailable = false;
     let activeObjectUrls = new Set();
@@ -346,9 +349,13 @@
 
     async function importPhotos(progressCb, options = {}) {
         if (!serverAvailable) throw new Error('Photo server not connected');
+        const _perfT0 = PERF ? performance.now() : 0;
+        const _perfPhases = PERF ? {} : null;
 
         // Reset server failure cache so previously failed photos get retried
+        const _perfResetStart = PERF ? performance.now() : 0;
         await resetServerFailures();
+        if (PERF) _perfPhases.resetFailures = performance.now() - _perfResetStart;
 
         // Video migration: when video support is first enabled, existing videos
         // won't be picked up by incremental import (their ZDATECREATED is before
@@ -388,12 +395,15 @@
 
         // Fetch all metadata
         progressCb?.({ phase: 'metadata', percent: 10, message: 'Fetching photo metadata...' });
+        const _perfMetaStart = PERF ? performance.now() : 0;
         const resp = await fetch(metadataUrl);
         if (!resp.ok) throw new Error(`Metadata fetch failed: HTTP ${resp.status}`);
         progressCb?.({ phase: 'metadata', percent: 30, message: 'Processing metadata...' });
         const allPhotos = await resp.json();
+        if (PERF) _perfPhases.metadataFetch = performance.now() - _perfMetaStart;
 
         if (allPhotos.length === 0) {
+            if (PERF) console.log(`[PERF] importPhotos: no photos to import (metadata fetch ${_perfPhases.metadataFetch.toFixed(0)}ms)`);
             progressCb?.({ phase: 'done', percent: 100, message: 'No new photos to import' });
             return { imported: 0, skipped: 0, total: 0, message: 'No new photos to import' };
         }
@@ -407,6 +417,7 @@
         let unavailableByType = null;
         let unavailableByUtiTop = null;
         progressCb?.({ phase: 'metadata', percent: 40, message: `Checking availability of ${allPhotos.length.toLocaleString()} items...` });
+        const _perfCheckStart = PERF ? performance.now() : 0;
         try {
             const checkResp = await fetch(`${serverUrl}/api/photos/check-available`, {
                 method: 'POST',
@@ -426,33 +437,108 @@
         } catch (e) {
             // Server may not support batch check — fall back to individual requests
         }
+        if (PERF) _perfPhases.checkAvailable = performance.now() - _perfCheckStart;
 
-        // Filter to only available photos (skip unavailable ones upfront)
-        const photosToFetch = availableSet
-            ? allPhotos.filter(p => availableSet.has(p.id))
-            : allPhotos;
+        // Separate photos into those with local files and iCloud-only
+        const unavailableSet = availableSet
+            ? new Set(allPhotos.filter(p => !availableSet.has(p.id)).map(p => p.id))
+            : new Set();
+
+        // Filter out photos already in IndexedDB (unless they're iCloud placeholders worth retrying)
+        const { existingIds: alreadyInIdb, icloudIds: icloudPlaceholderIds } = await new Promise((resolve) => {
+            const db = getDb();
+            if (!db) return resolve({ existingIds: new Set(), icloudIds: new Set() });
+            try {
+                const tx = db.transaction('photos', 'readonly');
+                const store = tx.objectStore('photos');
+                const ids = new Set();
+                const icloud = new Set();
+                const cursor = store.openCursor();
+                cursor.onsuccess = (e) => {
+                    const c = e.target.result;
+                    if (c) {
+                        ids.add(c.value.id);
+                        if (c.value.icloud) icloud.add(c.value.id);
+                        c.continue();
+                    } else {
+                        resolve({ existingIds: ids, icloudIds: icloud });
+                    }
+                };
+                cursor.onerror = () => resolve({ existingIds: ids, icloudIds: new Set() });
+            } catch (_) {
+                resolve({ existingIds: new Set(), icloudIds: new Set() });
+            }
+        });
+
+        // Only fetch photos not yet in IndexedDB (iCloud placeholder retries handled by day/month auto-fetch)
+        const photosToFetch = allPhotos.filter(p => !alreadyInIdb.has(p.id));
         const skippedUpfront = allPhotos.length - photosToFetch.length;
+
+        if (photosToFetch.length === 0) {
+            // All photos already in IDB — save timestamp and return
+            await saveLastImportTime(new Date().toISOString());
+            if (serverVideoCount > 0) await setMetadataValue('lastServerVideoCount', serverVideoCount);
+            progressCb?.({ phase: 'done', percent: 100, message: `All ${allPhotos.length.toLocaleString()} photos already imported` });
+            return { imported: 0, skipped: skippedUpfront, skippedExisting: skippedUpfront, total: allPhotos.length,
+                     message: `All ${allPhotos.length.toLocaleString()} photos already imported` };
+        }
+
+        progressCb?.({ phase: 'thumbnails', percent: 50, message: `Fetching ${photosToFetch.length.toLocaleString()} new photos (${skippedUpfront.toLocaleString()} already imported)...` });
 
         // Fetch thumbnails with controlled concurrency
         let imported = 0;
         let skipped = skippedUpfront;
         let skipHttp = 0, skipEmptyBlob = 0, skipError = 0;
+        let icloudStored = 0;
         const total = allPhotos.length;
 
+        // Build a metadata-only record (no thumbnail) for iCloud photos
+        function makeICloudRecord(photo) {
+            return {
+                id: photo.id,
+                dayKey: photo.dayKey,
+                date: photo.date,
+                latitude: photo.latitude,
+                longitude: photo.longitude,
+                width: photo.width,
+                height: photo.height,
+                filename: photo.filename,
+                originalFilename: photo.originalFilename,
+                title: photo.title,
+                cameraMake: photo.cameraMake,
+                cameraModel: photo.cameraModel,
+                type: photo.type || 'photo',
+                duration: photo.duration || null,
+                thumbnail: null,
+                icloud: true
+            };
+        }
+
         // Fetch one thumbnail — returns record or null
+        const _perfThumbTimes = PERF ? [] : null;
         async function fetchOne(photo) {
+            // Skip network request for photos we know are unavailable
+            if (unavailableSet.has(photo.id)) {
+                icloudStored++;
+                return makeICloudRecord(photo);
+            }
+            const _perfFetchStart = PERF ? performance.now() : 0;
             try {
                 const thumbResp = await fetch(`${serverUrl}/api/thumbnail/${photo.id}`, { cache: 'no-cache' });
                 if (!thumbResp.ok) {
-                    skipped++;
-                    skipHttp++;
-                    return null;
+                    // No thumbnail available — store as iCloud placeholder
+                    icloudStored++;
+                    return makeICloudRecord(photo);
                 }
                 const blob = await thumbResp.blob();
                 if (!blob || blob.size === 0) {
-                    skipped++;
-                    skipEmptyBlob++;
-                    return null;
+                    icloudStored++;
+                    return makeICloudRecord(photo);
+                }
+                if (PERF) {
+                    const ms = performance.now() - _perfFetchStart;
+                    _perfThumbTimes.push(ms);
+                    if (ms > 1000) console.log(`[PERF] SLOW thumbnail ${photo.id} (${photo.filename}): ${ms.toFixed(0)}ms`);
                 }
                 return {
                     id: photo.id,
@@ -472,9 +558,9 @@
                     thumbnail: blob
                 };
             } catch (e) {
-                skipped++;
-                skipError++;
-                return null;
+                // Network error — store as iCloud placeholder
+                icloudStored++;
+                return makeICloudRecord(photo);
             }
         }
 
@@ -504,7 +590,7 @@
                 }
 
                 // Progress reporting — thumbnails use 50-100% of the bar
-                const processed = imported + skipped - skippedUpfront;
+                const processed = imported + icloudStored;
                 if (processed % 200 < FETCH_CONCURRENCY || idx === photosToFetch.length - 1) {
                     const thumbPercent = photosToFetch.length > 0
                         ? Math.round((processed / photosToFetch.length) * 100)
@@ -521,14 +607,18 @@
         }
 
         // Launch FETCH_CONCURRENCY workers
+        const _perfWorkersStart = PERF ? performance.now() : 0;
         const workers = [];
         for (let w = 0; w < Math.min(FETCH_CONCURRENCY, photosToFetch.length); w++) {
             workers.push(worker());
         }
         await Promise.all(workers);
+        if (PERF) _perfPhases.thumbnailFetch = performance.now() - _perfWorkersStart;
 
         // Flush remaining records
+        const _perfFlushStart = PERF ? performance.now() : 0;
         await drainToIDB();
+        if (PERF) _perfPhases.finalFlush = performance.now() - _perfFlushStart;
 
         // Save import timestamp and server video count (for migration detection)
         const now = new Date().toISOString();
@@ -541,6 +631,7 @@
         const skipBreakdown = {
             noOriginal: unavailableStats?.noOriginal || 0,
             notFound: unavailableStats?.notFound || 0,
+            icloudPlaceholders: icloudStored,
             processingFailed: skipHttp,
             emptyBlob: skipEmptyBlob,
             networkError: skipError,
@@ -549,7 +640,23 @@
             unavailableByUtiTop
         };
 
-        return { imported, skipped, total, skipBreakdown };
+        if (PERF) {
+            const totalMs = performance.now() - _perfT0;
+            const sorted = _perfThumbTimes.sort((a, b) => a - b);
+            const p50 = sorted.length > 0 ? sorted[Math.floor(sorted.length * 0.5)] : 0;
+            const p90 = sorted.length > 0 ? sorted[Math.floor(sorted.length * 0.9)] : 0;
+            const max = sorted.length > 0 ? sorted[sorted.length - 1] : 0;
+            const throughput = sorted.length > 0 ? (sorted.length / (_perfPhases.thumbnailFetch / 1000)).toFixed(1) : 0;
+            console.log(`[PERF] importPhotos TOTAL: ${totalMs.toFixed(0)}ms (${photosToFetch.length} photos)`);
+            console.log(`[PERF]   resetFailures: ${_perfPhases.resetFailures.toFixed(0)}ms`);
+            console.log(`[PERF]   metadataFetch: ${_perfPhases.metadataFetch.toFixed(0)}ms (${allPhotos.length} records)`);
+            console.log(`[PERF]   checkAvailable: ${_perfPhases.checkAvailable.toFixed(0)}ms`);
+            console.log(`[PERF]   thumbnailFetch: ${_perfPhases.thumbnailFetch.toFixed(0)}ms (${sorted.length} fetched, ${throughput} photos/sec)`);
+            console.log(`[PERF]   thumbnail p50=${p50.toFixed(0)}ms p90=${p90.toFixed(0)}ms max=${max.toFixed(0)}ms`);
+            console.log(`[PERF]   finalFlush: ${_perfPhases.finalFlush.toFixed(0)}ms`);
+        }
+
+        return { imported, skipped, skippedExisting: skippedUpfront, total, skipBreakdown };
     }
 
     // ---------------------------------------------------------------------------
@@ -974,30 +1081,8 @@
      * @param {string} monthKey  "YYYY-MM" format
      */
     async function requestEnrichment(monthKey) {
-        if (!serverAvailable || !monthKey) return;
-        try {
-            // Expand monthKey "YYYY-MM" to a full-month date range
-            const [year, month] = monthKey.split('-').map(Number);
-            const start = `${year}-${String(month).padStart(2, '0')}-01`;
-            // Last day of month
-            const lastDay = new Date(year, month, 0).getDate();
-            const end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-
-            const resp = await fetch(`${serverUrl}/api/photos/enrich`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ start, end }),
-                signal: AbortSignal.timeout(3000),
-            });
-            if (resp.ok) {
-                const data = await resp.json();
-                if (data.boosted > 0) {
-                    logDebug(`[photos] Boosted EXIF enrichment for ${monthKey}: ${data.boosted} records prioritised`);
-                }
-            }
-        } catch (_) {
-            // Non-critical — server may not support this endpoint or enrichment may be done
-        }
+        // Enrichment endpoint not implemented on server — disabled to avoid 404 noise
+        return;
     }
 
     // ---------------------------------------------------------------------------
@@ -1018,6 +1103,7 @@
         if (!serverAvailable || !monthKey) return { added: 0, total: 0, enrichmentRunning: false };
         const db = getDb();
         if (!db) return { added: 0, total: 0, enrichmentRunning: false };
+        const _perfT0 = PERF ? performance.now() : 0;
 
         try {
             // Build full-month date range from "YYYY-MM"
@@ -1027,12 +1113,14 @@
             const end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
             // 1. Fetch enriched metadata for this month
+            const _perfMetaStart = PERF ? performance.now() : 0;
             const metaResp = await fetch(
                 `${serverUrl}/api/photos/metadata?start=${start}&end=${end}&enriched=true`,
                 { signal: AbortSignal.timeout(10000) }
             );
             if (!metaResp.ok) return { added: 0, total: 0, enrichmentRunning: false };
             const serverPhotos = await metaResp.json();
+            const _perfMetaMs = PERF ? performance.now() - _perfMetaStart : 0;
             if (serverPhotos.length === 0) {
                 // Check if enrichment is still running
                 const enrichmentRunning = await isEnrichmentRunning();
@@ -1040,12 +1128,14 @@
             }
 
             // 2. Find which IDs are already in IndexedDB
-            const existingIds = await new Promise((resolve) => {
+            const _perfIdbStart = PERF ? performance.now() : 0;
+            const { existingIds, icloudIds } = await new Promise((resolve) => {
                 try {
                     const tx = db.transaction('photos', 'readonly');
                     const store = tx.objectStore('photos');
                     const index = store.index('dayKey');
                     const ids = new Set();
+                    const icloud = new Set();
                     // Scan all days in the month range
                     const range = IDBKeyRange.bound(start, end);
                     const cursor = index.openCursor(range);
@@ -1053,19 +1143,21 @@
                         const c = e.target.result;
                         if (c) {
                             ids.add(c.value.id);
+                            if (c.value.icloud) icloud.add(c.value.id);
                             c.continue();
                         } else {
-                            resolve(ids);
+                            resolve({ existingIds: ids, icloudIds: icloud });
                         }
                     };
-                    cursor.onerror = () => resolve(ids);
+                    cursor.onerror = () => resolve({ existingIds: ids, icloudIds: new Set() });
                 } catch (_) {
-                    resolve(new Set());
+                    resolve({ existingIds: new Set(), icloudIds: new Set() });
                 }
             });
 
-            // 3. Filter to photos not yet in IDB
-            const newPhotos = serverPhotos.filter(p => !existingIds.has(p.id));
+            // 3. Filter to photos not yet in IDB + iCloud placeholders to re-try
+            const _perfIdbMs = PERF ? performance.now() - _perfIdbStart : 0;
+            const newPhotos = serverPhotos.filter(p => !existingIds.has(p.id) || icloudIds.has(p.id));
             if (newPhotos.length === 0) {
                 const enrichmentRunning = await isEnrichmentRunning();
                 return { added: 0, total: serverPhotos.length, enrichmentRunning };
@@ -1077,49 +1169,53 @@
             let added = 0;
             const pendingRecords = [];
 
+            function makeRecord(photo, blob) {
+                return {
+                    id: photo.id,
+                    dayKey: photo.dayKey,
+                    date: photo.date,
+                    latitude: photo.latitude,
+                    longitude: photo.longitude,
+                    width: photo.width,
+                    height: photo.height,
+                    filename: photo.filename,
+                    originalFilename: photo.originalFilename,
+                    title: photo.title,
+                    cameraMake: photo.cameraMake,
+                    cameraModel: photo.cameraModel,
+                    type: photo.type || 'photo',
+                    duration: photo.duration || null,
+                    thumbnail: blob,
+                    icloud: !blob ? true : undefined,
+                };
+            }
+
             async function fetchThumb(photo) {
                 try {
                     const thumbResp = await fetch(
                         `${serverUrl}/api/thumbnail/${photo.id}`,
                         { cache: 'no-cache', signal: AbortSignal.timeout(15000) }
                     );
-                    if (!thumbResp.ok) return null;
+                    if (!thumbResp.ok) return makeRecord(photo, null);
                     const blob = await thumbResp.blob();
-                    if (!blob || blob.size === 0) return null;
-                    return {
-                        id: photo.id,
-                        dayKey: photo.dayKey,
-                        date: photo.date,
-                        latitude: photo.latitude,
-                        longitude: photo.longitude,
-                        width: photo.width,
-                        height: photo.height,
-                        filename: photo.filename,
-                        originalFilename: photo.originalFilename,
-                        title: photo.title,
-                        cameraMake: photo.cameraMake,
-                        cameraModel: photo.cameraModel,
-                        type: photo.type || 'photo',
-                        duration: photo.duration || null,
-                        thumbnail: blob,
-                    };
+                    if (!blob || blob.size === 0) return makeRecord(photo, null);
+                    return makeRecord(photo, blob);
                 } catch (_) {
-                    return null;
+                    return makeRecord(photo, null);
                 }
             }
 
             // Process with FETCH_CONCURRENCY workers
+            const _perfThumbStart = PERF ? performance.now() : 0;
             let idx = 0;
             async function worker() {
                 while (idx < newPhotos.length) {
                     const photo = newPhotos[idx++];
                     const record = await fetchThumb(photo);
-                    if (record) {
-                        pendingRecords.push(record);
-                        // Flush to IDB in batches
-                        if (pendingRecords.length >= BATCH_SIZE) {
-                            await storePhotoBatch(pendingRecords.splice(0));
-                        }
+                    pendingRecords.push(record);
+                    // Flush to IDB in batches
+                    if (pendingRecords.length >= BATCH_SIZE) {
+                        await storePhotoBatch(pendingRecords.splice(0));
                     }
                 }
             }
@@ -1136,6 +1232,13 @@
             added = newPhotos.length; // approximate — some may have failed
             const enrichmentRunning = await isEnrichmentRunning();
             logDebug(`[photos] Auto-fetch complete for ${monthKey}: ${added} photos cached`);
+            if (PERF) {
+                const thumbMs = performance.now() - _perfThumbStart;
+                const totalMs = performance.now() - _perfT0;
+                const throughput = newPhotos.length > 0 ? (newPhotos.length / (thumbMs / 1000)).toFixed(1) : 0;
+                console.log(`[PERF] fetchAndCacheMonthPhotos(${monthKey}): ${totalMs.toFixed(0)}ms total`);
+                console.log(`[PERF]   metadata: ${_perfMetaMs.toFixed(0)}ms (${serverPhotos.length} records), idb scan: ${_perfIdbMs.toFixed(0)}ms, thumb fetch: ${thumbMs.toFixed(0)}ms (${newPhotos.length} new, ${throughput} photos/sec)`);
+            }
             return { added, total: serverPhotos.length, enrichmentRunning };
         } catch (err) {
             logDebug(`[photos] Auto-fetch error for ${monthKey}: ${err.message}`);
@@ -1151,6 +1254,9 @@
      * @param {string} dayKey  "YYYY-MM-DD" format
      */
     async function requestDayEnrichment(dayKey) {
+        // Enrichment endpoint not implemented on server — disabled to avoid 404 noise
+        return;
+        /* eslint-disable no-unreachable */
         if (!serverAvailable || !dayKey) return;
         try {
             const resp = await fetch(`${serverUrl}/api/photos/enrich`, {
@@ -1184,46 +1290,54 @@
         if (!serverAvailable || !dayKey) return { added: 0, total: 0, enrichmentRunning: false };
         const db = getDb();
         if (!db) return { added: 0, total: 0, enrichmentRunning: false };
+        const _perfT0 = PERF ? performance.now() : 0;
 
         try {
             // 1. Fetch enriched metadata for this single day
+            const _perfMetaStart = PERF ? performance.now() : 0;
             const metaResp = await fetch(
                 `${serverUrl}/api/photos/metadata?start=${dayKey}&end=${dayKey}&enriched=true`,
                 { signal: AbortSignal.timeout(10000) }
             );
             if (!metaResp.ok) return { added: 0, total: 0, enrichmentRunning: false };
             const serverPhotos = await metaResp.json();
+            const _perfMetaMs = PERF ? performance.now() - _perfMetaStart : 0;
             if (serverPhotos.length === 0) {
                 const enrichmentRunning = await isEnrichmentRunning();
                 return { added: 0, total: 0, enrichmentRunning };
             }
 
             // 2. Find which IDs are already in IndexedDB for this day
-            const existingIds = await new Promise((resolve) => {
+            //    Also track iCloud placeholders so we can re-try their thumbnails
+            const _perfIdbStart = PERF ? performance.now() : 0;
+            const { existingIds, icloudIds } = await new Promise((resolve) => {
                 try {
                     const tx = db.transaction('photos', 'readonly');
                     const store = tx.objectStore('photos');
                     const index = store.index('dayKey');
                     const ids = new Set();
+                    const icloud = new Set();
                     const range = IDBKeyRange.only(dayKey);
                     const cursor = index.openCursor(range);
                     cursor.onsuccess = (e) => {
                         const c = e.target.result;
                         if (c) {
                             ids.add(c.value.id);
+                            if (c.value.icloud) icloud.add(c.value.id);
                             c.continue();
                         } else {
-                            resolve(ids);
+                            resolve({ existingIds: ids, icloudIds: icloud });
                         }
                     };
-                    cursor.onerror = () => resolve(ids);
+                    cursor.onerror = () => resolve({ existingIds: ids, icloudIds: new Set() });
                 } catch (_) {
-                    resolve(new Set());
+                    resolve({ existingIds: new Set(), icloudIds: new Set() });
                 }
             });
 
-            // 3. Filter to photos not yet in IDB
-            const newPhotos = serverPhotos.filter(p => !existingIds.has(p.id));
+            // 3. Filter to photos not yet in IDB + iCloud placeholders to re-try
+            const _perfIdbMs = PERF ? performance.now() - _perfIdbStart : 0;
+            const newPhotos = serverPhotos.filter(p => !existingIds.has(p.id) || icloudIds.has(p.id));
             if (newPhotos.length === 0) {
                 const enrichmentRunning = await isEnrichmentRunning();
                 return { added: 0, total: serverPhotos.length, enrichmentRunning };
@@ -1235,48 +1349,52 @@
             let added = 0;
             const pendingRecords = [];
 
+            function makeDayRecord(photo, blob) {
+                return {
+                    id: photo.id,
+                    dayKey: photo.dayKey,
+                    date: photo.date,
+                    latitude: photo.latitude,
+                    longitude: photo.longitude,
+                    width: photo.width,
+                    height: photo.height,
+                    filename: photo.filename,
+                    originalFilename: photo.originalFilename,
+                    title: photo.title,
+                    cameraMake: photo.cameraMake,
+                    cameraModel: photo.cameraModel,
+                    type: photo.type || 'photo',
+                    duration: photo.duration || null,
+                    thumbnail: blob,
+                    icloud: !blob ? true : undefined,
+                };
+            }
+
             async function fetchThumb(photo) {
                 try {
                     const thumbResp = await fetch(
                         `${serverUrl}/api/thumbnail/${photo.id}`,
                         { cache: 'no-cache', signal: AbortSignal.timeout(15000) }
                     );
-                    if (!thumbResp.ok) return null;
+                    if (!thumbResp.ok) return makeDayRecord(photo, null);
                     const blob = await thumbResp.blob();
-                    if (!blob || blob.size === 0) return null;
-                    return {
-                        id: photo.id,
-                        dayKey: photo.dayKey,
-                        date: photo.date,
-                        latitude: photo.latitude,
-                        longitude: photo.longitude,
-                        width: photo.width,
-                        height: photo.height,
-                        filename: photo.filename,
-                        originalFilename: photo.originalFilename,
-                        title: photo.title,
-                        cameraMake: photo.cameraMake,
-                        cameraModel: photo.cameraModel,
-                        type: photo.type || 'photo',
-                        duration: photo.duration || null,
-                        thumbnail: blob,
-                    };
+                    if (!blob || blob.size === 0) return makeDayRecord(photo, null);
+                    return makeDayRecord(photo, blob);
                 } catch (_) {
-                    return null;
+                    return makeDayRecord(photo, null);
                 }
             }
 
             // Process with FETCH_CONCURRENCY workers
+            const _perfThumbStart = PERF ? performance.now() : 0;
             let idx = 0;
             async function worker() {
                 while (idx < newPhotos.length) {
                     const photo = newPhotos[idx++];
                     const record = await fetchThumb(photo);
-                    if (record) {
-                        pendingRecords.push(record);
-                        if (pendingRecords.length >= BATCH_SIZE) {
-                            await storePhotoBatch(pendingRecords.splice(0));
-                        }
+                    pendingRecords.push(record);
+                    if (pendingRecords.length >= BATCH_SIZE) {
+                        await storePhotoBatch(pendingRecords.splice(0));
                     }
                 }
             }
@@ -1293,6 +1411,13 @@
             added = newPhotos.length;
             const enrichmentRunning = await isEnrichmentRunning();
             logDebug(`[photos] Auto-fetch complete for day ${dayKey}: ${added} photos cached`);
+            if (PERF) {
+                const thumbMs = performance.now() - _perfThumbStart;
+                const totalMs = performance.now() - _perfT0;
+                const throughput = newPhotos.length > 0 ? (newPhotos.length / (thumbMs / 1000)).toFixed(1) : 0;
+                console.log(`[PERF] fetchAndCacheDayPhotos(${dayKey}): ${totalMs.toFixed(0)}ms total`);
+                console.log(`[PERF]   metadata: ${_perfMetaMs.toFixed(0)}ms (${serverPhotos.length} records), idb scan: ${_perfIdbMs.toFixed(0)}ms, thumb fetch: ${thumbMs.toFixed(0)}ms (${newPhotos.length} new, ${throughput} photos/sec)`);
+            }
             return { added, total: serverPhotos.length, enrichmentRunning };
         } catch (err) {
             logDebug(`[photos] Auto-fetch error for day ${dayKey}: ${err.message}`);
@@ -1312,6 +1437,49 @@
             }
         } catch (_) {}
         return false;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Refresh a single iCloud placeholder — fetch its thumbnail and update IDB
+    // Called after the viewer successfully loads the full-res original from iCloud
+    // ---------------------------------------------------------------------------
+    async function refreshICloudPhoto(photoId) {
+        if (!serverAvailable || !serverUrl) return false;
+        try {
+            const db = getDb();
+            if (!db) return false;
+
+            // Read existing record
+            const existing = await new Promise((res, rej) => {
+                const tx = db.transaction('photos', 'readonly');
+                const r = tx.objectStore('photos').get(photoId);
+                r.onsuccess = () => res(r.result);
+                r.onerror = () => rej(r.error);
+            });
+            if (!existing) return false;
+
+            // Fetch thumbnail from server
+            const thumbResp = await fetch(`${serverUrl}/api/thumbnail/${photoId}`, { cache: 'no-cache' });
+            if (!thumbResp.ok) return false;
+            const blob = await thumbResp.blob();
+            if (!blob || blob.size === 0) return false;
+
+            // Update record: set thumbnail, clear icloud flag
+            existing.thumbnail = blob;
+            delete existing.icloud;
+
+            await new Promise((res, rej) => {
+                const tx = db.transaction('photos', 'readwrite');
+                tx.objectStore('photos').put(existing);
+                tx.oncomplete = res;
+                tx.onerror = () => rej(tx.error);
+            });
+
+            return true;
+        } catch (e) {
+            console.warn('[photos] refreshICloudPhoto failed:', e.message);
+            return false;
+        }
     }
 
     // ---------------------------------------------------------------------------
@@ -1346,6 +1514,7 @@
         getVideoUrl,
         requestICloudMedia,
         requestICloudVideo,
+        refreshICloudPhoto,
         revokeUrls,
 
         // Enrichment & auto-fetch

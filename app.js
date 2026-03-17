@@ -4,6 +4,9 @@ logInfo(`📦 Loaded app.js • Build ${window.__ARC_BUILD__ || '???'}`);
 // Handle both direct load and dynamic load (DOMContentLoaded may have already fired)
 function initApp() {
 
+// Performance profiling — enable with: localStorage.setItem('arcPerf', '1')
+const PERF = localStorage.getItem('arcPerf') === '1';
+
 // Allow analysis page to bring this window to front via window.open('', name)
 window.name = 'arc-diary-reader';
 
@@ -3779,6 +3782,13 @@ function moveMapSmart(latlng, zoom) {
                 if (window.replayTogglePlay) window.replayTogglePlay();
                 return;
             }
+
+            // Spacebar hold: temporarily hide photo markers to reveal location markers
+            if (e.key === ' ' && photoMarkerLayer && map && map.hasLayer(photoMarkerLayer)) {
+                e.preventDefault();
+                map.removeLayer(photoMarkerLayer);
+                return;
+            }
             
             // Check if search slider has focus for up/down navigation
             const slider = document.getElementById('searchResultsSlider');
@@ -3932,7 +3942,14 @@ function moveMapSmart(latlng, zoom) {
                     break;
             }
         });
-        
+
+        // Spacebar release: restore photo markers
+        document.addEventListener('keyup', function(e) {
+            if (e.key === ' ' && photoMarkerLayer && map && !map.hasLayer(photoMarkerLayer)) {
+                map.addLayer(photoMarkerLayer);
+            }
+        });
+
         // Make diary panel resizable
         function initializeDiaryResize() {
             const diaryFloat = document.querySelector('.diary-float');
@@ -11497,14 +11514,23 @@ scrollToDiaryDay(currentDayKey);
                     const maxInline = 8;
                     const shown = matched.slice(0, maxInline);
                     for (const photo of shown) {
-                        const thumb = document.createElement('img');
-                        thumb.className = 'diary-photo-thumb';
-                        thumb.dataset.photoId = photo.id;
-                        thumb.draggable = false;
                         const url = ArcPhotos.getThumbnailUrl(photo);
-                        if (url) thumb.src = url;
-                        thumb.alt = '';
-                        thumb.onclick = (e) => {
+                        let el;
+                        if (url) {
+                            el = document.createElement('img');
+                            el.src = url;
+                            el.alt = '';
+                            el.draggable = false;
+                        } else {
+                            // iCloud placeholder — photo metadata exists but no local thumbnail
+                            el = document.createElement('span');
+                            el.className = 'diary-photo-icloud';
+                            el.title = 'Photo in iCloud — not yet downloaded';
+                            el.textContent = '\u2601'; // cloud symbol
+                        }
+                        el.className += (el.className ? ' ' : '') + 'diary-photo-thumb';
+                        el.dataset.photoId = photo.id;
+                        el.onclick = (e) => {
                             e.stopPropagation();
                             // Only switch day if it's different — avoids redundant map/scroll work
                             if (currentDayKey !== dayKey) {
@@ -11514,7 +11540,7 @@ scrollToDiaryDay(currentDayKey);
                             }
                             openPhotoViewer(photo.id, matched);
                         };
-                        strip.appendChild(thumb);
+                        strip.appendChild(el);
                     }
 
                     if (matched.length > maxInline) {
@@ -11646,9 +11672,9 @@ scrollToDiaryDay(currentDayKey);
 
             // Clear and populate grid
             grid.innerHTML = '';
-            // Filter to photos with valid thumbnails, respect diary view filter, sort chronologically
+            // Include all photos (with thumbnails or iCloud placeholders), respect diary view filter
             const filter = getDiaryViewFilter();
-            let visiblePhotos = photos.filter(p => p.thumbnail && p.thumbnail.size > 0);
+            let visiblePhotos = photos.filter(p => (p.thumbnail && p.thumbnail.size > 0) || p.icloud);
             if (filter === 'videos') visiblePhotos = visiblePhotos.filter(p => p.type === 'video');
             if (filter === 'hide-media' || filter === 'notes') visiblePhotos = [];
             visiblePhotos.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -11668,7 +11694,13 @@ scrollToDiaryDay(currentDayKey);
                     item.className = 'photo-slider-item';
                     item.dataset.photoId = photo.id;
                     const url = ArcPhotos.getThumbnailUrl(photo);
-                    if (url) item.style.backgroundImage = `url(${url})`;
+                    if (url) {
+                        item.style.backgroundImage = `url(${url})`;
+                    } else if (photo.icloud) {
+                        item.classList.add('photo-slider-icloud');
+                        item.textContent = '\u2601';
+                        item.title = 'In iCloud — not yet downloaded';
+                    }
                     item.onclick = () => openPhotoViewer(photo.id, visiblePhotos);
                     // Video play icon overlay
                     if (photo.type === 'video') {
@@ -11975,7 +12007,8 @@ scrollToDiaryDay(currentDayKey);
                         html: `<div class="photo-map-thumb" data-photo-id="${photo.id}"></div>`,
                         iconSize: [36, 36],
                         iconAnchor: [18, 18]
-                    })
+                    }),
+                    zIndexOffset: 1000 // photos on top of other markers
                 });
 
                 photoMarker.on('add', () => {
@@ -12516,6 +12549,8 @@ scrollToDiaryDay(currentDayKey);
             const overlay = document.getElementById('photoViewer');
             if (!overlay) return;
             setViewerLoading(false); // clean up spinner
+            // Cancel any active iCloud polls
+            icloudPollGeneration++;
             // Cancel any pending delayed video load
             if (pendingVideoLoadTimer) { clearTimeout(pendingVideoLoadTimer); pendingVideoLoadTimer = null; }
             // Exit fullscreen if active
@@ -12773,8 +12808,18 @@ scrollToDiaryDay(currentDayKey);
             saveViewerSize();
         }
 
+        function flashNavButton(dir) {
+            const btn = document.querySelector(dir < 0 ? '.photo-viewer-prev' : '.photo-viewer-next');
+            if (!btn) return;
+            // Restart animation by removing and re-adding the class
+            btn.classList.remove('nav-flash');
+            void btn.offsetWidth; // force reflow so the animation replays
+            btn.classList.add('nav-flash');
+        }
+
         function navigatePhoto(dir) {
             if (viewerPhotos.length === 0) return;
+            flashNavButton(dir);
             if (slideshowPlaying) stopSlideshow();
             cancelAllKenBurns();
             resetViewerZoom();
@@ -13064,8 +13109,10 @@ scrollToDiaryDay(currentDayKey);
         }
 
         async function showViewerPhoto() {
+            icloudPollGeneration++; // Cancel any previous polls
             const photo = viewerPhotos[viewerIndex];
             if (!photo) return;
+            const _perfT0 = PERF ? performance.now() : 0;
             resetViewerZoom();
 
             // Cancel any pending delayed video load from navigatePhoto
@@ -13089,7 +13136,7 @@ scrollToDiaryDay(currentDayKey);
 
             // Track which photo we're loading to prevent race conditions
             const targetIndex = viewerIndex;
-            let showingPosterFallback = false;
+            showingPosterFallback = false; // reset shared state
 
             // Pause any playing video when navigating away and hide iCloud overlay
             if (video) {
@@ -13120,7 +13167,12 @@ scrollToDiaryDay(currentDayKey);
                 if (videoUrl) {
                     // Pre-flight check: is the video available or does it need iCloud download?
                     try {
+                        const _perfVidHeadStart = PERF ? performance.now() : 0;
                         const checkResp = await fetch(videoUrl, { method: 'HEAD' });
+                        if (PERF) {
+                            const headMs = performance.now() - _perfVidHeadStart;
+                            console.log(`[PERF] showViewerPhoto VIDEO HEAD preflight: ${headMs.toFixed(0)}ms (status=${checkResp.status}, id=${photo.id})`);
+                        }
                         if (viewerIndex !== targetIndex) return; // user navigated away during fetch
 
                         // Some items are ZKIND=1 (video) in Apple Photos but the server
@@ -13135,7 +13187,7 @@ scrollToDiaryDay(currentDayKey);
                             img.style.opacity = '1';
                         } else if (checkResp.status === 202) {
                             // Video needs iCloud download — show progress overlay (no video/img visible)
-                            console.log('[iCloud] Video needs download, showing overlay for photo', photo.id);
+                            console.log(`[iCloud] Video needs download, showing overlay for ${photo.originalFilename || photo.filename}`);
                             showICloudDownloadOverlay(photo, video, img, targetIndex);
                             // Still set info bar (below) — fall through
                         } else if (checkResp.ok) {
@@ -13179,45 +13231,83 @@ scrollToDiaryDay(currentDayKey);
                 const serverUrl = ArcPhotos.getServerUrl();
                 const posterUrl = serverUrl ? `${serverUrl}/api/full/${photo.id}?poster=1` : null;
                 img.style.opacity = '0';
+                // Hide any previous unavailable message
+                const unavailEl = document.getElementById('photoViewerUnavailable');
+                if (unavailEl) unavailEl.style.display = 'none';
                 const iCloudBusy = Date.now() < photoICloudBusyUntil;
 
-                // Fast path: metadata says original is not local, so avoid /api/full preflight that
-                // would enqueue iCloud fetches and can return 503 under concurrency pressure.
-                if (photo.noOriginal && posterUrl) {
-                    img.src = posterUrl;
-                    img.style.opacity = '1';
-                    showingPosterFallback = true;
-                    logDebug('[iCloud] noOriginal photo, using poster directly for photo', photo.id);
-                } else if (iCloudBusy && posterUrl) {
-                    img.src = posterUrl;
-                    img.style.opacity = '1';
-                    showingPosterFallback = true;
-                    if (Date.now() - photoICloudBusyLogAt > 10000) {
-                        photoICloudBusyLogAt = Date.now();
-                        logDebug('[iCloud] Busy cooldown active, using poster fallback for photos');
-                    }
-                } else if (fullUrl) {
+                if (fullUrl) {
                     // Pre-flight check: is the photo available or does it need iCloud download?
                     try {
+                        const _perfHeadStart = PERF ? performance.now() : 0;
                         const checkResp = await fetch(fullUrl, { method: 'HEAD' });
+                        if (PERF) {
+                            const headMs = performance.now() - _perfHeadStart;
+                            const ext = photo.filename ? photo.filename.split('.').pop().toLowerCase() : '?';
+                            console.log(`[PERF] showViewerPhoto HEAD preflight: ${headMs.toFixed(0)}ms (status=${checkResp.status}, ${ext}, id=${photo.id})`);
+                        }
                         if (viewerIndex !== targetIndex) return;
+
+                        const xFullRes = checkResp.headers.get('X-Full-Res');
                         if (checkResp.status === 202) {
-                            // Photo original is in iCloud. Show poster derivative immediately instead of
-                            // blocking the viewer on an iCloud fetch that may hang for some assets.
-                            const serverUrl = ArcPhotos.getServerUrl();
-                            const posterUrl = serverUrl ? `${serverUrl}/api/full/${photo.id}?poster=1` : null;
-                            if (posterUrl) {
+                            // 202 = iCloud download started BUT no derivative exists
+                            // (if derivative existed, server returns 200 + X-Full-Res header)
+                            // Prefer IDB thumbnail; posterUrl would also fail
+                            const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
+                            const thumbUrl = (dbPhoto?.thumbnail && viewerIndex === targetIndex)
+                                ? ArcPhotos.getThumbnailUrl(dbPhoto) : null;
+                            if (thumbUrl) {
+                                img.src = thumbUrl;
+                                img.style.opacity = '1';
+                                showingPosterFallback = true;
+                                const tag = document.getElementById('photoViewerPosterTag');
+                                if (tag && photo.type !== 'video') tag.style.display = '';
+                            } else if (posterUrl) {
+                                // Last resort — poster might still work for some edge cases
                                 img.src = posterUrl;
                                 img.style.opacity = '1';
                                 showingPosterFallback = true;
                             } else {
-                                const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
-                                if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
-                                    const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
-                                    if (thumbUrl) { img.src = thumbUrl; img.style.opacity = '1'; }
-                                }
+                                // Nothing available — show unavailable message
+                                const unavailEl = document.getElementById('photoViewerUnavailable');
+                                if (unavailEl) unavailEl.style.display = '';
                             }
-                            logDebug('[iCloud] Photo original unavailable locally, showing poster for photo', photo.id);
+                            console.log(`[iCloud] Download in progress (202), polling for ${photo.originalFilename || photo.filename}`);
+                            // Poll until download completes
+                            if (photo.type !== 'video') {
+                                const myGen = icloudPollGeneration;
+                                const pollPhotoId = photo.id;
+                                const pollName = photo.originalFilename || photo.filename;
+                                let pollCount = 0;
+                                const maxPolls = 60;
+                                const pollInterval = setInterval(async () => {
+                                    if (icloudPollGeneration !== myGen) { clearInterval(pollInterval); return; }
+                                    if (++pollCount > maxPolls) { clearInterval(pollInterval); return; }
+                                    try {
+                                        const pollResp = await fetch(fullUrl, { method: 'HEAD' });
+                                        if (icloudPollGeneration !== myGen) { clearInterval(pollInterval); return; }
+                                        const pollXFR = pollResp.headers.get('X-Full-Res');
+                                        if (pollResp.status === 200 && !pollXFR) {
+                                            clearInterval(pollInterval);
+                                            const bustUrl = fullUrl + (fullUrl.includes('?') ? '&' : '?') + '_t=' + Date.now();
+                                            const origImg = new Image();
+                                            origImg.onload = () => {
+                                                if (icloudPollGeneration !== myGen) return;
+                                                img.src = bustUrl;
+                                                showingPosterFallback = false;
+                                                const tag = document.getElementById('photoViewerPosterTag');
+                                                if (tag) tag.style.display = 'none';
+                                                refreshDiaryThumbAfterICloud(pollPhotoId);
+                                            };
+                                            origImg.src = bustUrl;
+                                        } else if (pollResp.status === 202) {
+                                            // Still downloading — keep polling
+                                        } else if (!pollResp.ok) {
+                                            clearInterval(pollInterval);
+                                        }
+                                    } catch (_) {}
+                                }, 3000);
+                            }
                         } else if (checkResp.status === 503) {
                             // iCloud fetch queue is full (or helper unavailable). Show poster fallback immediately.
                             photoICloudBusyUntil = Date.now() + 30000; // 30s cooldown
@@ -13233,48 +13323,113 @@ scrollToDiaryDay(currentDayKey);
                                 }
                             }
                             logDebug('[iCloud] /api/full returned 503, showing poster for photo', photo.id);
+                        } else if (checkResp.ok && (xFullRes === 'downloading' || xFullRes === 'busy' || xFullRes === 'failed')) {
+                            // Server is serving a derivative while iCloud download runs/failed.
+                            // Show derivative immediately with iCloud Preview tag, then poll for the original.
+                            // Use posterUrl (?poster=1) to reliably get the derivative image
+                            // fullUrl could return 202 JSON if iCloud fetch is in-progress
+                            const derivSrc = posterUrl || fullUrl;
+                            const derivImg = new Image();
+                            derivImg.onload = () => {
+                                if (viewerIndex !== targetIndex) return;
+                                img.src = derivSrc;
+                                img.style.opacity = '1';
+                                showingPosterFallback = true;
+                                const tag = document.getElementById('photoViewerPosterTag');
+                                if (tag && photo.type !== 'video') tag.style.display = '';
+                            };
+                            derivImg.onerror = async () => {
+                                if (viewerIndex !== targetIndex) return;
+                                // Fall back to IDB thumbnail
+                                const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
+                                if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
+                                    const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
+                                    if (thumbUrl) { img.src = thumbUrl; img.style.opacity = '1'; showingPosterFallback = true; }
+                                }
+                            };
+                            derivImg.src = derivSrc;
+
+                            // Poll for original to become available
+                            // macOS Photos may continue downloading even after photo-fetch times out
+                            {
+                                const myGen2 = icloudPollGeneration;
+                                const pollName2 = photo.originalFilename || photo.filename;
+                                console.log(`[iCloud] Showing derivative (X-Full-Res: ${xFullRes}), polling for ${pollName2}`);
+                                const pollPhotoId = photo.id;
+                                let pollCount = 0;
+                                const maxPolls = 60;
+                                const pollInterval = setInterval(async () => {
+                                    if (icloudPollGeneration !== myGen2) {
+                                        clearInterval(pollInterval);
+                                        return;
+                                    }
+                                    if (++pollCount > maxPolls) {
+                                        clearInterval(pollInterval);
+                                        return;
+                                    }
+                                    try {
+                                        const pollResp = await fetch(fullUrl, { method: 'HEAD' });
+                                        if (icloudPollGeneration !== myGen2) { clearInterval(pollInterval); return; }
+                                        const pollXFR = pollResp.headers.get('X-Full-Res');
+                                        if (pollResp.status === 200 && !pollXFR) {
+                                            clearInterval(pollInterval);
+                                            const bustUrl = fullUrl + (fullUrl.includes('?') ? '&' : '?') + '_t=' + Date.now();
+                                            const origImg = new Image();
+                                            origImg.onload = () => {
+                                                if (icloudPollGeneration !== myGen2) return;
+                                                img.src = bustUrl;
+                                                showingPosterFallback = false;
+                                                const tag = document.getElementById('photoViewerPosterTag');
+                                                if (tag) tag.style.display = 'none';
+                                                refreshDiaryThumbAfterICloud(pollPhotoId);
+                                            };
+                                            origImg.src = bustUrl;
+                                        } else if (!pollResp.ok && pollResp.status !== 202) {
+                                            clearInterval(pollInterval);
+                                        }
+                                    } catch (e) {
+                                        console.log(`[iCloud] Poll network error for ${pollName2}:`, e.message);
+                                    }
+                                }, 3000);
+                            }
                         } else if (checkResp.ok) {
                             // Photo available — load it
+                            const _perfImgStart = PERF ? performance.now() : 0;
                             const fullImg = new Image();
                             fullImg.onload = () => {
                                 if (viewerIndex !== targetIndex) return;
+                                if (PERF) {
+                                    const imgMs = performance.now() - _perfImgStart;
+                                    const totalMs = performance.now() - _perfT0;
+                                    const ext = photo.filename ? photo.filename.split('.').pop().toLowerCase() : '?';
+                                    console.log(`[PERF] showViewerPhoto full-res load: ${imgMs.toFixed(0)}ms, TOTAL: ${totalMs.toFixed(0)}ms (${ext}, id=${photo.id})`);
+                                    if (totalMs > 500) console.log(`[PERF] SLOW photo display: ${photo.originalFilename || photo.filename} took ${totalMs.toFixed(0)}ms`);
+                                }
                                 img.src = fullUrl;
                                 img.style.opacity = '1';
                             };
                             fullImg.onerror = async () => {
                                 if (viewerIndex !== targetIndex) return;
-                                const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
-                                if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
-                                    const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
-                                    if (thumbUrl) { img.src = thumbUrl; img.style.opacity = '1'; }
-                                }
+                                await showThumbOrUnavailable(photo, img, targetIndex);
                             };
                             fullImg.src = fullUrl;
                         } else {
                             // Server error — fall back to thumbnail
-                            const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
-                            if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
-                                const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
-                                if (thumbUrl) { img.src = thumbUrl; img.style.opacity = '1'; }
-                            }
+                            await showThumbOrUnavailable(photo, img, targetIndex);
                         }
                     } catch (e) {
                         // Network error — fall back to thumbnail
-                        const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
-                        if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
-                            const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
-                            if (thumbUrl) { img.src = thumbUrl; img.style.opacity = '1'; }
-                        }
+                        await showThumbOrUnavailable(photo, img, targetIndex);
                     }
                 } else {
                     // No server — show thumbnail directly
-                    const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
-                    if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
-                        const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
-                        if (thumbUrl) { img.src = thumbUrl; img.style.opacity = '1'; }
-                    }
+                    await showThumbOrUnavailable(photo, img, targetIndex);
                 }
             }
+
+            // Show/hide iCloud preview tag
+            const posterTag = document.getElementById('photoViewerPosterTag');
+            if (posterTag) posterTag.style.display = (photo.type !== 'video' && showingPosterFallback) ? '' : 'none';
 
             // Info line
             if (info) {
@@ -13283,7 +13438,7 @@ scrollToDiaryDay(currentDayKey);
                 const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
                 const camera = photo.cameraModel || '';
                 const counter = viewerPhotos.length > 1 ? ` · ${viewerIndex + 1} / ${viewerPhotos.length}` : '';
-                const sourceBadge = (photo.type !== 'video' && showingPosterFallback) ? ' · Poster only' : '';
+                const sourceBadge = '';
                 // Duration display for videos
                 let durationStr = '';
                 if (photo.type === 'video' && photo.duration) {
@@ -13735,7 +13890,13 @@ scrollToDiaryDay(currentDayKey);
         // Preloaded image cache for slideshow look-ahead
         let slideshowPreloaded = { index: -1, url: null };
 
+        // Poll generation — incremented on every navigation, cancels all previous polls
+        let icloudPollGeneration = 0;
+        let showingPosterFallback = false; // shared between showViewerPhoto and crossFadeToCurrentPhoto
+
         function crossFadeToCurrentPhoto() {
+            // Cancel any in-flight iCloud polls from previous photos
+            icloudPollGeneration++;
             const photo = viewerPhotos[viewerIndex];
             if (!photo) return;
 
@@ -13775,19 +13936,38 @@ scrollToDiaryDay(currentDayKey);
                     // Preload next slide in background
                     preloadNextSlide(targetIndex);
                 };
-                ready.onerror = () => {
-                    // URL failed to decode — transition anyway (better than nothing)
+                ready.onerror = async () => {
+                    // URL failed to decode — try IDB thumbnail before giving up
                     if (viewerIndex !== targetIndex) return;
-                    back.src = url;
-                    switch (slideshowTransition) {
-                        case 'slide':      transitionSlide(front, back, targetIndex); break;
-                        case 'zoom':       transitionZoom(front, back, targetIndex); break;
-                        case 'fade-black': transitionFadeBlack(front, back, targetIndex); break;
-                        default:           transitionCrossfade(front, back, targetIndex);
+                    const thumbUrl = await fallbackThumbnailUrl(photo, targetIndex);
+                    if (thumbUrl && viewerIndex === targetIndex) {
+                        back.src = thumbUrl;
+                        switch (slideshowTransition) {
+                            case 'slide':      transitionSlide(front, back, targetIndex); break;
+                            case 'zoom':       transitionZoom(front, back, targetIndex); break;
+                            case 'fade-black': transitionFadeBlack(front, back, targetIndex); break;
+                            default:           transitionCrossfade(front, back, targetIndex);
+                        }
+                    } else if (viewerIndex === targetIndex) {
+                        // Nothing to show — display unavailable overlay
+                        const unavailEl = document.getElementById('photoViewerUnavailable');
+                        if (unavailEl) unavailEl.style.display = '';
                     }
                 };
                 ready.src = url;
             };
+
+            // Hide iCloud Preview tag by default — only re-shown if needsPoll
+            {
+                const tag = document.getElementById('photoViewerPosterTag');
+                if (tag) tag.style.display = 'none';
+                showingPosterFallback = false;
+            }
+            // Hide unavailable message from previous photo
+            {
+                const unavailEl = document.getElementById('photoViewerUnavailable');
+                if (unavailEl) unavailEl.style.display = 'none';
+            }
 
             // For video items, use poster URL directly — don't send the video URL
             // through resolvePhotoUrl which would try to preload it as an Image.
@@ -13806,8 +13986,90 @@ scrollToDiaryDay(currentDayKey);
                 slideshowPreloaded = { index: -1, url: null };
             } else {
                 // Resolve the best URL, mirroring showViewerPhoto's iCloud-aware logic
-                resolvePhotoUrl(photo, fullUrl, posterUrl, targetIndex).then(url => {
-                    if (url && viewerIndex === targetIndex) applyTransition(url);
+                resolvePhotoUrl(photo, fullUrl, posterUrl, targetIndex).then(async result => {
+                    // Handle both old string return and new {url, needsPoll} format
+                    let url = typeof result === 'string' ? result : result?.url;
+                    const needsPoll = typeof result === 'object' && result?.needsPoll;
+                    // Fallback: if resolve returned null, try poster → thumbnail → unavailable
+                    if (!url && viewerIndex === targetIndex) {
+                        if (posterUrl) {
+                            url = posterUrl;
+                        } else {
+                            url = await fallbackThumbnailUrl(photo, targetIndex);
+                        }
+                        if (!url) {
+                            // Nothing to show — display unavailable message on front image
+                            const unavailEl = document.getElementById('photoViewerUnavailable');
+                            if (unavailEl) unavailEl.style.display = '';
+                        }
+                    }
+                    if (url && viewerIndex === targetIndex) {
+                        applyTransition(url);
+                        // Show iCloud Preview tag for derivatives
+                        if (needsPoll) {
+                            showingPosterFallback = true;
+                            const tag = document.getElementById('photoViewerPosterTag');
+                            if (tag) tag.style.display = '';
+                        } else {
+                            showingPosterFallback = false;
+                            const tag = document.getElementById('photoViewerPosterTag');
+                            if (tag) tag.style.display = 'none';
+                        }
+                    }
+                    // Poll for iCloud original to become available
+                    if (needsPoll && fullUrl && photo.type !== 'video') {
+                        const myGen = icloudPollGeneration;
+                        const pollName = photo.originalFilename || photo.filename;
+                        console.log(`[iCloud] Derivative shown, polling for ${pollName}`);
+                        const pollPhotoId = photo.id;
+                        let pollCount = 0;
+                        const maxPolls = 60;
+                        const pollInterval = setInterval(async () => {
+                            // Generation check — any navigation cancels this poll
+                            if (icloudPollGeneration !== myGen) {
+                                clearInterval(pollInterval);
+                                return;
+                            }
+                            if (++pollCount > maxPolls) {
+                                clearInterval(pollInterval);
+                                return;
+                            }
+                            try {
+                                const pollResp = await fetch(fullUrl, { method: 'HEAD' });
+                                if (icloudPollGeneration !== myGen) { clearInterval(pollInterval); return; }
+                                const pollXFR = pollResp.headers.get('X-Full-Res');
+                                if (pollResp.status === 200 && !pollXFR) {
+                                    clearInterval(pollInterval);
+                                    console.log(`[iCloud] Original ready! Swapping full-res for ${pollName}`);
+                                    const bustUrl = fullUrl + (fullUrl.includes('?') ? '&' : '?') + '_t=' + Date.now();
+                                    const origImg = new Image();
+                                    origImg.onload = () => {
+                                        // Final generation check — must still be on same photo
+                                        if (icloudPollGeneration !== myGen) return;
+                                        const curFront = crossFadeFront === 'A'
+                                            ? document.getElementById('photoViewerImg')
+                                            : document.getElementById('photoViewerImgB');
+                                        if (curFront) curFront.src = bustUrl;
+                                        showingPosterFallback = false;
+                                        const tag = document.getElementById('photoViewerPosterTag');
+                                        if (tag) tag.style.display = 'none';
+                                        // Refresh IDB record and diary thumbnail
+                                        refreshDiaryThumbAfterICloud(pollPhotoId);
+                                    };
+                                    origImg.onerror = () => {
+                                        console.log(`[iCloud] Full-res load failed for ${pollName}`);
+                                    };
+                                    origImg.src = bustUrl;
+                                } else if (!pollResp.ok && pollResp.status !== 202) {
+                                    clearInterval(pollInterval);
+                                    console.log(`[iCloud] Poll error for ${pollName}: status=${pollResp.status}`);
+                                }
+                                // 202, downloading, busy, failed → keep polling
+                            } catch (e) {
+                                console.log(`[iCloud] Poll network error for ${pollName}:`, e.message);
+                            }
+                        }, 3000);
+                    }
                 });
             }
 
@@ -13912,50 +14174,108 @@ scrollToDiaryDay(currentDayKey);
 
         // Resolve the best available URL for a photo (full → poster → thumbnail)
         // Mirrors the iCloud-aware logic from showViewerPhoto
+        // Returns { url, needsPoll } so the caller can start polling for iCloud originals
         async function resolvePhotoUrl(photo, fullUrl, posterUrl, targetIndex) {
             const iCloudBusy = Date.now() < photoICloudBusyUntil;
 
             // Fast path: metadata says original is not local — use poster directly
-            if (photo.noOriginal && posterUrl) return posterUrl;
+            if (photo.noOriginal && posterUrl) { return { url: posterUrl, needsPoll: true }; }
 
             // iCloud busy cooldown — use poster to avoid 503 pressure
-            if (iCloudBusy && posterUrl) return posterUrl;
+            if (iCloudBusy && posterUrl) { return { url: posterUrl, needsPoll: true }; }
 
             if (fullUrl) {
                 try {
                     const resp = await fetch(fullUrl, { method: 'HEAD' });
-                    if (viewerIndex !== targetIndex && targetIndex !== -1) return null;
+                    if (viewerIndex !== targetIndex && targetIndex !== -1) { return { url: null, needsPoll: false }; }
+
+                    const xFullRes = resp.headers.get('X-Full-Res');
 
                     if (resp.status === 202) {
-                        // Original in iCloud — use poster
-                        if (posterUrl) return posterUrl;
-                        return await fallbackThumbnailUrl(photo, targetIndex);
+                        // 202 = iCloud download started BUT no derivative was available
+                        // (if derivative existed, server would have returned 200 + X-Full-Res)
+                        // So posterUrl will also fail — prefer IDB thumbnail
+                        const thumbUrl = await fallbackThumbnailUrl(photo, targetIndex);
+                        const url = thumbUrl || posterUrl;
+                        return { url, needsPoll: true };
                     }
                     if (resp.status === 503) {
                         // Queue full — cooldown + poster
                         photoICloudBusyUntil = Date.now() + 30000;
-                        if (posterUrl) return posterUrl;
-                        return await fallbackThumbnailUrl(photo, targetIndex);
+                        const url = posterUrl || await fallbackThumbnailUrl(photo, targetIndex);
+                        return { url, needsPoll: true };
+                    }
+                    if (resp.ok && xFullRes) {
+                        // Derivative served (downloading/busy/failed) — show poster and poll
+                        return { url: posterUrl || fullUrl, needsPoll: true };
                     }
                     if (resp.ok) {
                         // Available — preload the full image to confirm it decodes
-                        return await new Promise((resolve) => {
+                        const url = await new Promise((resolve) => {
                             const img = new Image();
-                            img.onload = () => resolve(fullUrl);
+                            img.onload = () => { resolve(fullUrl); };
                             img.onerror = async () => {
+                                // Full image failed to decode — try poster, then thumbnail
+                                if (posterUrl) { resolve(posterUrl); return; }
                                 resolve(await fallbackThumbnailUrl(photo, targetIndex));
                             };
                             img.src = fullUrl;
                         });
+                        return { url, needsPoll: false };
                     }
-                    // Other error — thumbnail
-                    return await fallbackThumbnailUrl(photo, targetIndex);
-                } catch (_) {
-                    return await fallbackThumbnailUrl(photo, targetIndex);
+                    // Other error — poster or thumbnail
+                    const url = posterUrl || await fallbackThumbnailUrl(photo, targetIndex);
+                    return { url, needsPoll: false };
+                } catch (e) {
+                    const url = posterUrl || await fallbackThumbnailUrl(photo, targetIndex);
+                    return { url, needsPoll: false };
                 }
             }
             // No server — thumbnail from IndexedDB
-            return await fallbackThumbnailUrl(photo, targetIndex);
+            const url = await fallbackThumbnailUrl(photo, targetIndex);
+            return { url, needsPoll: false };
+        }
+
+        // After iCloud original is fetched, update IDB and replace the cloud placeholder thumb
+        async function refreshDiaryThumbAfterICloud(photoId) {
+            try {
+                const ok = await ArcPhotos.refreshICloudPhoto(photoId);
+                if (!ok) return;
+                // Find the diary thumbnail element and replace the cloud icon with the real image
+                const el = document.querySelector(`.diary-photo-thumb[data-photo-id="${photoId}"]`);
+                if (el) {
+                    const dbPhoto = await ArcPhotos.getPhotoById(photoId);
+                    if (dbPhoto?.thumbnail) {
+                        const url = ArcPhotos.getThumbnailUrl(dbPhoto);
+                        if (url) {
+                            const img = document.createElement('img');
+                            img.src = url;
+                            img.alt = '';
+                            img.draggable = false;
+                            img.className = el.className;
+                            img.dataset.photoId = String(photoId);
+                            img.onclick = el.onclick;
+                            el.replaceWith(img);
+                        }
+                    }
+                }
+            } catch (e) {
+                // Non-critical
+            }
+        }
+
+        // Show thumbnail if available, otherwise show "not available" message
+        async function showThumbOrUnavailable(photo, img, targetIndex) {
+            if (viewerIndex !== targetIndex) return;
+            const dbPhoto = await ArcPhotos.getPhotoById(photo.id);
+            if (dbPhoto?.thumbnail && viewerIndex === targetIndex) {
+                const thumbUrl = ArcPhotos.getThumbnailUrl(dbPhoto);
+                if (thumbUrl) { img.src = thumbUrl; img.style.opacity = '1'; return; }
+            }
+            // No thumbnail available — show unavailable message
+            img.style.opacity = '0';
+            const el = document.getElementById('photoViewerUnavailable');
+            if (el && viewerIndex === targetIndex) el.style.display = '';
         }
 
         async function fallbackThumbnailUrl(photo, targetIndex) {
@@ -13983,7 +14303,8 @@ scrollToDiaryDay(currentDayKey);
             const nextPosterUrl = serverUrl ? `${serverUrl}/api/full/${nextPhoto.id}?poster=1` : null;
 
             // Resolve URL in background (targetIndex -1 = don't check viewerIndex)
-            resolvePhotoUrl(nextPhoto, nextFullUrl, nextPosterUrl, -1).then(url => {
+            resolvePhotoUrl(nextPhoto, nextFullUrl, nextPosterUrl, -1).then(result => {
+                const url = typeof result === 'string' ? result : result?.url;
                 if (url) {
                     slideshowPreloaded = { index: nextIdx, url };
                     // Warm browser cache
