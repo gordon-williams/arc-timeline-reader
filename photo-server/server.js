@@ -661,6 +661,7 @@ async function generateThumbnail(photoId, maxSize) {
 
     // For full-res photos, prefer PhotoKit rendering (best RAW/HEIC quality via Core Image)
     if (!isThumb && photoThumbAvailable && formatted._uuid) {
+        const fname = formatted.originalFilename || formatted.filename || `ID ${photoId}`;
         try {
             await new Promise((resolve, reject) => {
                 execFile(PHOTO_THUMB_BIN, [
@@ -674,11 +675,14 @@ async function generateThumbnail(photoId, maxSize) {
                 });
             });
             if (fs.existsSync(tmpPath) && fs.statSync(tmpPath).size > 0) {
+                console.log(`[render] ${fname}: PhotoKit --hq (${maxSize}px)`);
                 fs.renameSync(tmpPath, cachePath);
                 return cachePath;
             }
-        } catch (_) {
+            console.log(`[render] ${fname}: PhotoKit --hq produced no output, falling back`);
+        } catch (photoKitErr) {
             try { fs.unlinkSync(tmpPath); } catch (_e) {}
+            console.log(`[render] ${fname}: PhotoKit --hq failed: ${photoKitErr.message}, falling back`);
             // Fall through to Sharp/sips
         }
     }
@@ -710,47 +714,61 @@ async function generateThumbnail(photoId, maxSize) {
             }
         }
 
-        // Try Sharp first (fast, handles JPEG/PNG/WebP/TIFF)
-        try {
-            await sharp(originalPath, { failOn: 'none' })
-                .rotate()
-                .resize(maxSize, maxSize, { fit: 'inside', withoutEnlargement: true })
-                .jpeg({ quality: isThumb ? 80 : 90 })
-                .toFile(tmpPath);
+        // Skip Sharp for RAW formats — it produces washed-out images without colour
+        // profiles or tone curves. Let sips/PhotoKit handle these via Core Image.
+        const RAW_EXTS = new Set(['cr2', 'cr3', 'nef', 'arw', 'raf', 'orf', 'rw2', 'pef', 'srw', 'dng', 'raw', '3fr', 'mos', 'mrw', 'x3f', 'iiq']);
+        const origExt = path.extname(originalPath).slice(1).toLowerCase();
+        const isRawFile = RAW_EXTS.has(origExt);
 
-            // Validate output before caching
-            const tmpStat = fs.statSync(tmpPath);
-            if (tmpStat.size === 0) {
-                fs.unlinkSync(tmpPath);
-                throw new Error('Sharp produced 0-byte output');
-            }
+        if (isRawFile) {
+            const fname = formatted.originalFilename || formatted.filename || `ID ${photoId}`;
+            console.log(`[render] ${fname}: RAW format (.${origExt}) — skipping Sharp, using sips`);
+        }
 
-            fs.renameSync(tmpPath, cachePath);
-            return cachePath;
-        } catch (sharpErr) {
-            // Clean up partial Sharp output
-            try { fs.unlinkSync(tmpPath); } catch (_) {}
-
-            // Fallback to macOS sips (handles HEIC and other native formats)
+        // Try Sharp first (fast, handles JPEG/PNG/WebP/TIFF — NOT raw formats)
+        let sharpFailed = isRawFile; // skip Sharp entirely for RAW
+        if (!isRawFile) {
             try {
-                await sipsConvert(originalPath, tmpPath, maxSize, isThumb ? 80 : 90);
+                await sharp(originalPath, { failOn: 'none' })
+                    .rotate()
+                    .resize(maxSize, maxSize, { fit: 'inside', withoutEnlargement: true })
+                    .jpeg({ quality: isThumb ? 80 : 90 })
+                    .toFile(tmpPath);
 
                 // Validate output before caching
                 const tmpStat = fs.statSync(tmpPath);
                 if (tmpStat.size === 0) {
                     fs.unlinkSync(tmpPath);
-                    throw new Error('sips produced 0-byte output');
+                    throw new Error('Sharp produced 0-byte output');
                 }
 
                 fs.renameSync(tmpPath, cachePath);
                 return cachePath;
-            } catch (sipsErr) {
+            } catch (sharpErr) {
                 try { fs.unlinkSync(tmpPath); } catch (_) {}
-                failedPhotos.add(photoId);
-                const fname = formatted.filename || formatted.originalFilename || `ID ${photoId}`;
-                console.warn(`Skipping ${fname}: Sharp: ${sharpErr.message} / sips: ${sipsErr.message}`);
-                return null;
+                sharpFailed = sharpErr.message;
             }
+        }
+
+        // Fallback to macOS sips (handles HEIC, RAW, and other native formats via ImageIO)
+        try {
+            await sipsConvert(originalPath, tmpPath, maxSize, isThumb ? 80 : 90);
+
+            // Validate output before caching
+            const tmpStat = fs.statSync(tmpPath);
+            if (tmpStat.size === 0) {
+                fs.unlinkSync(tmpPath);
+                throw new Error('sips produced 0-byte output');
+            }
+
+            fs.renameSync(tmpPath, cachePath);
+            return cachePath;
+        } catch (sipsErr) {
+            try { fs.unlinkSync(tmpPath); } catch (_) {}
+            failedPhotos.add(photoId);
+            const fname = formatted.filename || formatted.originalFilename || `ID ${photoId}`;
+            console.warn(`Skipping ${fname}: ${isRawFile ? 'RAW (Sharp skipped)' : 'Sharp: ' + sharpFailed} / sips: ${sipsErr.message}`);
+            return null;
         }
     } finally {
         releaseSlot();
