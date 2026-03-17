@@ -12074,7 +12074,6 @@ scrollToDiaryDay(currentDayKey);
             showFilenameOverlay = savedFilename === '1';
             const fnBar = document.getElementById('photoViewerFilenameBar');
             const fnBtn = document.getElementById('photoViewerFilenameBtn');
-            if (fnBar) fnBar.style.display = showFilenameOverlay ? '' : 'none';
             if (fnBtn) fnBtn.classList.toggle('active', showFilenameOverlay);
 
             // Restore EXIF panel preference
@@ -12084,6 +12083,9 @@ scrollToDiaryDay(currentDayKey);
             const exifBtn = document.getElementById('photoViewerExifBtn');
             if (exifPanel) exifPanel.style.display = showExifPanel ? '' : 'none';
             if (exifBtn) exifBtn.classList.toggle('active', showExifPanel);
+
+            // Hide filename strip when EXIF panel is open (EXIF already shows filename)
+            if (fnBar) fnBar.style.display = (showFilenameOverlay && !showExifPanel) ? '' : 'none';
 
             // Restore slideshow speed preference
             const savedSpeed = localStorage.getItem('arcPhotoViewerSlideshowSpeed');
