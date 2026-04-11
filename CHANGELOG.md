@@ -1,5 +1,14 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.276 (2026-04-11)
+
+### Photo Server (macOS)
+- **Fix stuck cloud placeholders** — When Sharp failed to decode an Apple Photos HEIC derivative, the thumbnail request returned `null` immediately, leaving thumbnails stuck as cloud icons for photos with no on-disk original. Sharp failures now fall through to the PhotoKit fallback, and a new last-resort lookup downscales from `FULL_CACHE` or `ICLOUD_CACHE` if a previously downloaded full-res image is present.
+- **CORS allowlist for GitHub Pages** — Added `https://gordon-williams.github.io` as an allowed origin so the hosted build at [gordon-williams.github.io/arc-timeline-reader](https://gordon-williams.github.io/arc-timeline-reader/) can reach the local photo server.
+
+### Documentation
+- **README and MANUAL link to the hosted build** — Users can now run the app directly from GitHub Pages without having to clone the repo.
+
 ## Build 02.275 (2026-03-17)
 
 ### Photo Viewer
