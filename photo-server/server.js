@@ -609,7 +609,7 @@ async function generateThumbnail(photoId, maxSize, { forceRerender = false } = {
     if (!hasOriginal) {
         const derivPath = resolveDerivativePath(formatted);
         if (derivPath) {
-            // Derivative is already a JPEG — just resize with Sharp
+            // Derivative may be JPEG or HEIC — resize with Sharp
             const tmpPath = cachePath + '.tmp';
             await acquireSlot();
             try {
@@ -620,15 +620,14 @@ async function generateThumbnail(photoId, maxSize, { forceRerender = false } = {
                     .toFile(tmpPath);
 
                 const tmpStat = fs.statSync(tmpPath);
-                if (tmpStat.size === 0) {
-                    fs.unlinkSync(tmpPath);
-                    return null;
+                if (tmpStat.size > 0) {
+                    fs.renameSync(tmpPath, cachePath);
+                    return cachePath;
                 }
-                fs.renameSync(tmpPath, cachePath);
-                return cachePath;
+                try { fs.unlinkSync(tmpPath); } catch (_) {}
             } catch (err) {
                 try { fs.unlinkSync(tmpPath); } catch (_) {}
-                return null;
+                // Fall through to other fallbacks (PhotoKit, iCloud cache)
             } finally {
                 releaseSlot();
             }
@@ -655,6 +654,49 @@ async function generateThumbnail(photoId, maxSize, { forceRerender = false } = {
             } catch (_) {
                 try { fs.unlinkSync(tmpPath); } catch (_e) {}
             }
+        }
+
+        // Last resort: check full-res cache and iCloud cache for a previously
+        // downloaded image that can be downscaled for the thumbnail
+        const fallbackPaths = [
+            path.join(FULL_CACHE, `${photoId}.jpg`),
+        ];
+        if (formatted._uuid) {
+            fallbackPaths.push(path.join(ICLOUD_CACHE, `${formatted._uuid.toUpperCase()}.jpg`));
+        }
+        // Also try the filename-based UUID (ZFILENAME without extension)
+        if (formatted.filename) {
+            const fnameUuid = path.basename(formatted.filename, path.extname(formatted.filename)).toUpperCase();
+            const fnPath = path.join(ICLOUD_CACHE, `${fnameUuid}.jpg`);
+            if (!fallbackPaths.includes(fnPath)) {
+                fallbackPaths.push(fnPath);
+            }
+        }
+        for (const fallbackPath of fallbackPaths) {
+            if (!fs.existsSync(fallbackPath)) continue;
+            try {
+                const fbStat = fs.statSync(fallbackPath);
+                if (fbStat.size === 0) continue;
+                const tmpPath = cachePath + '.tmp';
+                await acquireSlot();
+                try {
+                    await sharp(fallbackPath, { failOn: 'none' })
+                        .rotate()
+                        .resize(maxSize, maxSize, { fit: 'inside', withoutEnlargement: true })
+                        .jpeg({ quality: isThumb ? 80 : 90 })
+                        .toFile(tmpPath);
+                    const tmpStat = fs.statSync(tmpPath);
+                    if (tmpStat.size > 0) {
+                        fs.renameSync(tmpPath, cachePath);
+                        return cachePath;
+                    }
+                    try { fs.unlinkSync(tmpPath); } catch (_) {}
+                } catch (_) {
+                    try { fs.unlinkSync(tmpPath); } catch (_e) {}
+                } finally {
+                    releaseSlot();
+                }
+            } catch (_) {}
         }
 
         return null;
@@ -1032,6 +1074,8 @@ app.use(cors({
         // Allow browser file:// pages (origin is null) and local dev hosts.
         if (!origin || origin === 'null') return cb(null, true);
         if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return cb(null, true);
+        // Allow the published GitHub Pages build.
+        if (origin === 'https://gordon-williams.github.io') return cb(null, true);
         return cb(new Error('Not allowed by CORS'));
     },
     exposedHeaders: ['X-Full-Res']
