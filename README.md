@@ -4,6 +4,8 @@
 
 A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) GPS tracking data that generates interactive diaries with maps.
 
+**Live version:** [gordon-williams.github.io/arc-timeline-reader](https://gordon-williams.github.io/arc-timeline-reader/) — runs entirely in your browser, no install required.
+
 > **Warning:** Arc Editor backup import support is currently under active testing. Unexpected issues may still occur.
 
 ## Features

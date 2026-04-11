@@ -36,9 +36,15 @@ A web-based viewer for [Arc Timeline](https://www.bigpaua.com/arcapp) and [Arc E
 
 ## Getting Started
 
-1. Open `index.html` in a modern browser (Chrome, Edge, Firefox, or Safari).
-2. Import your Arc Timeline data using one of the three import methods below.
-3. Click **Open Diary Reader** to start browsing your timeline.
+You can run the app two ways:
+
+- **Hosted version** — open [gordon-williams.github.io/arc-timeline-reader](https://gordon-williams.github.io/arc-timeline-reader/) in a modern browser (Chrome, Edge, Firefox, or Safari). No install required; your data stays in your browser.
+- **Local copy** — clone the repository and open `index.html` directly from disk.
+
+Then:
+
+1. Import your Arc Timeline data using one of the three import methods below.
+2. Click **Open Diary Reader** to start browsing your timeline.
 
 ### Optional: Mapbox Token
 
