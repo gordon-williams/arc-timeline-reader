@@ -1,5 +1,54 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.282 (2026-05-21)
+
+### MCP Server — AI-driven install
+- **New "Let your AI install it for you" card in the MCP Server tab.** Copies a one-line prompt that points the user's AI at a self-contained instruction document. The AI then clones the repo, installs Node dependencies, registers the server with itself, asks the user for the .db path, runs `--selftest`, and tells the user when to restart. Removes the manual cloning / config-editing friction that put off non-technical users.
+- **New `mcp-server/INSTALL-FOR-AI.md`** — full self-contained walkthrough written for AI assistants, not humans. Covers prerequisite checks, client-specific config paths (Claude Code / Codex / Claude Desktop on macOS / Windows / Linux), error handling, and a one-time privacy reminder for the AI to relay.
+- Manual install instructions are still in the tab, hidden under a "Prefer to install it yourself?" disclosure for the rare power user who wants them.
+
+## Build 02.281 (2026-05-21)
+
+### MCP Export — per-day GPS aggregates (schema v4)
+- **Region and altitude queries now work without raw GPS samples.** Build 02.280 made the export succeed for huge archives by leaving raw samples out, but the cost was that `find_days_in_region` and `get_elevation_stats` returned "re-export with samples" errors. That cure was worse than the disease.
+- **`daily_summaries` gains seven aggregate columns:** `bbox_min_lat`, `bbox_max_lat`, `bbox_min_lng`, `bbox_max_lng`, `min_altitude_m`, `max_altitude_m`, `gps_sample_count`. The export walks every day's samples in-flight to compute these, even when not persisting the rows themselves. Cost: ~80 bytes per day; for a 5-year archive that's ~150 KB total. Indexes added for bbox and altitude.
+- **Server tools fall back gracefully.** When the raw `gps_samples` table is empty, `find_days_in_region` switches to per-day bbox intersection on `daily_summaries`, and `get_elevation_stats` returns per-day altitude extremes. Both responses include a `source` field (`raw_samples` vs `daily_*_aggregates`) and the aggregate path includes a `note` explaining the precision tradeoff.
+- **Net effect:** The default samples-off export is now full-featured for the 15 tools the server exposes. Raw samples only matter if you need sub-day precision (the exact GPS fix with the highest altitude, the moment your route entered a specific bbox).
+- Schema bumped to v4. `SCHEMA_VERSION_EXPECTED` updated.
+
+## Build 02.280 (2026-05-21)
+
+### MCP Export — GPS samples now opt-in (schema v3)
+- **Fix `Array buffer allocation failed` on multi-year archives.** The earlier streaming fix solved the *input* side; this fixes the *output* side. `db.export()` has to materialize the entire SQLite database as one contiguous Uint8Array, and `gps_samples` is by far the biggest contributor — at a few-second cadence × multiple years it's tens of millions of rows, easily 1–3 GB, which exceeds the browser's contiguous-ArrayBuffer ceiling.
+- **GPS samples are now opt-in**, controlled by a new "Include raw GPS samples" checkbox in the MCP Server tab. Default OFF. With it off, exports for heavy users drop from gigabytes to ~10 MB and complete in seconds.
+- **`find_days_in_region` and `get_elevation_stats`** detect when samples are missing and return a clear message telling the user to re-export with the box ticked. The other 13 tools work identically either way.
+- **Schema v3:** `export_info` gained `includes_gps_samples` and `includes_raw_json` flags so the server can introspect what's in any given .db. `SCHEMA_VERSION_EXPECTED` bumped to 3.
+
+## Build 02.279 (2026-05-21)
+
+### MCP Export — fix `Array buffer allocation failed` on large archives
+- **Stream days via per-day transactions instead of `getAll`.** The previous code materialized the entire `days` store as one JS array, which for multi-year Arc archives could blow past the V8 ArrayBuffer limit before SQLite even started building. New `forEachDay()` fetches the day key list once, then opens a short read-only transaction per day. Memory is dominated by one day at a time; old days are GC'd between iterations.
+- **Drop `raw_json` from the export by default.** Each day's full JSON blob roughly doubled the working set during export (V8 string + SQLite text column) while the relational schema already covers every query. The MCP Server tab now has an "Include raw JSON blob for each day" checkbox for the rare case where you want it as an escape hatch. The column is still defined in the schema; it's just NULL unless the box is checked.
+- Two yield points (between days and at each progress update) give the GC a chance to run, which matters when WASM heap is near its ceiling.
+
+## Build 02.278 (2026-05-21)
+
+### MCP Export — schema v2 (fix for multi-day items)
+- **Fix `UNIQUE constraint failed: timeline_items.item_id` on export.** Arc's timeline data can legitimately contain the same `itemId` in multiple days' `timelineItems[]` arrays — when a visit or activity spans midnight, both adjacent days reference it. The original v1 schema treated `item_id` as a single-column PRIMARY KEY, which exploded on the second occurrence.
+- **`timeline_items` PK is now `(item_id, day_key)`** so multi-day spans appear in both day rows. Added a secondary `ti_item` index for "find every row for this item" lookups, and `INSERT OR IGNORE` on the load path as a defensive guard against same-day duplicates.
+- **`gps_samples` PK is now `(item_id, day_key, sample_idx)`** for the same reason — the samples on a cross-midnight item get inserted with both day instances.
+- **`notes` gains `UNIQUE (item_id, day_key, note_idx) ON CONFLICT IGNORE`** so cross-day items don't duplicate their notes.
+- **Schema version bumped to 2.** The MCP server's `SCHEMA_VERSION_EXPECTED` was updated to match; older v1 exports now produce a warning at startup but most queries still work. Re-export from the MCP Server tab to clear the warning.
+
+## Build 02.277 (2026-05-21)
+
+### MCP Server — bring your own AI client
+- **New "MCP Server" tab in Analysis** — Export your entire timeline as a single SQLite `.db` file and point a local [Model Context Protocol](https://modelcontextprotocol.io) server at it. Your own AI client (Claude Code, Codex, Claude Desktop) can then query the data using its own model and subscription, with no per-message API cost from Arc Reader.
+- **`arc-export.js` browser module** — Lazy-loads sql.js (CDN, ~1MB WASM) on first export only. Walks every IndexedDB store, flattens the nested timeline into a relational schema, and writes the result to a downloadable `.db` file. Skips secrets (API keys, tokens, credentials) before writing `app_metadata`. Shows progress in the UI and tracks export size/day-count/timestamp in `localStorage` so the tab can warn when the snapshot is stale.
+- **Companion `mcp-server/` Node.js package** — Read-only MCP server using `@modelcontextprotocol/sdk` and `better-sqlite3`. Exposes a `run_sql` tool (read-only, refuses anything but `SELECT`/`WITH … SELECT`) plus 13 named query tools mirroring the in-browser AI Chat capabilities, plus FTS5 full-text search over notes. Includes a `--selftest` mode for confirming the database is healthy before pointing a client at it. Days are also exposed as `arc://day/YYYY-MM-DD` MCP resources.
+- **Hybrid SQL schema** — Indexed tables for everything the existing tools query (`timeline_items`, `gps_samples`, `locations`, `location_visits`, `daily_summaries`, `daily_activity_stats`, `notes`) plus a `raw_json` column on `days` as an escape hatch for fields we don't flatten. Partial indexes keep visit-only and activity-only columns lean.
+- **Privacy note** — Unlike the built-in AI Chat tab (which strips coordinates before sending data to the model), the MCP path sends whatever the client requests, including raw GPS, to whichever model is configured. The tradeoff is access to frontier models on a subscription you already pay for.
+
 ## Build 02.276 (2026-04-11)
 
 ### Photo Server (macOS)

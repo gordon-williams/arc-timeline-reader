@@ -38,6 +38,15 @@ Arc Diary Reader is a browser-based tool for exploring Arc Timeline / Arc Editor
 | File | Role |
 |------|------|
 | `analysis-ai.js` | AI Chat tab — Anthropic Claude API integration, tool definitions, executors, system prompt, cost tracking. IIFE, not a window module. Runs inside analysis.html. |
+| `arc-export.js` | MCP Server tab — `window.ArcExport`. Lazy-loads sql.js (CDN WASM), walks every IndexedDB store, flattens timeline data into a relational schema, triggers `.db` download. Used only by the MCP Server tab in analysis.html. |
+
+### MCP Server (`mcp-server/`)
+
+| File | Role |
+|------|------|
+| `index.js` | Node.js MCP server using `@modelcontextprotocol/sdk` + `better-sqlite3`. Opens an exported `.db` read-only and exposes `run_sql` (SELECT-only) plus 13 named query tools and `arc://day/YYYY-MM-DD` resources to Claude Code, Codex, Claude Desktop. |
+| `package.json` | Dependencies and `arc-timeline-mcp` bin entry. Requires Node 18+. |
+| `README.md` | Setup, configuration snippets for each AI client, troubleshooting. |
 
 ### Utility Pages
 

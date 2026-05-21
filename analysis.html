@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Arc Timeline Analysis</title>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.tile-cyclosm.openstreetmap.fr https://*.basemaps.cartocdn.com https://api.mapbox.com https://server.arcgisonline.com; connect-src 'self' https://api.mapbox.com https://api.anthropic.com https://generativelanguage.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.tile-cyclosm.openstreetmap.fr https://*.basemaps.cartocdn.com https://api.mapbox.com https://server.arcgisonline.com; connect-src 'self' https://api.mapbox.com https://api.anthropic.com https://generativelanguage.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com;">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js" integrity="sha384-mFKkGiGvT5vo1fEyGCD3hshDdKmW3wzXW/x+fWriYJArD0R3gawT6lMvLboM22c0" crossorigin="anonymous"></script>
@@ -2724,6 +2724,183 @@
             0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
             40% { opacity: 1; transform: scale(1); }
         }
+
+        /* ───────── MCP Server Tab ───────── */
+        .mcp-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding: 16px 0;
+            max-width: 960px;
+        }
+        .mcp-card {
+            background: var(--bg-surface);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            padding: 18px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .mcp-card h3 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .mcp-card p, .mcp-card li {
+            margin: 0;
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--text-secondary);
+        }
+        .mcp-card ol, .mcp-card ul {
+            margin: 0;
+            padding-left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .mcp-status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+        }
+        .mcp-stat {
+            background: var(--bg-elevated, var(--bg-surface));
+            border: 1px solid var(--border-color, rgba(0,0,0,0.08));
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+        .mcp-stat-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+        .mcp-stat-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+        .mcp-staleness-pill {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 500;
+            background: var(--warning-bg, #fff3cd);
+            color: var(--warning-text, #856404);
+            border: 1px solid var(--warning-border, #ffeeba);
+            align-self: flex-start;
+        }
+        .mcp-staleness-pill.fresh {
+            background: var(--success-bg, #d4edda);
+            color: var(--success-text, #155724);
+            border-color: var(--success-border, #c3e6cb);
+        }
+        .mcp-export-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+        }
+        .mcp-progress {
+            flex: 1;
+            min-width: 200px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .mcp-progress-bar {
+            height: 4px;
+            background: rgba(0,0,0,0.08);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        .mcp-progress-bar-fill {
+            height: 100%;
+            background: var(--accent, #3478f6);
+            width: 0%;
+            transition: width 0.15s ease;
+        }
+        .mcp-config-tabs {
+            display: flex;
+            gap: 4px;
+            border-bottom: 1px solid var(--border-color, rgba(0,0,0,0.08));
+            margin-bottom: 8px;
+        }
+        .mcp-config-tab {
+            background: none;
+            border: none;
+            padding: 8px 14px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            font-family: inherit;
+        }
+        .mcp-config-tab.active {
+            color: var(--text-primary);
+            border-bottom-color: var(--accent, #3478f6);
+        }
+        .mcp-config-tab:hover {
+            color: var(--text-primary);
+        }
+        .mcp-config-pane {
+            display: none;
+        }
+        .mcp-config-pane.active {
+            display: block;
+        }
+        .mcp-code {
+            background: var(--code-bg, #1e1e1e);
+            color: var(--code-fg, #f6f6f6);
+            border-radius: 8px;
+            padding: 12px 14px;
+            font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            overflow-x: auto;
+            white-space: pre;
+            position: relative;
+        }
+        .mcp-code-copy {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(255,255,255,0.12);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 11px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .mcp-code-copy:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .mcp-path-input {
+            width: 100%;
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color, rgba(0,0,0,0.15));
+            background: var(--bg-elevated, var(--bg-surface));
+            color: var(--text-primary);
+            font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+            font-size: 12px;
+        }
+        .mcp-privacy {
+            font-size: 12px;
+            color: var(--text-secondary);
+            background: rgba(255, 196, 0, 0.08);
+            border-left: 3px solid #f0a020;
+            padding: 10px 12px;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -2740,6 +2917,7 @@
             <button class="analysis-tab active" data-tab="activities">Activities</button>
             <button class="analysis-tab" data-tab="locations">Locations</button>
             <button class="analysis-tab" data-tab="chat">AI Chat</button>
+            <button class="analysis-tab" data-tab="mcp">MCP Server</button>
         </div>
         
         <div class="analysis-body">
@@ -3026,6 +3204,100 @@
                     </div>
                 </div>
             </div>
+
+            <!-- MCP Server Tab -->
+            <div class="tab-content" id="tabMcp">
+                <div class="mcp-panel">
+                    <div class="mcp-card">
+                        <h3>What this is</h3>
+                        <p>Export your Arc Reader database as a <strong>SQLite file</strong>, then point a local MCP server at it. Your own AI client (Claude Code, Codex, Claude Desktop) can then query your timeline using its own model and subscription — fully local, no third-party servers, your data stays on your machine.</p>
+                        <p style="font-size:12px;color:var(--text-secondary);">Why not use the built-in AI Chat tab? That tab works, but it's locked to one provider and your API budget. The MCP path lets you use whichever model your client is configured with — including frontier models you're already paying for.</p>
+                    </div>
+
+                    <div class="mcp-card">
+                        <h3>Status</h3>
+                        <div class="mcp-status-grid" id="mcpStatusGrid">
+                            <div class="mcp-stat"><div class="mcp-stat-label">Days in database</div><div class="mcp-stat-value" id="mcpStatDays">…</div></div>
+                            <div class="mcp-stat"><div class="mcp-stat-label">Locations</div><div class="mcp-stat-value" id="mcpStatLocations">…</div></div>
+                            <div class="mcp-stat"><div class="mcp-stat-label">Last export</div><div class="mcp-stat-value" id="mcpStatExported">Never</div></div>
+                            <div class="mcp-stat"><div class="mcp-stat-label">Last file size</div><div class="mcp-stat-value" id="mcpStatSize">—</div></div>
+                        </div>
+                        <span class="mcp-staleness-pill" id="mcpStalenessPill" style="display:none;"></span>
+                    </div>
+
+                    <div class="mcp-card">
+                        <h3>1. Export the database</h3>
+                        <p>Download a <code>.db</code> file containing all your timeline data — every visit, activity, GPS sample, location, and note. The file is built entirely in your browser and never leaves your machine.</p>
+                        <div class="mcp-export-row">
+                            <button class="btn btn-primary" id="mcpExportBtn">Export database</button>
+                            <div class="mcp-progress" id="mcpProgress" style="display:none;">
+                                <div id="mcpProgressLabel">Preparing…</div>
+                                <div class="mcp-progress-bar"><div class="mcp-progress-bar-fill" id="mcpProgressFill"></div></div>
+                            </div>
+                        </div>
+                        <label style="display:flex;align-items:flex-start;gap:6px;font-size:12px;color:var(--text-secondary);"><input type="checkbox" id="mcpIncludeGpsSamples" style="margin-top:3px;"><span>Include raw GPS samples. Off by default because samples dominate the file size on multi-year archives (often 1–3 GB) and can cause the export to run out of memory. <strong>Region searches and altitude queries still work with this off</strong> — they fall back to per-day aggregates (bbox + min/max altitude) that the export computes for every day. Only turn this on if you need per-second GPS precision.</span></label>
+                        <label style="display:flex;align-items:flex-start;gap:6px;font-size:12px;color:var(--text-secondary);"><input type="checkbox" id="mcpIncludeRawJson" style="margin-top:3px;"><span>Include raw JSON blob for each day. Much larger file; only useful as an escape hatch for fields the relational schema doesn't flatten. Leave off unless you have a specific reason.</span></label>
+                    </div>
+
+                    <div class="mcp-card">
+                        <h3>2. Let your AI install it for you</h3>
+                        <p>Open Claude Code, Codex, or Claude Desktop, and paste the prompt below. Your AI will read the install instructions, clone the repo, install Node dependencies, register the server with itself, and tell you when to restart.</p>
+                        <div class="mcp-code" id="mcpAiPromptBlock"></div>
+                        <p style="font-size:12px;">Before pasting, make sure you've clicked <strong>Export database</strong> above and know where you saved the <code>.db</code> file — your AI will ask you for its path.</p>
+                        <details style="margin-top:8px;">
+                            <summary style="cursor:pointer;font-size:13px;color:var(--text-secondary);">Prefer to install it yourself?</summary>
+                            <div style="margin-top:8px;padding:8px 12px;border-left:3px solid var(--border-color, rgba(255,255,255,0.1));font-size:12px;">
+                                <p>Requires <strong>Node.js 18+</strong>:</p>
+                                <div class="mcp-code">git clone https://github.com/gordon-williams/Timeline-Reader---Claude-Code.git
+cd Timeline-Reader---Claude-Code/mcp-server
+npm install
+node index.js /path/to/your.db --selftest<button class="mcp-code-copy" data-copy-target="mcpInstallSnippet">Copy</button></div>
+                                <textarea id="mcpInstallSnippet" style="display:none;">git clone https://github.com/gordon-williams/Timeline-Reader---Claude-Code.git
+cd Timeline-Reader---Claude-Code/mcp-server
+npm install
+node index.js /path/to/your.db --selftest</textarea>
+                                <p style="margin-top:8px;">Then point your AI client at the server. Paste the <code>.db</code> path here to generate the config snippet:</p>
+                                <input type="text" class="mcp-path-input" id="mcpDbPath" placeholder="/Users/you/arc-timeline.db" value="/Users/you/arc-timeline.db" />
+                                <div class="mcp-config-tabs" id="mcpConfigTabs">
+                                    <button class="mcp-config-tab active" data-config="claude-code">Claude Code</button>
+                                    <button class="mcp-config-tab" data-config="codex">Codex</button>
+                                    <button class="mcp-config-tab" data-config="claude-desktop">Claude Desktop</button>
+                                </div>
+                                <div class="mcp-config-pane active" data-config="claude-code">
+                                    <p>Add to <code>~/.config/claude-code/mcp.json</code> (or run <code>claude mcp add</code>):</p>
+                                    <div class="mcp-code" id="mcpSnippetClaudeCode"></div>
+                                </div>
+                                <div class="mcp-config-pane" data-config="codex">
+                                    <p>Add to <code>~/.codex/config.toml</code>:</p>
+                                    <div class="mcp-code" id="mcpSnippetCodex"></div>
+                                </div>
+                                <div class="mcp-config-pane" data-config="claude-desktop">
+                                    <p>Add to <code>~/Library/Application Support/Claude/claude_desktop_config.json</code> (macOS) or <code>%APPDATA%\Claude\claude_desktop_config.json</code> (Windows):</p>
+                                    <div class="mcp-code" id="mcpSnippetClaudeDesktop"></div>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+
+                    <div class="mcp-card">
+                        <h3>3. Try it</h3>
+                        <p>Once your AI tells you it's done, restart your AI client. Then ask things like:</p>
+                        <ul>
+                            <li>"What's the furthest north I've ever been?"</li>
+                            <li>"Find every day I spent more than three hours walking."</li>
+                            <li>"What was I doing on my birthday two years ago?"</li>
+                            <li>"Show me notes mentioning 'Florence'."</li>
+                        </ul>
+                    </div>
+
+                    <div class="mcp-card">
+                        <h3>Privacy</h3>
+                        <div class="mcp-privacy">
+                            Unlike the built-in AI Chat tab (which strips GPS coordinates and addresses before sending data to the model), the MCP path sends <strong>whatever your AI client requests</strong> — including raw coordinates — to whichever model your client is configured with. Your data, your client, your call. The export skips API keys and other secrets stored in browser metadata.
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -3033,7 +3305,7 @@
     <script src="arc-sprites.js"></script>
     <script>
         // Build version
-        const ANALYSIS_BUILD = '02.276';
+        const ANALYSIS_BUILD = '02.282';
         
         // Database and state
         let db = null;
@@ -3566,10 +3838,11 @@
         function switchTab(tabId) {
             document.querySelectorAll('.analysis-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            
+
             document.querySelector(`.analysis-tab[data-tab="${tabId}"]`)?.classList.add('active');
-            const tabElementMap = { activities: 'tabActivities', locations: 'tabLocations', chat: 'tabChat' };
+            const tabElementMap = { activities: 'tabActivities', locations: 'tabLocations', chat: 'tabChat', mcp: 'tabMcp' };
             document.getElementById(tabElementMap[tabId])?.classList.add('active');
+            if (tabId === 'mcp') refreshMcpStatus();
         }
         
         function applyPreset(preset, mode = 'activity') {
@@ -9349,12 +9622,280 @@
                 if (footer) footer.style.display = originalDisplay;
             }
         };
+
+        // ──────────────────────────────────────────────────────────────────
+        // MCP Server tab
+        // ──────────────────────────────────────────────────────────────────
+
+        const MCP_LAST_EXPORT_KEY = 'mcpLastExport';
+        let _mcpExportInFlight = false;
+
+        function fmtBytes(n) {
+            if (!Number.isFinite(n) || n <= 0) return '—';
+            const units = ['B', 'KB', 'MB', 'GB'];
+            let i = 0, v = n;
+            while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+            return `${v.toFixed(v >= 100 || i === 0 ? 0 : v >= 10 ? 1 : 2)} ${units[i]}`;
+        }
+
+        function fmtNumber(n) {
+            return (typeof n === 'number' && Number.isFinite(n)) ? n.toLocaleString() : '—';
+        }
+
+        function fmtRelativeDate(iso) {
+            if (!iso) return 'Never';
+            const t = Date.parse(iso);
+            if (!Number.isFinite(t)) return 'Never';
+            const deltaMs = Date.now() - t;
+            const mins = Math.round(deltaMs / 60000);
+            if (mins < 1) return 'Just now';
+            if (mins < 60) return `${mins}m ago`;
+            const hrs = Math.round(mins / 60);
+            if (hrs < 24) return `${hrs}h ago`;
+            const days = Math.round(hrs / 24);
+            if (days < 7) return `${days}d ago`;
+            const d = new Date(t);
+            return d.toLocaleDateString();
+        }
+
+        function readMcpLastExport() {
+            try {
+                const raw = localStorage.getItem(MCP_LAST_EXPORT_KEY);
+                return raw ? JSON.parse(raw) : null;
+            } catch { return null; }
+        }
+
+        function writeMcpLastExport(record) {
+            try {
+                localStorage.setItem(MCP_LAST_EXPORT_KEY, JSON.stringify(record));
+            } catch { /* quota — ignore */ }
+        }
+
+        async function refreshMcpStatus() {
+            if (!window.ArcExport || !db) return;
+            try {
+                const stats = await window.ArcExport.getExportStats(db);
+                document.getElementById('mcpStatDays').textContent = fmtNumber(stats.dayCount);
+                document.getElementById('mcpStatLocations').textContent = fmtNumber(stats.locationCount);
+
+                const last = readMcpLastExport();
+                document.getElementById('mcpStatExported').textContent = last ? fmtRelativeDate(last.exportedAt) : 'Never';
+                document.getElementById('mcpStatSize').textContent = last ? fmtBytes(last.sizeBytes) : '—';
+
+                const pill = document.getElementById('mcpStalenessPill');
+                if (!last) {
+                    pill.style.display = 'none';
+                } else if (last.dayCount !== stats.dayCount) {
+                    pill.textContent = `Data has changed since last export (${last.dayCount} → ${stats.dayCount} days)`;
+                    pill.classList.remove('fresh');
+                    pill.style.display = 'inline-block';
+                } else {
+                    pill.textContent = 'Export is current';
+                    pill.classList.add('fresh');
+                    pill.style.display = 'inline-block';
+                }
+            } catch (err) {
+                console.warn('refreshMcpStatus failed', err);
+            }
+        }
+
+        function escapeForJson(s) {
+            return String(s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        }
+
+        function escapeForToml(s) {
+            return String(s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        }
+
+        function buildClientSnippets(dbPath) {
+            const pathJson = escapeForJson(dbPath);
+            const pathToml = escapeForToml(dbPath);
+            const serverPathHint = '/absolute/path/to/Timeline-Reader---Claude-Code/mcp-server/index.js';
+            return {
+                'claude-code':
+`{
+  "mcpServers": {
+    "arc-timeline": {
+      "command": "node",
+      "args": [
+        "${escapeForJson(serverPathHint)}",
+        "${pathJson}"
+      ]
+    }
+  }
+}`,
+                'codex':
+`[mcp_servers.arc-timeline]
+command = "node"
+args = [
+  "${escapeForToml(serverPathHint)}",
+  "${pathToml}",
+]`,
+                'claude-desktop':
+`{
+  "mcpServers": {
+    "arc-timeline": {
+      "command": "node",
+      "args": [
+        "${escapeForJson(serverPathHint)}",
+        "${pathJson}"
+      ]
+    }
+  }
+}`
+            };
+        }
+
+        function renderMcpSnippets() {
+            const path = document.getElementById('mcpDbPath').value.trim() || '/Users/you/arc-timeline.db';
+            const snips = buildClientSnippets(path);
+            const targets = {
+                'claude-code': 'mcpSnippetClaudeCode',
+                'codex': 'mcpSnippetCodex',
+                'claude-desktop': 'mcpSnippetClaudeDesktop'
+            };
+            for (const [client, id] of Object.entries(targets)) {
+                const el = document.getElementById(id);
+                if (!el) continue;
+                const text = snips[client];
+                el.textContent = text;
+                // Re-add copy button
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'mcp-code-copy';
+                copyBtn.textContent = 'Copy';
+                copyBtn.addEventListener('click', () => copyTextToClipboard(text, copyBtn));
+                el.appendChild(copyBtn);
+            }
+        }
+
+        async function copyTextToClipboard(text, btn) {
+            try {
+                await navigator.clipboard.writeText(text);
+                if (btn) {
+                    const original = btn.textContent;
+                    btn.textContent = 'Copied!';
+                    setTimeout(() => { btn.textContent = original; }, 1500);
+                }
+            } catch (err) {
+                console.warn('Copy failed', err);
+                if (btn) btn.textContent = 'Copy failed';
+            }
+        }
+
+        async function runMcpExport() {
+            if (_mcpExportInFlight) return;
+            if (!window.ArcExport) { alert('Export module not loaded yet — try again in a moment.'); return; }
+            if (!db) { alert('Database not open.'); return; }
+
+            _mcpExportInFlight = true;
+            const btn = document.getElementById('mcpExportBtn');
+            const progress = document.getElementById('mcpProgress');
+            const label = document.getElementById('mcpProgressLabel');
+            const fill = document.getElementById('mcpProgressFill');
+            btn.disabled = true;
+            btn.textContent = 'Exporting…';
+            progress.style.display = 'block';
+            fill.style.width = '0%';
+            label.textContent = 'Starting…';
+
+            try {
+                const includeRawJson = document.getElementById('mcpIncludeRawJson')?.checked === true;
+                const includeGpsSamples = document.getElementById('mcpIncludeGpsSamples')?.checked === true;
+                const result = await window.ArcExport.exportAndDownload(db, {
+                    appBuild: (typeof ANALYSIS_BUILD !== 'undefined') ? ANALYSIS_BUILD : null,
+                    includeRawJson,
+                    includeGpsSamples,
+                    onProgress: (p) => {
+                        if (p && p.message) label.textContent = p.message;
+                        if (p && typeof p.percent === 'number') {
+                            fill.style.width = `${Math.max(0, Math.min(100, p.percent * 100))}%`;
+                        }
+                    }
+                });
+                fill.style.width = '100%';
+                label.textContent = `Saved ${result.filename} (${fmtBytes(result.stats.sizeBytes)})`;
+                writeMcpLastExport({
+                    exportedAt: new Date().toISOString(),
+                    filename: result.filename,
+                    sizeBytes: result.stats.sizeBytes,
+                    dayCount: result.stats.dayCount,
+                    itemCount: result.stats.itemCount,
+                    sampleCount: result.stats.sampleCount,
+                    earliestDay: result.stats.earliestDay,
+                    latestDay: result.stats.latestDay
+                });
+                refreshMcpStatus();
+            } catch (err) {
+                console.error('Export failed', err);
+                label.textContent = `Export failed: ${err.message || err}`;
+                fill.style.width = '0%';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Export database';
+                _mcpExportInFlight = false;
+            }
+        }
+
+        function renderAiInstallPrompt() {
+            const el = document.getElementById('mcpAiPromptBlock');
+            if (!el) return;
+            const url = 'https://raw.githubusercontent.com/gordon-williams/Timeline-Reader---Claude-Code/main/mcp-server/INSTALL-FOR-AI.md';
+            const text =
+`Please install the Arc Timeline MCP server for me. Read the instructions at:
+${url}
+
+Then follow them end-to-end. Ask me for the absolute path to the .db file I exported from Arc Reader when you need it. Tell me when you're done and I need to restart you.`;
+            el.textContent = text;
+            const btn = document.createElement('button');
+            btn.className = 'mcp-code-copy';
+            btn.textContent = 'Copy';
+            btn.addEventListener('click', () => copyTextToClipboard(text, btn));
+            el.appendChild(btn);
+        }
+
+        function setupMcpTab() {
+            document.getElementById('mcpExportBtn')?.addEventListener('click', runMcpExport);
+            document.getElementById('mcpDbPath')?.addEventListener('input', renderMcpSnippets);
+
+            document.querySelectorAll('#mcpConfigTabs .mcp-config-tab').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const target = btn.getAttribute('data-config');
+                    document.querySelectorAll('#mcpConfigTabs .mcp-config-tab').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.mcp-config-pane').forEach(p => p.classList.remove('active'));
+                    btn.classList.add('active');
+                    document.querySelector(`.mcp-config-pane[data-config="${target}"]`)?.classList.add('active');
+                });
+            });
+
+            // Install snippet has its own static copy button
+            document.querySelector('[data-copy-target="mcpInstallSnippet"]')?.addEventListener('click', (e) => {
+                const ta = document.getElementById('mcpInstallSnippet');
+                if (ta) copyTextToClipboard(ta.value, e.currentTarget);
+            });
+
+            renderAiInstallPrompt();
+            renderMcpSnippets();
+            refreshMcpStatus();
+        }
+
+        // Run setup once the DOM is ready (the surrounding script runs at bottom of body).
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', setupMcpTab);
+        } else {
+            setupMcpTab();
+        }
     </script>
     <script>
     // Load analysis-ai.js with cache-busting version parameter
     (function() {
         var s = document.createElement('script');
         s.src = 'analysis-ai.js?v=' + (typeof ANALYSIS_BUILD !== 'undefined' ? ANALYSIS_BUILD : Date.now());
+        document.body.appendChild(s);
+    })();
+    // Load arc-export.js (MCP Server tab uses it)
+    (function() {
+        var s = document.createElement('script');
+        s.src = 'arc-export.js?v=' + (typeof ANALYSIS_BUILD !== 'undefined' ? ANALYSIS_BUILD : Date.now());
         document.body.appendChild(s);
     })();
     </script>
