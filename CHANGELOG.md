@@ -1,5 +1,10 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.283 (2026-05-21)
+
+### MCP Server — fix repo name in install URLs
+- The AI install prompt and the manual instructions both pointed at `Timeline-Reader---Claude-Code`, which was an older repo name. The canonical name on GitHub is `arc-timeline-reader`. Updated [analysis.html](analysis.html), [mcp-server/README.md](mcp-server/README.md), and [mcp-server/INSTALL-FOR-AI.md](mcp-server/INSTALL-FOR-AI.md). The install URL the Copy button now puts on the clipboard resolves correctly.
+
 ## Build 02.282 (2026-05-21)
 
 ### MCP Server — AI-driven install

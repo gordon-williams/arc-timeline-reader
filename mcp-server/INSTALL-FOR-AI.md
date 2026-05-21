@@ -53,7 +53,7 @@ Pick an install location. Default: `~/arc-timeline-mcp`. If the user has a prefe
 ```bash
 mkdir -p ~/arc-timeline-mcp
 cd ~/arc-timeline-mcp
-git clone https://github.com/gordon-williams/Timeline-Reader---Claude-Code.git .
+git clone https://github.com/gordon-williams/arc-timeline-reader.git .
 cd mcp-server
 npm install
 ```

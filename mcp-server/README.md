@@ -1,6 +1,6 @@
 # Arc Timeline MCP Server
 
-A small [Model Context Protocol](https://modelcontextprotocol.io) server that exposes an [Arc Reader](https://github.com/gordon-williams/Timeline-Reader---Claude-Code) timeline database (exported as SQLite) to any MCP-compatible AI client — Claude Code, Codex, Claude Desktop, and others.
+A small [Model Context Protocol](https://modelcontextprotocol.io) server that exposes an [Arc Reader](https://github.com/gordon-williams/arc-timeline-reader) timeline database (exported as SQLite) to any MCP-compatible AI client — Claude Code, Codex, Claude Desktop, and others.
 
 The server is **read-only**. The `run_sql` tool refuses any statement that isn't a `SELECT` (or `WITH … SELECT`). No data leaves your machine except whatever your AI client sends to its model.
 
@@ -20,8 +20,8 @@ The server is **read-only**. The `run_sql` tool refuses any statement that isn't
 2. Install the server:
 
    ```bash
-   git clone https://github.com/gordon-williams/Timeline-Reader---Claude-Code.git
-   cd Timeline-Reader---Claude-Code/mcp-server
+   git clone https://github.com/gordon-williams/arc-timeline-reader.git
+   cd arc-timeline-reader/mcp-server
    npm install
    ```
 

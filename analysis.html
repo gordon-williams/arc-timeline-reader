@@ -3248,12 +3248,12 @@
                             <summary style="cursor:pointer;font-size:13px;color:var(--text-secondary);">Prefer to install it yourself?</summary>
                             <div style="margin-top:8px;padding:8px 12px;border-left:3px solid var(--border-color, rgba(255,255,255,0.1));font-size:12px;">
                                 <p>Requires <strong>Node.js 18+</strong>:</p>
-                                <div class="mcp-code">git clone https://github.com/gordon-williams/Timeline-Reader---Claude-Code.git
-cd Timeline-Reader---Claude-Code/mcp-server
+                                <div class="mcp-code">git clone https://github.com/gordon-williams/arc-timeline-reader.git
+cd arc-timeline-reader/mcp-server
 npm install
 node index.js /path/to/your.db --selftest<button class="mcp-code-copy" data-copy-target="mcpInstallSnippet">Copy</button></div>
-                                <textarea id="mcpInstallSnippet" style="display:none;">git clone https://github.com/gordon-williams/Timeline-Reader---Claude-Code.git
-cd Timeline-Reader---Claude-Code/mcp-server
+                                <textarea id="mcpInstallSnippet" style="display:none;">git clone https://github.com/gordon-williams/arc-timeline-reader.git
+cd arc-timeline-reader/mcp-server
 npm install
 node index.js /path/to/your.db --selftest</textarea>
                                 <p style="margin-top:8px;">Then point your AI client at the server. Paste the <code>.db</code> path here to generate the config snippet:</p>
@@ -3305,7 +3305,7 @@ node index.js /path/to/your.db --selftest</textarea>
     <script src="arc-sprites.js"></script>
     <script>
         // Build version
-        const ANALYSIS_BUILD = '02.282';
+        const ANALYSIS_BUILD = '02.283';
         
         // Database and state
         let db = null;
@@ -9710,7 +9710,7 @@ node index.js /path/to/your.db --selftest</textarea>
         function buildClientSnippets(dbPath) {
             const pathJson = escapeForJson(dbPath);
             const pathToml = escapeForToml(dbPath);
-            const serverPathHint = '/absolute/path/to/Timeline-Reader---Claude-Code/mcp-server/index.js';
+            const serverPathHint = '/absolute/path/to/arc-timeline-reader/mcp-server/index.js';
             return {
                 'claude-code':
 `{
@@ -9839,7 +9839,7 @@ args = [
         function renderAiInstallPrompt() {
             const el = document.getElementById('mcpAiPromptBlock');
             if (!el) return;
-            const url = 'https://raw.githubusercontent.com/gordon-williams/Timeline-Reader---Claude-Code/main/mcp-server/INSTALL-FOR-AI.md';
+            const url = 'https://raw.githubusercontent.com/gordon-williams/arc-timeline-reader/main/mcp-server/INSTALL-FOR-AI.md';
             const text =
 `Please install the Arc Timeline MCP server for me. Read the instructions at:
 ${url}
