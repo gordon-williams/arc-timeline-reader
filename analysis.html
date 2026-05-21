@@ -3264,7 +3264,7 @@ node index.js /path/to/your.db --selftest</textarea>
                                     <button class="mcp-config-tab" data-config="claude-desktop">Claude Desktop</button>
                                 </div>
                                 <div class="mcp-config-pane active" data-config="claude-code">
-                                    <p>Add to <code>~/.config/claude-code/mcp.json</code> (or run <code>claude mcp add</code>):</p>
+                                    <p>Run <code>claude mcp add --scope user arc-timeline node /path/to/index.js /path/to/your.db</code>, or merge this into the top-level <code>mcpServers</code> key in <code>~/.claude.json</code> (don't overwrite — that file holds other Claude Code state):</p>
                                     <div class="mcp-code" id="mcpSnippetClaudeCode"></div>
                                 </div>
                                 <div class="mcp-config-pane" data-config="codex">
@@ -3305,7 +3305,7 @@ node index.js /path/to/your.db --selftest</textarea>
     <script src="arc-sprites.js"></script>
     <script>
         // Build version
-        const ANALYSIS_BUILD = '02.283';
+        const ANALYSIS_BUILD = '02.284';
         
         // Database and state
         let db = null;

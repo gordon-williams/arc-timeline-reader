@@ -1,5 +1,12 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.284 (2026-05-21)
+
+### MCP Server — fix Claude Code config path in install instructions
+- The install doc and the manual fallback in the MCP Server tab told AIs that Claude Code's MCP config lives at `~/.config/claude-code/mcp.json`. The real location on macOS, Linux, and Windows is the top-level `mcpServers` key in `~/.claude.json`. Caught when an actual install run hit "config dir doesn't exist".
+- **`mcp-server/INSTALL-FOR-AI.md`** — Claude Code section now leads with `claude mcp add --scope user …` and falls back to an inline Node one-liner that safely merges into `~/.claude.json` (backs up first, preserves every other key). Critical because `~/.claude.json` holds a lot of unrelated state; a careless overwrite would wipe project history.
+- **`mcp-server/README.md`** and **MCP Server tab manual snippet** — same correction.
+
 ## Build 02.283 (2026-05-21)
 
 ### MCP Server — fix repo name in install URLs

@@ -36,7 +36,7 @@ Look at your own runtime context to determine which client config you need to mo
 
 | Client | Config file | Format |
 |---|---|---|
-| **Claude Code** | `~/.config/claude-code/mcp.json` (or `claude mcp add` CLI) | JSON |
+| **Claude Code** | `~/.claude.json` (top-level `mcpServers` key — see Step 4 for safe-merge instructions) | JSON |
 | **Codex** | `~/.codex/config.toml` | TOML |
 | **Claude Desktop (macOS)** | `~/Library/Application Support/Claude/claude_desktop_config.json` | JSON |
 | **Claude Desktop (Windows)** | `%APPDATA%\Claude\claude_desktop_config.json` | JSON |
@@ -107,23 +107,35 @@ Use the path you noted in Step 2 (the absolute path to `index.js`) and the user'
 
 ### If you are Claude Code
 
-The simplest path is the CLI:
+**Try the CLI first** — it handles the merge for you:
 ```bash
-claude mcp add arc-timeline node /absolute/path/to/index.js "$DB_PATH"
+claude mcp add --scope user arc-timeline node /absolute/path/to/index.js "$DB_PATH"
 ```
 
-Or edit `~/.config/claude-code/mcp.json` (create it if missing) and merge in:
-```json
-{
-  "mcpServers": {
-    "arc-timeline": {
-      "command": "node",
-      "args": ["/absolute/path/to/index.js", "/absolute/path/to/arc-timeline.db"]
-    }
-  }
-}
+**If `claude mcp add` is not available** (CLI not on PATH, or `which claude` returns nothing), edit `~/.claude.json` directly. **This file contains a lot of unrelated Claude Code state** (project history, settings, telemetry caches) — under no circumstances overwrite it. Do a safe in-place merge:
+
+```bash
+node -e "
+const fs = require('fs');
+const p = require('os').homedir() + '/.claude.json';
+const backup = p + '.backup-' + Date.now();
+fs.copyFileSync(p, backup);
+const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+j.mcpServers = j.mcpServers || {};
+j.mcpServers['arc-timeline'] = {
+  command: 'node',
+  args: [
+    '/absolute/path/to/index.js',
+    '/absolute/path/to/arc-timeline.db'
+  ]
+};
+fs.writeFileSync(p, JSON.stringify(j, null, 2));
+console.log('Backup at ' + backup);
+"
 ```
-**If the file already has `mcpServers` entries, do not overwrite — merge.**
+Replace the two `/absolute/path/to/…` strings with the real paths from Step 2 and the user's `.db` location. The script writes a timestamped backup before mutating — mention the backup path to the user so they can revert if anything goes wrong.
+
+If `~/.claude.json` doesn't exist yet (rare — usually means the user has never run Claude Code), create it with just `{"mcpServers": {...}}`.
 
 ### If you are Codex
 

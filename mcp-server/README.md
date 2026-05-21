@@ -43,7 +43,12 @@ Replace `/path/to/index.js` and `/path/to/arc-timeline.db` with absolute paths o
 
 ### Claude Code
 
-Add to `~/.config/claude-code/mcp.json` (or run `claude mcp add`):
+Easiest:
+```bash
+claude mcp add --scope user arc-timeline node /path/to/mcp-server/index.js /path/to/arc-timeline.db
+```
+
+If the `claude` CLI isn't available, add the entry to the top-level `mcpServers` key in `~/.claude.json`. **Don't overwrite that file** — it holds a lot of unrelated Claude Code state. Merge in:
 
 ```json
 {
