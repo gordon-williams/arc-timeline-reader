@@ -19,6 +19,7 @@
 ### Photo server — survive Node.js upgrades without a manual fix
 - **`better-sqlite3` now rebuilds itself.** The photo server and the MCP server both use a native SQLite module compiled for a specific Node.js version; upgrading Node used to crash them at startup with a `NODE_MODULE_VERSION` mismatch until someone ran `npm rebuild` by hand. Both servers now detect that exact error, rebuild the module automatically (about a minute, one time), and carry on. Any other load failure still surfaces normally.
 - In the MCP server the rebuild logs go to stderr only — stdout carries the MCP protocol and must stay clean.
+- **Windows photo server: not affected by any of the 02.285–02.289 fixes.** It scans the iCloud for Windows folder rather than the Apple Photos database, so it has no `better-sqlite3` (no Node-upgrade crash), no Shared-with-You phantom entries (only real files are indexed; on Windows unsaved Messages photos simply don't appear until saved and synced), its incremental import already catches late-saved photos via file modification time, and its HEIC pipeline (WIC / heic-convert) is separate from the macOS sips path.
 
 ## Build 02.288 (2026-07-22)
 
