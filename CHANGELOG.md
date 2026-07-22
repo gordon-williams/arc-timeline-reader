@@ -1,5 +1,12 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.292 (2026-07-22)
+
+### Photo viewer — auto-fit on photo change
+- **The fitted viewer window now re-sizes itself automatically when you step to a photo with a different shape.** Previously, navigating from a portrait photo to a landscape one (or vice versa) kept the previous photo's window and letterboxed the new image until you pressed Fit again. When the viewer is in fitted mode, every newly loaded photo or video now re-runs the fit calculation with its own dimensions. (Builds 02.290–02.292.)
+- Scope guards: only active in fitted mode — a window you sized yourself is left alone; no resizing in fullscreen; slideshows keep their stable start-of-show window for clean crossfades. The Fit button still toggles fitted mode off.
+- The tricky part was the viewer's dual-buffer crossfade: a stale load-handler on one buffer measured the outgoing photo and overwrote the correct fit on every second navigation. All refit calls now measure the exact element that loaded, never the "front" buffer.
+
 ## Build 02.289 (2026-07-22)
 
 ### Photo server — survive Node.js upgrades without a manual fix

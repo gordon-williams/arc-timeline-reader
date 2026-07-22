@@ -12692,7 +12692,21 @@ scrollToDiaryDay(currentDayKey);
             document.querySelectorAll('.photo-viewer-nav').forEach(track);
         })();
 
-        function fitPhotoViewerToContent() {
+        // Re-fit the viewer for newly loaded content when the user is in fitted
+        // mode — stepping from a portrait photo to a landscape one (or vice
+        // versa) would otherwise keep the previous photo's window shape until
+        // the Fit button is pressed again.  Pass explicit dimensions when the
+        // new content isn't in the front image yet (crossfade navigation).
+        function refitViewerIfFitted(contentW, contentH) {
+            const modal = document.getElementById('photoViewerModal');
+            if (!modal || !modal.classList.contains('fitted')) return;
+            if (document.fullscreenElement) return;
+            if (slideshowPlaying) return; // slideshow manages its own window
+            delete modal.dataset.fittedByBtn; // force re-fit, not toggle-off
+            fitPhotoViewerToContent(contentW, contentH);
+        }
+
+        function fitPhotoViewerToContent(overrideW, overrideH) {
             const modal = document.getElementById('photoViewerModal');
             if (!modal) return;
 
@@ -12722,14 +12736,19 @@ scrollToDiaryDay(currentDayKey);
                 modal.classList.remove('maximized');
             }
 
-            // Get content dimensions — use whichever image is currently in front
+            // Get content dimensions — explicit override first (crossfade
+            // navigation passes the incoming image's dimensions before it
+            // becomes the front image), then whichever image is in front
             const video = document.getElementById('photoViewerVideo');
             const imgA = document.getElementById('photoViewerImg');
             const imgB = document.getElementById('photoViewerImgB');
             const img = crossFadeFront === 'A' ? imgA : imgB;
             let contentW = 0, contentH = 0;
 
-            if (video && video.style.display !== 'none' && video.videoWidth) {
+            if (Number.isFinite(overrideW) && Number.isFinite(overrideH) && overrideW > 0 && overrideH > 0) {
+                contentW = overrideW;
+                contentH = overrideH;
+            } else if (video && video.style.display !== 'none' && video.videoWidth) {
                 contentW = video.videoWidth;
                 contentH = video.videoHeight;
             } else if (img && img.naturalWidth) {
@@ -13142,7 +13161,15 @@ scrollToDiaryDay(currentDayKey);
             if (!img) return;
 
             // Hide spinner whenever an image finishes loading (covers all code paths)
-            img.onload = () => setViewerLoading(false);
+            // Pass the element's own dimensions to refit — this handler also fires
+            // when crossfade navigation loads into imgA as the back buffer, and
+            // measuring the front image there would re-fit to the OLD photo
+            img.onload = () => {
+                setViewerLoading(false);
+                refitViewerIfFitted(img.naturalWidth, img.naturalHeight);
+            };
+            // Videos report their dimensions via loadedmetadata
+            if (video) video.onloadedmetadata = () => refitViewerIfFitted(video.videoWidth, video.videoHeight);
 
             // Track which photo we're loading to prevent race conditions
             const targetIndex = viewerIndex;
@@ -14060,6 +14087,9 @@ scrollToDiaryDay(currentDayKey);
                 ready.onload = () => {
                     if (viewerIndex !== targetIndex) return;
                     back.src = url;
+                    // Re-fit the viewer window for the incoming photo's shape
+                    // (no-op unless the viewer is in fitted mode)
+                    refitViewerIfFitted(ready.naturalWidth, ready.naturalHeight);
                     switch (slideshowTransition) {
                         case 'slide':      transitionSlide(front, back, targetIndex); break;
                         case 'zoom':       transitionZoom(front, back, targetIndex); break;
@@ -14075,6 +14105,8 @@ scrollToDiaryDay(currentDayKey);
                     const thumbUrl = await fallbackThumbnailUrl(photo, targetIndex);
                     if (thumbUrl && viewerIndex === targetIndex) {
                         back.src = thumbUrl;
+                        // Thumbnail dims may differ from the photo's — use metadata
+                        refitViewerIfFitted(photo.width, photo.height);
                         switch (slideshowTransition) {
                             case 'slide':      transitionSlide(front, back, targetIndex); break;
                             case 'zoom':       transitionZoom(front, back, targetIndex); break;
