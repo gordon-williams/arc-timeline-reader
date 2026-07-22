@@ -12598,7 +12598,6 @@ scrollToDiaryDay(currentDayKey);
                 modal.style.width = '';
                 modal.style.height = '';
                 modal.classList.remove('maximized', 'fitted');
-                delete modal.dataset.fittedByBtn;
             }
         }
 
@@ -12615,7 +12614,6 @@ scrollToDiaryDay(currentDayKey);
 
             // Clear fitted state
             modal.classList.remove('fitted');
-            delete modal.dataset.fittedByBtn;
             modal.style.width = '';
             modal.style.height = '';
             modal.style.transform = '';
@@ -12702,7 +12700,6 @@ scrollToDiaryDay(currentDayKey);
             if (!modal || !modal.classList.contains('fitted')) return;
             if (document.fullscreenElement) return;
             if (slideshowPlaying) return; // slideshow manages its own window
-            delete modal.dataset.fittedByBtn; // force re-fit, not toggle-off
             fitPhotoViewerToContent(contentW, contentH);
         }
 
@@ -12713,23 +12710,10 @@ scrollToDiaryDay(currentDayKey);
             // Don't resize while in fullscreen
             if (document.fullscreenElement) return;
 
-            // Toggle off only if this fitted state was explicitly set by
-            // this button press (not restored from storage or from a
-            // previous photo).  The data attribute is cleared whenever a
-            // new photo is loaded (see showViewerPhoto).
-            if (modal.classList.contains('fitted') && modal.dataset.fittedByBtn === '1') {
-                modal.classList.remove('fitted');
-                modal.style.width = '';
-                modal.style.height = '';
-                modal.style.position = '';
-                modal.style.left = '';
-                modal.style.top = '';
-                modal.style.margin = '';
-                modal.style.transform = '';
-                delete modal.dataset.fittedByBtn;
-                saveViewerSize();
-                return;
-            }
+            // The Fit button always fits — it is not a toggle.  (The old
+            // press-again-to-restore-default behaviour kept misfiring once
+            // automatic re-fitting on photo change was added; use the maximize
+            // button or resize the window manually to leave fitted mode.)
 
             // Exit maximized mode if active
             if (modal.classList.contains('maximized')) {
@@ -12824,7 +12808,6 @@ scrollToDiaryDay(currentDayKey);
 
             // Apply with transition
             modal.classList.add('fitted');
-            modal.dataset.fittedByBtn = '1';
             modal.style.width = modalW + 'px';
             modal.style.height = modalH + 'px';
 
@@ -13146,11 +13129,6 @@ scrollToDiaryDay(currentDayKey);
 
             // Cancel any pending delayed video load from navigatePhoto
             if (pendingVideoLoadTimer) { clearTimeout(pendingVideoLoadTimer); pendingVideoLoadTimer = null; }
-
-            // Clear fit-by-button flag so the fit button recalculates
-            // for new content instead of toggling off
-            const modal = document.getElementById('photoViewerModal');
-            if (modal) delete modal.dataset.fittedByBtn;
 
             // Highlight the matching diary thumbnail (or show in "+more" badge if beyond visible 8)
             highlightDiaryThumb(photo);
@@ -13997,13 +13975,9 @@ scrollToDiaryDay(currentDayKey);
                 if (newIdx !== -1) viewerIndex = newIdx;
             }
 
-            // Auto-fit viewer when slideshow starts (skip if already fullscreen
-            // or if the user already explicitly fitted via the Fit button —
-            // calling fitPhotoViewerToContent when fittedByBtn is set would
-            // trigger its toggle-off logic and undo the user's portrait fit)
-            const _modal = document.getElementById('photoViewerModal');
-            const alreadyUserFitted = _modal && _modal.classList.contains('fitted') && _modal.dataset.fittedByBtn === '1';
-            if (slideshowAutoFit && !document.fullscreenElement && !alreadyUserFitted) {
+            // Auto-fit viewer when slideshow starts (fit is idempotent — if the
+            // window is already fitted this just re-asserts the same geometry)
+            if (slideshowAutoFit && !document.fullscreenElement) {
                 fitPhotoViewerToContent();
             }
 

@@ -1,5 +1,11 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.297 (2026-07-22)
+
+### Photo viewer — Fit button always fits (no longer a toggle)
+- **Pressing Fit now always fits the window; pressing it again is a no-op.** The old press-again-to-restore-default-size toggle kept misfiring once automatic re-fit on photo change (02.292) was added: the auto-refit armed the toggle's "user pressed Fit for this photo" flag, so an innocent press after navigating threw the window to the viewport centre, overlapping the diary panel. After several attempts to make the toggle state track auto-refits reliably (02.295–02.296), the toggle was removed instead — the button now has one job. Leave fitted mode with the maximize button or by resizing the window manually.
+- All `fittedByBtn` state-tracking removed; the slideshow's start-of-show fit simplified accordingly (fit is idempotent now). MANUAL.md updated.
+
 ## Build 02.294 (2026-07-22)
 
 ### Start screen — obvious folder-picker buttons on the import panels
