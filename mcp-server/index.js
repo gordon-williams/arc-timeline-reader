@@ -13,7 +13,6 @@
  * that isn't a SELECT or WITH ... SELECT.
  */
 
-import Database from 'better-sqlite3';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -24,6 +23,34 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
+import { execSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+// better-sqlite3 is a native module compiled against a specific Node.js ABI.
+// After a Node upgrade it fails to load (ERR_DLOPEN_FAILED / NODE_MODULE_VERSION
+// mismatch) — rebuild it automatically instead of requiring a manual npm rebuild.
+// Loaded via createRequire: a failed CJS require isn't cached, so the retry after
+// rebuilding works (a failed ESM import would be cached as errored).
+// All output goes to stderr — stdout carries the MCP protocol.
+const require = createRequire(import.meta.url);
+function loadBetterSqlite3() {
+    try {
+        return require('better-sqlite3');
+    } catch (err) {
+        const msg = String((err && err.message) || '');
+        if (err.code !== 'ERR_DLOPEN_FAILED' && !msg.includes('NODE_MODULE_VERSION')) throw err;
+        console.error(`better-sqlite3 was built for a different Node.js version — rebuilding for ${process.version}...`);
+        execSync('npm rebuild better-sqlite3', {
+            cwd: path.dirname(fileURLToPath(import.meta.url)),
+            stdio: ['ignore', 'ignore', 'inherit'],
+            timeout: 300000
+        });
+        console.error('Rebuild complete.');
+        return require('better-sqlite3');
+    }
+}
+const Database = loadBetterSqlite3();
 
 const SCHEMA_VERSION_EXPECTED = 4;
 const MAX_ROWS = 1000;        // hard cap on rows returned per query

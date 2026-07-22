@@ -7,7 +7,24 @@ const fs = require('fs');
 const { execFile } = require('child_process');
 const express = require('express');
 const cors = require('cors');
-const Database = require('better-sqlite3');
+// better-sqlite3 is a native module compiled against a specific Node.js ABI.
+// After a Node upgrade it fails to load (ERR_DLOPEN_FAILED / NODE_MODULE_VERSION
+// mismatch) — rebuild it automatically instead of requiring a manual npm rebuild.
+function requireBetterSqlite3() {
+    try {
+        return require('better-sqlite3');
+    } catch (err) {
+        const msg = String((err && err.message) || '');
+        if (err.code !== 'ERR_DLOPEN_FAILED' && !msg.includes('NODE_MODULE_VERSION')) throw err;
+        console.log(`better-sqlite3 was built for a different Node.js version — rebuilding for ${process.version} (takes a minute)...`);
+        require('child_process').execSync('npm rebuild better-sqlite3', {
+            cwd: __dirname, stdio: 'inherit', timeout: 300000
+        });
+        console.log('Rebuild complete.');
+        return require('better-sqlite3');
+    }
+}
+const Database = requireBetterSqlite3();
 const sharp = require('sharp');
 
 process.on('unhandledRejection', (reason) => {
@@ -234,12 +251,15 @@ function prepareStatements() {
 
     stmts.allMetadata = db.prepare(`${BASE_SELECT} ORDER BY z.ZDATECREATED`);
 
-    // Incremental query: return items that are new OR modified since last import
+    // Incremental query: return items that are new, modified, or added since last import
     // ZMODIFICATIONDATE updates when a photo is edited (crop, adjust, etc.)
-    const hasModDate = assetCols.has('ZMODIFICATIONDATE');
-    const afterClause = hasModDate
-        ? `AND (z.ZDATECREATED > :afterCoreData OR z.ZMODIFICATIONDATE > :afterCoreData)`
-        : `AND z.ZDATECREATED > :afterCoreData`;
+    // ZADDEDDATE catches photos saved to the library later than their capture date
+    // (e.g. photos received via Messages/AirDrop) — without it they'd be skipped
+    // when ZDATECREATED predates the last import.
+    const afterConds = ['z.ZDATECREATED > :afterCoreData'];
+    if (assetCols.has('ZMODIFICATIONDATE')) afterConds.push('z.ZMODIFICATIONDATE > :afterCoreData');
+    if (assetCols.has('ZADDEDDATE')) afterConds.push('z.ZADDEDDATE > :afterCoreData');
+    const afterClause = `AND (${afterConds.join(' OR ')})`;
 
     stmts.metadataAfter = db.prepare(`
         ${BASE_SELECT} ${afterClause} ORDER BY z.ZDATECREATED
@@ -271,7 +291,8 @@ function formatRow(row) {
         type: row.kind === 1 ? 'video' : 'photo',
         duration: row.duration || null,
         modDate: row.modDate || null,
-        _directory: row.directory || null,
+        // Note: ZDIRECTORY can be numeric 0 (bucket "0") — `|| null` would drop it
+        _directory: row.directory != null ? String(row.directory) : null,
         _uti: row.uti || null,
         _uuid: row.uuid || null
     };
@@ -281,11 +302,36 @@ function formatRow(row) {
 // Image processing
 // ---------------------------------------------------------------------------
 
+// Library scopes — Messages "Shared with You" (syndication), shared albums, and
+// iCloud Shared Library assets store their files under scopes/<name>/ mirroring
+// the main library layout (originals/{dir}/{file}, resources/derivatives/...).
+const SCOPES_PATH = path.join(LIBRARY_PATH, 'scopes');
+const scopeRoots = []; // [{ name, originals }] — populated by discoverScopes()
+
+function discoverScopes() {
+    let entries;
+    try { entries = fs.readdirSync(SCOPES_PATH, { withFileTypes: true }); } catch (_) { return; }
+    for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const originals = path.join(SCOPES_PATH, entry.name, 'originals');
+        if (fs.existsSync(originals)) scopeRoots.push({ name: entry.name, originals });
+    }
+    if (scopeRoots.length) {
+        console.log(`Scopes:  ${scopeRoots.map(s => s.name).join(', ')}`);
+    }
+}
+
 function resolveOriginalPath(row) {
     // Originals are stored at: originals/{ZDIRECTORY}/{ZFILENAME}
-    if (!row._directory || !row.filename) return null;
+    if (row._directory == null || !row.filename) return null;
     const primary = path.join(ORIGINALS_PATH, row._directory, row.filename);
     if (fs.existsSync(primary)) return primary;
+
+    // Scope-local originals (Shared with You, shared albums, shared library)
+    for (const scope of scopeRoots) {
+        const scoped = path.join(scope.originals, row._directory, row.filename);
+        if (fs.existsSync(scoped)) return scoped;
+    }
 
     // Legacy fallback: older/migrated libraries may still store assets under Masters/
     const legacy = path.join(MASTERS_PATH, row._directory, row.filename);
@@ -443,6 +489,17 @@ function buildDerivativeMap() {
         } catch (_) {}
         const sharingAdded = derivativeMap.size - beforeSharing;
         if (sharingAdded > 0) console.log(`  + ${sharingAdded.toLocaleString()} from cloudsharing/`);
+    }
+
+    // Scan scope-local derivatives — scopes/<name>/resources/derivatives/
+    // (Shared with You syndication assets keep their previews here)
+    for (const scope of scopeRoots) {
+        const scopeDerivs = path.join(SCOPES_PATH, scope.name, 'resources', 'derivatives');
+        if (!fs.existsSync(scopeDerivs)) continue;
+        const beforeScope = derivativeMap.size;
+        totalFiles += scanDerivativeDir(scopeDerivs);
+        const scopeAdded = derivativeMap.size - beforeScope;
+        if (scopeAdded > 0) console.log(`  + ${scopeAdded.toLocaleString()} from scopes/${scope.name}/`);
     }
 
     if (totalFiles === 0) {
@@ -609,7 +666,9 @@ async function generateThumbnail(photoId, maxSize, { forceRerender = false } = {
     if (!hasOriginal) {
         const derivPath = resolveDerivativePath(formatted);
         if (derivPath) {
-            // Derivative may be JPEG or HEIC — resize with Sharp
+            // Derivative may be JPEG or HEIC — try Sharp first, then sips.
+            // Prebuilt Sharp/libvips cannot decode HEIC (only AVIF), so HEIC
+            // derivatives need the sips fallback via macOS ImageIO.
             const tmpPath = cachePath + '.tmp';
             await acquireSlot();
             try {
@@ -627,6 +686,25 @@ async function generateThumbnail(photoId, maxSize, { forceRerender = false } = {
                 try { fs.unlinkSync(tmpPath); } catch (_) {}
             } catch (err) {
                 try { fs.unlinkSync(tmpPath); } catch (_) {}
+                // Fall through to sips (HEIC), then PhotoKit / iCloud cache
+            } finally {
+                releaseSlot();
+            }
+
+            // sips fallback for formats Sharp can't decode (HEIC derivatives)
+            await acquireSlot();
+            try {
+                await sipsConvert(derivPath, tmpPath, maxSize, isThumb ? 80 : 90);
+                const tmpStat = fs.statSync(tmpPath);
+                if (tmpStat.size > 0) {
+                    fs.renameSync(tmpPath, cachePath);
+                    const fname = formatted.originalFilename || formatted.filename || `ID ${photoId}`;
+                    console.log(`[render] ${fname}: derivative via sips fallback (${maxSize}px)`);
+                    return cachePath;
+                }
+                try { fs.unlinkSync(tmpPath); } catch (_) {}
+            } catch (_) {
+                try { fs.unlinkSync(tmpPath); } catch (_e) {}
                 // Fall through to other fallbacks (PhotoKit, iCloud cache)
             } finally {
                 releaseSlot();
@@ -699,6 +777,9 @@ async function generateThumbnail(photoId, maxSize, { forceRerender = false } = {
             } catch (_) {}
         }
 
+        // Everything failed — log why so missing thumbnails are diagnosable
+        const fname = formatted.originalFilename || formatted.filename || `ID ${photoId}`;
+        console.warn(`[thumbnail] ${fname} (id ${photoId}): no original on disk, derivative=${derivPath ? 'render failed' : 'none'}, PhotoKit=${photoThumbAvailable && formatted._uuid ? 'no result' : 'unavailable'} — returning empty`);
         return null;
     }
 
@@ -1355,6 +1436,19 @@ app.get('/api/photos/info/:id', (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id) || id <= 0) return res.status(400).json({ error: 'Invalid photo ID' });
     try {
+        // Diagnostic mode: return every raw ZASSET column (localhost-only server,
+        // used to debug assets that PhotoKit can't resolve)
+        if (req.query.raw) {
+            const asset = db.prepare('SELECT * FROM ZASSET WHERE Z_PK = ?').get(id);
+            if (!asset) return res.status(404).json({ error: 'Photo not found' });
+            // Strip null columns and blobs to keep output readable
+            const compact = {};
+            for (const [k, v] of Object.entries(asset)) {
+                if (v == null || Buffer.isBuffer(v)) continue;
+                compact[k] = v;
+            }
+            return res.json(compact);
+        }
         const row = stmts.photoById.get({ id });
         if (!row) return res.status(404).json({ error: 'Photo not found' });
         const photo = formatRow(row);
@@ -1708,6 +1802,7 @@ app.get('/api/icloud-status/:id', (req, res) => {
 
 openDatabase();
 prepareStatements();
+discoverScopes();
 buildDerivativeMap();
 photoFetchAvailable = ensurePhotoFetch();
 photoThumbAvailable = fs.existsSync(PHOTO_THUMB_BIN);

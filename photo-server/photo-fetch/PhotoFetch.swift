@@ -62,11 +62,20 @@ guard finalStatus == .authorized || finalStatus == .limited else {
 // MARK: - Fetch asset by UUID
 
 // The Photos database stores ZUUID (e.g. "E1F92593-2A89-44CA-B4F9-5C586A2EEE14").
-// PhotoKit's local identifier format is "UUID/L0/001" for the default library.
-let localIdentifier = "\(uuid)/L0/001"
+// PhotoKit's local identifier is usually "UUID/L0/001", but assets from shared
+// albums / Shared with You can carry a different suffix and are excluded from
+// default fetches — so try both identifier forms and include all source types.
+func fetchAssetByUUID(_ uuid: String) -> PHAsset? {
+    let opts = PHFetchOptions()
+    opts.includeAssetSourceTypes = [.typeUserLibrary, .typeCloudShared, .typeiTunesSynced]
+    for identifier in ["\(uuid)/L0/001", uuid] {
+        let result = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: opts)
+        if let asset = result.firstObject { return asset }
+    }
+    return nil
+}
 
-let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [localIdentifier], options: nil)
-guard let asset = fetchResult.firstObject else {
+guard let asset = fetchAssetByUUID(uuid) else {
     fail("Asset not found for UUID \(uuid)", code: 1)
 }
 

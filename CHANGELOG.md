@@ -1,5 +1,36 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.289 (2026-07-22)
+
+### Photo server — survive Node.js upgrades without a manual fix
+- **`better-sqlite3` now rebuilds itself.** The photo server and the MCP server both use a native SQLite module compiled for a specific Node.js version; upgrading Node used to crash them at startup with a `NODE_MODULE_VERSION` mismatch until someone ran `npm rebuild` by hand. Both servers now detect that exact error, rebuild the module automatically (about a minute, one time), and carry on. Any other load failure still surfaces normally.
+- In the MCP server the rebuild logs go to stderr only — stdout carries the MCP protocol and must stay clean.
+
+## Build 02.288 (2026-07-22)
+
+### Photos shared via Messages now display (library scopes)
+- **Photos saved from Messages ("Shared with You") now get real thumbnails and full-res viewing.** Apple stores these assets in a separate area of the Photos library — `scopes/syndication/` — with its own `originals/` and `resources/derivatives/` folders. The server only ever looked in the main `originals/` folder, so these photos appeared as permanent cloud placeholders even though their files were on disk. The server now discovers library scopes at startup, probes them when resolving originals, and scans their derivatives into the preview map. Shared-album and iCloud Shared Library scopes are picked up by the same mechanism.
+- **Fix bucket-`0` path resolution.** A photo stored in originals directory bucket `0` could have its path dropped by a falsy-zero check in `formatRow`, making the server think it had no original. Affects a small slice of any library (UUIDs starting with `0` in some schema versions).
+- Reverted the 02.287 exclusion of Shared-with-You entries — with scope support they render fine, so hiding them was the wrong call.
+
+## Build 02.287 (2026-07-22)
+
+### Photo server diagnostics
+- **New `?raw=1` option on `/api/photos/info/:id`** — dumps every raw `ZASSET` column for an asset (localhost only). This is what identified the Shared-with-You storage layout.
+- Transient: excluded Shared-with-You entries from queries as unrenderable. Superseded by 02.288, which renders them instead.
+
+## Build 02.286 (2026-07-22)
+
+### Photo server — HEIC previews and PhotoKit hardening
+- **HEIC derivative fallback via sips.** When a photo has no original on disk, the server renders Apple's pre-built preview (derivative) instead — but the bundled Sharp library cannot decode HEIC (only AVIF), so HEIC derivatives silently failed. The server now falls back to macOS `sips` (ImageIO), which decodes HEIC natively.
+- **PhotoKit asset lookup hardened** in both Swift helpers (`photo-fetch`, `photo-thumb`): tries both the `UUID/L0/001` and bare-UUID identifier forms and includes cloud-shared/synced asset source types.
+- **Missing thumbnails are now logged.** When every render fallback fails, the server logs which photo, and why (no original / derivative failed / PhotoKit unavailable) instead of silently returning an empty response.
+
+## Build 02.285 (2026-07-22)
+
+### Photo import — catch photos added after the fact
+- **Incremental import now checks `ZADDEDDATE`.** Photos added to the library later than their capture date — typically photos someone sent you that you saved days afterwards — were invisible to incremental import, which only compared capture and modification dates against the last-import time. The date a photo *entered the library* is now checked too, so late saves are always picked up.
+
 ## Build 02.284 (2026-05-21)
 
 ### MCP Server — fix Claude Code config path in install instructions

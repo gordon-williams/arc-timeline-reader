@@ -256,10 +256,19 @@ guard finalStatus == .authorized || finalStatus == .limited else {
     exit(4)
 }
 
-// Fetch asset by UUID
-let localIdentifier = "\(uuid)/L0/001"
-let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [localIdentifier], options: nil)
-guard let asset = fetchResult.firstObject else {
+// Fetch asset by UUID — try both identifier forms and include cloud-shared /
+// synced source types (shared-album assets are excluded from default fetches)
+func fetchAssetByUUID(_ uuid: String) -> PHAsset? {
+    let opts = PHFetchOptions()
+    opts.includeAssetSourceTypes = [.typeUserLibrary, .typeCloudShared, .typeiTunesSynced]
+    for identifier in ["\(uuid)/L0/001", uuid] {
+        let result = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: opts)
+        if let asset = result.firstObject { return asset }
+    }
+    return nil
+}
+
+guard let asset = fetchAssetByUUID(uuid) else {
     exit(1) // not found — silent, caller handles
 }
 
