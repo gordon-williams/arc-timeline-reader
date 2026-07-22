@@ -1,6 +1,8 @@
 # Arc Timeline MCP Server — Install Instructions for AI Assistants
 
-**You (the AI) are reading this because a user wants you to install the Arc Timeline MCP server so they can ask you questions about their personal location history.** Follow this document end-to-end. Don't improvise.
+**You (the AI) are reading this because a user wants you to install the Arc Timeline MCP server.** Follow this document end-to-end. Don't improvise.
+
+**Important:** This server communicates over stdio and can only be used by **desktop AI clients** (Claude Code, Claude Desktop, Codex, ChatGPT Desktop). If you are a web-based AI (ChatGPT web, Claude.ai in a browser, etc.) you can guide this install but will not be able to query the server yourself — see Step 1.
 
 The Arc Timeline MCP server is a small Node.js process that reads a SQLite file exported from the **Arc Reader** browser app and exposes 15 read-only query tools over MCP stdio. Once it's installed and registered, the user will be able to ask things like *"how much did I walk last month?"* or *"when did I first visit Italy?"* and you'll call its tools to answer.
 
@@ -30,9 +32,21 @@ If you don't have shell access, ask the user to run `node --version` and paste t
 
 ---
 
-## Step 1 — Detect which AI client you are
+## Step 1 — Identify the target client
 
-Look at your own runtime context to determine which client config you need to modify:
+This server runs locally over stdio. **Only desktop AI clients** can connect to it — not web-based ones.
+
+### If you are a web-based AI (e.g. ChatGPT at chat.openai.com, Claude.ai in a browser)
+
+You can guide this install, but you cannot become the MCP client yourself. Ask the user:
+
+> "I can walk you through installing the Arc Timeline MCP server, but I won't be able to query it directly — the server only works with desktop AI clients. Which client do you want to set it up for: **Claude Code**, **Claude Desktop**, **Codex**, or **ChatGPT Desktop**?"
+
+Then continue from Step 2 using whichever client they choose.
+
+### If you are a desktop AI client
+
+Look at your own runtime context to determine which config you need to modify:
 
 | Client | Config file | Format |
 |---|---|---|
@@ -41,8 +55,9 @@ Look at your own runtime context to determine which client config you need to mo
 | **Claude Desktop (macOS)** | `~/Library/Application Support/Claude/claude_desktop_config.json` | JSON |
 | **Claude Desktop (Windows)** | `%APPDATA%\Claude\claude_desktop_config.json` | JSON |
 | **Claude Desktop (Linux)** | `~/.config/Claude/claude_desktop_config.json` | JSON |
+| **ChatGPT Desktop** | Enable Developer Mode in ChatGPT Settings, then find the MCP config path shown there | JSON |
 
-If you can't tell which client you are, ask the user.
+If you can't determine which client you are, ask the user.
 
 ---
 
@@ -164,6 +179,29 @@ Edit the JSON file at the platform-specific path from Step 1. Merge in:
 }
 ```
 **Read the existing file first. Preserve every other key. Merge — don't overwrite.**
+
+### If you are ChatGPT Desktop
+
+ChatGPT Desktop supports stdio MCP servers but requires **Developer Mode** to be enabled first:
+
+1. Open ChatGPT Desktop → **Settings** → look for a **Developer** or **Advanced** section and enable Developer Mode.
+2. Once enabled, ChatGPT will show you the path to its MCP config file (or let you edit it in-app). The file uses the same JSON format as Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "arc-timeline": {
+      "command": "node",
+      "args": ["/absolute/path/to/index.js", "/absolute/path/to/arc-timeline.db"]
+    }
+  }
+}
+```
+
+3. Merge this entry in — do not overwrite the whole file.
+4. Restart ChatGPT Desktop.
+
+**Note:** If you cannot find a Developer Mode setting, ChatGPT Desktop on this machine may not yet support local stdio MCP servers. Check <https://platform.openai.com/docs> for the current status. The web version of ChatGPT (chat.openai.com) does **not** support local MCP servers — it only supports remote HTTP-based MCP endpoints.
 
 ---
 

@@ -12,7 +12,9 @@ The server is **read-only**. The `run_sql` tool refuses any statement that isn't
 
 1. Open Arc Reader → Analysis → **MCP Server** tab → click **Export database**, save the `.db` file.
 2. Copy the prompt from the **"Let your AI install it for you"** card on that same tab.
-3. Paste it into Claude Code, Codex, or Claude Desktop. Your AI will read [INSTALL-FOR-AI.md](INSTALL-FOR-AI.md), clone the repo, install Node deps, register the server with itself, and tell you when to restart.
+3. Paste it into **Claude Code, Codex, Claude Desktop, or ChatGPT** (web or desktop). The AI will read [INSTALL-FOR-AI.md](INSTALL-FOR-AI.md), clone the repo, install Node deps, and register the server.
+
+> **Note:** Any AI — including ChatGPT web — can *guide* the install. But only **desktop clients** (Claude Code, Claude Desktop, Codex, ChatGPT Desktop) can actually *connect* to the server and query your timeline, because the server runs locally over stdio.
 
 ### Manual
 
@@ -87,6 +89,28 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 ```
 
 Then restart the client.
+
+### ChatGPT Desktop
+
+ChatGPT Desktop supports local stdio MCP servers via **Developer Mode**:
+
+1. Open ChatGPT Desktop → **Settings** → enable **Developer Mode** (under Developer or Advanced).
+2. Find the MCP config file path shown in that settings panel — it uses the same JSON format as Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "arc-timeline": {
+      "command": "node",
+      "args": ["/path/to/mcp-server/index.js", "/path/to/arc-timeline.db"]
+    }
+  }
+}
+```
+
+3. Merge the entry in, then restart ChatGPT Desktop.
+
+**Note:** The ChatGPT web app (chat.openai.com) does not support local stdio MCP servers. Only the desktop app does.
 
 ---
 
