@@ -36,7 +36,7 @@ SOFTWARE.
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
   // === Arc Reader Build (single source of truth) ===
-  window.__ARC_BUILD__ = '02.292';
+  window.__ARC_BUILD__ = '02.294';
 </script>
 <script>
   // Cache-busted asset loading using the single build constant above
@@ -309,7 +309,7 @@ SOFTWARE.
                     <div class="import-panel-desc">
                         Select your Arc Timeline export folder containing daily JSON files
                     </div>
-                    <input type="file" id="fileInput" webkitdirectory directory multiple>
+                    <input type="file" id="fileInput" webkitdirectory directory multiple style="display: none;">
                     <div class="file-count" id="fileCount"></div>
                     <div class="import-options-group" style="background: none; padding: 0;" onclick="event.stopPropagation();">
                         <label class="import-radio-label">
@@ -317,6 +317,7 @@ SOFTWARE.
                             Force full rescan (ignore last scan time)
                         </label>
                     </div>
+                    <button type="button" class="import-select-btn" onclick="event.stopPropagation(); document.getElementById('fileInput').click();">📁 Choose Export Folder…</button>
                 </div>
                 
                 <!-- Backup Import Panel -->
@@ -341,6 +342,7 @@ SOFTWARE.
                             Force rescan (reimport all data)
                         </label>
                     </div>
+                    <button type="button" class="import-select-btn" onclick="event.stopPropagation(); selectBackupFolder();">📁 Choose Backups Folder…</button>
                     <div id="backupBrowserWarning" class="import-warning" style="display: none;">
                         ⚠️ Safari mode: Import may be slower for large backups. Chrome/Edge recommended for best performance.
                     </div>

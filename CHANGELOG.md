@@ -1,5 +1,12 @@
 # Arc Timeline Diary Reader - Changelog
 
+## Build 02.294 (2026-07-22)
+
+### Start screen — obvious folder-picker buttons on the import panels
+- **Both import panels now have an explicit action button** — "📁 Choose Backups Folder…" / "📁 Choose Export Folder…" — instead of relying on the whole panel being a click target, which read as a passive info card. The full-panel click still works. (Build 02.293.)
+- Hidden the redundant native "Choose files" input in the JSON panel (the Backup panel's was already hidden).
+- Both buttons use the app's standard blue primary colour; green is reserved for the active-tab indicator. (Build 02.294.)
+
 ## Build 02.292 (2026-07-22)
 
 ### Photo viewer — auto-fit on photo change

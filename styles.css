@@ -204,6 +204,24 @@
             margin-bottom: 0;
         }
 
+        .import-select-btn {
+            display: inline-block;
+            margin-top: 18px;
+            padding: 12px 32px;
+            border: none;
+            border-radius: 12px;
+            background: var(--accent);
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .import-select-btn:hover {
+            opacity: 0.9;
+        }
+
         .import-warning {
             margin-top: 16px;
             padding: 12px;
